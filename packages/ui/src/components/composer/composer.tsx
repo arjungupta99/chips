@@ -192,6 +192,10 @@ export function Composer({
 /**
  * The text box, alone as it always was; or, with something to lead it or to open into, one box
  * holding that and the words, which grows upward as `above` comes.
+ *
+ * Alone, it stands in the same two wrappers, which then draw nothing (`data-bare`): a text box that
+ * moved into them when a lead came, as a room's first agent joined, was a new text box to React,
+ * and took the reader's focus and what they were typing with the old one (1 November 2026).
  */
 function Field({
   lead,
@@ -202,9 +206,13 @@ function Field({
   readonly above: ReactNode;
   readonly children: ReactNode;
 }) {
-  if (lead === undefined && above === undefined) return <>{children}</>;
+  const bare = lead === undefined && above === undefined;
   return (
-    <div className="ui-composer__field" data-open={above ? "true" : undefined}>
+    <div
+      className="ui-composer__field"
+      data-bare={bare ? "true" : undefined}
+      data-open={above ? "true" : undefined}
+    >
       {above}
       <div className="ui-composer__line">
         {lead}

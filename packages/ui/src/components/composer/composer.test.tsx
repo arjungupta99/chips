@@ -16,6 +16,28 @@ describe("Composer", () => {
     expect(screen.getByRole("button", { name: "Send" })).toHaveProperty("disabled", true);
   });
 
+  it("keeps the same text box, and the focus in it, when a lead comes or goes", () => {
+    // A room's first agent joining brings a lead; the reader may be typing as it lands.
+    const box = (lead?: string) => (
+      <Composer
+        value="still typing"
+        onChange={() => undefined}
+        onSend={() => undefined}
+        label="Message Garden plan"
+        lead={lead === undefined ? undefined : <span>{lead}</span>}
+      />
+    );
+    const { rerender } = render(box());
+    const before = screen.getByRole("textbox");
+    before.focus();
+    rerender(box("To Oak"));
+    expect(screen.getByRole("textbox")).toBe(before);
+    expect(document.activeElement).toBe(before);
+    rerender(box());
+    expect(screen.getByRole("textbox")).toBe(before);
+    expect(document.activeElement).toBe(before);
+  });
+
   it("sends on Enter and keeps Shift+Enter for a new line", () => {
     const onSend = vi.fn();
     render(<Composer value="Confirm it" onChange={() => undefined} onSend={onSend} />);
