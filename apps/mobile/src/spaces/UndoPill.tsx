@@ -9,7 +9,7 @@
  */
 
 import { DELETED_FOR_YOU, UNDO_MS } from "@chipschat/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
@@ -65,27 +65,34 @@ export function UndoPill({
   const [seconds, setSeconds] = useState(UNDO_MS / 1000);
   const away = useSharedValue(1);
   const left = useSharedValue(0);
+  // The count belongs to a deletion, its line and its moment, not to the object a caller made for
+  // it or the callback it passed: a screen that builds both again as it draws (When it asks you,
+  // the Always sheet) started the count again on every update, and its Undo never ran out.
+  const lineId = undoing?.lineId;
+  const at = undoing?.at;
+  const gone = useRef(onGone);
+  gone.current = onGone;
   useEffect(() => {
-    if (undoing === undefined) {
+    if (lineId === undefined || at === undefined) {
       away.value = withTiming(1, { duration: 180, easing: Easing.in(Easing.quad) }, (finished) => {
         if (finished) scheduleOnRN(setShown, undefined);
       });
       return;
     }
-    setShown(undoing);
+    setShown({ lineId, at });
     setSeconds(UNDO_MS / 1000);
     away.value = withSpring(0, IOS_SPRING);
     left.value = 0;
     left.value = withTiming(1, { duration: UNDO_MS, easing: Easing.linear });
-    const ticks = Array.from({ length: UNDO_MS / 1000 - 1 }, (_, at) =>
-      setTimeout(() => setSeconds(UNDO_MS / 1000 - at - 1), (at + 1) * 1000),
+    const ticks = Array.from({ length: UNDO_MS / 1000 - 1 }, (_, tick) =>
+      setTimeout(() => setSeconds(UNDO_MS / 1000 - tick - 1), (tick + 1) * 1000),
     );
-    const over = setTimeout(onGone, UNDO_MS);
+    const over = setTimeout(() => gone.current(), UNDO_MS);
     return () => {
       for (const tick of ticks) clearTimeout(tick);
       clearTimeout(over);
     };
-  }, [undoing, onGone, away, left]);
+  }, [lineId, at, away, left]);
   const moved = useAnimatedStyle(() => ({
     transform: [{ translateY: away.value * AWAY.y }, { scale: 1 - away.value * (1 - AWAY.scale) }],
   }));

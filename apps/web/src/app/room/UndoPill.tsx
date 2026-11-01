@@ -8,7 +8,7 @@
  */
 
 import { DELETED_FOR_YOU, UNDO_MS } from "@chipschat/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** The deletion Undo is for, and when it was made, so a second one starts the count again. */
 export interface Undoing {
@@ -41,19 +41,26 @@ export function UndoPill({
   // What it says stays while it leaves, after the deletion it was for is over.
   const [shown, setShown] = useState<Undoing | undefined>(undoing);
   const [seconds, setSeconds] = useState(UNDO_MS / 1000);
+  // The count belongs to a deletion, its line and its moment, not to the object a caller made for
+  // it or the callback it passed: a page that builds both again as it draws (When it asks you,
+  // Allowed always) started the count again on every update, and its Undo never ran out.
+  const lineId = undoing?.lineId;
+  const at = undoing?.at;
+  const gone = useRef(onGone);
+  gone.current = onGone;
   useEffect(() => {
-    if (undoing === undefined) {
-      const gone = setTimeout(() => setShown(undefined), LEAVE_MS);
-      return () => clearTimeout(gone);
+    if (lineId === undefined || at === undefined) {
+      const left = setTimeout(() => setShown(undefined), LEAVE_MS);
+      return () => clearTimeout(left);
     }
-    setShown(undoing);
+    setShown({ lineId, at });
     setSeconds(UNDO_MS / 1000);
-    const ticks = Array.from({ length: UNDO_MS / 1000 - 1 }, (_, at) =>
-      setTimeout(() => setSeconds(UNDO_MS / 1000 - at - 1), (at + 1) * 1000),
+    const ticks = Array.from({ length: UNDO_MS / 1000 - 1 }, (_, tick) =>
+      setTimeout(() => setSeconds(UNDO_MS / 1000 - tick - 1), (tick + 1) * 1000),
     );
-    const over = setTimeout(onGone, UNDO_MS);
+    const over = setTimeout(() => gone.current(), UNDO_MS);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onGone();
+      if (event.key === "Escape") gone.current();
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -61,7 +68,7 @@ export function UndoPill({
       clearTimeout(over);
       window.removeEventListener("keydown", onKey);
     };
-  }, [undoing, onGone]);
+  }, [lineId, at]);
   if (shown === undefined) return null;
   return (
     <div className={page ? "undo-dock undo-dock-page" : "undo-dock"}>
