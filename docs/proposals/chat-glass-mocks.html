@@ -1,0 +1,301 @@
+<meta charset="utf-8">
+<title>Chips · Glass at both ends of the room</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--green:#009B5C;--red:#E62728;
+  --glass:72%;--glass-blur:22px;--glass-sat:180%;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--green:#00BA7A;--red:#FE5550;
+  --glass:62%;--glass-blur:26px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1220px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.03em}
+.brand svg{width:22px;height:22px}
+.wrap{max-width:1220px;margin:0 auto;padding:0 24px 110px}
+h1{font-family:var(--font-display);font-size:clamp(28px,4vw,38px);margin:28px 0 6px;letter-spacing:-.02em}
+h1+p{color:var(--ink-2);max-width:68ch;margin:0 0 10px}
+h2{font-family:var(--font-display);font-size:22px;margin:46px 0 10px;padding-top:20px;border-top:1px solid var(--line)}
+p{color:var(--ink-2);max-width:72ch}
+ul{color:var(--ink-2);max-width:72ch}
+li{margin:5px 0}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+button{font:inherit}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 6px}
+.ctl button{font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.ctl .hint{font-size:12.5px;color:var(--ink-3)}
+.opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin:24px 0 8px}
+.opt{display:grid;gap:10px;width:330px}
+.opt h3{font-family:var(--font-display);font-size:17px;margin:0;color:var(--ink);display:flex;align-items:center;gap:8px}
+.opt .tag{font:11px var(--font-mono);border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.opt .tag.dep{background:var(--gold-soft);color:var(--gold-deep)}
+.opt .tag.free{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.opt .why{font-size:13.5px;color:var(--ink-3);line-height:1.52}
+.opt .why b{color:var(--ink-2)}
+
+/* ── the phone ───────────────────────────────────────────────── */
+.phone{position:relative;width:330px;height:668px;border-radius:40px;overflow:hidden;background:var(--bg);
+  border:1px solid var(--line);font-family:var(--font-ios);box-shadow:0 24px 50px -28px rgba(0,0,0,.45);
+  --navH:92px;--barH:88px;--keysH:0px}
+.phone *{font-family:inherit}
+/* the room ends where the keyboard begins, as KeyboardRoom pads it on the device */
+.room{position:absolute;left:0;right:0;top:0;bottom:var(--keysH);overflow:hidden}
+/* what is NOT glass clips the room at the chrome's edge instead of running under it */
+.phone[data-top="solid"] .room{top:var(--navH)}
+.phone[data-bot="solid"] .room{bottom:calc(var(--keysH) + var(--barH))}
+.scroll{position:absolute;inset:0;overflow-y:scroll;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.lines{display:grid;gap:3px;padding:14px 12px}
+.phone[data-top="glass"] .lines{padding-top:calc(var(--navH) + 12px)}
+.phone[data-bot="glass"] .lines{padding-bottom:calc(var(--barH) + 12px)}
+
+.turn{display:grid;gap:2px;margin-top:9px}
+.row{display:flex;gap:7px;align-items:flex-end}
+.row.me{justify-content:flex-end}
+.face{width:26px;height:26px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
+.bub{position:relative;max-width:74%;border-radius:18px;padding:7px 12px 8px;font-size:15px;line-height:1.35;overflow:hidden;
+  background:var(--surface-2);color:var(--ink)}
+.bub .nm{display:block;font-size:11.5px;font-weight:700;letter-spacing:.01em;margin-bottom:1px;color:var(--ink-3)}
+.row.me .bub{color:#fff;background:#34669e}
+.row.me .bub .tx{position:relative}
+.field{position:absolute;left:0;right:0;top:0;height:668px;pointer-events:none;
+  background:linear-gradient(#6651A8 0%,#6651A8 8%,#34669E 50%,#0B737D 92%,#0B737D 100%);
+  will-change:transform}
+.stamp{font-size:11px;color:color-mix(in srgb,#fff 78%,transparent);margin-left:8px}
+.bub.them .stamp{color:var(--ink-4)}
+.margin{text-align:center;font-size:11.5px;color:var(--ink-4);padding:9px 0 5px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:11px 12px;margin:8px 2px 2px;display:grid;gap:7px}
+.card b{font-size:14px;font-weight:600}
+.card p{margin:0;font-size:13px;color:var(--ink-3)}
+.card .btns{display:flex;gap:7px}
+.card .btns span{font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+.card .btns span.go{background:var(--ink);color:var(--bg)}
+.lane{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);padding:2px 4px}
+.lane i{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block}
+
+/* ── the chrome ──────────────────────────────────────────────── */
+.nav,.bar{position:absolute;left:0;right:0;z-index:5}
+.nav{top:0}
+.bar{bottom:0}
+.solid{background:var(--bg)}
+.glass{background:color-mix(in srgb,var(--bg) var(--glass),transparent);
+  -webkit-backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter:blur(var(--glass-blur)) saturate(var(--glass-sat))}
+.nav.solid{border-bottom:1px solid var(--line)}
+.nav.glass{border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.bar.solid{border-top:1px solid var(--line)}
+.bar.glass{border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.bar.none{background:none;border-top:0;backdrop-filter:none;-webkit-backdrop-filter:none}
+
+.status{display:flex;align-items:center;justify-content:space-between;padding:12px 20px 0;font-size:12.5px;font-weight:600;color:var(--ink)}
+.status .sig{display:flex;gap:3px;align-items:flex-end}
+.status .sig i{width:3px;background:var(--ink);border-radius:1px;display:block}
+.navrow{display:flex;align-items:center;gap:8px;padding:6px 12px 10px;min-height:44px}
+.chev{width:30px;height:30px;display:grid;place-items:center;flex:none}
+.chev svg{width:17px;height:17px;stroke:var(--blue);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.who{flex:1;min-width:0;text-align:center;display:grid;gap:0}
+.who b{font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mark{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center}
+.mark i{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 26%,transparent)}
+
+.composer{display:flex;align-items:flex-end;gap:8px;padding:10px 12px 0}
+.plus{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--surface-2)}
+.plus svg{width:16px;height:16px;stroke:var(--ink-2);stroke-width:2.2;fill:none;stroke-linecap:round}
+.pill{flex:1;display:flex;align-items:center;gap:8px;min-height:40px;border-radius:20px;padding:0 5px 0 15px;
+  border:.5px solid var(--line-2);background:var(--surface)}
+.pill.clear{background:color-mix(in srgb,var(--surface) 55%,transparent);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.pill span{flex:1;font-size:15px;color:var(--ink-4)}
+.send{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--blue)}
+.send svg{width:15px;height:15px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.home{height:22px;display:grid;place-items:center}
+.home i{width:106px;height:4px;border-radius:2px;background:var(--ink);opacity:.28;display:block}
+.keys{position:absolute;left:0;right:0;bottom:0;height:var(--keysH);z-index:2;background:var(--surface-2);
+  border-top:1px solid var(--line);display:none;padding:9px 4px 0}
+.phone[data-keys="up"] .keys{display:block}
+.phone[data-keys="up"] .bar{bottom:var(--keysH)}
+.phone[data-keys="up"] .home{display:none}
+.phone[data-keys="up"]{--barH:66px;--keysH:262px}
+.krow{display:flex;gap:5px;justify-content:center;padding:4px 3px}
+.key{flex:1;height:38px;border-radius:6px;background:var(--surface);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 22%,transparent);
+  display:grid;place-items:center;font-size:14px;color:var(--ink)}
+.key.wide{flex:2.4}
+.key.plain{background:none;box-shadow:none;color:var(--ink-2);font-size:16px}
+.kfoot{display:flex;align-items:center;gap:5px;padding:2px 3px 0}
+.kfoot .bar-i{flex:1;height:4px;border-radius:2px;background:var(--ink);opacity:.28;margin:9px 26px 0}
+.legend{font:11.5px var(--font-mono);color:var(--gold-deep);margin:0 0 6px}
+</style>
+
+<header class="top"><div class="top-in">
+  <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Chips</span>
+  <span style="font-size:13px;color:var(--ink-3)">Glass at both ends of the room</span>
+  <span style="margin-left:auto;font:12px var(--font-mono);color:var(--ink-3)">21 Sep 2026</span>
+</div></header>
+
+<div class="wrap">
+<h1>Glass at both ends of the room</h1>
+<p>Messages has no shelves. The bar at the top and the field at the bottom are <strong>translucent material over the conversation</strong>, the conversation runs the whole height of the glass and passes under both, and the only hairline is the one that appears when something is actually behind it. Today Chips draws two opaque shelves with the room boxed between them. Four frames, at phone width, each scrolling so you can watch a bubble go under the chrome.</p>
+<p class="legend">The frames scroll on their own — drag one to scroll it yourself, and it carries on when you let go.</p>
+
+<div class="ctl">
+  <button id="t-theme" aria-pressed="false">Dark</button>
+  <button id="t-keys" aria-pressed="false">Keyboard up</button>
+  <button id="t-run" aria-pressed="true">Scrolling</button>
+  <span class="hint">Everything below is CSS <code>backdrop-filter</code> standing in for iOS material.</span>
+</div>
+
+<div class="opts" id="opts"></div>
+
+<h2>What each one actually costs</h2>
+<ul>
+  <li><strong>The top is free.</strong> The bar is the platform's already, so the whole change is three options on the room's <code>Stack.Screen</code>: <code>headerTransparent</code>, <code>headerBlurEffect: "systemChromeMaterial"</code>, <code>headerShadowVisible: false</code>. <code>react-native-screens</code> 4.26 has all three; nothing is added to the app.</li>
+  <li><strong>The bottom needs a dependency.</strong> Nothing in the app can blur a React Native view. It wants <code>expo-blur</code>, which is a native module — so a rebuild of the build on your phone (<code>pnpm phone</code>) and of the emulator's before either of them shows it.</li>
+  <li><strong>The room has to give back the inches the chrome covers.</strong> The list is inverted, so the space under the composer is <code>paddingTop</code> on its content and the space under the bar is <code>paddingBottom</code>, and both have to be measured from the real heights rather than guessed — get it wrong and the newest line sits behind the glass, which is exactly the bug the glass is meant to avoid.</li>
+  <li><strong>Reduce Transparency has to win.</strong> iOS has the setting, and when it is on this must go back to the opaque bar it is today — one <code>AccessibilityInfo</code> read, two renders.</li>
+  <li><strong>Android's blur is experimental.</strong> <code>expo-blur</code> needs <code>experimentalBlurMethod</code> there and costs frames on a scrolling list. The honest answer on the emulator is a flat translucent surface, not a blur, and the swipe walk will say which.</li>
+  <li><strong>Contrast wants re-checking once, not arguing about.</strong> <em>Message, or /command</em> is <code>ink-4</code>, and over a violet bubble sliding under 72% glass it will be thinner than it is over the flat page.</li>
+</ul>
+
+<h2>My call</h2>
+<p><strong>A.</strong> It is the iMessage thing you asked for and it is the smallest edit that gets there: the top is three screen options, the bottom is the composer's existing bar with its ground swapped for a <code>BlurView</code> and the list given an inset. The attachment strip, the refusal notice and the closed-space line all stay exactly where they are, on the same glass — they are already children of that bar.</p>
+<p><strong>B</strong> is the iOS 26 shape and it is a bigger job than it looks: with no bar behind it, the strip of staged files, the notice and the <em>This space is closed</em> line each need a ground of their own, and the + outside a floating capsule has nothing to sit on. Worth doing later, on purpose, not as part of this.</p>
+<p><strong>C</strong> is there to show what the free half looks like alone. It is better than today and it reads as half-finished: a room that runs under the top and stops dead at the bottom draws the eye to the one shelf left.</p>
+</div>
+
+<script>
+const SIG = '<span class="sig"><i style="height:4px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:10px"></i></span>';
+const CHEV = '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>';
+const PLUS = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+const UP = '<svg viewBox="0 0 24 24"><path d="M12 19V6"/><path d="M6 12l6-6 6 6"/></svg>';
+
+/** A plausible room: two harnesses, you, a checkpoint, and an ask at the foot. */
+const LINES = [
+  {k:'margin', t:'Today 09:12'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'Pulled the 14 failing specs. Eleven are the same assertion — the fixture still has the old column name.'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'Renaming it in the fixture fixes eleven. The other three are real.', st:'09:12'},
+  {k:'me', tx:'Do the fixture, leave the three.', st:'09:13'},
+  {k:'lane', t:'Ledger picked this up'},
+  {k:'them', who:'Ledger', hue:'#7a4a86', tx:'Fixture renamed. Eleven green.', st:'09:19'},
+  {k:'margin', t:'Checkpoint · before the migration'},
+  {k:'them', who:'Ledger', hue:'#7a4a86', tx:'The three left are all the rounding in `totalOf`. Half a cent either way depending on the order the rows arrive in.'},
+  {k:'me', tx:'That one is mine — do not touch it. What does the migration need?', st:'09:24'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'A backfill for the renamed column across 1.2M rows. About four minutes, and it locks writes while it runs.'},
+  {k:'card', b:'Run the backfill?', p:'Locks writes on `entries` for about four minutes. Scout would run it now.'},
+];
+
+function lineHTML(l){
+  if(l.k==='margin') return `<div class="margin">${l.t}</div>`;
+  if(l.k==='lane') return `<div class="lane"><i></i>${l.t}</div>`;
+  if(l.k==='card') return `<div class="card"><b>${l.b}</b><p>${l.p}</p><div class="btns"><span class="go">Approve</span><span>Not now</span><span>Details</span></div></div>`;
+  if(l.k==='me') return `<div class="turn"><div class="row me"><div class="bub mine"><div class="field"></div><span class="tx">${l.tx}${l.st?`<span class="stamp">${l.st}</span>`:''}</span></div></div></div>`;
+  return `<div class="turn"><div class="row"><div class="face" style="background:${l.hue}">${l.who[0]}</div><div class="bub them"><span class="nm" style="color:${l.hue}">${l.who}</span>${l.tx}${l.st?`<span class="stamp">${l.st}</span>`:''}</div></div></div>`;
+}
+
+const KEYS = [['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫']];
+function keysHTML(){
+  return KEYS.map(r=>`<div class="krow">${r.map(k=>`<div class="key">${k}</div>`).join('')}</div>`).join('')
+    + `<div class="krow"><div class="key" style="flex:.7">123</div><div class="key wide">space</div><div class="key">return</div></div>`
+    + `<div class="kfoot"><div class="key plain" style="flex:none;width:34px;height:26px">☺</div><span class="bar-i"></span><div class="key plain" style="flex:none;width:34px;height:26px">🎙</div></div>`;
+}
+
+/** top: glass | solid ; bot: glass | solid | float */
+const FRAMES = [
+  {id:'now', h:'Now', tag:'shipped', cls:'', top:'solid', bot:'solid',
+   why:'<b>Two shelves and a box between them.</b> The bar is opaque, the composer is opaque with a hairline over it, and the room is a window cut out of the middle. Nothing is wrong with it — it just tells you where the app stops and the chrome starts, which Messages never does.'},
+  {id:'a', h:'A · Glass at both ends', tag:'expo-blur', cls:'dep', top:'glass', bot:'glass',
+   why:'<b>The room is the whole screen.</b> Material at the top, material at the bottom, bubbles going under both, one hairline each and only because something is behind it. The composer keeps its bar, so the file chips and a refused command have the ground they already have.'},
+  {id:'b', h:'B · Floating field', tag:'expo-blur', cls:'dep', top:'glass', bot:'float',
+   why:'<b>iOS 26\'s shape.</b> No bar at all: the field is a glass capsule over the room with the page showing round it. The lightest-looking of the three and the most work — the strip of staged files and the notice above the field lose the ground they sit on.'},
+  {id:'c', h:'C · Top only', tag:'no new deps', cls:'free', top:'glass', bot:'solid',
+   why:'<b>The free half.</b> Three options on the room\'s screen and nothing added to the app. Better than today, and it makes the one shelf that is left the loudest thing on the screen.'},
+];
+
+function frameHTML(f){
+  const bar = f.bot==='float'
+    ? `<div class="bar none"><div class="composer"><div class="plus">${PLUS}</div><div class="pill clear"><span>Message, or /command</span><div class="send">${UP}</div></div></div><div class="home"><i></i></div></div>`
+    : `<div class="bar ${f.bot==='glass'?'glass':'solid'}"><div class="composer"><div class="plus">${PLUS}</div><div class="pill"><span>Message, or /command</span><div class="send">${UP}</div></div></div><div class="home"><i></i></div></div>`;
+  return `<div class="opt">
+    <h3>${f.h} <span class="tag ${f.cls}">${f.tag}</span></h3>
+    <div class="phone" data-top="${f.top}" data-bot="${f.bot==='solid'?'solid':'glass'}" data-keys="down" id="ph-${f.id}">
+      <div class="room"><div class="scroll"><div class="lines">${LINES.map(lineHTML).join('')}</div></div></div>
+      <div class="nav ${f.top==='glass'?'glass':'solid'}">
+        <div class="status"><span>9:41</span>${SIG}</div>
+        <div class="navrow"><div class="chev">${CHEV}</div>
+          <div class="who"><b>Scout · deploy</b><small>You, Scout and Ledger</small></div>
+          <div class="mark"><i></i></div></div>
+      </div>
+      ${bar}
+      <div class="keys">${keysHTML()}</div>
+    </div>
+    <div class="why">${f.why}</div>
+  </div>`;
+}
+
+document.getElementById('opts').innerHTML = FRAMES.map(frameHTML).join('');
+
+/* ── the scroll, and the field each outgoing bubble samples ───────────────
+   The gradient is anchored to the phone, not to the bubble, exactly as
+   ScrollColours does it on the device: every frame, each bubble's field is
+   pushed up by how far down the glass the bubble has got. */
+const phones = [...document.querySelectorAll('.phone')];
+const scrollers = phones.map(p => {
+  const sc = p.querySelector('.scroll');
+  sc.scrollTop = sc.scrollHeight;
+  return {phone:p, sc, dir:-1, held:false};
+});
+scrollers.forEach(s => {
+  s.sc.addEventListener('pointerdown', () => { s.held = true; });
+  window.addEventListener('pointerup', () => { s.held = false; });
+});
+
+let running = true;
+function tick(){
+  for (const s of scrollers){
+    const {sc} = s;
+    const max = sc.scrollHeight - sc.clientHeight;
+    if (running && !s.held && max > 0){
+      sc.scrollTop += s.dir * 0.55;
+      if (sc.scrollTop <= 0){ sc.scrollTop = 0; s.dir = 1; }
+      if (sc.scrollTop >= max){ sc.scrollTop = max; s.dir = -1; }
+    }
+    const top = s.phone.getBoundingClientRect().top;
+    for (const bub of s.phone.querySelectorAll('.bub.mine')){
+      const field = bub.firstElementChild;
+      field.style.transform = `translateY(${-(bub.getBoundingClientRect().top - top)}px)`;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+const press = (btn, on) => btn.setAttribute('aria-pressed', String(on));
+const run = document.getElementById('t-run');
+run.onclick = () => { running = !running; press(run, running); run.textContent = running ? 'Scrolling' : 'Still'; };
+const theme = document.getElementById('t-theme');
+theme.onclick = () => {
+  const dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  press(theme, dark); theme.textContent = dark ? 'Light' : 'Dark';
+};
+const keys = document.getElementById('t-keys');
+keys.onclick = () => {
+  const up = keys.getAttribute('aria-pressed') !== 'true';
+  press(keys, up);
+  for (const p of phones) p.setAttribute('data-keys', up ? 'up' : 'down');
+};
+</script>

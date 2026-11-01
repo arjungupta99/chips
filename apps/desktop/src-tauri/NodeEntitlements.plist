@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The Node that Chips for Mac carries, signed as the app is so that macOS names what it keeps
+     running after Chips (ADR 0218's addendum; `tools/desktop/sign.mjs`). Under the hardened runtime
+     these are what Node's own signature claims, so it runs as it did: V8's JIT, and the native
+     modules (better-sqlite3, sharp, a bridge's own) that no team of ours signed. Node's
+     `get-task-allow`, for a debugger, is left out: a notarized build may not claim it. -->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+	<key>com.apple.security.cs.disable-executable-page-protection</key>
+	<true/>
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<key>com.apple.security.cs.allow-dyld-environment-variables</key>
+	<true/>
+</dict>
+</plist>

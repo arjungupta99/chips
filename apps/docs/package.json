@@ -1,0 +1,31 @@
+{
+  "name": "@chipschat/docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Chips documentation site. Documentation is a product surface, not a manual.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "node scripts/run-samples.mjs",
+    "typecheck": "astro sync && astro check --minimumSeverity error && tsc -p tsconfig.json",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.42.0",
+    "@chipschat/ui": "workspace:*",
+    "astro": "7.2.10",
+    "starlight-links-validator": "0.26.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@chipschat/harness": "workspace:*",
+    "@chipschat/platform": "workspace:*",
+    "@chipschat/protocol": "workspace:*",
+    "@chipschat/server": "workspace:*",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3"
+  }
+}

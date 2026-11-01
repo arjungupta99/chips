@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "type": "context.usage",
+  "id": "evt_01K4ZQPX00000000000000006F",
+  "ts": "2026-09-02T14:22:11.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "used_tokens": 82000,
+  "limit_tokens": 200000,
+  "model": "opus-5",
+  "compacted": false
+}

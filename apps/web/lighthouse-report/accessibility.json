@@ -1,0 +1,39 @@
+[
+  {
+    "screen": "Space with a run waiting on an approval",
+    "score": 1,
+    "failing": []
+  },
+  {
+    "screen": "Needs you",
+    "score": 1,
+    "failing": []
+  },
+  {
+    "screen": "Harnesses",
+    "score": 0.96,
+    "failing": [
+      {
+        "id": "color-contrast",
+        "nodes": [
+          "<h2>",
+          "<span class=\"harness-card-sub\">",
+          "<b>",
+          "<span class=\"checklist-gives\">",
+          "<b>",
+          "<span class=\"checklist-gives\">"
+        ]
+      }
+    ]
+  },
+  {
+    "screen": "Audit",
+    "score": 0.96,
+    "failing": [
+      {
+        "id": "color-contrast",
+        "nodes": ["<span class=\"audit-kind\">"]
+      }
+    ]
+  }
+]

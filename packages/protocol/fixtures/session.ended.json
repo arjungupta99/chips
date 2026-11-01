@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "session.ended",
+  "id": "evt_01K4ZQPX0000000000000000S2",
+  "ts": "2026-09-04T11:48:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "idempotency_key": "scout:3f9c1a-ended",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "session_ref": "scout:3f9c1a",
+  "ended_reason": "prompt_input_exit"
+}

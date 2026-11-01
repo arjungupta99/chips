@@ -1,0 +1,1017 @@
+<!doctype html>
+<html lang="en" data-built="1"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>
+<title>Replying in Chips</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=JetBrains+Mono:wght@400..700&amp;display=swap">
+<style>
+/* Layout: one reading column; each section opens with a sentence heading, then a row of phones
+   (scaled iPhone 17 frames, in points) with caption and cost under each. Colours are Chips's own tokens. */
+:root{
+  color-scheme:light;--slow:1;--k:.8;
+  --page:#EFEFE9;--bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;--gray:#8C8F98;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--blue-ink:#1048CE;
+  --red:#E62728;--red-ink:#AF1512;--green-ink:#006C40;--green-soft:#DEF5E8;
+  --them:#ECECE5;--code:#F7F7F2;--veil:rgba(251,251,248,.42);
+  --lg-tint:rgba(255,255,255,.55);--lg-rim:rgba(255,255,255,.95);--lg-rim-2:rgba(255,255,255,.35);
+  --lg-shade:rgba(0,0,0,.14);--lg-drop:rgba(20,22,27,.26);--lg-border:rgba(0,0,0,.06);
+  --jv:#6C4FB5;--pv:#0F8A6C;--mv:#C4466C;--mev:#007C87;
+  --j-ink:#5A3EA6;--p-ink:#0B7258;--m-ink:#B03A5F;--me-ink:#007C87;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;--gray:#6B6E78;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--blue-ink:#A9C1FF;
+  --red:#FE5550;--red-ink:#FF9E98;--green-ink:#7FE3B3;--green-soft:#12362A;
+  --them:#20232A;--code:#14161A;--veil:rgba(15,16,19,.45);
+  --lg-tint:rgba(44,46,54,.62);--lg-rim:rgba(255,255,255,.5);--lg-rim-2:rgba(255,255,255,.1);
+  --lg-shade:rgba(0,0,0,.4);--lg-drop:rgba(0,0,0,.6);--lg-border:transparent;
+  --j-ink:#B9A6F5;--p-ink:#5FD3B0;--m-ink:#F08AA8;--me-ink:#5CC8D0}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;--gray:#6B6E78;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--blue-ink:#A9C1FF;
+  --red:#FE5550;--red-ink:#FF9E98;--green-ink:#7FE3B3;--green-soft:#12362A;
+  --them:#20232A;--code:#14161A;--veil:rgba(15,16,19,.45);
+  --lg-tint:rgba(44,46,54,.62);--lg-rim:rgba(255,255,255,.5);--lg-rim-2:rgba(255,255,255,.1);
+  --lg-shade:rgba(0,0,0,.4);--lg-drop:rgba(0,0,0,.6);--lg-border:transparent;
+  --j-ink:#B9A6F5;--p-ink:#5FD3B0;--m-ink:#F08AA8;--me-ink:#5CC8D0}
+@media (min-width:1100px){:root{--k:.84}}
+
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--page);color:var(--ink);font:16px/1.55 var(--font-body);-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:44px 96px}
+.wrap{max-width:1180px;margin:0 auto}
+h1,h2,h3,h4{font-family:var(--font-display);text-wrap:balance;margin:0;color:var(--ink)}
+h1{font-size:clamp(36px,5.4vw,58px);line-height:1;font-weight:700;letter-spacing:-.025em}
+h2{font-size:clamp(24px,3vw,32px);line-height:1.12;font-weight:650;letter-spacing:-.012em;max-width:30ch}
+h3{font-size:17.5px;line-height:1.25;font-weight:650}
+h4{font-size:15.5px;line-height:1.3;font-weight:650}
+p{margin:0}
+.lede{max-width:66ch;color:var(--ink-2);font-size:17px}
+.eyebrow{font:600 12px/1 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+code{font:.88em var(--font-mono);background:color-mix(in srgb,var(--ink) 7%,transparent);padding:1px 5px;border-radius:5px;white-space:nowrap}
+header{display:grid;gap:18px}
+.tools{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:14px;color:var(--ink-3)}
+button.tg{font:600 14px var(--font-body);color:var(--ink);background:var(--surface);border:1px solid var(--line-2);border-radius:999px;padding:7px 15px;cursor:pointer}
+button.tg[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.tg:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+section{margin-top:84px;display:grid;gap:14px}
+.figs{display:flex;flex-wrap:wrap;gap:44px 32px;margin-top:20px;align-items:flex-start}
+.fig{width:calc(402px * var(--k));display:grid;gap:14px;margin:0;min-width:0}
+.pw{width:calc(402px * var(--k));height:calc(874px * var(--k));position:relative;max-width:100%}
+.pw>.phone{position:absolute;left:0;top:0;transform:scale(var(--k));transform-origin:0 0}
+figcaption{display:grid;gap:7px}
+figcaption p{font-size:14.5px;color:var(--ink-2)}
+.tag{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag .o{font:700 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 7px}
+.tag .rec{font:600 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--gold);color:#1A1400;border-radius:6px;padding:5px 7px}
+.cost{font-size:13.5px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:9px}
+.cost b{color:var(--ink-2);font-weight:650}
+.ncard{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:20px;display:grid;gap:14px}
+.ncard p{font-size:14.5px;color:var(--ink-2)}
+.spec{background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:10px 12px 10px 20px;font-family:var(--font-ios);display:grid;gap:6px}
+.spec small{font:12px var(--font-body);color:var(--ink-3)}
+@media (max-width:520px){.figs{justify-content:center}}
+
+/* ── the phone ─────────────────────────────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);font-family:var(--font-ios);line-height:normal;isolation:isolate;
+  box-shadow:0 30px 60px -32px rgba(0,0,0,.5);--footH:108px}
+.phone.capsuled{--footH:150px}
+.phone.replying{--footH:164px}
+.phone.capsuled.replying{--footH:206px}
+.notrans,.notrans *{transition:none!important}
+.lines{position:absolute;z-index:2;left:0;right:0;bottom:calc(var(--footH) + 6px);display:flex;flex-direction:column;padding:0 14px;
+  transition:bottom calc(var(--slow) * 420ms) cubic-bezier(.22,1,.36,1)}
+.day{align-self:center;margin:22px 0 2px;font-size:12.5px;font-weight:600;color:var(--ink-3)}
+.row{position:relative;display:flex;gap:8px;align-items:flex-end;margin-top:10px}
+.row.me{justify-content:flex-end}
+.bub{position:relative;max-width:78%;border-radius:19px;padding:8px 14px 9px;font-size:17px;line-height:22px;background:var(--them);color:var(--ink);overflow-wrap:anywhere}
+.bub b{font-weight:650}
+.bub .nm{display:block;font-size:13px;line-height:17px;font-weight:700;margin-bottom:1px}
+.mine{color:#fff;background-color:#0B737D;background-repeat:no-repeat;background-size:100% 874px;
+  background-image:linear-gradient(#6651A8 0%,#6651A8 12%,#34669E 50%,#0B737D 88%,#0B737D 100%)}
+.mn{font-weight:600;color:var(--blue-ink)}
+.mine .mn{color:#fff;text-decoration:underline;text-decoration-color:rgba(255,255,255,.5);text-underline-offset:2px}
+.f{width:28px;height:28px;border-radius:9px;flex:none;display:inline-grid;place-items:center;font-size:12px;font-weight:700;color:#fff;font-style:normal;background:var(--g)}
+.f.p{border-radius:50%}
+.f.xs{width:20px;height:20px;border-radius:6.5px;font-size:10px}
+.f.xs.p{border-radius:50%}
+.f.nf{width:30px;height:30px;border-radius:10px;font-size:13px}
+.f.nf.p{border-radius:50%}
+
+/* the quote card a reply carries */
+.qc{position:relative;display:grid;grid-template-columns:3px minmax(0,1fr);column-gap:9px;margin:-1px -7px 6px;padding:6px 10px 7px 7px;border-radius:13px;
+  background:color-mix(in srgb,var(--ink) 6.5%,transparent);font-size:14.5px;line-height:19px;overflow:hidden;cursor:pointer}
+.qc .qb{grid-row:1 / span 2;border-radius:3px;background:var(--g)}
+.qc .qn{font-weight:650;color:var(--qa);font-size:13.5px;line-height:18px}
+.qc .qn small{font-weight:500;color:var(--ink-3);font-size:13px}
+.qc .qt{color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mine .qc{background:rgba(0,0,0,.2)}
+.mine .qc .qb{background:rgba(255,255,255,.9)}
+.mine .qc .qn{color:#fff}
+.mine .qc .qn small{color:rgba(255,255,255,.75)}
+.mine .qc .qt{color:rgba(255,255,255,.86)}
+.qc::after{content:"";position:absolute;inset:0;pointer-events:none;transform:translateX(-120%);
+  background:linear-gradient(105deg,transparent 30%,color-mix(in srgb,var(--gold) 45%,transparent) 50%,transparent 70%)}
+.qc.sweep::after{animation:sweep calc(var(--slow) * 950ms) cubic-bezier(.4,0,.2,1) both}
+@keyframes sweep{to{transform:translateX(120%)}}
+.rmark{display:flex;align-items:center;gap:5px;margin:5px 0 0 36px;font-size:13px;font-weight:600;color:var(--ink-3)}
+.rmark svg{width:14px;height:14px}
+
+/* the swipe's arrow */
+.ra{position:absolute;left:2px;top:50%;width:30px;height:30px;margin-top:-15px;border-radius:50%;display:grid;place-items:center;
+  background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink-2);opacity:0;transform:scale(.4)}
+.ra svg{width:16px;height:16px}
+.ra.hit{background:var(--gold);color:#1A1400}
+.ra.hit::after{content:"";position:absolute;inset:-2px;border-radius:50%;border:2px solid var(--gold);animation:ring calc(var(--slow) * 440ms) ease-out both}
+@keyframes ring{from{opacity:.9;transform:scale(1)}to{opacity:0;transform:scale(2)}}
+
+/* option B: a faded copy above, joined by a line */
+.thread{position:relative;display:grid;margin-top:14px}
+.echo{display:grid;justify-items:start;gap:3px;margin-left:36px}
+.echo .el{font-size:12.5px;font-weight:600;color:var(--ink-3);padding-left:4px}
+.ebub{font-size:15px;line-height:20px;padding:7px 12px 8px;max-width:86%;opacity:.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.thread .row{margin-top:8px}
+svg.tl,svg.fl{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+svg.tl path,svg.fl path{fill:none;stroke:var(--line-2);stroke-width:2;stroke-linecap:round}
+
+.think .bub{padding:11px 14px}
+.dots{display:inline-flex;gap:4px}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--gold);display:block;animation:dot 1.1s infinite ease-in-out}
+.dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
+@keyframes dot{0%,80%,100%{opacity:.3}40%{opacity:1}}
+
+/* chrome: the name in glass above, the composer in glass below */
+.chrome{position:absolute;left:0;right:0}
+.chrome.t{top:0;z-index:8;height:138px;background:linear-gradient(var(--bg) 74%,color-mix(in srgb,var(--bg) 0%,transparent))}
+.status{display:flex;justify-content:space-between;align-items:center;padding:19px 34px 0 46px;font-size:16.5px;font-weight:600}
+.sbi{display:block;width:25px;height:12px;border-radius:4px;border:1.5px solid currentColor;position:relative;opacity:.9}
+.sbi::after{content:"";position:absolute;inset:1.5px 5px 1.5px 1.5px;background:currentColor;border-radius:1.5px}
+.navrow{display:flex;align-items:center;gap:8px;padding:12px 16px 8px}
+.cap{position:relative;border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none}
+.cap.sq{width:44px;height:44px;color:var(--ink)}
+.cap.sq svg{width:20px;height:20px}
+.spread{flex:1;display:flex;justify-content:center;min-width:0}
+.namecap{padding:6px 18px 7px;text-align:center;line-height:1.2;display:grid}
+.namecap b{font-size:16px;font-weight:600}
+.namecap small{font-size:12px;color:var(--ink-3)}
+.faces{min-width:44px;justify-content:flex-end}
+.faces .f + .f{margin-left:-9px;box-shadow:0 0 0 2px var(--bg)}
+.lg{background:var(--lg-tint);-webkit-backdrop-filter:blur(8px) saturate(170%);backdrop-filter:blur(8px) saturate(170%);
+  border:.5px solid var(--lg-border);box-shadow:0 10px 26px -14px var(--lg-drop),0 1px 2px var(--lg-shade)}
+.lg::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;
+  background:linear-gradient(140deg,var(--lg-rim) 0%,var(--lg-rim-2) 26%,transparent 48%,transparent 58%,var(--lg-rim-2) 78%,var(--lg-rim) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.chrome.b{bottom:0;z-index:5;padding:0 12px 34px;display:grid;gap:8px;background:linear-gradient(color-mix(in srgb,var(--bg) 0%,transparent),var(--bg) 30%)}
+.bar{display:flex;gap:8px;align-items:flex-end;padding-top:12px}
+.plus{position:relative;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-size:28px;font-weight:300;color:var(--ink-2);flex:none}
+.field{position:relative;flex:1;min-width:0;border-radius:25px;display:grid;grid-template-columns:minmax(0,1fr);padding:4px 5px 4px 16px;
+  transition:border-radius calc(var(--slow) * 420ms) cubic-bezier(.22,1,.36,1)}
+.replying .field{border-radius:22px}
+.qs{display:grid;grid-template-rows:0fr;opacity:0;
+  transition:grid-template-rows calc(var(--slow) * 420ms) cubic-bezier(.22,1,.36,1),opacity calc(var(--slow) * 260ms) ease}
+.replying .qs{grid-template-rows:1fr;opacity:1}
+.qs>div{overflow:hidden;min-height:0}
+.q{display:grid;grid-template-columns:3px minmax(0,1fr) 26px;column-gap:10px;align-items:center;margin:4px 0 3px -10px;padding:6px 1px 6px 9px;
+  border-radius:17px;background:color-mix(in srgb,var(--ink) 7%,transparent);font-family:var(--font-ios)}
+.q .qb{align-self:stretch;border-radius:3px;background:var(--g)}
+.q .qx{min-width:0;display:grid}
+.q .qn{font-size:13px;line-height:17px;color:var(--ink-3)}
+.q .qn b{color:var(--qa);font-weight:650}
+.q .qt{font-size:14.5px;line-height:19px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q .qz{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:var(--ink-3);background:color-mix(in srgb,var(--ink) 9%,transparent)}
+.q .qz svg{width:11px;height:11px}
+.frow{position:relative;display:flex;align-items:center;gap:8px;min-height:42px}
+.words{flex:1;min-width:0;font-size:17px;line-height:23px;min-height:23px;color:var(--ink);white-space:nowrap;overflow:hidden;direction:rtl;text-align:left}
+.words span{direction:ltr;unicode-bidi:plaintext}
+.ph{position:absolute;left:0;top:50%;transform:translateY(-50%);font-size:17px;color:var(--ink-3);pointer-events:none;white-space:nowrap}
+.typing .ph{opacity:0}
+.send{width:32px;height:32px;border-radius:50%;background:var(--gray);opacity:.5;display:grid;place-items:center;color:#fff;flex:none}
+.send svg{width:17px;height:17px}
+.typing .send{background:var(--blue);opacity:1}
+.tocap{justify-self:start;position:relative;height:34px;border-radius:999px;display:flex;align-items:center;gap:7px;padding:0 12px;font-size:15px;color:var(--ink);white-space:nowrap}
+.tocap .arw{color:var(--ink-3);font-size:14px}
+.tocap .ci{display:flex;align-items:center;gap:6px}
+.tocap .by{font-size:12.5px;color:var(--ink-3)}
+.tocap .ci.swap{animation:swap calc(var(--slow) * 340ms) ease-out}
+@keyframes swap{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.tocap .dn{color:var(--ink-3);display:grid}
+.tocap .dn svg{width:12px;height:12px}
+
+/* the finger */
+.touch{position:absolute;left:0;top:0;z-index:40;width:44px;height:44px;border-radius:50%;pointer-events:none;font-style:normal;
+  background:rgba(128,128,128,.32);border:2px solid rgba(255,255,255,.8);box-shadow:0 2px 10px rgba(0,0,0,.25);opacity:0;
+  transition:opacity calc(var(--slow) * 160ms),scale calc(var(--slow) * 120ms)}
+.touch.on{opacity:1}
+.touch.down{scale:.86;background:rgba(110,110,110,.55)}
+.touch.move{transition:opacity calc(var(--slow) * 160ms),scale calc(var(--slow) * 120ms),translate calc(var(--slow) * 380ms) cubic-bezier(.4,0,.2,1)}
+
+/* a veil over the room, for the lifted menu and the focused thread */
+.veil{position:absolute;inset:0;z-index:20;background:var(--veil);-webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%);
+  opacity:0;pointer-events:none;transition:opacity calc(var(--slow) * 280ms) ease}
+.von .veil{opacity:1}
+.liftc{position:absolute;z-index:22;margin:0;opacity:0;transform-origin:20% 50%;box-shadow:0 20px 44px -18px rgba(0,0,0,.5);
+  transition:opacity calc(var(--slow) * 160ms),transform calc(var(--slow) * 380ms) cubic-bezier(.3,1.35,.5,1)}
+.lifted .liftc{opacity:1;transform:scale(1.035)}
+.pcap{position:absolute;z-index:23;display:flex;align-items:center;padding:5px;gap:1px;border-radius:999px;transform-origin:16% 100%;
+  opacity:0;transform:scale(.4) translateY(14px);
+  transition:opacity calc(var(--slow) * 200ms) ease,transform calc(var(--slow) * 420ms) cubic-bezier(.3,1.35,.5,1)}
+.pcard{position:absolute;z-index:23;width:232px;border-radius:20px;padding:5px;display:grid;transform-origin:16% 0;
+  opacity:0;transform:scale(.4) translateY(-14px);
+  transition:opacity calc(var(--slow) * 200ms) ease,transform calc(var(--slow) * 420ms) cubic-bezier(.3,1.35,.5,1)}
+.lifted .pcap,.lifted .pcard{opacity:1;transform:none}
+.lifted .pcard{transition-delay:calc(var(--slow) * 40ms)}
+.pi{display:grid;justify-items:center;gap:3px;min-width:54px;padding:7px 6px 6px;border-radius:999px;font-size:11.5px;font-weight:500;color:var(--ink)}
+.pi svg{width:20px;height:20px}
+.pi.first{font-weight:700}
+.pdiv{width:1px;height:28px;background:var(--line-2);margin:0 3px;opacity:.7}
+.pr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:15px;font-size:16px}
+.pr svg{width:19px;height:19px;color:var(--ink-2)}
+.pr.red{color:var(--red)}
+.pr.red svg{color:var(--red)}
+.pi.hit,.pr.hit{background:color-mix(in srgb,var(--ink) 11%,transparent)}
+
+/* Jump: the day, and the way back */
+.daypill,.backpill{position:absolute;left:50%;translate:-50% 0;border-radius:999px;font-weight:600;white-space:nowrap}
+.daypill{z-index:9;top:122px;padding:5px 13px;font-size:13px;color:var(--ink-2);opacity:0;transition:opacity calc(var(--slow) * 240ms)}
+.backpill{z-index:6;bottom:calc(var(--footH) + 14px);display:flex;align-items:center;gap:7px;padding:9px 16px 9px 13px;font-size:15px;color:var(--ink);
+  opacity:0;transform:translateY(14px) scale(.9);transition:opacity calc(var(--slow) * 240ms),transform calc(var(--slow) * 440ms) cubic-bezier(.3,1.35,.5,1)}
+.backpill svg{width:16px;height:16px;color:var(--blue)}
+.jumped .daypill,.jumped .backpill{opacity:1;transform:none}
+.found .bub{box-shadow:0 0 0 2px color-mix(in srgb,var(--gold) 85%,transparent)}
+.found.pulse .bub{animation:found calc(var(--slow) * 1100ms) ease-out 2}
+@keyframes found{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--gold) 70%,transparent)}35%{box-shadow:0 0 0 8px color-mix(in srgb,var(--gold) 26%,transparent)}100%{box-shadow:0 0 0 2px color-mix(in srgb,var(--gold) 85%,transparent)}}
+.found .bub::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background-repeat:no-repeat;background-size:250% 100%;background-position:120% 0;
+  background-image:linear-gradient(105deg,transparent 30%,color-mix(in srgb,var(--gold) 40%,transparent) 50%,transparent 70%)}
+.found.pulse .bub::after{animation:sheen calc(var(--slow) * 1000ms) cubic-bezier(.4,0,.2,1) both}
+@keyframes sheen{from{background-position:120% 0}to{background-position:-20% 0}}
+
+/* Focus: the thread lifted over the room */
+.focus{position:absolute;inset:0;z-index:22;pointer-events:none;opacity:0;display:flex;flex-direction:column;justify-content:center;padding:118px 14px 170px}
+.focused .focus{opacity:1}
+.fstack{position:relative;display:grid;gap:10px}
+.fstack .row{margin-top:0}
+.fstack .bub{transform-origin:0 0}
+.fdate{position:relative;justify-self:center;padding:5px 13px;border-radius:999px;font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
+.fshow{position:absolute;left:50%;bottom:104px;translate:-50% 0;display:flex;align-items:center;gap:7px;padding:9px 15px;border-radius:999px;font-size:15px;font-weight:600;white-space:nowrap}
+.fshow svg{width:16px;height:16px;color:var(--blue)}
+.fbar{position:absolute;left:12px;right:12px;bottom:34px;display:flex;gap:8px;align-items:center}
+.ffield{position:relative;flex:1;height:50px;border-radius:25px;display:flex;align-items:center;padding:0 18px;font-size:17px;color:var(--ink-3)}
+
+/* the harness section */
+.pipe{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:10px}
+@media (max-width:900px){.pipe{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:540px){.pipe{grid-template-columns:1fr}}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;display:grid;gap:8px;align-content:start;min-width:0}
+.step .n{font:600 12px var(--font-mono);color:var(--ink-3)}
+.step p{font-size:14px;color:var(--ink-2)}
+.state{font:600 11px/1 var(--font-mono);letter-spacing:.03em;padding:5px 7px;border-radius:6px;justify-self:start}
+.state.live{background:var(--green-soft);color:var(--green-ink)}
+.state.new{background:var(--gold-soft);color:var(--gold-deep)}
+.prompts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:10px}
+@media (max-width:900px){.prompts{grid-template-columns:1fr}}
+.pane{display:grid;gap:10px;align-content:start;min-width:0}
+.pane p{font-size:14.5px;color:var(--ink-2)}
+pre{margin:0;background:var(--code);border:1px solid var(--line);border-radius:16px;padding:16px 18px;font:12.5px/1.65 var(--font-mono);color:var(--ink);overflow-x:auto;white-space:pre}
+pre .hl{display:block;background:var(--gold-soft);margin:0 -18px;padding:0 18px}
+pre .dim{color:var(--ink-3)}
+pre .warn{color:var(--red-ink)}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:18px;background:var(--surface);margin-top:10px}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:14.5px}
+th,td{text-align:left;vertical-align:top;padding:12px 16px;border-bottom:1px solid var(--line)}
+th{font:600 11.5px var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
+td{color:var(--ink-2)}
+td:first-child{color:var(--ink);font-weight:600}
+tr:last-child td{border-bottom:0}
+tr.mine-pick td{background:color-mix(in srgb,var(--gold) 10%,transparent)}
+.notes{display:grid;gap:8px;max-width:72ch;color:var(--ink-2);font-size:15px;padding-left:20px;margin:6px 0 0}
+.ask{display:grid;gap:10px;counter-reset:q;max-width:72ch;padding:0;margin:8px 0 0;list-style:none}
+.ask li{counter-increment:q;display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:baseline;font-size:16px}
+.ask li::before{content:counter(q);font:700 13px/26px var(--font-mono);width:26px;height:26px;border-radius:8px;background:var(--gold);color:#1A1400;text-align:center}
+footer{margin-top:72px;font-size:13.5px;color:var(--ink-3)}
+
+@media (prefers-reduced-motion:reduce){.qc.sweep::after,.found.pulse .bub,.found.pulse .bub::after,.ra.hit::after,.dots i{animation:none}}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Chips · mocks · 22 October 2026</span>
+  <h1>Replying to a message</h1>
+  <p class="lede">You can answer one message in particular, the way you do in Messages. The reply carries a piece of what it answers, so it still makes sense when that message is from two days ago, and tapping the piece takes you back to it. The last part of the page shows what the agent is handed with a reply. Today the wire carries the message's id and nothing more, and nothing reads it.</p>
+  <div class="tools"><button class="tg" id="slow" type="button" aria-pressed="false">Slow motion</button><span>Each phone plays on a loop while it is on screen.</span></div>
+</header>
+
+<section id="start">
+  <span class="eyebrow">Starting a reply</span>
+  <h2>You start a reply by swiping a message or holding it.</h2>
+  <p class="lede">Swiping right is the quick way, as in Messages. Holding a message opens the menu you already have, which gets Reply as its first button. On the web and the Mac an arrow shows beside a message when the pointer is over it, and the menu has Reply too.</p>
+  <div class="figs">
+    <figure class="fig">
+      <div class="pw" data-phone="swipe"><div class="phone replying typing" data-kind="swipe">
+<div class="lines"><div class="day">Tuesday</div><div class="row me"><div class="bub mine" style="background-position-y: 404px;"><span class="tx">Find us a place for Friday dinner, 6 people, somewhere near Valencia St.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Three have a table at 7:30: <b>Foreign Cinema</b> (patio, heaters), <b>Flour + Water</b> (pasta, loud) and <b>Lazy Bear</b> (tasting menu). Want me to hold one?</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: 174px;"><span class="tx">Hold Foreign Cinema</span></div></div><div class="row them" data-id="parent"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</span></div></div><div class="day">Wednesday</div><div class="row me"><div class="bub mine" style="background-position-y: -7px;"><span class="tx">Draft a note to the landlord about the dishwasher. Polite but firm.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Here’s a draft:<br><br>Hi Dana, the dishwasher has stopped draining again, the third time since August. Could someone come by this week? I’m home Thursday after 3 PM.<br><br>Thanks, Arjun</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -303px;"><span class="tx">Send it</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Sent to Dana at 6:12 PM.</span></div></div><div class="day">Today</div><div class="row me"><div class="bub mine" style="background-position-y: -440px;"><span class="tx">Can you find a cake place near there? It’s Leah’s birthday on Friday.</span></div></div><div class="row them" data-id="cake"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today. It’s a 4 minute walk from Foreign Cinema.</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -648px;"><span class="tx">Order the chocolate one</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Ordered. You can pick it up Friday after 4 PM.</span></div></div><div class="row me" data-id="sent" hidden=""><div class="bub mine" style="background-position-y: 0px;"><span class="qc" style="--g:var(--jv);--qa:var(--j-ink)"><i class="qb"></i><b class="qn">Jacobian</b><span class="qt">Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today. It’s a 4 minute walk from Foreign Cinema.</span></span><span class="tx">Can it say Happy birthday Leah on top?</span></div></div></div>
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><b>Friday dinner</b><small>Jacobian</small></div></div><div class="cap faces"><i class="f nf" style="--g:var(--jv)">J</i></div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div><div class="field lg"><div class="qs"><div><div class="q" style="--g: var(--jv); --qa: var(--j-ink);"><i class="qb"></i><span class="qx"><span class="qn">Replying to <b>Jacobian</b></span><span class="qt">Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today. It’s a 4 minute walk from Foreign Cinema.</span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div></div></div><div class="frow"><span class="ph">Message</span><div class="words"><span>Can it say Happy birthday Leah on top?</span></div><span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span></div></div></div></div>
+<div class="veil"></div><i class="touch"></i></div></div>
+      <figcaption>
+        <div class="tag"><span class="o">SWIPE</span></div>
+        <h3>Swipe right on any message</h3>
+        <p>The arrow grows with your finger and turns gold at the point where letting go will reply, with a tap of haptics. The bubble springs back and its words drop into the composer.</p>
+        <p class="cost"><b>Cost: small to medium.</b> A pan on each row with a haptic at the threshold. It has to give way to the room's scroll and to the back swipe from the screen's edge.</p>
+      </figcaption>
+    </figure>
+    <figure class="fig">
+      <div class="pw" data-phone="hold"><div class="phone capsuled von lifted" data-kind="hold">
+<div class="lines"><div class="day">Today</div><div class="row me"><div class="bub mine" style="background-position-y: -117px;"><span class="tx"><span class="mn">@Jacobian</span> what did Ruiz Plumbing quote for moving the sink?</span></div></div><div class="row them" data-id="quote"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><b class="nm" style="color:var(--j-ink)">Jacobian</b><span class="tx">$2,400 to move it 3 feet, from their email on Oct 12. They can start the week of the 26th.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f p" style="--g:var(--mv)">M</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Maya</b><span class="tx"><span class="mn">@Pilot</span> can you pull up the tile samples we liked?</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--pv)">P</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Pilot</b><span class="tx">You saved three: Zellige white, Clé terracotta and Fireclay sage.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f p" style="--g:var(--mv)">M</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Maya</b><span class="tx">Sage for sure</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -566px;"><span class="tx"><span class="mn">@Pilot</span> add the sage one to the order list</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--pv)">P</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Pilot</b><span class="tx">Added. Fireclay can send a sample box by Thursday.</span></div></div></div>
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><b>Kitchen remodel</b><small>Maya, Jacobian, Pilot</small></div></div><div class="cap faces"><i class="f p nf" style="--g:var(--mv)">M</i><i class="f nf" style="--g:var(--pv)">P</i><i class="f nf" style="--g:var(--jv)">J</i></div></div></div>
+<div class="chrome b"><div class="tocap lg"><span class="arw">→</span><span class="ci"><i class="f xs" style="--g:var(--pv)">P</i><span class="cn">Pilot</span></span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div><div class="bar"><div class="plus lg">+</div><div class="field lg"><div class="qs"><div><div class="q" style="--g: var(--jv); --qa: var(--j-ink);"><i class="qb"></i><span class="qx"><span class="qn">Replying to <b>Jacobian</b></span><span class="qt">$2,400 to move it 3 feet, from their email on Oct 12. They can start the week of the 26th.</span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div></div></div><div class="frow"><span class="ph">Message</span><div class="words"><span></span></div><span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span></div></div></div></div>
+<div class="veil"></div><div class="bub liftc" style="left: 50px; top: 210px; width: 290px;"><b class="nm" style="color:var(--j-ink)">Jacobian</b><span class="tx">$2,400 to move it 3 feet, from their email on Oct 12. They can start the week of the 26th.</span></div><div class="pcap lg" style="left: 44px; top: 137px;"><span class="pi first"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg><span>Reply</span></span><i class="pdiv"></i><span class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5"></rect><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"></path></svg><span>Copy</span></span><span class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 4h7M8.5 20h7M12 4v16"></path></svg><span>Select</span></span><span class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5v11M8 7.5l4-4 4 4"></path><path d="M7.5 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"></path></svg><span>Share</span></span><span class="pi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16v5"></path><path d="M8.5 3.5h7l-1.2 5.5 3.2 4.5h-11L9.7 9z"></path></svg><span>Pin</span></span></div><div class="pcard lg" style="left: 50px; top: 323px;"><span class="pr">Not right?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5v5.5"></path><path d="M12 16.4v.1"></path></svg></span><span class="pr">What the run did<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"></path><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"></path></svg></span><span class="pr red">Delete<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M9.5 7V4.5h5V7"></path><path d="M6 7l1 13h10l1-13"></path></svg></span></div><i class="touch"></i></div></div>
+      <figcaption>
+        <div class="tag"><span class="o">HOLD</span></div>
+        <h3>Reply is the first button when you hold a message</h3>
+        <p>In a room with several agents, a reply is for whoever wrote the message. The capsule over the field moves from Pilot to Jacobian and says why.</p>
+        <p class="cost"><b>Cost: small.</b> One button in the lifted menu (ADR 0200). The server already sends a reply to the author of the message it answers (ADR 0081, rule 2).</p>
+      </figcaption>
+    </figure>
+    <figure class="fig">
+      <div class="ncard">
+        <h3>The composer shows what you are answering</h3>
+        <p>The strip sits inside the field's glass. It names who you are answering, adds the day when the message is from an earlier day, and shows its first line.</p>
+        <div class="spec">
+          <div class="q" style="--g:var(--jv);--qa:var(--j-ink)"><i class="qb"></i><span class="qx"><span class="qn">Replying to <b>Jacobian</b></span><span class="qt">Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today.</span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div>
+          <small>A message from today</small>
+        </div>
+        <div class="spec">
+          <div class="q" style="--g:var(--jv);--qa:var(--j-ink)"><i class="qb"></i><span class="qx"><span class="qn">Replying to <b>Jacobian</b> · Tuesday</span><span class="qt">Held for 6 at 7:30 under your name. They need a card by Thursday noon.</span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div>
+          <small>A message from an earlier day</small>
+        </div>
+        <p>The × lets go of the reply, and so does Escape on the web and the Mac. Sending adds <code>reply_to</code> to the message, which the server already takes and keeps.</p>
+        <p class="cost"><b>Cost: small.</b> The strip and one field on the post.</p>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section id="look">
+  <span class="eyebrow">In the room</span>
+  <h2>A sent reply carries a piece of the message it answers.</h2>
+  <p class="lede">This is the choice that shapes the room. Both phones play the same moment: you answer Tuesday's booking from the bottom of today's talk about a cake, and Jacobian answers.</p>
+  <div class="figs">
+    <figure class="fig">
+      <div class="pw" data-phone="quote"><div class="phone" data-kind="quote">
+<div class="lines"><div class="day">Tuesday</div><div class="row me"><div class="bub mine" style="background-position-y: 664px;"><span class="tx">Find us a place for Friday dinner, 6 people, somewhere near Valencia St.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Three have a table at 7:30: <b>Foreign Cinema</b> (patio, heaters), <b>Flour + Water</b> (pasta, loud) and <b>Lazy Bear</b> (tasting menu). Want me to hold one?</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: 434px;"><span class="tx">Hold Foreign Cinema</span></div></div><div class="row them" data-id="parent"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</span></div></div><div class="day">Wednesday</div><div class="row me"><div class="bub mine" style="background-position-y: 253px;"><span class="tx">Draft a note to the landlord about the dishwasher. Polite but firm.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Here’s a draft:<br><br>Hi Dana, the dishwasher has stopped draining again, the third time since August. Could someone come by this week? I’m home Thursday after 3 PM.<br><br>Thanks, Arjun</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -43px;"><span class="tx">Send it</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Sent to Dana at 6:12 PM.</span></div></div><div class="day">Today</div><div class="row me"><div class="bub mine" style="background-position-y: -180px;"><span class="tx">Can you find a cake place near there? It’s Leah’s birthday on Friday.</span></div></div><div class="row them" data-id="cake"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today. It’s a 4 minute walk from Foreign Cinema.</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -388px;"><span class="tx">Order the chocolate one</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Ordered. You can pick it up Friday after 4 PM.</span></div></div><div class="row me" data-id="reply"><div class="bub mine" style="background-position-y: -508px;"><span class="qc" style="--g:var(--jv);--qa:var(--j-ink)"><i class="qb"></i><b class="qn">Jacobian<small> · Tue</small></b><span class="qt">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</span></span><span class="tx">Make it 8 people, Sam and Priya are coming too.</span></div></div><div class="row them think" data-id="think" hidden=""><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="dots"><i></i><i></i><i></i></span></div></div><div class="row them" data-id="answer"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Done. Foreign Cinema has you down for 8 at 7:30 on Friday, same patio. The card is still due by noon today.</span></div></div></div>
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><b>Friday dinner</b><small>Jacobian</small></div></div><div class="cap faces"><i class="f nf" style="--g:var(--jv)">J</i></div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div><div class="field lg"><div class="qs"><div><div class="q"><i class="qb"></i><span class="qx"><span class="qn"></span><span class="qt"></span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div></div></div><div class="frow"><span class="ph">Message</span><div class="words"><span></span></div><span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span></div></div></div></div>
+<div class="veil"></div><i class="touch"></i></div></div>
+      <figcaption>
+        <div class="tag"><span class="o">A</span><span class="rec">MY PICK</span></div>
+        <h3>A quote card sits inside the bubble</h3>
+        <p>The card holds the author, the day when it was not today, and two lines of the words. It stays the same size whether the message is just above or two days back, and an agent's long Markdown answer shrinks to two lines.</p>
+        <p class="cost"><b>Cost: small to medium.</b> A core reader finds the message in the room's log, and the bubble draws the card on the phone, the web and the Mac.</p>
+      </figcaption>
+    </figure>
+    <figure class="fig">
+      <div class="pw" data-phone="echo"><div class="phone" data-kind="echo">
+<div class="lines"><div class="day">Tuesday</div><div class="row me"><div class="bub mine" style="background-position-y: 695px;"><span class="tx">Find us a place for Friday dinner, 6 people, somewhere near Valencia St.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Three have a table at 7:30: <b>Foreign Cinema</b> (patio, heaters), <b>Flour + Water</b> (pasta, loud) and <b>Lazy Bear</b> (tasting menu). Want me to hold one?</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: 465px;"><span class="tx">Hold Foreign Cinema</span></div></div><div class="row them" data-id="parent"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</span></div></div><div class="day">Wednesday</div><div class="row me"><div class="bub mine" style="background-position-y: 284px;"><span class="tx">Draft a note to the landlord about the dishwasher. Polite but firm.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Here’s a draft:<br><br>Hi Dana, the dishwasher has stopped draining again, the third time since August. Could someone come by this week? I’m home Thursday after 3 PM.<br><br>Thanks, Arjun</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -12px;"><span class="tx">Send it</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Sent to Dana at 6:12 PM.</span></div></div><div class="day">Today</div><div class="row me"><div class="bub mine" style="background-position-y: -149px;"><span class="tx">Can you find a cake place near there? It’s Leah’s birthday on Friday.</span></div></div><div class="row them" data-id="cake"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today. It’s a 4 minute walk from Foreign Cinema.</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -357px;"><span class="tx">Order the chocolate one</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Ordered. You can pick it up Friday after 4 PM.</span></div></div><div class="thread" data-id="reply"><div class="echo"><span class="el">Jacobian · Tue</span><div class="bub ebub">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</div></div><div class="row me"><div class="bub mine" style="background-position-y: -582px;"><span class="tx">Make it 8 people, Sam and Priya are coming too.</span></div></div><svg class="tl" aria-hidden="true"><path d="M54 95 V107 Q54 121 68 121 H78" style="stroke-dasharray: 44.7252;"></path></svg></div><div class="row them think" data-id="think" hidden=""><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="dots"><i></i><i></i><i></i></span></div></div><div class="row them" data-id="answer"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Done. Foreign Cinema has you down for 8 at 7:30 on Friday, same patio. The card is still due by noon today.</span></div></div></div>
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><b>Friday dinner</b><small>Jacobian</small></div></div><div class="cap faces"><i class="f nf" style="--g:var(--jv)">J</i></div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div><div class="field lg"><div class="qs"><div><div class="q"><i class="qb"></i><span class="qx"><span class="qn"></span><span class="qt"></span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div></div></div><div class="frow"><span class="ph">Message</span><div class="words"><span></span></div><span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span></div></div></div></div>
+<div class="veil"></div><i class="touch"></i></div></div>
+      <figcaption>
+        <div class="tag"><span class="o">B</span></div>
+        <h3>A faded copy sits above, joined by a line</h3>
+        <p>This is closer to Messages, and it reads beautifully when the messages are short. Agents' answers are often long, so the copy is cut at three lines, and a room with many replies gets busy.</p>
+        <p class="cost"><b>Cost: medium to large.</b> Two rows drawn as one, with a line measured between them, inside a list that recycles its rows.</p>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="earlier">
+  <span class="eyebrow">Messages from earlier</span>
+  <h2>Tapping the quote takes you back to the earlier message.</h2>
+  <p class="lede">This is the case you asked about: a reply to something said days ago. Either way, the message you answered gets a small “1 reply” under it, which takes you down to the reply.</p>
+  <div class="figs">
+    <figure class="fig">
+      <div class="pw" data-phone="jump"><div class="phone jumped" data-kind="jump">
+<div class="lines" data-ty="749.06" style="transform: translateY(749.06px);"><div class="day">Tuesday</div><div class="row me"><div class="bub mine" style="background-position-y: -64.06px;"><span class="tx">Find us a place for Friday dinner, 6 people, somewhere near Valencia St.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Three have a table at 7:30: <b>Foreign Cinema</b> (patio, heaters), <b>Flour + Water</b> (pasta, loud) and <b>Lazy Bear</b> (tasting menu). Want me to hold one?</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -294.06px;"><span class="tx">Hold Foreign Cinema</span></div></div><div class="row them found" data-id="parent"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</span></div></div><div class="rmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v7a4 4 0 0 0 4 4h9"></path><path d="M15 11l4 4-4 4"></path></svg><span>1 reply</span></div><div class="day">Wednesday</div><div class="row me"><div class="bub mine" style="background-position-y: -496.06px;"><span class="tx">Draft a note to the landlord about the dishwasher. Polite but firm.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Here’s a draft:<br><br>Hi Dana, the dishwasher has stopped draining again, the third time since August. Could someone come by this week? I’m home Thursday after 3 PM.<br><br>Thanks, Arjun</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -792.06px;"><span class="tx">Send it</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Sent to Dana at 6:12 PM.</span></div></div><div class="day">Today</div><div class="row me"><div class="bub mine" style="background-position-y: -929.06px;"><span class="tx">Can you find a cake place near there? It’s Leah’s birthday on Friday.</span></div></div><div class="row them" data-id="cake"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today. It’s a 4 minute walk from Foreign Cinema.</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -1137.06px;"><span class="tx">Order the chocolate one</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Ordered. You can pick it up Friday after 4 PM.</span></div></div><div class="row me" data-id="reply"><div class="bub mine" style="background-position-y: -1257.06px;"><span class="qc" style="--g:var(--jv);--qa:var(--j-ink)"><i class="qb"></i><b class="qn">Jacobian<small> · Tue</small></b><span class="qt">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</span></span><span class="tx">Make it 8 people, Sam and Priya are coming too.</span></div></div><div class="row them" data-id="answer"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Done. Foreign Cinema has you down for 8 at 7:30 on Friday, same patio. The card is still due by noon today.</span></div></div></div>
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><b>Friday dinner</b><small>Jacobian</small></div></div><div class="cap faces"><i class="f nf" style="--g:var(--jv)">J</i></div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div><div class="field lg"><div class="qs"><div><div class="q"><i class="qb"></i><span class="qx"><span class="qn"></span><span class="qt"></span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div></div></div><div class="frow"><span class="ph">Message</span><div class="words"><span></span></div><span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span></div></div></div></div>
+<div class="veil"></div><span class="daypill lg">Tuesday</span><span class="backpill lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M6 13l6 6 6-6"></path></svg><span>Back to your reply</span></span><i class="touch"></i></div></div>
+      <figcaption>
+        <div class="tag"><span class="o">JUMP</span><span class="rec">MY PICK</span></div>
+        <h3>The room glides up to the message</h3>
+        <p>The room scrolls back to Tuesday and the message lights up with a sweep of gold. A pill above the composer takes you back to where you were.</p>
+        <p class="cost"><b>Cost: medium.</b> Scrolling to a row the list has not drawn yet is the hard part. The glow and the pill are small.</p>
+      </figcaption>
+    </figure>
+    <figure class="fig">
+      <div class="pw" data-phone="focus"><div class="phone von focused" data-kind="focus">
+<div class="lines"><div class="day">Tuesday</div><div class="row me"><div class="bub mine" style="background-position-y: 685px;"><span class="tx">Find us a place for Friday dinner, 6 people, somewhere near Valencia St.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Three have a table at 7:30: <b>Foreign Cinema</b> (patio, heaters), <b>Flour + Water</b> (pasta, loud) and <b>Lazy Bear</b> (tasting menu). Want me to hold one?</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: 455px;"><span class="tx">Hold Foreign Cinema</span></div></div><div class="row them" data-id="parent"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</span></div></div><div class="rmark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v7a4 4 0 0 0 4 4h9"></path><path d="M15 11l4 4-4 4"></path></svg><span>1 reply</span></div><div class="day">Wednesday</div><div class="row me"><div class="bub mine" style="background-position-y: 253px;"><span class="tx">Draft a note to the landlord about the dishwasher. Polite but firm.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Here’s a draft:<br><br>Hi Dana, the dishwasher has stopped draining again, the third time since August. Could someone come by this week? I’m home Thursday after 3 PM.<br><br>Thanks, Arjun</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -43px;"><span class="tx">Send it</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Sent to Dana at 6:12 PM.</span></div></div><div class="day">Today</div><div class="row me"><div class="bub mine" style="background-position-y: -180px;"><span class="tx">Can you find a cake place near there? It’s Leah’s birthday on Friday.</span></div></div><div class="row them" data-id="cake"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today. It’s a 4 minute walk from Foreign Cinema.</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -388px;"><span class="tx">Order the chocolate one</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Ordered. You can pick it up Friday after 4 PM.</span></div></div><div class="row me" data-id="reply"><div class="bub mine" style="background-position-y: -508px;"><span class="qc" style="--g:var(--jv);--qa:var(--j-ink)"><i class="qb"></i><b class="qn">Jacobian<small> · Tue</small></b><span class="qt">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</span></span><span class="tx">Make it 8 people, Sam and Priya are coming too.</span></div></div><div class="row them" data-id="answer"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="tx">Done. Foreign Cinema has you down for 8 at 7:30 on Friday, same patio. The card is still due by noon today.</span></div></div></div>
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><b>Friday dinner</b><small>Jacobian</small></div></div><div class="cap faces"><i class="f nf" style="--g:var(--jv)">J</i></div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div><div class="field lg"><div class="qs"><div><div class="q"><i class="qb"></i><span class="qx"><span class="qn"></span><span class="qt"></span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div></div></div><div class="frow"><span class="ph">Message</span><div class="words"><span></span></div><span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span></div></div></div></div>
+<div class="veil"></div><div class="focus"><div class="fstack"><span class="fdate lg">Tuesday, 2:14 PM</span>
+<div class="row them fparent"><i class="f" style="--g:var(--jv)">J</i><div class="bub">Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.</div></div>
+<div class="row me freply"><div class="bub mine" style="background-position-y: -390px;"><span class="tx">Make it 8 people, Sam and Priya are coming too.</span></div></div>
+<div class="row them fanswer"><i class="f" style="--g:var(--jv)">J</i><div class="bub">Done. Foreign Cinema has you down for 8 at 7:30 on Friday, same patio. The card is still due by noon today.</div></div>
+<svg class="fl" aria-hidden="true"><path d="M54 127 V141 Q54 155 68 155 H78" style="stroke-dasharray: 46.7252;"></path></svg></div>
+<span class="fshow lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v7a4 4 0 0 0 4 4h9"></path><path d="M15 11l4 4-4 4"></path></svg><span>Show in the room</span></span>
+<div class="fbar"><div class="plus lg">+</div><div class="ffield lg">Reply to Jacobian</div></div></div><i class="touch"></i></div></div>
+      <figcaption>
+        <div class="tag"><span class="o">FOCUS</span></div>
+        <h3>The thread lifts out of the room</h3>
+        <p>The room blurs and the message rises with the replies to it, on the same layer as the long-press menu. You can answer from there, or tap Show in the room to jump.</p>
+        <p class="cost"><b>Cost: large.</b> A new layout on the lift layer (FullWindowOverlay) with its own field to answer from. I would build it after Jump, and only if Jump isn't enough.</p>
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="agents">
+  <span class="eyebrow">Agents' replies</span>
+  <h2>Agents can point back at what they answer.</h2>
+  <p class="lede">In a busy room an answer can arrive after other people have spoken. When that happens Chips can set <code>reply_to</code> on the answer itself, so the answer shows the question it is for.</p>
+  <div class="figs">
+    <figure class="fig">
+      <div class="pw" data-phone="late"><div class="phone capsuled" data-kind="late">
+<div class="lines"><div class="day">Today</div><div class="row me"><div class="bub mine" style="background-position-y: -43px;"><span class="tx">Sage it is. Can you two sort the sample box?</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--pv)">P</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Pilot</b><span class="tx">On it. I’ll ask Fireclay to send it to the house.</span></div></div><div class="row me"><div class="bub mine" style="background-position-y: -203px;"><span class="tx"><span class="mn">@Jacobian</span> when can Ruiz start on the sink?</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f p" style="--g:var(--mv)">M</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Maya</b><span class="tx"><span class="mn">@Pilot</span> did Fireclay ship the samples yet?</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--pv)">P</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Pilot</b><span class="tx">Yes. They ship tomorrow and should arrive Thursday.</span></div></div><div class="row them"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f p" style="--g:var(--mv)">M</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Maya</b><span class="tx">Perfect, thank you</span></div></div><div class="row them think" data-id="think" hidden=""><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><span class="dots"><i></i><i></i><i></i></span></div></div><div class="row them" data-id="late"><span class="ra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 14.5 4 9l5.5-5.5"></path><path d="M4 9h10a6 6 0 0 1 6 6v4"></path></svg></span><i class="f" style="--g:var(--jv)">J</i><div class="bub"><b class="nm" style="color:var(--j-ink)">Jacobian</b><span class="qc" style="--g:var(--mev);--qa:var(--me-ink)"><i class="qb"></i><b class="qn">You</b><span class="qt">@Jacobian when can Ruiz start on the sink?</span></span><span class="tx">Monday the 26th. They need the old cabinets out first, so I’ve asked the cabinet crew to come Friday.</span></div></div></div>
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><b>Kitchen remodel</b><small>Maya, Jacobian, Pilot</small></div></div><div class="cap faces"><i class="f p nf" style="--g:var(--mv)">M</i><i class="f nf" style="--g:var(--pv)">P</i><i class="f nf" style="--g:var(--jv)">J</i></div></div></div>
+<div class="chrome b"><div class="tocap lg"><span class="arw">→</span><span class="ci"><i class="f xs" style="--g:var(--jv)">J</i><span class="cn">Jacobian</span></span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div><div class="bar"><div class="plus lg">+</div><div class="field lg"><div class="qs"><div><div class="q"><i class="qb"></i><span class="qx"><span class="qn"></span><span class="qt"></span></span><span class="qz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></svg></span></div></div></div><div class="frow"><span class="ph">Message</span><div class="words"><span></span></div><span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></span></div></div></div></div>
+<div class="veil"></div><i class="touch"></i></div></div>
+      <figcaption>
+        <div class="tag"><span class="o">LATER</span></div>
+        <h3>A late answer shows what it answers</h3>
+        <p>You asked Jacobian when the plumber can start. Maya and Pilot talked about tiles in between, so Jacobian's answer carries your question.</p>
+        <p class="cost"><b>Cost: small, and it can wait.</b> One rule in the server covers every harness, so no bridge changes. I still need to check that a run records which message started it.</p>
+      </figcaption>
+    </figure>
+    <figure class="fig">
+      <div class="ncard">
+        <h3>How Chips would decide</h3>
+        <p>When an agent posts on a turn, Chips looks at the message that started the turn. If anyone else has spoken in the room since then, the answer gets <code>reply_to</code> pointing at that message.</p>
+        <p>An answer that comes straight after its question carries no card, so a quiet room looks the same as it does today.</p>
+        <p>A harness that sets <code>reply_to</code> itself is left alone. The SDK's <code>post</code> already takes <code>replyTo</code>.</p>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section id="harness">
+  <span class="eyebrow">What the harness gets</span>
+  <h2>Chips hands the agent the message you are answering.</h2>
+  <p class="lede">The wire already has room for replies. <code>message.post</code> takes <code>reply_to</code>, the server keeps it and uses its author to decide who the reply is for, and <code>message.new</code> passes the id on to the harness. That is where it stops. No client sends it, and the SDK's prompt, the four bridges and Jacobian's channel all ignore it. An id alone would not help a model anyway.</p>
+  <div class="pipe">
+    <div class="step"><span class="n">1</span><h4>Your phone sends the reply</h4><p><code>message.post</code> with <code>reply_to</code>. The field exists. The phone, the web and the Mac start filling it.</p><span class="state new">CLIENTS: NEW</span></div>
+    <div class="step"><span class="n">2</span><h4>The server checks it</h4><p>The message must be in the same room. One from another room is refused; today it is kept and ignored. Its author decides who the reply is for.</p><span class="state live">MOSTLY WORKS TODAY</span></div>
+    <div class="step"><span class="n">3</span><h4>Chips adds the words</h4><p><code>message.new</code> and <code>message.overheard</code> gain <code>replying_to</code>: who said it, when, its words as they read now, its files, and the lines said just before it when it is older than the agent's context.</p><span class="state new">PROTOCOL + SERVER: NEW</span></div>
+    <div class="step"><span class="n">4</span><h4>The harness writes the turn</h4><p>The SDK's <code>promptFor</code> puts the quote right above your words, so OpenClaw, Hermes, OpenCode and the ACP bridge get it from one SDK bump. Jacobian's channel reads the same field.</p><span class="state new">SDK + BRIDGES + JACOBIAN: NEW</span></div>
+  </div>
+
+  <h3 style="margin-top:22px">Here is the turn Jacobian would get for “Make it 8 people”.</h3>
+  <div class="prompts">
+    <div class="pane">
+      <h4>Today: the id travels and nothing reads it</h4>
+<pre><span class="dim">Said in this room since you last spoke:</span>
+Arjun: Order the chocolate one
+
+Arjun: Make it 8 people, Sam and Priya are coming too.</pre>
+      <p>The newest thing in the room is the cake. A model reading this will most likely change the cake order, and Tuesday's booking stays at 6.</p>
+    </div>
+    <div class="pane">
+      <h4>Proposed: the quote, and what led to it</h4>
+<pre><span class="dim">Said in this room since you last spoke:</span>
+Arjun: Order the chocolate one
+
+<span class="hl">Arjun is replying to your message from Tuesday at 2:14 PM.</span><span class="hl"><span class="dim">Said just before it:</span></span><span class="hl">Arjun: Find us a place for Friday dinner, 6 people, …</span><span class="hl">Jacobian: Three have a table at 7:30: Foreign Cinema …</span><span class="hl">Arjun: Hold Foreign Cinema</span><span class="hl"><span class="dim">Your message:</span></span><span class="hl">&gt; Held for 6 at 7:30 under your name. They need a card</span><span class="hl">&gt; by Thursday noon or it lapses.</span>
+Arjun: Make it 8 people, Sam and Priya are coming too.</pre>
+      <p>The lines before it come only when the message is older than what the agent was already handed. A reply to something just above gets the quote alone.</p>
+    </div>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Option</th><th>What the agent gets</th><th>A reply to something from days ago</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>H1 · The id (today)</td><td><code>reply_to</code> alone. A harness could look the message up through <code>GET /v1/spaces/:id/context</code>, and none does.</td><td>Lost, unless the harness's own memory still holds it and the model guesses right.</td><td>Nothing</td></tr>
+        <tr><td>H2 · The quote</td><td><code>replying_to</code> with the author, the time, the words and the files. The SDK writes it above your words.</td><td>The agent sees what you answered but not what it was about. A quoted “Yes, that one” says little on its own.</td><td>Small to medium: protocol, server, the conformance fake, the SDK, a bump in each bridge, and Jacobian's channel.</td></tr>
+        <tr class="mine-pick"><td>H3 · The quote and what led to it <span class="rec" style="font:600 10.5px var(--font-mono);background:var(--gold);color:#1A1400;border-radius:5px;padding:3px 5px;margin-left:4px">MY PICK</span></td><td>H2, plus up to three lines said just before it, only when it is older than the context the agent was handed.</td><td>The agent gets the moment back: the question, the choices and its own answer.</td><td>Small on top of H2. The server already builds context lines; this asks for three that end at the quoted message.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="prompts">
+    <div class="pane">
+      <h4>The new field on <code>message.new</code></h4>
+<pre>{
+  "message_id": "msg_01JB2K…",
+  "text": "Make it 8 people, Sam and Priya are coming too.",
+  "reply_to": "msg_01JAT3…",
+<span class="hl">  "replying_to": {</span><span class="hl">    "message_id": "msg_01JAT3…",</span><span class="hl">    "seq": 3981,</span><span class="hl">    "at": "2026-10-20T21:14:03Z",</span><span class="hl">    "from": { "id": "agt_…", "kind": "agent", "name": "Jacobian" },</span><span class="hl">    "text": "Held for 6 at 7:30 under your name. …",</span><span class="hl">    "edited": false,</span><span class="hl">    "attachments": [],</span><span class="hl">    "before": [ /* up to 3 context lines */ ]</span><span class="hl">  },</span>  "context": { "lines": [ … ], "since_seq": 4120 }
+}</pre>
+    </div>
+    <div class="pane">
+      <h4>How it is built</h4>
+      <ul class="notes">
+        <li>It has the shape of a context line (<code>contextLine</code> in the protocol), plus three fields, so <code>renderContext</code> already knows how to write most of it.</li>
+        <li>The words are cut at 2,000 characters with an ellipsis, on their own budget, so a quote never pushes the room's lines out.</li>
+        <li><code>before</code> is filled only when the quoted message's <code>seq</code> is at or under <code>context.since_seq</code>. A reply to something just above gets the quote alone.</li>
+        <li>Files come as signed URLs, the same as the message's own, so a reply to a photo (“what plant is this?”) hands the agent the photo. A voice note brings its transcript.</li>
+        <li>Agents that overhear the reply get the same field on <code>message.overheard</code>, so Pilot knows what you meant even when the reply is for Jacobian.</li>
+        <li>An old bridge ignores a field it doesn't know, so nothing breaks before each one is bumped.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin-top:22px">The cases at the edges</h3>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Case</th><th>In the room</th><th>To the agent</th></tr></thead>
+      <tbody>
+        <tr><td>The message was edited later</td><td>The card shows the words as they read now.</td><td>The same words, with <code>edited: true</code>.</td></tr>
+        <tr><td>The message was deleted</td><td>The card reads “Deleted message” and goes nowhere.</td><td><code>deleted: true</code> and no words.</td></tr>
+        <tr><td>You deleted it only for yourself</td><td>Your card reads “A message you deleted”. Everyone else's is unchanged.</td><td>Unchanged. The agent still gets it.</td></tr>
+        <tr><td>A photo, a file or a voice note</td><td>The card shows the photo small, the file's name, or “Voice note, 0:12”.</td><td>Signed URLs, as for the message's own files, and the transcript.</td></tr>
+        <tr><td>A reply to a reply</td><td>The card quotes the message you answered, one level only.</td><td>One level only.</td></tr>
+        <tr><td>Your own message, or a person's</td><td>The reply goes where the capsule says, as it does now.</td><td>Only the agents it is for take a turn. The rest overhear it with the quote.</td></tr>
+        <tr><td>A message in another room</td><td>The app can't make one.</td><td>The server refuses it. Today it keeps it and ignores it.</td></tr>
+        <tr><td>Said before the agent joined the room</td><td>Nothing changes.</td><td>Quoted anyway, since you chose to show it. This one is your call.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="pick">
+  <span class="eyebrow">Recommendation</span>
+  <h2>Here is what I would build first.</h2>
+  <ul class="notes">
+    <li>Swipe and Reply in the menu on the phone, and the hover arrow with Reply in the menu on the web and the Mac.</li>
+    <li>The strip in the composer, sending <code>reply_to</code> with the message.</li>
+    <li>A, the quote card, with Jump and its sweep of gold and the pill back.</li>
+    <li>H3 for the harness: the quote always, and the lines before it when the message is older than the agent's context.</li>
+    <li>Focus and agents pointing back can wait until we have used replies for a while.</li>
+  </ul>
+  <div class="tw">
+    <table>
+      <thead><tr><th>Piece</th><th>Cost</th><th>Where the work is</th></tr></thead>
+      <tbody>
+        <tr><td>Reply in the long-press menu</td><td>Small</td><td>Phone <code>LiftedMenu</code>, web and Mac menu</td></tr>
+        <tr><td>Composer strip and sending <code>reply_to</code></td><td>Small</td><td>Composer on each client, core <code>act</code></td></tr>
+        <tr><td>Agents point back (later)</td><td>Small</td><td>One server rule, once runs record their message</td></tr>
+        <tr><td>H3: the quote and what led to it</td><td>Small to medium</td><td>Protocol, server, conformance fake, SDK, four bridges, Jacobian</td></tr>
+        <tr><td>A: the quote card</td><td>Small to medium</td><td>Core reader, phone <code>Line</code>, web and Mac bubble</td></tr>
+        <tr><td>Swipe to reply</td><td>Small to medium</td><td>A pan on the phone's rows, with a haptic</td></tr>
+        <tr><td>Jump, the sweep and the pill back</td><td>Medium</td><td>Scrolling the room's list to a row it hasn't drawn</td></tr>
+        <tr><td>B: the faded copy and the line</td><td>Medium to large</td><td>Row layout and measuring on each client</td></tr>
+        <tr><td>Focus</td><td>Large</td><td>A new layout on the lift layer</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 style="margin-top:22px">Three questions for you</h3>
+  <ol class="ask">
+    <li>Should replies look like A, the quote card, or B, the faded copy with a line?</li>
+    <li>Do we build Jump now and Focus later, or Focus from the start?</li>
+    <li>Should a reply quote a message that was said before the agent joined the room?</li>
+  </ol>
+</section>
+
+<footer>Mocks only. Nothing on this page is built yet. The phones are iPhone 17 frames in points, drawn with Chips's own colours.</footer>
+</div>
+
+<script>
+(() => {
+const root = document.documentElement;
+const BAKE = /[?&]bake\b/.test(location.search);
+const K = () => root.classList.contains('slow') ? 2.5 : 1;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const wait = ms => new Promise(r => setTimeout(r, ms * K()));
+const E = { out: 'cubic-bezier(.22,1,.36,1)', spring: 'cubic-bezier(.3,1.45,.5,1)', soft: 'cubic-bezier(.4,0,.2,1)' };
+const easeIO = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const H = 874;
+
+function play(el, kf, o = {}) {
+  return el.animate(kf, { duration: (o.duration ?? 300) * K(), delay: (o.delay ?? 0) * K(), easing: o.easing ?? E.out, fill: 'both' });
+}
+function frames(ms, fn) {
+  return new Promise(res => {
+    const d = ms * K(), t0 = performance.now();
+    const step = now => { const k = Math.min(1, (now - t0) / d); fn(k); if (k < 1) requestAnimationFrame(step); else res(); };
+    requestAnimationFrame(step);
+  });
+}
+function cancelAll(ph) { ph.getAnimations({ subtree: true }).forEach(a => { if (a.constructor === Animation) a.cancel(); }); }
+/* Where an element sits inside `top`, in the phone's own points: offsets, plus any scroll the list carries. */
+function at(el, top) {
+  let x = 0, y = 0, n = el;
+  while (n && n !== top) { x += n.offsetLeft; y += n.offsetTop; if (n.dataset && n.dataset.ty) y += +n.dataset.ty; n = n.offsetParent; }
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+}
+const mid = (el, ph) => { const r = at(el, ph); return { x: r.x + r.w / 2, y: r.y + r.h / 2 }; };
+
+const sv = (d, w = 1.9) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const I = {
+  reply: sv('<path d="M9.5 14.5 4 9l5.5-5.5"/><path d="M4 9h10a6 6 0 0 1 6 6v4"/>', 2.1),
+  copy: sv('<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/>'),
+  select: sv('<path d="M8.5 4h7M8.5 20h7M12 4v16"/>'),
+  share: sv('<path d="M12 3.5v11M8 7.5l4-4 4 4"/><path d="M7.5 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/>'),
+  pin: sv('<path d="M12 16v5"/><path d="M8.5 3.5h7l-1.2 5.5 3.2 4.5h-11L9.7 9z"/>'),
+  notright: sv('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5"/><path d="M12 16.4v.1"/>'),
+  run: sv('<path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>', 2.2),
+  trash: sv('<path d="M4 7h16"/><path d="M9.5 7V4.5h5V7"/><path d="M6 7l1 13h10l1-13"/>'),
+  x: sv('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>', 2.4),
+  down: sv('<path d="M12 5v14"/><path d="M6 13l6 6 6-6"/>', 2.2),
+  up: sv('<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>', 2.4),
+  back: sv('<path d="M15 5l-7 7 7 7"/>', 2.2),
+  chev: sv('<path d="M6 9l6 6 6-6"/>', 2.4),
+  thread: sv('<path d="M6 4v7a4 4 0 0 0 4 4h9"/><path d="M15 11l4 4-4 4"/>', 2),
+};
+
+const F = {
+  j: { n: 'Jacobian', l: 'J', c: 'var(--jv)', ink: 'var(--j-ink)' },
+  p: { n: 'Pilot', l: 'P', c: 'var(--pv)', ink: 'var(--p-ink)' },
+  m: { n: 'Maya', l: 'M', c: 'var(--mv)', ink: 'var(--m-ink)', person: true },
+  me: { n: 'You', l: 'A', c: 'var(--mev)', ink: 'var(--me-ink)', person: true },
+};
+const face = (k, cls = '') => `<i class="f${F[k].person ? ' p' : ''}${cls ? ' ' + cls : ''}" style="--g:${F[k].c}">${F[k].l}</i>`;
+const qcard = q => `<span class="qc" style="--g:${F[q.who].c};--qa:${F[q.who].ink}"><i class="qb"></i><b class="qn">${F[q.who].n}${q.day ? `<small> · ${q.day}</small>` : ''}</b><span class="qt">${q.text}</span></span>`;
+
+function row(r, names) {
+  if (r.day) return `<div class="day">${r.day}</div>`;
+  const id = r.id ? ` data-id="${r.id}"` : '';
+  const hid = r.hidden ? ' hidden' : '';
+  if (r.echo) return `<div class="thread"${id}${hid}><div class="echo"><span class="el">${F[r.q.who].n} · ${r.q.day}</span><div class="bub ebub">${r.q.text}</div></div><div class="row me"><div class="bub mine"><span class="tx">${r.t}</span></div></div><svg class="tl" aria-hidden="true"><path d="M0 0"/></svg></div>`;
+  const q = r.q ? qcard(r.q) : '';
+  if (r.k === 'me') return `<div class="row me"${id}${hid}><div class="bub mine">${q}<span class="tx">${r.t}</span></div></div>`;
+  const nm = names ? `<b class="nm" style="color:${F[r.k].ink}">${F[r.k].n}</b>` : '';
+  const body = r.think ? '<span class="dots"><i></i><i></i><i></i></span>' : `${nm}${q}<span class="tx">${r.t}</span>`;
+  let h = `<div class="row them${r.think ? ' think' : ''}"${id}${hid}><span class="ra">${I.reply}</span>${face(r.k)}<div class="bub">${body}</div></div>`;
+  if (r.replies) h += `<div class="rmark">${I.thread}<span>1 reply</span></div>`;
+  return h;
+}
+
+function phoneHTML(o) {
+  const cap = o.capsule ? `<div class="tocap lg"><span class="arw">→</span><span class="ci">${face(o.capsule, 'xs')}<span class="cn">${F[o.capsule].n}</span></span><span class="dn">${I.chev}</span></div>` : '';
+  return `<div class="phone${o.capsule ? ' capsuled' : ''}" data-kind="${o.kind}">
+<div class="lines">${o.rows.map(r => row(r, o.names)).join('')}</div>
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg">${I.back}</div><div class="spread"><div class="cap namecap lg"><b>${o.title}</b><small>${o.sub}</small></div></div><div class="cap faces">${o.faces.map(k => face(k, 'nf')).join('')}</div></div></div>
+<div class="chrome b">${cap}<div class="bar"><div class="plus lg">+</div><div class="field lg"><div class="qs"><div><div class="q"><i class="qb"></i><span class="qx"><span class="qn"></span><span class="qt"></span></span><span class="qz">${I.x}</span></div></div></div><div class="frow"><span class="ph">Message</span><div class="words"><span></span></div><span class="send">${I.up}</span></div></div></div></div>
+<div class="veil"></div>${o.extra || ''}<i class="touch"></i></div>`;
+}
+
+/* ── the rooms ── */
+const PARENT = 'Held for 6 at 7:30 under your name. They need a card by Thursday noon or it lapses.';
+const CAKE = 'Tartine on Guerrero does a 6 inch chiffon if you order by 5 PM today. It’s a 4 minute walk from Foreign Cinema.';
+const tue = replies => [
+  { day: 'Tuesday' },
+  { k: 'me', t: 'Find us a place for Friday dinner, 6 people, somewhere near Valencia St.' },
+  { k: 'j', t: 'Three have a table at 7:30: <b>Foreign Cinema</b> (patio, heaters), <b>Flour + Water</b> (pasta, loud) and <b>Lazy Bear</b> (tasting menu). Want me to hold one?' },
+  { k: 'me', t: 'Hold Foreign Cinema' },
+  { k: 'j', t: PARENT, id: 'parent', replies },
+];
+const WED = [
+  { day: 'Wednesday' },
+  { k: 'me', t: 'Draft a note to the landlord about the dishwasher. Polite but firm.' },
+  { k: 'j', t: 'Here’s a draft:<br><br>Hi Dana, the dishwasher has stopped draining again, the third time since August. Could someone come by this week? I’m home Thursday after 3 PM.<br><br>Thanks, Arjun' },
+  { k: 'me', t: 'Send it' },
+  { k: 'j', t: 'Sent to Dana at 6:12 PM.' },
+];
+const TODAY = [
+  { day: 'Today' },
+  { k: 'me', t: 'Can you find a cake place near there? It’s Leah’s birthday on Friday.' },
+  { k: 'j', t: CAKE, id: 'cake' },
+  { k: 'me', t: 'Order the chocolate one' },
+  { k: 'j', t: 'Ordered. You can pick it up Friday after 4 PM.' },
+];
+const REPLY = { k: 'me', t: 'Make it 8 people, Sam and Priya are coming too.', q: { who: 'j', day: 'Tue', text: PARENT }, id: 'reply' };
+const THINK = { k: 'j', think: true, id: 'think', hidden: true };
+const ANSWER = { k: 'j', t: 'Done. Foreign Cinema has you down for 8 at 7:30 on Friday, same patio. The card is still due by noon today.', id: 'answer' };
+const QUOTE = '$2,400 to move it 3 feet, from their email on Oct 12. They can start the week of the 26th.';
+const ROOM1 = { title: 'Friday dinner', sub: 'Jacobian', faces: ['j'] };
+const ROOM2 = { title: 'Kitchen remodel', sub: 'Maya, Jacobian, Pilot', faces: ['m', 'p', 'j'], names: true };
+
+const MENU = `<div class="liftw"></div><div class="pcap lg"><span class="pi first">${I.reply}<span>Reply</span></span><i class="pdiv"></i><span class="pi">${I.copy}<span>Copy</span></span><span class="pi">${I.select}<span>Select</span></span><span class="pi">${I.share}<span>Share</span></span><span class="pi">${I.pin}<span>Pin</span></span></div><div class="pcard lg"><span class="pr">Not right?${I.notright}</span><span class="pr">What the run did${I.run}</span><span class="pr red">Delete${I.trash}</span></div>`;
+const PILLS = `<span class="daypill lg">Tuesday</span><span class="backpill lg">${I.down}<span>Back to your reply</span></span>`;
+const FOCUS = `<div class="focus"><div class="fstack"><span class="fdate lg">Tuesday, 2:14 PM</span>
+<div class="row them fparent">${face('j')}<div class="bub">${PARENT}</div></div>
+<div class="row me freply"><div class="bub mine"><span class="tx">${REPLY.t}</span></div></div>
+<div class="row them fanswer">${face('j')}<div class="bub">${ANSWER.t}</div></div>
+<svg class="fl" aria-hidden="true"><path d="M0 0"/></svg></div>
+<span class="fshow lg">${I.thread}<span>Show in the room</span></span>
+<div class="fbar"><div class="plus lg">+</div><div class="ffield lg">Reply to Jacobian</div></div></div>`;
+
+const PH = {
+  swipe: { ...ROOM1, rows: [...tue(false), ...WED, ...TODAY, { k: 'me', t: 'Can it say Happy birthday Leah on top?', q: { who: 'j', text: CAKE }, id: 'sent', hidden: true }] },
+  hold: { ...ROOM2, capsule: 'p', extra: MENU, rows: [
+    { day: 'Today' },
+    { k: 'me', t: '<span class="mn">@Jacobian</span> what did Ruiz Plumbing quote for moving the sink?' },
+    { k: 'j', t: QUOTE, id: 'quote' },
+    { k: 'm', t: '<span class="mn">@Pilot</span> can you pull up the tile samples we liked?' },
+    { k: 'p', t: 'You saved three: Zellige white, Clé terracotta and Fireclay sage.' },
+    { k: 'm', t: 'Sage for sure' },
+    { k: 'me', t: '<span class="mn">@Pilot</span> add the sage one to the order list' },
+    { k: 'p', t: 'Added. Fireclay can send a sample box by Thursday.' },
+  ] },
+  quote: { ...ROOM1, rows: [...tue(false), ...WED, ...TODAY, REPLY, THINK, ANSWER] },
+  echo: { ...ROOM1, rows: [...tue(false), ...WED, ...TODAY, { ...REPLY, echo: true }, THINK, ANSWER] },
+  jump: { ...ROOM1, extra: PILLS, rows: [...tue(true), ...WED, ...TODAY, REPLY, ANSWER] },
+  focus: { ...ROOM1, extra: FOCUS, rows: [...tue(true), ...WED, ...TODAY, REPLY, ANSWER] },
+  late: { ...ROOM2, capsule: 'j', rows: [
+    { day: 'Today' },
+    { k: 'me', t: 'Sage it is. Can you two sort the sample box?' },
+    { k: 'p', t: 'On it. I’ll ask Fireclay to send it to the house.' },
+    { k: 'me', t: '<span class="mn">@Jacobian</span> when can Ruiz start on the sink?' },
+    { k: 'm', t: '<span class="mn">@Pilot</span> did Fireclay ship the samples yet?' },
+    { k: 'p', t: 'Yes. They ship tomorrow and should arrive Thursday.' },
+    { k: 'm', t: 'Perfect, thank you' },
+    { k: 'j', think: true, id: 'think', hidden: true },
+    { k: 'j', t: 'Monday the 26th. They need the old cabinets out first, so I’ve asked the cabinet crew to come Friday.', q: { who: 'me', text: '@Jacobian when can Ruiz start on the sink?' }, id: 'late' },
+  ] },
+};
+
+/* ── shared moves ── */
+function paint(ph) { $$('.mine', ph).forEach(b => { b.style.backgroundPositionY = `${-at(b, ph).y}px`; }); }
+function strip(ph, who, text, day) {
+  const q = $('.q', ph);
+  q.style.setProperty('--g', F[who].c); q.style.setProperty('--qa', F[who].ink);
+  $('.qn', q).innerHTML = `Replying to <b>${F[who].n}</b>${day ? ` · ${day}` : ''}`;
+  $('.qt', q).innerHTML = text;
+}
+function setCap(ph, who, by, swap) {
+  const ci = $('.tocap .ci', ph);
+  ci.innerHTML = `${face(who, 'xs')}<span class="cn">${F[who].n}</span>${by ? `<span class="by">${by}</span>` : ''}`;
+  ci.classList.remove('swap');
+  if (swap) { void ci.offsetWidth; ci.classList.add('swap'); }
+}
+function measureStrip(ph) {
+  const had = ph.classList.contains('replying');
+  ph.classList.add('notrans', 'replying');
+  const r = at($('.q', ph), ph);
+  if (!had) ph.classList.remove('replying');
+  void ph.offsetHeight; ph.classList.remove('notrans');
+  return r;
+}
+function lineBetween(path, from, to, top) {
+  const a = at(from, top), b = at(to, top), r = 14;
+  const x1 = a.x + 18, y1 = a.y + a.h + 2, x2 = b.x - 4, y2 = b.y + Math.min(b.h / 2, 20);
+  path.setAttribute('d', `M${x1} ${y1} V${y2 - r} Q${x1} ${y2} ${x1 + r} ${y2} H${x2}`);
+  const len = path.getTotalLength();
+  path.style.strokeDasharray = `${len}`;
+  return len;
+}
+const drawLine = (path, len, delay = 0) => play(path, [{ strokeDashoffset: len }, { strokeDashoffset: 0 }], { duration: 560, delay, easing: E.out });
+function sweep(qc) { qc.classList.remove('sweep'); void qc.offsetWidth; qc.classList.add('sweep'); }
+function touchAt(ph, x, y) { const t = $('.touch', ph); t.style.translate = `${x - 22}px ${y - 22}px`; return t; }
+async function tap(ph, x, y, hold = 130) {
+  const t = touchAt(ph, x, y); t.classList.add('on'); await wait(170);
+  t.classList.add('down'); await wait(hold); t.classList.remove('down'); await wait(70); t.classList.remove('on');
+}
+async function type(ph, text) {
+  const s = $('.words span', ph); ph.classList.add('typing');
+  for (const ch of text) { s.textContent += ch; await wait(ch === ' ' ? 75 : 36 + Math.random() * 42); }
+}
+/* Rows arrive at the foot: the list is pinned to the bottom, so it is drawn at its new height and slid up from where it was. */
+async function rise(ph, show, hide = []) {
+  const lines = $('.lines', ph), before = lines.offsetHeight;
+  hide.forEach(r => { r.hidden = true; }); show.forEach(r => { r.hidden = false; });
+  const d = lines.offsetHeight - before;
+  paint(ph);
+  show.forEach(r => play(r, [{ opacity: 0, transform: 'translateY(12px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 440, delay: 30 }));
+  await play(lines, [{ transform: `translateY(${d}px)` }, { transform: 'none' }], { duration: 540 }).finished;
+}
+
+/* ── each phone: how it rests, what it measures, how it plays ── */
+function prepMenu(ph) {
+  const bub = $('[data-id=quote] .bub', ph), b = at(bub, ph);
+  let c = $('.liftc', ph);
+  if (!c) { c = bub.cloneNode(true); c.classList.add('liftc'); $('.liftw', ph).replaceWith(c); }
+  Object.assign(c.style, { left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px` });
+  const cap = $('.pcap', ph), card = $('.pcard', ph);
+  cap.style.left = `${Math.max(12, Math.min(b.x - 6, 402 - 12 - cap.offsetWidth))}px`;
+  cap.style.top = `${b.y - cap.offsetHeight - 12}px`;
+  card.style.left = `${b.x}px`;
+  card.style.top = `${b.y + b.h + 12}px`;
+}
+function focusLine(ph) { return lineBetween($('.fl path', ph), $('.fparent .bub', ph), $('.freply .bub', ph), $('.fstack', ph)); }
+function setTy(ph, ty) { const l = $('.lines', ph); l.dataset.ty = `${ty}`; l.style.transform = ty ? `translateY(${ty}px)` : ''; paint(ph); }
+function targetTy(ph, el) { const l = $('.lines', ph), cur = +(l.dataset.ty || 0), b = at(el, ph); return cur + (H * 0.44 - (b.y + b.h / 2)); }
+
+const KIND = {
+  swipe: {
+    rest(ph) { strip(ph, 'j', CAKE); ph.classList.add('replying', 'typing'); $('.words span', ph).textContent = 'Can it say Happy birthday Leah on top?'; },
+    async loop(ph) {
+      const cake = $('[data-id=cake]', ph), bub = $('.bub', cake), fc = $('.f', cake), ra = $('.ra', cake);
+      const sent = $('[data-id=sent]', ph), words = $('.words span', ph), t = $('.touch', ph);
+      cancelAll(ph); ph.classList.remove('replying', 'typing'); words.textContent = ''; sent.hidden = true;
+      ra.classList.remove('hit'); ra.style.cssText = ''; bub.style.transform = ''; fc.style.transform = ''; paint(ph);
+      const stripAt = measureStrip(ph);
+      await wait(1000);
+      const b = at(bub, ph), x0 = b.x + 70, y0 = b.y + b.h / 2;
+      touchAt(ph, x0, y0); t.classList.add('on'); await wait(160); t.classList.add('down'); await wait(90);
+      let hit = false;
+      await frames(470, k => {
+        const dx = 78 * (1 - Math.pow(1 - k, 3)), tr = `translateX(${dx}px)`;
+        bub.style.transform = tr; fc.style.transform = tr;
+        t.style.translate = `${x0 + dx - 22}px ${y0 - 22}px`;
+        const p = Math.min(1, dx / 58);
+        ra.style.opacity = `${p}`; ra.style.transform = `scale(${0.4 + 0.6 * p})`;
+        if (dx >= 58 && !hit) { hit = true; ra.classList.add('hit'); }
+      });
+      await wait(110);
+      t.classList.remove('down', 'on');
+      for (const e of [bub, fc]) { play(e, [{ transform: 'translateX(78px)' }, { transform: 'none' }], { duration: 560, easing: E.spring }); e.style.transform = ''; }
+      play(ra, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.6)' }], { duration: 280, delay: 60 });
+      const g = bub.cloneNode(true);
+      Object.assign(g.style, { position: 'absolute', left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px`, margin: '0', zIndex: '30', transformOrigin: '0 0' });
+      ph.appendChild(g);
+      ph.classList.add('replying');
+      const sc = Math.min(0.62, stripAt.h / b.h);
+      await play(g, [{ transform: 'none', opacity: 1 }, { opacity: 0.95, offset: 0.55 }, { transform: `translate(${stripAt.x - b.x + 6}px, ${stripAt.y - b.y}px) scale(${sc})`, opacity: 0 }], { duration: 600, easing: E.out }).finished;
+      g.remove();
+      await wait(320);
+      await type(ph, 'Can it say Happy birthday Leah on top?');
+      await wait(380);
+      const sd = mid($('.send', ph), ph); await tap(ph, sd.x, sd.y);
+      ph.classList.remove('replying', 'typing'); words.textContent = '';
+      await rise(ph, [sent]);
+      sweep($('.qc', sent));
+      await wait(2800);
+    },
+  },
+  hold: {
+    prep: prepMenu,
+    rest(ph) { strip(ph, 'j', QUOTE); setCap(ph, 'p'); ph.classList.add('von', 'lifted'); },
+    async loop(ph) {
+      const bub = $('[data-id=quote] .bub', ph), t = $('.touch', ph), words = $('.words span', ph);
+      cancelAll(ph); ph.classList.remove('von', 'lifted', 'replying', 'typing'); words.textContent = ''; setCap(ph, 'p');
+      $$('.hit', ph).forEach(e => e.classList.remove('hit'));
+      prepMenu(ph);
+      await wait(1000);
+      const m = mid(bub, ph);
+      touchAt(ph, m.x + 30, m.y); t.classList.add('on'); await wait(160); t.classList.add('down');
+      play(bub, [{ transform: 'none' }, { transform: 'scale(.97)' }], { duration: 440, easing: E.soft });
+      await wait(450);
+      ph.classList.add('von', 'lifted');
+      play(bub, [{ transform: 'scale(.97)' }, { transform: 'none' }], { duration: 200 });
+      t.classList.remove('down');
+      await wait(1100);
+      const ri = $('.pi.first', ph), rm = mid(ri, ph);
+      t.classList.add('move'); touchAt(ph, rm.x, rm.y); await wait(430);
+      t.classList.add('down'); ri.classList.add('hit'); await wait(150);
+      t.classList.remove('down', 'move'); await wait(80); t.classList.remove('on');
+      ph.classList.remove('lifted', 'von');
+      await wait(170);
+      ph.classList.add('replying'); setCap(ph, 'j', 'by reply', true);
+      await wait(260); ri.classList.remove('hit');
+      await wait(320);
+      await type(ph, 'Does that include the permit?');
+      await wait(2400);
+    },
+  },
+  quote: {
+    rest() {},
+    async loop(ph) { await land(ph); },
+  },
+  echo: {
+    prep(ph) { const th = $('[data-id=reply]', ph); if (!th.hidden) lineBetween($('.tl path', th), $('.ebub', th), $('.mine', th), th); },
+    rest() {},
+    async loop(ph) { await land(ph); },
+  },
+  jump: {
+    rest(ph) { const p = $('[data-id=parent]', ph); setTy(ph, targetTy(ph, $('.bub', p))); p.classList.add('found'); ph.classList.add('jumped'); },
+    async loop(ph) {
+      const parent = $('[data-id=parent]', ph), pb = $('.bub', parent), reply = $('[data-id=reply]', ph), qc = $('.qc', reply), pill = $('.backpill', ph);
+      cancelAll(ph); ph.classList.remove('jumped'); parent.classList.remove('found', 'pulse'); setTy(ph, 0);
+      await wait(1200);
+      const m = mid(qc, ph);
+      const tp = tap(ph, m.x, m.y, 140);
+      await wait(260); play(qc, [{ transform: 'none' }, { transform: 'scale(.96)' }, { transform: 'none' }], { duration: 300 });
+      await tp;
+      const to = targetTy(ph, pb);
+      play($('.lines', ph), [{ filter: 'blur(0px)' }, { filter: 'blur(1.8px)', offset: 0.45 }, { filter: 'blur(0px)' }], { duration: 1050, easing: 'linear' });
+      await frames(1050, k => setTy(ph, to * easeIO(k)));
+      parent.classList.add('found', 'pulse'); ph.classList.add('jumped');
+      await wait(2600);
+      const pm = mid(pill, ph); await tap(ph, pm.x, pm.y, 140);
+      ph.classList.remove('jumped'); parent.classList.remove('pulse');
+      play($('.lines', ph), [{ filter: 'blur(0px)' }, { filter: 'blur(1.4px)', offset: 0.45 }, { filter: 'blur(0px)' }], { duration: 900, easing: 'linear' });
+      await frames(900, k => setTy(ph, to * (1 - easeIO(k))));
+      parent.classList.remove('found');
+      sweep(qc);
+      await wait(1800);
+    },
+  },
+  focus: {
+    prep(ph) { if (ph.classList.contains('focused')) { focusLine(ph); paint(ph); } },
+    rest(ph) { ph.classList.add('von', 'focused'); },
+    async loop(ph) {
+      const reply = $('[data-id=reply]', ph), ans = $('[data-id=answer]', ph), qc = $('.qc', reply), focus = $('.focus', ph);
+      cancelAll(ph); ph.classList.remove('von', 'focused');
+      await wait(1200);
+      const m = mid(qc, ph);
+      const tp = tap(ph, m.x, m.y, 140);
+      await wait(260); play(qc, [{ transform: 'none' }, { transform: 'scale(.96)' }, { transform: 'none' }], { duration: 300 });
+      await tp;
+      const src = [at(qc, ph), at($('.bub', reply), ph), at($('.bub', ans), ph)];
+      ph.classList.add('von', 'focused'); paint(ph);
+      const len = focusLine(ph);
+      ['.fparent .bub', '.freply .bub', '.fanswer .bub'].forEach((s, i) => {
+        const el = $(s, ph), d = at(el, ph), sc = src[i].w / d.w;
+        play(el, [{ transform: `translate(${src[i].x - d.x}px, ${src[i].y - d.y}px) scale(${sc})`, opacity: 0.35 }, { opacity: 1, offset: 0.35 }, { transform: 'none', opacity: 1 }], { duration: 620, delay: i * 50, easing: E.out });
+      });
+      $$('.fstack .f', ph).forEach(f => play(f, [{ opacity: 0, transform: 'scale(.6)' }, { opacity: 1, transform: 'none' }], { duration: 360, delay: 300 }));
+      [$('.fdate', ph), $('.fshow', ph), $('.fbar', ph)].forEach((el, i) => play(el, [{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: 220 + i * 60 }));
+      drawLine($('.fl path', ph), len, 420);
+      await wait(3000);
+      await tap(ph, 200, 108, 120);
+      ph.classList.remove('von');
+      await play(focus, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.98)' }], { duration: 300, easing: E.soft }).finished;
+      cancelAll(ph); ph.classList.remove('focused');
+      await wait(1200);
+    },
+  },
+  late: {
+    rest() {},
+    async loop(ph) {
+      const think = $('[data-id=think]', ph), late = $('[data-id=late]', ph);
+      cancelAll(ph); think.hidden = true; late.hidden = true; paint(ph);
+      await wait(1000);
+      await rise(ph, [think]);
+      await wait(1700);
+      await rise(ph, [late], [think]);
+      sweep($('.qc', late));
+      await wait(3200);
+    },
+  },
+};
+async function land(ph) {
+  const reply = $('[data-id=reply]', ph), think = $('[data-id=think]', ph), ans = $('[data-id=answer]', ph);
+  cancelAll(ph); reply.hidden = true; think.hidden = true; ans.hidden = true; paint(ph);
+  await wait(1100);
+  await rise(ph, [reply]);
+  const qc = $('.qc', reply);
+  if (qc) sweep(qc);
+  const path = $('.tl path', reply);
+  if (path) {
+    const len = lineBetween(path, $('.ebub', reply), $('.mine', reply), reply);
+    play($('.echo', reply), [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 420 });
+    drawLine(path, len, 120);
+  }
+  await wait(900);
+  await rise(ph, [think]);
+  await wait(1500);
+  await rise(ph, [ans], [think]);
+  await wait(3000);
+}
+
+/* ── build once (a baked copy is already built), measure every load, play while on screen ── */
+if (!root.dataset.built) {
+  $$('[data-phone]').forEach(slot => { const kind = slot.dataset.phone; slot.innerHTML = phoneHTML({ kind, ...PH[kind] }); });
+  root.dataset.built = '1';
+  $$('.phone').forEach(ph => { const k = KIND[ph.dataset.kind]; k.prep?.(ph); paint(ph); k.rest(ph); k.prep?.(ph); paint(ph); });
+} else {
+  $$('.phone').forEach(ph => { KIND[ph.dataset.kind].prep?.(ph); paint(ph); });
+}
+
+const slowBtn = $('#slow');
+slowBtn.addEventListener('click', () => {
+  const on = root.classList.toggle('slow');
+  slowBtn.setAttribute('aria-pressed', `${on}`);
+  root.style.setProperty('--slow', on ? '2.5' : '1');
+});
+
+if (BAKE || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+const waiting = new Map();
+const io = 'IntersectionObserver' in window ? new IntersectionObserver(es => es.forEach(e => {
+  e.target._vis = e.isIntersecting;
+  if (e.isIntersecting && waiting.has(e.target)) { waiting.get(e.target)(); waiting.delete(e.target); }
+}), { threshold: 0.2 }) : null;
+const visible = el => (!io || el._vis) ? Promise.resolve() : new Promise(r => waiting.set(el, r));
+async function run(ph) {
+  io?.observe(ph);
+  for (;;) {
+    await visible(ph);
+    try { await KIND[ph.dataset.kind].loop(ph); } catch (err) { console.error(err); await wait(1500); }
+  }
+}
+const start = () => $$('.phone').forEach(run);
+(document.fonts?.ready ?? Promise.resolve()).then(() => setTimeout(start, 300));
+})();
+</script>
+
+</body></html>

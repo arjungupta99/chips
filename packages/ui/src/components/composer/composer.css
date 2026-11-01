@@ -1,0 +1,154 @@
+.ui-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.ui-composer__attachments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ui-composer__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.ui-composer__attach {
+  border-radius: 50%;
+  color: var(--ink-3);
+  align-self: center;
+}
+
+.ui-composer__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  max-height: 40vh;
+  padding: 9px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: 1.4;
+  resize: none;
+}
+
+/* The empty field's words on one line, cut with an ellipsis where the field is narrow: at a window
+   beside the run panel the slash-command hint wrapped to a second line, half hidden (audit M1). */
+.ui-composer__input::placeholder {
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-composer__input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.ui-composer__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.ui-composer__chip:hover {
+  background: var(--surface-3);
+}
+
+.ui-composer__chip[data-active="true"] {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.ui-composer__send {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--ink);
+  color: var(--bg);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  align-self: center;
+  transition: opacity var(--motion-fast) var(--ease);
+}
+
+.ui-composer__send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/*
+ * One box for the words and what leads them, when something does: the border and the ground are
+ * the box's, and the text box inside it is bare. It grows upward as what it opens into comes.
+ */
+.ui-composer__field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.ui-composer__field:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.ui-composer__line {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding-left: 5px;
+}
+
+.ui-composer__field .ui-composer__input {
+  border: 0;
+  padding-left: 6px;
+}
+
+.ui-composer__field .ui-composer__input:focus-visible {
+  outline: none;
+}
+
+/* While the field is open into what it opens into, what stands beside it stays on the words' line. */
+.ui-composer__row:has(> .ui-composer__field[data-open="true"]) > .ui-composer__attach,
+.ui-composer__row:has(> .ui-composer__field[data-open="true"]) > .ui-composer__send {
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+
+.ui-composer__row:has(> .ui-composer__field[data-open="true"]) > .ui-composer__chip {
+  align-self: flex-end;
+  margin-bottom: 7px;
+}

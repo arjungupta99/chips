@@ -1,0 +1,108 @@
+{
+  "connectors": [
+    {
+      "id": "openclaw",
+      "name": "OpenClaw",
+      "line": "An OpenClaw gateway, on a server or this Mac",
+      "needs": "OpenClaw set up, with its gateway running",
+      "kind": "one-line",
+      "command": "chips connect openclaw '{link}'",
+      "package": "@chipschat/openclaw@1",
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "context_files",
+        "models",
+        "heartbeats",
+        "context_windows",
+        "jobs",
+        "forks"
+      ],
+      "published": true
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "line": "Anthropic's coding agent, through chips-acp",
+      "needs": "Claude Code installed and signed in",
+      "kind": "one-line",
+      "command": "chips connect claude-code '{link}'",
+      "package": "@chipschat/acp@1",
+      "args": ["~/.chips-acp/claude-code.json"],
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "forks",
+        "context_files",
+        "models",
+        "context_windows"
+      ],
+      "published": true
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "line": "OpenAI's coding agent, through chips-acp",
+      "needs": "Codex installed and signed in",
+      "kind": "one-line",
+      "command": "chips connect codex '{link}'",
+      "package": "@chipschat/acp@1",
+      "args": ["~/.chips-acp/codex.json"],
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "forks",
+        "context_files",
+        "models",
+        "context_windows"
+      ],
+      "published": true
+    },
+    {
+      "id": "hermes",
+      "name": "Hermes",
+      "line": "Hermes Agent's API server, through chips-hermes",
+      "needs": "Hermes running with its API server on",
+      "kind": "one-line",
+      "command": "chips connect hermes '{link}'",
+      "package": "@chipschat/hermes@1",
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "forks",
+        "context_files",
+        "models",
+        "context_windows"
+      ],
+      "published": true
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "line": "OpenCode's own server, through chips-opencode",
+      "needs": "OpenCode installed",
+      "kind": "one-line",
+      "command": "chips connect opencode '{link}'",
+      "package": "@chipschat/opencode@1",
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "forks",
+        "context_files",
+        "models",
+        "context_windows"
+      ],
+      "published": true
+    }
+  ]
+}

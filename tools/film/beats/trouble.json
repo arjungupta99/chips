@@ -1,0 +1,53 @@
+{
+  "title": "Costs and trouble",
+  "beats": [
+    {
+      "key": "cost",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Cost",
+        "line": "See what a job did, and cost",
+        "sentence": "Press a reply to see its steps, how long they took, and what its harness says they cost."
+      },
+      "shots": [{ "app": "phone", "film": "trouble", "chapter": 0, "from": 400 }]
+    },
+    {
+      "key": "spend",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Spend",
+        "line": "Set what a job may spend",
+        "sentence": "When a job here reaches the amount you set, Chips holds the agents until somebody lets them carry on. Only costs a harness reports count."
+      },
+      "shots": [{ "app": "phone", "film": "trouble", "chapter": 1, "from": 400 }]
+    },
+    {
+      "key": "notRight",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Not right?",
+        "line": "Say what's not right",
+        "sentence": "Press a reply and tell Milo what's wrong. Milo reads it, and can try again."
+      },
+      "shots": [
+        {
+          "app": "phone",
+          "film": "trouble",
+          "chapter": 2,
+          "from": 400
+        }
+      ]
+    },
+    {
+      "key": "cantAnswer",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Can't answer",
+        "line": "See when an agent can't answer",
+        "sentence": "If an agent's harness is offline, the space says so under your message."
+      },
+      "shots": [{ "app": "phone", "film": "trouble", "chapter": 3, "from": 400 }]
+    },
+    { "key": "end", "layout": "end", "seconds": 3.2, "line": "Chat with your AI agents" }
+  ]
+}

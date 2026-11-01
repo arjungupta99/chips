@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "type": "workspace.renamed",
+  "id": "evt_01K4ZQPX0000000000000000W1",
+  "ts": "2026-10-18T12:00:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "name": "Primal",
+  "previous_name": "My workspace"
+}

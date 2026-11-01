@@ -1,0 +1,964 @@
+<meta charset="utf-8">
+<title>Chips Media Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#CDCDC3;
+  --ink:#16181D;--ink-2:#4A4D56;--ink-3:#7B7E88;--ink-4:#A9ABB3;
+  --gold:#F5C542;--gold-deep:#7D5B00;--gold-soft:#FFF3C4;--blue:#2F6FED;--blue-soft:#E6EDFF;--green-soft:#E0F4E9;--green-ink:#176B43;--red:#D6453D;
+  --teal:#0D7C86;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#111215;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#3D414B;
+  --ink:#ECEDE8;--ink-2:#B9BBC3;--ink-3:#868993;--ink-4:#5F626C;
+  --gold:#F5C542;--gold-deep:#F2CF6B;--gold-soft:#3B300E;--blue:#6E9CFF;--blue-soft:#1B2848;--green-soft:#17352B;--green-ink:#8CE0B6;--red:#F26A62}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#111215;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#3D414B;
+  --ink:#ECEDE8;--ink-2:#B9BBC3;--ink-3:#868993;--ink-4:#5F626C;
+  --gold:#F5C542;--gold-deep:#F2CF6B;--gold-soft:#3B300E;--blue:#6E9CFF;--blue-soft:#1B2848;--green-soft:#17352B;--green-ink:#8CE0B6;--red:#F26A62}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1180px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-.03em;color:inherit}
+.brand svg{width:24px;height:24px}
+.top .what{font-size:13px;color:var(--ink-3)}
+.top .ver{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
+@media (min-width:1000px){.wrap{grid-template-columns:220px minmax(0,1fr)}}
+nav.toc{display:none}
+@media (min-width:1000px){nav.toc{display:block;position:sticky;top:76px;align-self:start;max-height:calc(100vh - 96px);overflow:auto;padding:28px 0 40px;font-size:13px}}
+nav.toc a{display:block;color:var(--ink-2);text-decoration:none;padding:4px 10px;border-left:2px solid transparent;border-radius:0 6px 6px 0;line-height:1.35}
+nav.toc a.l3{padding-left:22px;color:var(--ink-3);font-size:12.5px}
+nav.toc a:hover{background:var(--surface-2);color:var(--ink)}
+article{padding:36px 0 96px;min-width:0}
+h1,h2,h3{font-family:var(--font-display);letter-spacing:-.02em;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(34px,4.5vw,48px);margin:0 0 8px;font-variation-settings:"opsz" 96}
+h1+p.lede{color:var(--ink-2);font-size:17px;max-width:66ch}
+h2{font-size:clamp(24px,2.6vw,30px);margin:64px 0 16px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:19px;margin:36px 0 10px}
+p,ul,ol{margin:0 0 14px;color:var(--ink-2);max-width:72ch}
+strong{color:var(--ink);font-weight:600}
+a{color:var(--gold-deep)}
+code,kbd{font-family:var(--font-mono);font-size:.88em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+kbd{border:1px solid var(--line-2);border-bottom-width:2px}
+.eyebrow{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px}
+ol.rules{counter-reset:r;list-style:none;padding:0;display:grid;gap:8px;max-width:none}
+ol.rules li{counter-increment:r;display:grid;grid-template-columns:28px 1fr;gap:10px;font-size:14.5px;color:var(--ink-2)}
+ol.rules li::before{content:counter(r);font:700 12px var(--font-mono);color:var(--gold-deep);background:var(--gold-soft);width:24px;height:24px;border-radius:50%;display:grid;place-items:center;margin-top:1px}
+ol.rules li b{color:var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:0 0 20px;display:block;overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table thead th{text-align:left;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:12px 14px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+table td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2);min-width:120px}
+table tr:last-child td{border-bottom:0}
+table td:first-child{color:var(--ink);font-weight:600}
+td.num{font-family:var(--font-mono);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* figures */
+figure{margin:28px 0;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+figure .fig-head{display:flex;align-items:baseline;gap:12px;margin:0 0 16px;flex-wrap:wrap}
+figure .fig-no{font-family:var(--font-mono);font-size:12px;color:var(--gold-deep);letter-spacing:.06em}
+figure .fig-title{font-family:var(--font-display);font-weight:600;font-size:17px;color:var(--ink);margin:0}
+.frames{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;justify-content:center}
+.frames .stepped{display:grid;gap:8px;justify-items:center}
+.frames .stepped .t{font:12px var(--font-mono);color:var(--ink-3);text-align:center;max-width:180px}
+figcaption{font-size:13.5px;color:var(--ink-3);margin-top:16px;max-width:none}
+ol.notes{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:7px;max-width:none}
+ol.notes li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:14px;color:var(--ink-2);line-height:1.5}
+ol.notes li .n{width:22px;height:22px;border-radius:50%;background:var(--gold);color:#3B2A00;font:700 12px var(--font-mono);display:grid;place-items:center;margin-top:2px}
+
+/* device frames: drawn at the device's points, scaled with --s */
+.frame{position:relative;flex:none;width:calc(var(--w) * var(--s));height:calc(var(--h) * var(--s));margin:14px}
+.frame>.dev{position:absolute;left:0;top:0;width:var(--w);height:var(--h);transform:scale(var(--s));transform-origin:0 0}
+.phone{--w:393px;--h:852px}
+.ipad{--w:1194px;--h:834px}
+.mac{--w:1180px;--h:780px}
+.dev.phone{border-radius:56px;background:#000;box-shadow:0 0 0 12px #1B1B1E,0 0 0 13px #3A3A3F,0 40px 80px -40px rgba(0,0,0,.55)}
+.dev.ipad{border-radius:34px;background:#000;box-shadow:0 0 0 14px #1B1B1E,0 0 0 15px #3A3A3F,0 40px 80px -40px rgba(0,0,0,.55)}
+.dev.mac{border-radius:12px;background:#FBFBF8;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 40px 90px -30px rgba(0,0,0,.6)}
+.android{--w:412px;--h:915px}
+.dev.android{border-radius:44px;background:#000;box-shadow:0 0 0 10px #1B1B1E,0 0 0 11px #3A3A3F,0 40px 80px -40px rgba(0,0,0,.55)}
+.hole{position:absolute;top:16px;left:50%;transform:translateX(-50%);width:22px;height:22px;border-radius:50%;background:#000;box-shadow:inset 0 0 0 3px #141416;z-index:6}
+.gpill{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);width:120px;height:4px;border-radius:2px;background:rgba(255,255,255,.85);z-index:6}
+.asb{position:absolute;top:0;left:0;right:0;height:28px;display:flex;justify-content:space-between;align-items:center;padding:0 26px;font:500 14px Roboto,var(--font-body);color:#fff;z-index:5}
+.asb .bars{display:flex;gap:6px;align-items:center}
+.asb .bars i{display:block;width:16px;height:10px;border-radius:2px;background:#fff}
+.asb .bars i.sig{width:18px;background:linear-gradient(90deg,#fff 0 25%,transparent 25% 30%,#fff 30% 55%,transparent 55% 60%,#fff 60% 85%,transparent 85%)}
+.edge{position:absolute;top:140px;bottom:140px;width:20px;background:repeating-linear-gradient(135deg,rgba(245,197,66,.45) 0 3px,transparent 3px 8px);z-index:4}
+.screen{position:absolute;inset:0;overflow:hidden;border-radius:inherit;font-family:var(--font-ios);color:#16181D;-webkit-font-smoothing:antialiased}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;border-radius:20px;background:#000;z-index:6}
+.home{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:140px;height:5px;border-radius:3px;background:rgba(0,0,0,.85);z-index:6}
+.home.light{background:rgba(255,255,255,.9)}
+.co{position:absolute;z-index:9;width:34px;height:34px;border-radius:50%;background:#F5C542;color:#3B2A00;font:700 17px var(--font-mono);display:grid;place-items:center;box-shadow:0 0 0 3px rgba(0,0,0,.45),0 4px 10px rgba(0,0,0,.35)}
+
+/* the phone's room, as the app draws it (fixed to the app's light palette: it is a picture of a phone) */
+.room{background:#FBFBF8}
+.sb{position:absolute;top:0;left:0;right:0;height:59px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 34px 12px;font-size:16px;font-weight:600}
+.sb .bars{display:flex;gap:6px;align-items:center}
+.sb .bars i{display:block;width:18px;height:11px;border-radius:2px;background:#16181D}
+.sb .bars i.sig{width:20px;background:linear-gradient(90deg,#16181D 0 25%,transparent 25% 30%,#16181D 30% 55%,transparent 55% 60%,#16181D 60% 85%,transparent 85%)}
+.nav{position:absolute;top:59px;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:center;border-bottom:.5px solid #E4E4DC;background:#FBFBF8}
+.nav .chev{position:absolute;left:14px;top:2px;font-size:30px;line-height:40px;color:#16181D}
+.nav .ttl{text-align:center;line-height:1.15}
+.nav .ttl b{display:block;font-size:17px;font-weight:600}
+.nav .ttl small{display:block;font-size:12px;color:#7B7E88}
+.bubble{position:absolute;padding:9px 14px;border-radius:18px;background:#F2F2EC;font-size:17px;line-height:22px;color:#16181D}
+.bubble .who{display:block;font-size:13px;line-height:16px;color:#6B6E78;margin:-2px 0 2px}
+.bubble.me{background:#0D7C86;color:#fff;border-bottom-right-radius:5px}
+.bubble .when{float:right;font-size:11px;line-height:14px;margin:12px 0 -4px 10px;opacity:.7}
+.grid2{position:absolute;display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.tile{position:relative;border-radius:10px;overflow:hidden;background:#E7E7DF}
+.tile .more{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);color:#fff;font-size:22px;font-weight:700}
+.tile .dur{position:absolute;right:6px;bottom:6px;font:600 12px var(--font-ios);color:#fff;background:rgba(0,0,0,.55);border-radius:6px;padding:2px 6px}
+.tile .playmark{position:absolute;inset:0;display:grid;place-items:center;color:#fff}
+.tile .playmark svg{width:34px;height:34px;filter:drop-shadow(0 1px 6px rgba(0,0,0,.6))}
+.composer{position:absolute;left:0;right:0;bottom:34px;height:64px;display:flex;align-items:center;gap:10px;padding:0 16px;background:#FBFBF8}
+.composer .plus{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#4A4D56}
+.composer .pill{flex:1;height:44px;border:.5px solid #CDCDC3;border-radius:22px;background:#fff;display:flex;align-items:center;padding:0 6px 0 16px;color:#A9ABB3;font-size:17px}
+.composer .send{margin-left:auto;width:30px;height:30px;border-radius:50%;background:#2F6FED;opacity:.35;display:grid;place-items:center;color:#fff}
+
+/* the pictures: gradients standing in for photographs */
+.ph{background:#E7E7DF}
+.ph-site1{background:linear-gradient(180deg,#A6BCCB 0 36%,#6F7B83 36% 40%,#B8955A 40% 72%,#6E6247 72%)}
+.ph-site2{background:radial-gradient(70% 40% at 30% 75%,#8A8F94 0 30%,transparent 31%),linear-gradient(180deg,#B9C8D4 0 48%,#9A9EA3 48% 52%,#C9A56B 52%)}
+.ph-site3{background:linear-gradient(160deg,#D9D2C4 0 20%,#8B8378 60%,#4E4A44)}
+.ph-site4{background:linear-gradient(180deg,#AEBFD0 0 32%,#D97B2B 32% 37%,#C8B79A 37% 80%,#8E836E 80%)}
+.ph-site5{background:linear-gradient(200deg,#C5CDD3 0 40%,#7C8A93 40% 44%,#5E6B56 44%)}
+.ph-site6{background:linear-gradient(180deg,#9FB1C2 0 50%,#D0C4AE 50% 54%,#A8946F 54%)}
+.ph-receipt{background:linear-gradient(180deg,#FFFFFF 0 10%,transparent 10% 14%,rgba(0,0,0,.06) 14% 15%,transparent 15%),repeating-linear-gradient(180deg,transparent 0 22px,#CFCBBF 22px 23px),#F6F4EE}
+.ph-clip{background:radial-gradient(60% 30% at 30% 22%,rgba(255,220,160,.35),transparent 70%),linear-gradient(200deg,#4A505A 0 30%,#22262C 30% 60%,#0F1114)}
+.ph-thumb{filter:blur(3px)}
+
+/* the stage */
+.stage{background:#000;color:#fff}
+.pic{position:absolute;overflow:hidden}
+.scrim{position:absolute;left:0;right:0;pointer-events:none}
+.scrim.t{top:0;height:140px;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent)}
+.scrim.b{bottom:0;height:170px;background:linear-gradient(0deg,rgba(0,0,0,.65),transparent)}
+.topbar{position:absolute;left:8px;right:8px;height:44px;display:flex;align-items:center;justify-content:space-between}
+.topbar .side{display:flex;align-items:center}
+.b44{width:44px;height:44px;display:grid;place-items:center;color:#fff}
+.b44 svg,.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.counter{position:absolute;left:0;right:0;text-align:center;font-size:15px;font-weight:600;color:#fff;pointer-events:none;font-variant-numeric:tabular-nums}
+.cap{position:absolute;left:16px;right:16px;display:flex;align-items:center;gap:10px;color:#fff}
+.cap .av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:#fff;flex:none}
+.cap b{display:block;font-size:15px;font-weight:600;line-height:19px}
+.cap small{display:block;font-size:13px;line-height:17px;color:rgba(255,255,255,.72);font-variant-numeric:tabular-nums}
+.dim{position:absolute;inset:0;background:#000}
+.playbig{position:absolute;width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.18);backdrop-filter:blur(6px);display:grid;place-items:center;color:#fff}
+.playbig svg{width:34px;height:34px;fill:#fff;margin-left:4px}
+.note{position:absolute;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:14px;background:rgba(255,255,255,.14);backdrop-filter:blur(8px);color:#fff;font-size:12px;white-space:nowrap}
+.controls{position:absolute;left:8px;right:8px;height:44px;display:flex;align-items:center;gap:4px;color:#fff}
+.track{flex:1;position:relative;height:4px;border-radius:2px;background:rgba(255,255,255,.28)}
+.track .buf{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:rgba(255,255,255,.45)}
+.track .played{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#fff}
+.track .knob{position:absolute;top:-5px;width:14px;height:14px;border-radius:50%;background:#fff;margin-left:-7px}
+.time{font:12px var(--font-mono);font-variant-numeric:tabular-nums;color:#fff;padding:0 6px;white-space:nowrap}
+.ring{position:absolute;width:72px;height:72px;border-radius:50%;background:conic-gradient(#fff 0 40%,rgba(255,255,255,.25) 40%);display:grid;place-items:center}
+.ring::after{content:"";position:absolute;inset:6px;border-radius:50%;background:rgba(0,0,0,.72)}
+.ring span{position:relative;z-index:1;font:600 15px var(--font-mono);color:#fff}
+.dashed{position:absolute;border:2px dashed #F5C542;border-radius:10px;pointer-events:none}
+.ruler{position:absolute;color:#F5C542;font:12px var(--font-mono);display:flex;align-items:center;gap:6px}
+.ruler i{display:block;width:2px;background:#F5C542}
+.ruler .lbl{background:rgba(0,0,0,.6);padding:2px 6px;border-radius:6px;white-space:nowrap}
+
+/* the sheet */
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#FBFBF8;border-radius:24px 24px 0 0;padding:8px 16px 34px;color:#16181D}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:#CDCDC3;margin:0 auto 14px}
+.sheet .st b{display:block;font-size:15px;font-weight:600}
+.sheet .st small{display:block;font-size:13px;color:#6B6E78;margin-bottom:12px}
+.sheet .card{background:#fff;border:.5px solid #E4E4DC;border-radius:16px;overflow:hidden}
+.sheet .row{display:flex;align-items:center;gap:12px;height:58px;padding:0 14px;border-top:.5px solid #E4E4DC;color:#16181D}
+.sheet .row:first-child{border-top:0}
+.sheet .row svg{width:22px;height:22px;fill:none;stroke:#4A4D56;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sheet .row b{display:block;font-size:17px;font-weight:500;line-height:20px}
+.sheet .row small{display:block;font-size:13px;color:#6B6E78;line-height:16px}
+.sheet .cancel{margin-top:12px;height:44px;border:.5px solid #CDCDC3;border-radius:12px;display:grid;place-items:center;font-size:17px;font-weight:600;background:#fff}
+
+/* the iPad's and the desktop's extra chrome */
+.arrow{position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);display:grid;place-items:center;color:rgba(255,255,255,.85)}
+.arrow svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.strip{position:absolute;display:flex;gap:6px}
+.strip .th{width:56px;height:56px;border-radius:6px;overflow:hidden;opacity:.7;position:relative}
+.strip .th.cur{opacity:1;outline:2px solid #F5C542;outline-offset:2px}
+.strip .th .dur{position:absolute;right:3px;bottom:3px;font:600 9px var(--font-ios);color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:1px 4px}
+
+/* the desktop shell behind the lightbox (the web app's own tokens, light) */
+.shell{position:absolute;inset:0;display:grid;grid-template-columns:240px 1fr 300px;font-family:var(--font-body);color:#16181D;background:#FBFBF8}
+.shell .side{background:#F2F2EC;border-right:1px solid #E4E4DC;padding:52px 12px 12px}
+.shell .side .ws{font-family:var(--font-display);font-weight:700;font-size:15px;margin:0 8px 14px;letter-spacing:-.02em}
+.shell .side .srow{height:40px;border-radius:10px;padding:0 10px;display:flex;align-items:center;gap:10px;font-size:13.5px;color:#4A4D56}
+.shell .side .srow.sel{background:#E7E7DF;color:#16181D;font-weight:600}
+.shell .side .srow i{width:22px;height:22px;border-radius:50%;background:#3E7C8E;display:block;flex:none}
+.shell .mid{position:relative;padding:52px 24px 0}
+.shell .mid .hd{font-family:var(--font-display);font-weight:700;font-size:16px;letter-spacing:-.02em;padding-bottom:10px;border-bottom:1px solid #E4E4DC}
+.shell .mid .hd small{font-family:var(--font-body);font-weight:400;font-size:12px;color:#7B7E88;margin-left:8px}
+.shell .line{display:flex;gap:10px;margin-top:16px;font-size:13.5px;line-height:1.45;color:#16181D;max-width:520px}
+.shell .line i{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.shell .line b{display:block;font-size:12px;color:#7B7E88;font-weight:500;margin-bottom:2px}
+.shell .wgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px;max-width:360px;border-radius:8px;overflow:hidden;margin-top:6px}
+.shell .wgrid .t{aspect-ratio:4/3;position:relative}
+.shell .wgrid .t .more{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.45);color:#fff;font-weight:600;font-size:18px}
+.shell .wpic{width:150px;height:200px;border-radius:8px;margin-top:6px}
+.shell .comp{position:absolute;left:24px;right:24px;bottom:16px;height:44px;border:1px solid #CDCDC3;border-radius:12px;background:#fff;display:flex;align-items:center;padding:0 12px;color:#A9ABB3;font-size:13.5px}
+.shell .right{background:#F2F2EC;border-left:1px solid #E4E4DC;padding:52px 16px}
+.shell .right .rt{font-family:var(--font-display);font-weight:700;font-size:14px;margin-bottom:10px}
+.shell .right .rrow{display:flex;justify-content:space-between;font-size:12.5px;color:#4A4D56;padding:8px 0;border-bottom:1px solid #E4E4DC}
+.lights{position:absolute;left:14px;top:14px;display:flex;gap:8px;z-index:8}
+.lights i{width:12px;height:12px;border-radius:50%;display:block}
+.lb{position:absolute;inset:0;background:rgba(0,0,0,.92);color:#fff;font-family:var(--font-body)}
+.lb .cnt{position:absolute;left:24px;top:22px;font:13px var(--font-mono);color:rgba(255,255,255,.85);font-variant-numeric:tabular-nums}
+.lb .tools{position:absolute;right:24px;top:16px;display:flex;gap:8px}
+.lb .tb{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center;color:#fff}
+.lb .tb svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.lb .lcap{position:absolute;left:0;right:0;text-align:center;font-size:13.5px;color:rgba(255,255,255,.9)}
+.lb .lcap small{color:rgba(255,255,255,.6);margin-left:8px;font-variant-numeric:tabular-nums}
+.lb .pill{position:absolute;left:50%;top:22px;transform:translateX(-50%);padding:4px 10px;border-radius:12px;background:rgba(255,255,255,.14);font:12px var(--font-mono)}
+.lb .q{position:absolute;right:24px;bottom:22px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.1);display:grid;place-items:center;font:600 13px var(--font-mono)}
+.lb .glass{position:absolute;height:44px;border-radius:12px;background:rgba(30,30,34,.85);border:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:6px;padding:0 8px;color:#fff}
+.lb .glass .tb{background:none;width:32px;height:32px}
+.cursor{position:absolute;width:18px;height:22px;fill:#fff;stroke:#000;stroke-width:1.2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+
+/* diagrams */
+.d{display:block;width:100%;height:auto;color:var(--ink-2);overflow:visible}
+.d text{font:11.5px var(--font-mono);fill:currentColor}
+.d .box{fill:var(--surface-2);stroke:var(--line-2);stroke-width:1}
+.d .box.hi{stroke:var(--gold-deep);stroke-width:1.5}
+.d .ln{fill:none;stroke:currentColor;stroke-width:1.2}
+.d .hi-ln{fill:none;stroke:var(--gold-deep);stroke-width:1.6}
+.d .dash{stroke-dasharray:4 4}
+.d .muted{opacity:.55}
+.d .title{font:600 12.5px var(--font-body);fill:var(--ink)}
+.d .small{font-size:10.5px}
+.d .gold{fill:var(--gold-deep)}
+.d .slot{fill:var(--surface);stroke:var(--line-2)}
+.d .slot.hi{stroke:var(--gold-deep);stroke-width:1.5}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V4M8 8l4-4 4 4M5 12v7h14v-7"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 8l4 8M21 8l-4 8"/></symbol>
+    <symbol id="i-pip" viewBox="0 0 24 24"><path d="M3 5h18v14H3z"/><path d="M12 12h7v5h-7z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4M5 19h14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><path d="M9 9h11v11H9z"/><path d="M4 15V4h11"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M9 6l-5 5 5 5M4 11h12a4 4 0 0 1 0 8h-3"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></symbol>
+    <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 16.5l4.5-4.5 3.5 3.5 3-3 5 5"/></symbol>
+    <symbol id="i-share-a" viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.7l7.4-4.3M8.3 13.3l7.4 4.3"/></symbol>
+    <symbol id="i-more-v" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.7" fill="currentColor" stroke="none"/></symbol>
+  </defs>
+</svg>
+
+<header class="top"><div class="top-in">
+  <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Chips</span>
+  <span class="what">The media viewer — mocks for the proposal</span>
+  <span class="ver">13 Sep 2026 · draft 5</span>
+</div></header>
+
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <a href="#rules">The rules</a>
+  <a href="#phone">The phone</a>
+  <a class="l3" href="#f1">1 · The room</a>
+  <a class="l3" href="#f2">2 · The zoom-open</a>
+  <a class="l3" href="#f3">3 · At rest</a>
+  <a class="l3" href="#f3b">3b · On Android</a>
+  <a class="l3" href="#f4">4 · Swiping</a>
+  <a class="l3" href="#f5">5 · Zoomed</a>
+  <a class="l3" href="#f6">6 · Dragging to dismiss</a>
+  <a class="l3" href="#f7">7 · A video</a>
+  <a class="l3" href="#f8">8 · The menu</a>
+  <a class="l3" href="#f9">9 · Fetching, failing</a>
+  <a href="#ipad">The tablets</a>
+  <a class="l3" href="#f10">10 · Over the split</a>
+  <a href="#desktop">The desktop</a>
+  <a class="l3" href="#f11">11 · The lightbox</a>
+  <a class="l3" href="#f12">12 · A video</a>
+  <a class="l3" href="#f13">13 · Zoom at the pointer</a>
+  <a href="#how">How it works</a>
+  <a class="l3" href="#dA">A · The deck</a>
+  <a class="l3" href="#dB">B · One pan, three meanings</a>
+  <a class="l3" href="#dC">C · The open, in time</a>
+  <a class="l3" href="#dD">D · Where the bytes come from</a>
+  <a class="l3" href="#dE">E · The pieces</a>
+  <a href="#numbers">The numbers</a>
+</nav>
+
+<article>
+<p class="eyebrow">Proposal · media-viewer.md · figures 1–13, diagrams A–E</p>
+<h1>The media viewer, on every surface</h1>
+<p class="lede">What opens when a photo or a clip in a room is tapped, on the iPhone, an Android phone, the tablets and the desktop: one deck, one set of gestures, one stage — black, whatever the theme. The frames below are drawn at each device's own points and scaled; the gold markers are keyed to the notes under each figure. The photographs are gradients standing in for the golden scenario's: six from Priya's site visit, Arjun's receipt from the hardware store, and Scout's 43-second walkthrough.</p>
+
+<h2 id="rules">The rules, in short</h2>
+<ol class="rules">
+  <li><span><b>One viewer.</b> The same words, deck, arithmetic and rules on every surface — iPhone, Android, the tablets, the web; what differs is the hand, and what the platform owns: its back gesture, its share sheet, its bars.</span></li>
+  <li><span><b>The deck is the media of the twenty messages around the tapped one, oldest first</b> — the room's last twenty for a tap at the foot (Arjun, 13 September 2026); every photo and video those messages and route rows carry, a message's several standing together. Back is older, forward is newer; the ends resist.</span></li>
+  <li><span><b>It opens from the tile and returns to it</b>, drawn with the thumbnail already there; the room scrolls under the opaque stage so the return has a tile to land on.</span></li>
+  <li><span><b>The first movement decides</b>: sideways pages, down or up dismisses, a pinch zooms, a double tap zooms at the point, a tap hides the chrome.</span></li>
+  <li><span><b>Dragging to dismiss shows the room</b>; past 120 pt or a flick it goes, and the line is felt as a click.</span></li>
+  <li><span><b>Three sizes, and the viewer climbs</b>: thumbnail (on the device) → view copy (2,048 px) → original (on request).</span></li>
+  <li><span><b>A video plays in the viewer</b>: streamed on the server's network, downloaded with progress away from it; plays when landed on, pauses when left.</span></li>
+  <li><span><b>Share, Save, Copy, Go to message, Details, Open original</b> are one press away; on the desktop, Download, Copy image, Open message, Details, Fullscreen and a key for each. Save is a row because Android's share sheet has no Save Image.</span></li>
+  <li><span><b>A screen reader gets the same viewer</b>: modal, each item announced with its place, every action a button.</span></li>
+  <li><span><b>An iPad — or an Android tablet — is the same viewer at the window's size</b>: over the whole window, with a filmstrip and arrows where there is room.</span></li>
+  <li><span><b>The platform's back closes it, with the return</b>: the iPhone's edge swipe, Android's gesture or button, the Escape key.</span></li>
+</ol>
+
+<h2 id="phone">The phone</h2>
+
+<figure id="f1">
+  <div class="fig-head"><span class="fig-no">FIGURE 1</span><p class="fig-title">The room, where the viewer opens from</p></div>
+  <div class="frames">
+    <div class="frame phone" style="--s:.62"><div class="dev phone"><div class="screen room">
+      <div class="island"></div>
+      <div class="sb"><span>11:26</span><span class="bars"><i class="sig"></i><i></i></span></div>
+      <div class="nav"><span class="chev">‹</span><div class="ttl"><b>PO-4471</b><small>Scout · Priya · you</small></div></div>
+      <div class="bubble" style="left:16px;top:119px;width:300px"><span class="who">Priya</span>Photos from the site visit.</div>
+      <div class="grid2" style="left:16px;top:181px;width:282px">
+        <div class="tile ph ph-site1" style="height:139px"></div>
+        <div class="tile ph ph-site2" style="height:139px"></div>
+        <div class="tile ph ph-site3" style="height:139px"></div>
+        <div class="tile ph ph-site4" style="height:139px"><div class="more">+2</div></div>
+      </div>
+      <div class="bubble me" style="right:16px;top:479px;width:306px">The receipt from the hardware store, for Ledger.<span class="when">11:26</span></div>
+      <div class="tile ph ph-receipt" style="position:absolute;right:16px;top:557px;width:150px;height:200px"></div>
+      <div class="composer"><span class="plus"><svg class="ic"><use href="#i-plus"/></svg></span><span class="pill">Message <span class="send"><svg class="ic" style="width:16px;height:16px"><use href="#i-up"/></svg></span></span></div>
+      <div class="home"></div>
+      <span class="co" style="left:120px;top:190px">1</span>
+      <span class="co" style="left:262px;top:334px">2</span>
+      <span class="co" style="left:340px;top:566px">3</span>
+    </div></div></div>
+  </div>
+  <figcaption>Nothing in the room changes shape for the viewer: the album grid of up to four and the tile alone are today's, drawn with <code>expo-image</code> after Phase 7. What changes is what a tap does with them.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>A tap measures the tile in the window (<code>measureInWindow</code>) and opens the viewer from that frame, on that photo — deck item 2 of 8 here.</span></li>
+    <li><span class="n">2</span><span><b>+2</b>: the two beyond the grid are in the deck all the same, so the swipe reaches them without a grid of six.</span></li>
+    <li><span class="n">3</span><span>A photo alone keeps its own shape and stops at 200 pt tall (Phase 7), so a portrait receipt does not take the screen. It is item 8 of 8: the newest thing in the room.</span></li>
+  </ol>
+</figure>
+
+<figure id="f2">
+  <div class="fig-head"><span class="fig-no">FIGURE 2</span><p class="fig-title">The zoom-open, in three frames</p></div>
+  <div class="frames">
+    <div class="stepped">
+      <div class="frame phone" style="--s:.42"><div class="dev phone"><div class="screen room">
+        <div class="island"></div>
+        <div class="sb"><span>11:26</span><span class="bars"><i class="sig"></i><i></i></span></div>
+        <div class="nav"><span class="chev">‹</span><div class="ttl"><b>PO-4471</b><small>Scout · Priya · you</small></div></div>
+        <div class="bubble" style="left:16px;top:119px;width:300px"><span class="who">Priya</span>Photos from the site visit.</div>
+        <div class="grid2" style="left:16px;top:181px;width:282px"><div class="tile ph ph-site1" style="height:139px"></div><div class="tile ph ph-site2" style="height:139px"></div><div class="tile ph ph-site3" style="height:139px"></div><div class="tile ph ph-site4" style="height:139px"><div class="more">+2</div></div></div>
+        <div class="bubble me" style="right:16px;top:479px;width:306px">The receipt from the hardware store, for Ledger.<span class="when">11:26</span></div>
+        <div class="tile ph ph-receipt" style="position:absolute;right:16px;top:557px;width:150px;height:200px"></div>
+        <div class="dashed" style="left:223px;top:553px;width:158px;height:208px"></div>
+        <div class="composer"><span class="plus"><svg class="ic"><use href="#i-plus"/></svg></span><span class="pill">Message</span></div>
+        <div class="home"></div>
+      </div></div></div>
+      <div class="t">0 ms — the tile is measured: x 227 · y 557 · 150 × 200, corner 10</div>
+    </div>
+    <div class="stepped">
+      <div class="frame phone" style="--s:.42"><div class="dev phone"><div class="screen room">
+        <div class="island"></div>
+        <div class="nav"><span class="chev">‹</span><div class="ttl"><b>PO-4471</b><small>Scout · Priya · you</small></div></div>
+        <div class="bubble" style="left:16px;top:119px;width:300px"><span class="who">Priya</span>Photos from the site visit.</div>
+        <div class="grid2" style="left:16px;top:181px;width:282px"><div class="tile ph ph-site1" style="height:139px"></div><div class="tile ph ph-site2" style="height:139px"></div><div class="tile ph ph-site3" style="height:139px"></div><div class="tile ph ph-site4" style="height:139px"><div class="more">+2</div></div></div>
+        <div class="bubble me" style="right:16px;top:479px;width:306px">The receipt from the hardware store, for Ledger.<span class="when">11:26</span></div>
+        <div class="composer"><span class="plus"><svg class="ic"><use href="#i-plus"/></svg></span><span class="pill">Message</span></div>
+        <div class="dim" style="opacity:.6"></div>
+        <div class="pic ph ph-receipt" style="left:91px;top:321px;width:296px;height:394px;border-radius:4px"></div>
+        <div class="home light"></div>
+      </div></div></div>
+      <div class="t">≈150 ms — the clip grows toward the fitted frame, the corner to 0, the stage at 60 %; no chrome yet</div>
+    </div>
+    <div class="stepped">
+      <div class="frame phone" style="--s:.42"><div class="dev phone"><div class="screen stage">
+        <div class="island"></div>
+        <div class="pic ph ph-receipt" style="left:0;top:164px;width:393px;height:524px"></div>
+        <div class="scrim t"></div><div class="scrim b"></div>
+        <div class="topbar" style="top:59px"><span class="counter">8 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+        <div class="cap" style="top:758px"><span class="av" style="background:#2D6A9F">A</span><div><b>Arjun · Today 11:26</b><small>receipt.jpg · 3.1 MB · 3024 × 4032</small></div></div>
+        <div class="home light"></div>
+      </div></div></div>
+      <div class="t">350 ms — at rest; the chrome faded in from 120 ms; the status bar went with it</div>
+    </div>
+  </div>
+  <figcaption>One spring (stiffness 320, damping 32, mass 1 — the app's <code>IOS_SPRING</code>) moves the clip's frame, its corner, the picture inside it from cover to contain, and the stage's opacity, all on the UI thread. The picture is the thumbnail the tile already shows, so the first frame costs no fetch; the view copy crossfades in when it arrives. Reduce Motion: a 160 ms crossfade at the fitted frame, no travel. Closing is the same film backwards, to the tile of whatever item is current by then.</figcaption>
+</figure>
+
+<figure id="f3">
+  <div class="fig-head"><span class="fig-no">FIGURE 3</span><p class="fig-title">At rest</p></div>
+  <div class="frames">
+    <div class="frame phone" style="--s:.62"><div class="dev phone"><div class="screen stage">
+      <div class="island"></div>
+      <div class="pic ph ph-receipt" style="left:0;top:164px;width:393px;height:524px"></div>
+      <div class="scrim t"></div><div class="scrim b"></div>
+      <div class="topbar" style="top:59px"><span class="counter">8 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+      <div class="cap" style="top:758px"><span class="av" style="background:#2D6A9F">A</span><div><b>Arjun · Today 11:26</b><small>receipt.jpg · 3.1 MB · 3024 × 4032</small></div></div>
+      <div class="home light"></div>
+      <span class="co" style="left:52px;top:36px">1</span>
+      <span class="co" style="left:180px;top:108px">2</span>
+      <span class="co" style="left:330px;top:36px">3</span>
+      <span class="co" style="left:200px;top:400px">4</span>
+      <span class="co" style="left:300px;top:740px">5</span>
+    </div></div></div>
+  </div>
+  <figcaption>Black whatever the theme. Every control is a 44-point target; the bars sit on the safe-area insets (59 above on this phone, 34 below), not on a number.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span><b>Close</b>, top left where iOS puts it. The back gesture and the Android back button do the same; so does dragging the picture away (figure 6).</span></li>
+    <li><span class="n">2</span><span><b>8 of 8</b> — the place in the deck, which is the media of the twenty messages around the tapped one; not the place in the message. It is what a screen reader hears first: <i>Photo 8 of 8, receipt.jpg, from Arjun, today at 11:26</i>.</span></li>
+    <li><span class="n">3</span><span><b>Share</b> and the <b>menu</b> (figure 8). Share is the platform's sheet, where AirDrop and every app already are; Save is a row of its own in the menu (figure 8), on both platforms.</span></li>
+    <li><span class="n">4</span><span>The picture, fitted (<code>fitRect</code>): 393 wide, 524 tall, centred. A tap here hides the chrome and the scrims; a tap brings them back.</span></li>
+    <li><span class="n">5</span><span>Who, when, what: the sender as the room draws them, the time, then the filename, the size and the pixel size, in the caption's second line.</span></li>
+  </ol>
+</figure>
+
+<figure id="f3b">
+  <div class="fig-head"><span class="fig-no">FIGURE 3b</span><p class="fig-title">The same viewer on an Android phone</p></div>
+  <div class="frames">
+    <div class="frame android" style="--s:.6"><div class="dev android"><div class="screen stage">
+      <div class="hole"></div>
+      <div class="pic ph ph-receipt" style="left:0;top:183px;width:412px;height:549px"></div>
+      <div class="scrim t"></div><div class="scrim b"></div>
+      <div class="asb"><span>11:26</span><span class="bars"><i class="sig"></i><i></i></span></div>
+      <div class="topbar" style="top:32px"><span class="counter">8 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share-a"/></svg></span><span class="b44"><svg><use href="#i-more-v"/></svg></span></span></div>
+      <div class="edge" style="left:0"></div><div class="edge" style="right:0"></div>
+      <div class="cap" style="top:823px"><span class="av" style="background:#2D6A9F">A</span><div><b>Arjun · Today 11:26</b><small>receipt.jpg · 3.1 MB · 3024 × 4032</small></div></div>
+      <div class="gpill"></div>
+      <span class="co" style="left:290px;top:-4px">1</span>
+      <span class="co" style="left:340px;top:78px">2</span>
+      <span class="co" style="left:28px;top:430px">3</span>
+      <span class="co" style="left:250px;top:860px">4</span>
+    </div></div></div>
+  </div>
+  <figcaption>A Pixel-shaped phone, 412 × 915 points, edge-to-edge as <code>app.json</code> already asks. The same <code>MediaViewer</code>, the same deck and gestures; what changes is what the platform owns. The hatched strips are not drawn on the phone — they mark where the system's back gesture begins.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>The <b>status bar</b> stays and its icons go light for the viewer's life (an <code>expo-status-bar</code> inside the modal); it hides with the chrome, which on Android is immersive mode. The stage paints under it and under the navigation bar (<code>statusBarTranslucent</code>, <code>navigationBarTranslucent</code>), and the chrome keeps clear of both by the insets.</span></li>
+    <li><span class="n">2</span><span><b>Material's marks</b>: its share and its vertical overflow, two entries beside iOS's in <code>icons.ts</code>. The menu behind <code>⋮</code> is the same sheet as figure 8, with <b>Save</b> going to the gallery through <code>expo-media-library</code>, since Android's share sheet has no Save Image of its own.</span></li>
+    <li><span class="n">3</span><span>The first 20-odd points at each side are the <b>system's back gesture</b>: a page swipe that starts there is a back, and the viewer closes with its return, as Google Photos does. A swipe that starts inside pages. The back button, and the two-button bar's back, do the same through <code>onRequestClose</code>; predictive back stays off so the return is the animation.</span></li>
+    <li><span class="n">4</span><span>The <b>gesture pill</b>: a drag to dismiss starts above it. A video is ExoPlayer streaming the same grant URL with the same ranges; Picture in Picture is the whole app's, and needs the manifest flag <code>expo-video</code>'s plugin sets. The dismiss line's click is <code>performAndroidHapticsAsync</code>, the branch <code>haptics.ts</code> already names.</span></li>
+  </ol>
+</figure>
+
+<figure id="f4">
+  <div class="fig-head"><span class="fig-no">FIGURE 4</span><p class="fig-title">Swiping between items</p></div>
+  <div class="frames">
+    <div class="frame phone" style="--s:.62"><div class="dev phone"><div class="screen stage">
+      <div class="island"></div>
+      <div class="pic ph ph-site6" style="left:-250px;top:278px;width:393px;height:295px"></div>
+      <div class="pic ph ph-receipt" style="left:163px;top:164px;width:393px;height:524px"></div>
+      <div class="scrim t"></div><div class="scrim b"></div>
+      <div class="topbar" style="top:59px"><span class="counter">7 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+      <div class="cap" style="top:758px"><span class="av" style="background:#B4547A">P</span><div><b>Priya · Today 11:02 · 6 of 6 in this message</b><small>site-06.jpg · 2.4 MB · 4032 × 3024</small></div></div>
+      <div class="home light"></div>
+      <span class="co" style="left:126px;top:420px">1</span>
+      <span class="co" style="left:180px;top:108px">2</span>
+      <span class="co" style="left:290px;top:600px">3</span>
+    </div></div></div>
+  </div>
+  <figcaption>Three slots — previous, current, next — under one <code>translateX</code>, with a 20-point gutter between pages. Only three items are ever mounted; a page that settles re-centres the slots and swaps their contents.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>The <b>gutter</b>: 20 pt of stage between pages, so two pictures never touch. Landscape and portrait pictures each sit centred in their own page.</span></li>
+    <li><span class="n">2</span><span>The counter and caption change when the page <b>settles</b>, not as the finger moves. Past 40 % of the width, or a flick over 500 pt/s, the neighbour is the page; short of that it springs back.</span></li>
+    <li><span class="n">3</span><span>The neighbour's <b>view copy was fetched</b> when this page settled, so it is there when the swipe lands; the one beyond is not fetched until it is a neighbour. At the deck's ends the page rubber-bands (0.55) and stays.</span></li>
+  </ol>
+</figure>
+
+<figure id="f5">
+  <div class="fig-head"><span class="fig-no">FIGURE 5</span><p class="fig-title">Zoomed, to read the receipt</p></div>
+  <div class="frames">
+    <div class="frame phone" style="--s:.62"><div class="dev phone"><div class="screen stage">
+      <div class="island"></div>
+      <div class="pic ph ph-receipt" style="left:0;top:164px;width:393px;height:524px;transform:scale(2.5);transform-origin:46% 30%"></div>
+      <div class="home light"></div>
+      <span class="co" style="left:180px;top:70px">1</span>
+      <span class="co" style="left:30px;top:420px">2</span>
+      <span class="co" style="left:300px;top:720px">3</span>
+    </div></div></div>
+  </div>
+  <figcaption>A pinch, or a double tap at the line to read. The chrome and the status bar are gone while the picture is larger than the stage; a tap brings them back at any scale.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span><b>Zoom</b> from 1 up to the larger of 3× and one image pixel per device pixel — 3.4× for this 3024-pixel receipt on a 393-point screen at 3×. A double tap goes to 2.5× at the point; another fits it again.</span></li>
+    <li><span class="n">2</span><span><b>Pan</b> within bounds (<code>clampPan</code>): the picture never leaves the stage uncovered; at an edge it rubber-bands and a fling decays into the bound.</span></li>
+    <li><span class="n">3</span><span>The view copy is drawn with downscaling <b>off</b>, so it is sharp here; an original opened on request is downscaled to the view's size and says so in Details. A pinch let go under 0.75 closes the viewer, as Photos does.</span></li>
+  </ol>
+</figure>
+
+<figure id="f6">
+  <div class="fig-head"><span class="fig-no">FIGURE 6</span><p class="fig-title">Dragging to dismiss</p></div>
+  <div class="frames">
+    <div class="frame phone" style="--s:.62"><div class="dev phone"><div class="screen room">
+      <div class="island"></div>
+      <div class="nav"><span class="chev">‹</span><div class="ttl"><b>PO-4471</b><small>Scout · Priya · you</small></div></div>
+      <div class="bubble" style="left:16px;top:119px;width:300px"><span class="who">Priya</span>Photos from the site visit.</div>
+      <div class="grid2" style="left:16px;top:181px;width:282px"><div class="tile ph ph-site1" style="height:139px"></div><div class="tile ph ph-site2" style="height:139px"></div><div class="tile ph ph-site3" style="height:139px"></div><div class="tile ph ph-site4" style="height:139px"><div class="more">+2</div></div></div>
+      <div class="bubble me" style="right:16px;top:479px;width:306px">The receipt from the hardware store, for Ledger.<span class="when">11:26</span></div>
+      <div class="composer"><span class="plus"><svg class="ic"><use href="#i-plus"/></svg></span><span class="pill">Message</span></div>
+      <div class="dim" style="opacity:.58"></div>
+      <div class="pic ph ph-receipt" style="left:0;top:344px;width:393px;height:524px;transform:scale(.925);border-radius:8px"></div>
+      <div class="ruler" style="left:14px;top:164px;height:180px;flex-direction:column;align-items:flex-start"><i style="height:180px"></i></div>
+      <div class="ruler" style="left:26px;top:240px"><span class="lbl">180 pt down</span></div>
+      <div class="ruler" style="left:0;top:284px;width:393px"><i style="width:393px;height:0;border-top:2px dashed #F5C542;background:none"></i></div>
+      <div class="ruler" style="left:150px;top:292px"><span class="lbl">120 pt · the line, felt as a click</span></div>
+      <div class="home light"></div>
+      <span class="co" style="left:300px;top:360px">1</span>
+      <span class="co" style="left:40px;top:60px">2</span>
+      <span class="co" style="left:340px;top:790px">3</span>
+    </div></div></div>
+  </div>
+  <figcaption>A vertical pan at the fitted size. The finger is 180 points down: the backdrop has cleared to 58 % and the picture is at 92.5 %; the room is visible behind, exactly where it was. Let go here and the picture flies back into its tile (figure 2, backwards); let go before the line and it springs home.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>The picture follows the finger in both axes, shrinks with distance (1 → 0.75 over 600 pt) and takes a small corner as it goes, so it already looks like the tile it is returning to.</span></li>
+    <li><span class="n">2</span><span>The backdrop clears with distance (1 → 0.3 over 300 pt). The chrome went at the first point of movement. Up works the same as down.</span></li>
+    <li><span class="n">3</span><span>Past 120 pt, or over 900 pt/s, the release closes; the line is crossed with a selection click (<code>feel.tick</code>), the same one a decision swipe gives. The room has already scrolled under the stage to have the current item's tile on screen, so there is a tile to return to; a tile that still cannot be measured gets a shrink-and-fade in place.</span></li>
+  </ol>
+</figure>
+
+<figure id="f7">
+  <div class="fig-head"><span class="fig-no">FIGURE 7</span><p class="fig-title">A video in the deck</p></div>
+  <div class="frames">
+    <div class="stepped">
+      <div class="frame phone" style="--s:.52"><div class="dev phone"><div class="screen stage">
+        <div class="island"></div>
+        <div class="pic ph ph-clip" style="left:0;top:76px;width:393px;height:699px"></div>
+        <div class="scrim t"></div><div class="scrim b"></div>
+        <div class="playbig" style="left:158px;top:388px"><svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg></div>
+        <div class="topbar" style="top:59px"><span class="counter">1 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+        <div class="cap" style="top:758px"><span class="av" style="background:#3E7C8E">S</span><div><b>Scout · Today 10:58</b><small>IMG_4410.MOV · 0:43 · 38 MB · 1080 × 1920</small></div></div>
+        <div class="home light"></div>
+        <span class="co" style="left:250px;top:400px">1</span>
+      </div></div></div>
+      <div class="t">The poster, when the video is not current or is paused</div>
+    </div>
+    <div class="stepped">
+      <div class="frame phone" style="--s:.52"><div class="dev phone"><div class="screen stage">
+        <div class="island"></div>
+        <div class="pic ph ph-clip" style="left:0;top:76px;width:393px;height:699px;filter:brightness(1.15)"></div>
+        <div class="scrim t"></div><div class="scrim b"></div>
+        <div class="topbar" style="top:59px"><span class="counter">1 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+        <div class="note" style="top:640px">Playing the original · the copy that plays everywhere is being made</div>
+        <div class="controls" style="top:690px"><span class="b44"><svg><use href="#i-pause"/></svg></span><span class="track"><span class="buf" style="width:62%"></span><span class="played" style="width:28%"></span><span class="knob" style="left:28%"></span></span><span class="time">0:12 / 0:43</span><span class="b44"><svg><use href="#i-mute"/></svg></span><span class="b44"><svg><use href="#i-pip"/></svg></span></div>
+        <div class="cap" style="top:758px"><span class="av" style="background:#3E7C8E">S</span><div><b>Scout · Today 10:58</b><small>IMG_4410.MOV · 0:43 · 38 MB</small></div></div>
+        <div class="home light"></div>
+        <span class="co" style="left:40px;top:680px">2</span>
+        <span class="co" style="left:200px;top:610px">3</span>
+        <span class="co" style="left:330px;top:680px">4</span>
+      </div></div></div>
+      <div class="t">Playing, with the viewer's own controls; the chrome hides three seconds in</div>
+    </div>
+  </div>
+  <figcaption>The portrait clip is fitted to the stage's width and letterboxed. The video is an item like any other: it is swiped to and from, dragged away, and shares the caption and the menu. It is not zoomable.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>The poster is the server's frame (ADR 0053). Landing on the item plays it from the start; swiping away pauses it; coming back resumes. A tap on the play mark, or anywhere, toggles play when the chrome is hidden.</span></li>
+    <li><span class="n">2</span><span><b>Play / pause</b>, then the <b>scrubber</b> — the buffered range in half-white, the played range in white, a knob a thumb can take — and the <b>time</b>.</span></li>
+    <li><span class="n">3</span><span>Until the playable copy exists the original plays, and the viewer says so; on the phone an iPhone's HEVC plays fine, and the sentence is for the browser that will not (ADR 0053, decision 4).</span></li>
+    <li><span class="n">4</span><span><b>Mute</b> and <b>Picture in Picture</b> (<code>startPictureInPicture</code>). AirPlay and captions are the system player's, one row away in the menu (<i>System player</i> turns <code>nativeControls</code> on).</span></li>
+  </ol>
+</figure>
+
+<figure id="f8">
+  <div class="fig-head"><span class="fig-no">FIGURE 8</span><p class="fig-title">The menu, on the app's own sheet</p></div>
+  <div class="frames">
+    <div class="frame phone" style="--s:.62"><div class="dev phone"><div class="screen stage">
+      <div class="island"></div>
+      <div class="pic ph ph-receipt" style="left:0;top:164px;width:393px;height:524px"></div>
+      <div class="scrim t"></div>
+      <div class="topbar" style="top:59px"><span class="counter">8 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+      <div class="dim" style="opacity:.4"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="st"><b>receipt.jpg</b><small>3.1 MB · 3024 × 4032 · Arjun · Today 11:26</small></div>
+        <div class="card">
+          <div class="row"><svg><use href="#i-share"/></svg><div><b>Share</b><small>The share sheet: AirDrop, and every app</small></div></div>
+          <div class="row"><svg><use href="#i-down"/></svg><div><b>Save</b><small>Into Photos, or the gallery</small></div></div>
+          <div class="row"><svg><use href="#i-copy"/></svg><div><b>Copy</b><small>The picture, to paste anywhere</small></div></div>
+          <div class="row"><svg><use href="#i-back"/></svg><div><b>Go to message</b><small>Back to the room, on this line</small></div></div>
+          <div class="row"><svg><use href="#i-info"/></svg><div><b>Details</b><small>The name, the size, who sent it and when</small></div></div>
+          <div class="row"><svg><use href="#i-image"/></svg><div><b>Open original</b><small>The file as it was sent, 3.1 MB</small></div></div>
+        </div>
+        <div class="cancel">Cancel</div>
+      </div>
+      <div class="home"></div>
+      <span class="co" style="left:340px;top:36px">1</span>
+      <span class="co" style="left:330px;top:530px">2</span>
+    </div></div></div>
+  </div>
+  <figcaption>The <code>⋯</code> and a long press on the picture open the same <code>Sheet</code> the line's menu uses — the 24-point corner, the 0.4 scrim, the spring, the drag on the handle — with <code>SheetRow</code>s wearing the design system's marks. Nothing is designed twice. Save writes into Photos or the gallery through <code>expo-media-library</code>; Copy is <code>expo-clipboard</code>.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>The menu's button. Share sits beside it because it is the one thing most presses want and should not be two taps.</span></li>
+    <li><span class="n">2</span><span><b>Go to message</b> closes the viewer with its return animation and lands the room on the line with the flash <code>useLanding</code> already draws for a card. For a video, a row reads <i>System player</i>; for a photo without a view copy yet, <i>Open original</i> is absent because the original is what is showing.</span></li>
+  </ol>
+</figure>
+
+<figure id="f9">
+  <div class="fig-head"><span class="fig-no">FIGURE 9</span><p class="fig-title">Fetching, and failing</p></div>
+  <div class="frames">
+    <div class="stepped">
+      <div class="frame phone" style="--s:.52"><div class="dev phone"><div class="screen stage">
+        <div class="island"></div>
+        <div class="pic ph ph-clip ph-thumb" style="left:0;top:76px;width:393px;height:699px;opacity:.85"></div>
+        <div class="scrim t"></div><div class="scrim b"></div>
+        <div class="ring" style="left:160px;top:390px"><span>40 %</span></div>
+        <div class="topbar" style="top:59px"><span class="counter">1 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+        <div class="note" style="top:690px">Fetching the clip · 15 MB of 38 MB</div>
+        <div class="cap" style="top:758px"><span class="av" style="background:#3E7C8E">S</span><div><b>Scout · Today 10:58</b><small>IMG_4410.MOV · 0:43 · 38 MB</small></div></div>
+        <div class="home light"></div>
+        <span class="co" style="left:250px;top:400px">1</span>
+      </div></div></div>
+      <div class="t">Away from the server's network: the poster stands in, and the download has a number</div>
+    </div>
+    <div class="stepped">
+      <div class="frame phone" style="--s:.52"><div class="dev phone"><div class="screen stage">
+        <div class="island"></div>
+        <div class="pic ph ph-receipt ph-thumb" style="left:0;top:164px;width:393px;height:524px;opacity:.22"></div>
+        <div class="scrim t"></div><div class="scrim b"></div>
+        <div class="topbar" style="top:59px"><span class="counter">8 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+        <div style="position:absolute;left:0;right:0;top:380px;text-align:center;color:#fff;font-family:var(--font-ios)">
+          <div style="font-size:17px;font-weight:600">Could not fetch the photo.</div>
+          <div style="font-size:14px;color:rgba(255,255,255,.7);margin-top:4px">The server did not answer.</div>
+          <div style="display:inline-grid;place-items:center;margin-top:16px;height:40px;padding:0 18px;border:1.5px solid rgba(255,255,255,.7);border-radius:20px;font-size:15px;font-weight:600">Try again</div>
+        </div>
+        <div class="cap" style="top:758px"><span class="av" style="background:#2D6A9F">A</span><div><b>Arjun · Today 11:26</b><small>receipt.jpg · 3.1 MB · 3024 × 4032</small></div></div>
+        <div class="home light"></div>
+        <span class="co" style="left:300px;top:470px">2</span>
+      </div></div></div>
+      <div class="t">A fetch that failed: the thumbnail, faint, and a way to try again</div>
+    </div>
+  </div>
+  <figcaption>Nothing in the viewer is ever blank. The thumbnail is always there first; what is fetched is said in a number where there is one.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>Through the relay a native player cannot stream, so the clip downloads to the cache as it does today — but with the poster showing and a progress ring from the response's body (<code>onProgress</code>), never a bare <i>Fetching…</i>. On the server's network it streams instead and starts within a second (diagram D).</span></li>
+    <li><span class="n">2</span><span>The sentence is the error the file service gave; <b>Try again</b> asks once more. The swipe still works either side, so a failed item is never a wall.</span></li>
+  </ol>
+</figure>
+
+<h2 id="ipad">The iPad, and an Android tablet</h2>
+
+<figure id="f10">
+  <div class="fig-head"><span class="fig-no">FIGURE 10</span><p class="fig-title">Over the whole window, with room for a filmstrip</p></div>
+  <div class="frames">
+    <div class="frame ipad" style="--s:.5"><div class="dev ipad"><div class="screen stage">
+      <div class="pic ph ph-receipt" style="left:284px;top:0;width:626px;height:834px"></div>
+      <div class="scrim t"></div><div class="scrim b"></div>
+      <div class="topbar" style="top:24px;left:16px;right:16px"><span class="counter">8 of 8</span><span class="side"><span class="b44"><svg><use href="#i-close"/></svg></span></span><span class="side"><span class="b44"><svg><use href="#i-share"/></svg></span><span class="b44"><svg><use href="#i-more"/></svg></span></span></div>
+      <div class="arrow" style="left:24px;top:395px"><svg><use href="#i-prev"/></svg></div>
+      <div class="arrow" style="left:1126px;top:395px;opacity:.35"><svg><use href="#i-next"/></svg></div>
+      <div class="cap" style="top:690px;justify-content:center;text-align:center"><div><b>Arjun · Today 11:26</b><small>receipt.jpg · 3.1 MB · 3024 × 4032</small></div></div>
+      <div class="strip" style="left:352px;top:740px">
+        <div class="th ph ph-clip"><span class="dur">0:43</span></div><div class="th ph ph-site1"></div><div class="th ph ph-site2"></div><div class="th ph ph-site3"></div><div class="th ph ph-site4"></div><div class="th ph ph-site5"></div><div class="th ph ph-site6"></div><div class="th ph ph-receipt cur"></div>
+      </div>
+      <div class="home light"></div>
+      <span class="co" style="left:120px;top:300px">1</span>
+      <span class="co" style="left:40px;top:450px">2</span>
+      <span class="co" style="left:860px;top:720px">3</span>
+      <span class="co" style="left:600px;top:120px">4</span>
+    </div></div></div>
+  </div>
+  <figcaption>An 11-inch iPad, landscape, 1194 × 834 points. The same <code>MediaViewer</code> from its <code>Modal</code>, covering the window; <code>useLayout().wide</code> turns on the filmstrip and the arrows. A narrow window — a split, Stage Manager — is a phone and gets figure 3. An Android tablet, a foldable open, or a ChromeOS window gets exactly this: <code>useLayout</code> reads the window and never the device, and a mouse there raises the same hover the arrows wait for.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>The <b>spaces list</b> and the <b>room</b> are under here: the viewer covers the window, never the pane, because a photo is looked at against nothing.</span></li>
+    <li><span class="n">2</span><span><b>Arrows</b> for a pointer: they appear on hover (<code>Pressable</code>'s <code>onHoverIn</code>) and stay for a finger; the one at the deck's end is dimmed. A hardware keyboard is not reachable from React Native without a native module, so the arrows and the swipe are the iPad's paging for now.</span></li>
+    <li><span class="n">3</span><span>The <b>filmstrip</b>: 56-point thumbnails of the whole deck, the current one ringed in gold — the brand's selection colour, as the room's flash — scrolled to stay centred; a tap jumps. It hides while zoomed and with the chrome.</span></li>
+    <li><span class="n">4</span><span>The same gestures as the phone. Rotation re-fits the picture and keeps the zoom's centre; the modal follows the iPad's orientation.</span></li>
+  </ol>
+</figure>
+
+<h2 id="desktop">The desktop</h2>
+
+<figure id="f11">
+  <div class="fig-head"><span class="fig-no">FIGURE 11</span><p class="fig-title">The lightbox, over the web shell</p></div>
+  <div class="frames">
+    <div class="frame mac" style="--s:.55"><div class="dev mac"><div class="screen" style="font-family:var(--font-body)">
+      <div class="lights"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></div>
+      <div class="shell">
+        <div class="side"><div class="ws">Chips · home</div><div class="srow sel"><i></i>PO-4471</div><div class="srow"><i style="background:#B4547A"></i>Riaan's development</div><div class="srow"><i style="background:#6C4FB5"></i>Ledger</div><div class="srow"><i style="background:#5C6470"></i>J</div></div>
+        <div class="mid">
+          <div class="hd">PO-4471<small>Scout · Priya · you</small></div>
+          <div class="line"><i style="background:#3E7C8E">S</i><div><b>Scout · 10:58</b>The walkthrough from the site, 43 seconds.</div></div>
+          <div class="line"><i style="background:#B4547A">P</i><div><b>Priya · 11:02</b>Photos from the site visit.<div class="wgrid"><div class="t ph ph-site1"></div><div class="t ph ph-site2"></div><div class="t ph ph-site3"></div><div class="t ph ph-site4"><div class="more">+2</div></div></div></div></div>
+          <div class="line"><i style="background:#2D6A9F">A</i><div><b>Arjun · 11:26</b>The receipt from the hardware store, for Ledger.<div class="wpic ph ph-receipt"></div></div></div>
+          <div class="comp">Message PO-4471</div>
+        </div>
+        <div class="right"><div class="rt">Run · Scout</div><div class="rrow"><span>Status</span><span>Idle</span></div><div class="rrow"><span>Steps</span><span>7</span></div><div class="rrow"><span>Cost</span><span>≈ $0.10</span></div><div class="rrow"><span>Autonomy</span><span>L2</span></div></div>
+      </div>
+      <div class="lb">
+        <div class="cnt">8 of 8</div>
+        <div class="tools"><span class="tb"><svg><use href="#i-down"/></svg></span><span class="tb"><svg><use href="#i-copy"/></svg></span><span class="tb"><svg><use href="#i-back"/></svg></span><span class="tb"><svg><use href="#i-info"/></svg></span><span class="tb"><svg><use href="#i-full"/></svg></span><span class="tb"><svg><use href="#i-close"/></svg></span></div>
+        <div class="arrow" style="left:40px;top:346px"><svg><use href="#i-prev"/></svg></div>
+        <div class="arrow" style="left:1096px;top:346px;opacity:.35"><svg><use href="#i-next"/></svg></div>
+        <div class="pic ph ph-receipt" style="left:372px;top:72px;width:435px;height:580px;border-radius:2px"></div>
+        <div class="lcap" style="top:664px">Arjun · Today 11:26<small>receipt.jpg · 3.1 MB · 3024 × 4032</small></div>
+        <div class="strip" style="left:345px;top:700px"><div class="th ph ph-clip"><span class="dur">0:43</span></div><div class="th ph ph-site1"></div><div class="th ph ph-site2"></div><div class="th ph ph-site3"></div><div class="th ph ph-site4"></div><div class="th ph ph-site5"></div><div class="th ph ph-site6"></div><div class="th ph ph-receipt cur"></div></div>
+        <div class="q">?</div>
+      </div>
+      <span class="co" style="left:110px;top:10px">1</span>
+      <span class="co" style="left:860px;top:60px">2</span>
+      <span class="co" style="left:100px;top:400px">3</span>
+      <span class="co" style="left:860px;top:690px">4</span>
+      <span class="co" style="left:200px;top:560px">5</span>
+      <span class="co" style="left:1100px;top:712px">6</span>
+    </div></div></div>
+  </div>
+  <figcaption>The web app in the desktop shell, 1180 × 780. A <code>&lt;dialog&gt;</code> in the top layer, opened with <code>showModal()</code>: the focus trap and <kbd>Esc</kbd> are the platform's. The stage is <code>rgba(0,0,0,.92)</code> so the room is a presence behind, not a picture.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span><b>8 of 8</b>, and under it the keys: <kbd>←</kbd> <kbd>→</kbd> page, <kbd>Home</kbd> <kbd>End</kbd> go to the ends, <kbd>Esc</kbd> closes, <kbd>Space</kbd> plays, <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom, <kbd>F</kbd> fullscreen, <kbd>I</kbd> details, <kbd>D</kbd> download, <kbd>?</kbd> this list.</span></li>
+    <li><span class="n">2</span><span>The <b>toolbar</b>: Download (the original, as sent), Copy image, Open message, Details, Fullscreen, Close. Each has a key; each is a named button for a screen reader.</span></li>
+    <li><span class="n">3</span><span><b>Arrows</b> at the sides on hover; the one at the end dimmed. A click on the backdrop closes; a double click zooms to 2× at the point (figure 13).</span></li>
+    <li><span class="n">4</span><span>The <b>filmstrip</b>, as the iPad's; hidden under 900 pixels of width and while zoomed.</span></li>
+    <li><span class="n">5</span><span>The room behind keeps its own affordances: the row's Download stays where it was, and a video's poster in the row opens the viewer rather than playing in the row.</span></li>
+    <li><span class="n">6</span><span>The <b>zoom-open</b> here is a FLIP with the Web Animations API from the tile's rect, 350 ms on the design system's <code>--ease</code>; <code>prefers-reduced-motion</code> makes it a crossfade. Not <code>startViewTransition</code>: the shell's WKWebView on macOS 13 has none.</span></li>
+  </ol>
+</figure>
+
+<figure id="f12">
+  <div class="fig-head"><span class="fig-no">FIGURE 12</span><p class="fig-title">A video on the desktop</p></div>
+  <div class="frames">
+    <div class="frame mac" style="--s:.55"><div class="dev mac"><div class="screen" style="font-family:var(--font-body)">
+      <div class="lights"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></div>
+      <div class="shell"><div class="side"></div><div class="mid"></div><div class="right"></div></div>
+      <div class="lb">
+        <div class="cnt">1 of 8</div>
+        <div class="tools"><span class="tb"><svg><use href="#i-down"/></svg></span><span class="tb"><svg><use href="#i-back"/></svg></span><span class="tb"><svg><use href="#i-info"/></svg></span><span class="tb"><svg><use href="#i-full"/></svg></span><span class="tb"><svg><use href="#i-close"/></svg></span></div>
+        <div class="pic ph ph-clip" style="left:427px;top:72px;width:326px;height:580px;border-radius:2px;filter:brightness(1.15)"></div>
+        <div class="glass" style="left:270px;top:664px;width:640px"><span class="tb"><svg><use href="#i-pause"/></svg></span><span class="track"><span class="buf" style="width:62%"></span><span class="played" style="width:28%"></span><span class="knob" style="left:28%"></span></span><span class="time">0:12 / 0:43</span><span class="tb"><svg><use href="#i-mute"/></svg></span><span class="tb"><svg><use href="#i-pip"/></svg></span><span class="tb"><svg><use href="#i-full"/></svg></span></div>
+        <div class="lcap" style="top:720px">Scout · Today 10:58<small>IMG_4410.MOV · 0:43 · 38 MB · 1080 × 1920</small></div>
+        <div class="arrow" style="left:40px;top:346px;opacity:.35"><svg><use href="#i-prev"/></svg></div>
+        <div class="arrow" style="left:1096px;top:346px"><svg><use href="#i-next"/></svg></div>
+      </div>
+      <span class="co" style="left:560px;top:640px">1</span>
+      <span class="co" style="left:780px;top:640px">2</span>
+    </div></div></div>
+  </div>
+  <figcaption>A <code>&lt;video playsinline&gt;</code> with the viewer's controls in a glass bar; Copy is gone from the toolbar because there is nothing to copy. The filmstrip yields to the controls.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span>The same controls as the phone's, so the two are learned once: play and pause (<kbd>Space</kbd>), the scrubber with the buffered range, the time, mute.</span></li>
+    <li><span class="n">2</span><span><b>Picture in Picture</b> (<code>requestPictureInPicture</code>) and <b>Fullscreen</b> (<kbd>F</kbd>). With a grant URL (diagram D) the browser streams and seeks; through the relay the object URL of today is the fallback, and a video the browser cannot play says so with Download beside it.</span></li>
+  </ol>
+</figure>
+
+<figure id="f13">
+  <div class="fig-head"><span class="fig-no">FIGURE 13</span><p class="fig-title">Zoom, at the pointer</p></div>
+  <div class="frames">
+    <div class="frame mac" style="--s:.55"><div class="dev mac"><div class="screen" style="font-family:var(--font-body)">
+      <div class="lights"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></div>
+      <div class="shell"><div class="side"></div><div class="mid"></div><div class="right"></div></div>
+      <div class="lb" style="background:#000">
+        <div class="pic ph ph-receipt" style="left:372px;top:72px;width:435px;height:580px;transform:scale(2);transform-origin:62% 38%"></div>
+        <div class="pill">200 %</div>
+        <div class="tools"><span class="tb"><svg><use href="#i-close"/></svg></span></div>
+        <svg class="cursor" style="left:640px;top:290px" viewBox="0 0 18 22"><path d="M2 2l13 9-6 1 4 7-3 1.5-4-7-4 4z"/></svg>
+      </div>
+      <span class="co" style="left:520px;top:60px">1</span>
+      <span class="co" style="left:200px;top:400px">2</span>
+      <span class="co" style="left:900px;top:600px">3</span>
+    </div></div></div>
+  </div>
+  <figcaption>The picture is a CSS transform over the full bitmap, so a zoomed photo is sharp with no second decode. The stage goes fully black and the filmstrip and arrows leave; the percentage fades after a moment.</figcaption>
+  <ol class="notes">
+    <li><span class="n">1</span><span><kbd>⌘</kbd> or <kbd>Ctrl</kbd> with the wheel, or a trackpad pinch (the same event), zooms <b>at the pointer</b>; <kbd>+</kbd> <kbd>−</kbd> at the centre; <kbd>0</kbd> fits. The limits are core's <code>zoomLimits</code>, so they are the phone's.</span></li>
+    <li><span class="n">2</span><span>A drag <b>pans</b> within <code>clampPan</code>; a double click goes to 2× at the point and back.</span></li>
+    <li><span class="n">3</span><span>On a touch screen — an iPad in Safari, Chrome on an Android phone, the tablet window Playwright drives — pointer events give the phone's rules: one pointer pages or dismisses, two pinch, one pans when zoomed. The dialog is <code>100dvh</code> with <code>touch-action: none</code> on the stage and <code>overscroll-behavior: none</code>, so the browser's pull-to-refresh and edge swipes stay out of it.</span></li>
+  </ol>
+</figure>
+
+<h2 id="how">How it works</h2>
+
+<figure id="dA">
+  <div class="fig-head"><span class="fig-no">DIAGRAM A</span><p class="fig-title">The deck: a room's lines become one strip</p></div>
+  <svg class="d" viewBox="0 0 820 240" role="img" aria-label="Three lines of a room, each with attachments, flow into one strip of eight deck items in time order; a voice note and a PDF stay in the room.">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" fill="currentColor"/></marker></defs>
+    <text class="title" x="20" y="22">the twenty messages around the tapped one, oldest first</text>
+    <rect class="box" x="20" y="36" width="270" height="44" rx="8"/><text x="32" y="54">Scout · 10:58</text><text x="32" y="70" class="small">IMG_4410.MOV · a video</text>
+    <rect class="box" x="20" y="92" width="270" height="44" rx="8"/><text x="32" y="110">Priya · 11:02</text><text x="32" y="126" class="small">six photos · an album</text>
+    <rect class="box" x="20" y="148" width="270" height="44" rx="8"/><text x="32" y="166">Arjun · 11:26</text><text x="32" y="182" class="small">receipt.jpg · and a voice note</text>
+    <rect class="box muted" x="20" y="204" width="270" height="30" rx="8"/><text x="32" y="224" class="small muted">Ledger · 11:30 · invoice.pdf — not media</text>
+
+    <text class="title" x="340" y="22">deckOf(space, lanes, { around, messages: 20 }) → DeckItem[8]</text>
+    <g>
+      <rect class="slot hi" x="340" y="96" width="46" height="46" rx="6"/><text x="352" y="124">1</text><text x="342" y="158" class="small gold">video</text>
+      <rect class="slot" x="396" y="96" width="46" height="46" rx="6"/><text x="408" y="124">2</text>
+      <rect class="slot" x="452" y="96" width="46" height="46" rx="6"/><text x="464" y="124">3</text>
+      <rect class="slot" x="508" y="96" width="46" height="46" rx="6"/><text x="520" y="124">4</text>
+      <rect class="slot" x="564" y="96" width="46" height="46" rx="6"/><text x="576" y="124">5</text>
+      <rect class="slot" x="620" y="96" width="46" height="46" rx="6"/><text x="632" y="124">6</text>
+      <rect class="slot" x="676" y="96" width="46" height="46" rx="6"/><text x="688" y="124">7</text>
+      <rect class="slot hi" x="732" y="96" width="46" height="46" rx="6"/><text x="744" y="124">8</text>
+      <path class="hi-ln" d="M396 88h326" /><text x="470" y="80" class="small gold">2–7 · one message, contiguous · inMessage 1 of 6 … 6 of 6</text>
+      <text x="700" y="158" class="small gold">receipt</text>
+    </g>
+    <path class="ln" d="M290 58 C 320 58, 320 119, 340 119" marker-end="url(#ar)"/>
+    <path class="ln" d="M290 114 C 320 114, 330 119, 396 119" marker-end="url(#ar)"/>
+    <path class="ln" d="M290 170 C 320 170, 320 119, 732 119" marker-end="url(#ar)"/>
+    <text x="340" y="196" class="small">back ◂ older</text><text x="690" y="196" class="small">newer ▸ forward</text>
+    <text x="340" y="222" class="small muted">not in the deck: the voice note (read in the room), the PDF (opened in the room), an SVG (a file). A route row's files join where the row stands.</text>
+  </svg>
+  <figcaption>The deck is a projection in <code>packages/core</code>, so the phone and the web build the same one. The window is fixed when the viewer opens and the current item is tracked by attachment id, so nothing moves under a finger; a message taken back leaves the deck, and a line that lands after is seen at the next opening.</figcaption>
+</figure>
+
+<figure id="dB">
+  <div class="fig-head"><span class="fig-no">DIAGRAM B</span><p class="fig-title">One pan, three meanings: the gesture machine</p></div>
+  <svg class="d" viewBox="0 0 820 340" role="img" aria-label="A state machine: at rest, a pan whose first movement is horizontal pages and vertical dismisses, a pinch or double tap zooms; zoomed, a pan pans within bounds; releases decide by distance and velocity.">
+    <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" fill="currentColor"/></marker></defs>
+    <rect class="box hi" x="300" y="20" width="220" height="44" rx="10"/><text class="title" x="410" y="38" text-anchor="middle">At rest</text><text x="410" y="54" class="small" text-anchor="middle">fitted · scale 1 · chrome shown</text>
+    <rect class="box" x="40" y="150" width="160" height="44" rx="10"/><text class="title" x="120" y="177" text-anchor="middle">Paging</text>
+    <rect class="box" x="240" y="150" width="160" height="44" rx="10"/><text class="title" x="320" y="177" text-anchor="middle">Dismissing</text>
+    <rect class="box" x="440" y="150" width="160" height="44" rx="10"/><text class="title" x="520" y="177" text-anchor="middle">Zoomed</text>
+    <rect class="box" x="640" y="150" width="140" height="44" rx="10"/><text class="title" x="710" y="177" text-anchor="middle">Closed</text>
+    <rect class="box" x="440" y="270" width="160" height="44" rx="10"/><text class="title" x="520" y="297" text-anchor="middle">Panning</text>
+
+    <path class="ln" d="M340 64 L120 150" marker-end="url(#ar2)"/><text x="150" y="98" class="small">pan · |dx| &gt; |dy|</text>
+    <path class="ln" d="M390 64 L320 150" marker-end="url(#ar2)"/><text x="300" y="118" class="small">pan · |dy| &gt; |dx|</text>
+    <path class="ln" d="M440 64 L520 150" marker-end="url(#ar2)"/><text x="500" y="98" class="small">pinch · double tap</text>
+    <path class="ln dash" d="M520 20 C 520 -4, 300 -4, 300 20" marker-end="url(#ar2)"/><text x="410" y="8" class="small" text-anchor="middle">tap: chrome on / off</text>
+
+    <path class="ln" d="M120 194 C 120 240, 260 240, 300 64" marker-end="url(#ar2)" style="opacity:.75"/>
+    <text x="40" y="230" class="small">release: past 40 % or 500 pt/s → the neighbour</text><text x="40" y="244" class="small">short → springs back · at an end: rubber band</text>
+
+    <path class="hi-ln" d="M400 172 L640 172" marker-end="url(#ar2)"/><text x="430" y="212" class="small gold">release past 120 pt or 900 pt/s · tick at the line</text>
+    <path class="ln dash" d="M320 150 L 360 64" marker-end="url(#ar2)"/><text x="345" y="140" class="small">short: back</text>
+
+    <path class="ln" d="M520 194 L520 270" marker-end="url(#ar2)"/><text x="528" y="236" class="small">pan · within clampPan</text>
+    <path class="ln" d="M600 292 C 640 292, 640 194, 600 194" marker-end="url(#ar2)"/><text x="612" y="250" class="small">release: decay, then the bound</text>
+    <path class="ln dash" d="M480 150 L 460 64" marker-end="url(#ar2)"/><text x="380" y="124" class="small" text-anchor="end">double tap · pinch to 1: fit</text>
+    <path class="hi-ln" d="M600 160 L640 160" marker-end="url(#ar2)"/><text x="600" y="150" class="small gold">pinch &lt; 0.75, let go</text>
+  </svg>
+  <figcaption>One <code>Gesture.Pan</code> per slot, with the pinch simultaneous and the taps exclusive. The pan reads the scale at its first movement and locks its meaning for the rest of the touch; every value it moves is a shared value on the UI thread, and JavaScript hears only the settle. Five states, and the edge hand-off while zoomed (a pan that reaches the picture's edge and pages) is recorded for later.</figcaption>
+</figure>
+
+<figure id="dC">
+  <div class="fig-head"><span class="fig-no">DIAGRAM C</span><p class="fig-title">The open, in time</p></div>
+  <svg class="d" viewBox="0 0 820 230" role="img" aria-label="Four tracks over 350 milliseconds: the picture's frame springs from the tile to the fitted frame, the stage's opacity rises from 0 to 1 on the same spring, the chrome stays at 0 until 120 milliseconds then rises, and the status bar hides at 0.">
+    <line class="ln" x1="150" y1="200" x2="750" y2="200"/>
+    <g class="small">
+      <line class="ln" x1="150" y1="196" x2="150" y2="204"/><text x="150" y="220" text-anchor="middle">0 ms</text>
+      <line class="ln" x1="356" y1="196" x2="356" y2="204"/><text x="356" y="220" text-anchor="middle">120</text>
+      <line class="ln" x1="750" y1="196" x2="750" y2="204"/><text x="750" y="220" text-anchor="middle">350 ms · settled</text>
+    </g>
+    <line class="ln dash muted" x1="356" y1="30" x2="356" y2="196"/>
+    <text x="20" y="46">picture frame</text><text x="20" y="60" class="small muted">tile → fitted · corner 10 → 0</text>
+    <path class="hi-ln" d="M150 70 C 230 70, 300 32, 420 32 C 520 32, 560 40, 750 38"/>
+    <text x="20" y="98">stage opacity</text><text x="20" y="112" class="small muted">0 → 1</text>
+    <path class="ln" d="M150 122 C 230 122, 300 86, 420 86 C 520 86, 560 92, 750 90"/>
+    <text x="20" y="150">chrome opacity</text><text x="20" y="164" class="small muted">0 → 1, from 120 ms</text>
+    <path class="ln" d="M150 172 L356 172 C 430 172, 470 140, 560 140 L750 140"/>
+    <text x="20" y="190">status bar</text>
+    <rect x="150" y="182" width="600" height="8" rx="2" fill="currentColor" opacity=".25"/><text x="160" y="189" class="small" fill="var(--ink)">hidden with the chrome</text>
+    <text x="440" y="24" class="small gold">one spring: stiffness 320 · damping 32 · mass 1 (IOS_SPRING)</text>
+  </svg>
+  <figcaption>The picture and the stage share the spring; the chrome waits 120 ms so the eye follows one thing. Closing plays the same tracks backwards toward the current item's tile, after the room has scrolled it into view under the opaque stage. Reduce Motion replaces the first two tracks with a 160 ms crossfade at the fitted frame.</figcaption>
+</figure>
+
+<figure id="dD">
+  <div class="fig-head"><span class="fig-no">DIAGRAM D</span><p class="fig-title">Where the bytes come from: on the server's network, and away from it</p></div>
+  <svg class="d" viewBox="0 0 820 330" role="img" aria-label="Two paths compared. On the server's network the app asks for a grant and a native player streams byte ranges straight from chipsd. Away from it, requests cross the relay tunnel as messages, which a player cannot do, so the app downloads with progress and plays a local file. Below, the three image sizes the viewer climbs.">
+    <defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" fill="currentColor"/></marker></defs>
+    <text class="title" x="20" y="22">On the server's network (link: direct)</text>
+    <rect class="box" x="20" y="40" width="120" height="40" rx="8"/><text x="80" y="65" text-anchor="middle">the app</text>
+    <rect class="box" x="20" y="120" width="120" height="40" rx="8"/><text x="80" y="145" text-anchor="middle">AVPlayer / &lt;video&gt;</text>
+    <rect class="box hi" x="280" y="40" width="120" height="120" rx="8"/><text x="340" y="96" text-anchor="middle">chipsd</text><text x="340" y="112" text-anchor="middle" class="small">Range · grants</text>
+    <path class="ln" d="M140 52 L280 52" marker-end="url(#ar3)"/><text x="150" y="46" class="small">POST …/grant, signed</text>
+    <path class="ln" d="M280 70 L140 70" marker-end="url(#ar3)"/><text x="150" y="84" class="small">{ url, expires_at }</text>
+    <path class="ln" d="M80 80 L80 120" marker-end="url(#ar3)"/><text x="86" y="104" class="small">hands the url</text>
+    <path class="hi-ln" d="M140 132 L280 132" marker-end="url(#ar3)"/><text x="150" y="126" class="small gold">GET ?variant=play&amp;dev&amp;exp&amp;sig · Range: bytes=…</text>
+    <path class="hi-ln" d="M280 150 L140 150" marker-end="url(#ar3)"/><text x="150" y="166" class="small gold">206 · Content-Range · streams, seeks</text>
+
+    <text class="title" x="440" y="22">Away (link: relay)</text>
+    <rect class="box" x="440" y="40" width="110" height="40" rx="8"/><text x="495" y="65" text-anchor="middle">the app</text>
+    <rect class="box" x="440" y="120" width="110" height="40" rx="8"/><text x="495" y="145" text-anchor="middle">player</text>
+    <rect class="box" x="590" y="40" width="90" height="40" rx="8"/><text x="635" y="58" text-anchor="middle">tunnel</text><text x="635" y="72" text-anchor="middle" class="small">relay</text>
+    <rect class="box" x="710" y="40" width="90" height="40" rx="8"/><text x="755" y="65" text-anchor="middle">chipsd</text>
+    <path class="ln" d="M550 60 L590 60" marker-end="url(#ar3)" marker-start="url(#ar3)"/>
+    <path class="ln" d="M680 60 L710 60" marker-end="url(#ar3)" marker-start="url(#ar3)"/>
+    <text x="560" y="98" class="small">requests as messages (ADR 0039)</text>
+    <text x="560" y="112" class="small">a native player cannot cross</text>
+    <path class="ln" d="M495 80 L495 120" marker-end="url(#ar3)"/><text x="501" y="104" class="small">a local file</text>
+    <text x="440" y="180" class="small">downloaded whole, poster showing, progress from the body (figure 9)</text>
+
+    <line class="ln muted" x1="20" y1="205" x2="800" y2="205"/>
+    <text class="title" x="20" y="232">The sizes a photo comes in, and the order the viewer climbs them</text>
+    <rect class="box" x="20" y="248" width="220" height="56" rx="8"/><text x="32" y="268">thumb · 512 px WebP</text><text x="32" y="284" class="small">on the device already · the tile's own bitmap</text>
+    <rect class="box hi" x="300" y="248" width="220" height="56" rx="8"/><text x="312" y="268">view · ≤ 2,048 px WebP</text><text x="312" y="284" class="small">?variant=view · made at upload, or on first ask</text>
+    <rect class="box" x="580" y="248" width="220" height="56" rx="8"/><text x="592" y="268">original · as sent</text><text x="592" y="284" class="small">Open original · or when there is no view copy</text>
+    <path class="ln" d="M240 276 L300 276" marker-end="url(#ar3)"/><text x="244" y="268" class="small">at once</text>
+    <path class="ln" d="M520 276 L580 276" marker-end="url(#ar3)"/><text x="522" y="268" class="small">on request</text>
+    <text x="20" y="322" class="small muted">neighbours' view copies are fetched when a page settles; nothing beyond them is.</text>
+  </svg>
+  <figcaption>The grant is a ten-minute bearer for one file, issued only to a signed device request and never logged with its signature — the same trade the harness's grant and decision 10 make. Byte ranges are what let a player start and seek. Both are Phase 4; Phase 2 works without them on the download path.</figcaption>
+</figure>
+
+<figure id="dE">
+  <div class="fig-head"><span class="fig-no">DIAGRAM E</span><p class="fig-title">The pieces, per surface</p></div>
+  <svg class="d" viewBox="0 0 820 330" role="img" aria-label="Core holds the deck and the arithmetic; the phone's media folder and the web's viewer folder both import it; the server adds the view variant, byte ranges and the grant, which both clients fetch.">
+    <defs><marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" fill="currentColor"/></marker></defs>
+    <rect class="box hi" x="250" y="16" width="320" height="76" rx="10"/>
+    <text class="title" x="410" y="38" text-anchor="middle">packages/core/src/viewer.ts</text>
+    <text x="410" y="58" text-anchor="middle" class="small">deckOf · indexOfItem · fitRect · coverRect · zoomLimits</text>
+    <text x="410" y="74" text-anchor="middle" class="small">clampPan · rubberBand · snapPage · dismissProgress · dismissDecision</text>
+
+    <rect class="box" x="20" y="140" width="360" height="118" rx="10"/>
+    <text class="title" x="34" y="162">apps/mobile/src/media/</text>
+    <text x="34" y="184" class="small">MediaViewer.tsx — the Modal host, the provider, the deck</text>
+    <text x="34" y="200" class="small gold">Stage.tsx — Reanimated + gesture handler, the one import; mocked under Jest</text>
+    <text x="34" y="216" class="small">Chrome.tsx · VideoItem.tsx · Actions.tsx (the Sheet)</text>
+    <text x="34" y="232" class="small">useDeck.ts · tiles.ts (the frame registry)</text>
+    <text x="34" y="250" class="small muted">Attachments.tsx and LaneChain.tsx register tiles; SpaceView mounts the provider</text>
+
+    <rect class="box" x="440" y="140" width="360" height="118" rx="10"/>
+    <text class="title" x="454" y="162">apps/web/src/app/viewer/</text>
+    <text x="454" y="184" class="small">Lightbox.tsx — a &lt;dialog&gt; in document.body, showModal()</text>
+    <text x="454" y="200" class="small">Stage.tsx — wheel and pointer events; touch through pointers</text>
+    <text x="454" y="216" class="small">Filmstrip.tsx · VideoStage.tsx · open.ts (FLIP, WAAPI)</text>
+    <text x="454" y="232" class="small">useViewer.ts — the ViewerHost a room or a thread mounts</text>
+    <text x="454" y="250" class="small muted">Attachments.tsx opens it; window.open goes</text>
+
+    <path class="ln" d="M330 92 L200 140" marker-end="url(#ar4)"/><path class="ln" d="M490 92 L620 140" marker-end="url(#ar4)"/>
+
+    <rect class="box" x="160" y="290" width="500" height="34" rx="10"/>
+    <text x="410" y="312" text-anchor="middle" class="small">server · ?variant=view (migration 0021) · Range → 206 · POST /v1/attachments/:id/grant</text>
+    <path class="ln dash" d="M200 258 L280 290" marker-end="url(#ar4)"/><path class="ln dash" d="M620 258 L540 290" marker-end="url(#ar4)"/>
+    <text x="20" y="300" class="small muted">bytes</text><text x="770" y="300" class="small muted">bytes</text>
+  </svg>
+  <figcaption>What the phone and the web share is the pure part — the deck and the arithmetic — which is what the dependency rules allow: mobile takes <code>@chipschat/core</code>, never <code>@chipschat/ui</code>. Each surface keeps its own gesture code, because a finger and a pointer are different instruments.</figcaption>
+</figure>
+
+<h2 id="numbers">The numbers</h2>
+<table>
+  <thead><tr><th>What</th><th>Value</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>The spring</td><td class="num">stiffness 320 · damping 32 · mass 1</td><td><code>IOS_SPRING</code>, the app's one spring (ADR 0050)</td></tr>
+    <tr><td>Open and return</td><td class="num">≈ 350 ms to settle · chrome from 120 ms</td><td>UIKit's 0.35 s response; the chrome after the picture</td></tr>
+    <tr><td>Reduce Motion</td><td class="num">160 ms crossfade</td><td><code>STILL_MS</code>, as the sheet and <code>Arrive</code></td></tr>
+    <tr><td>Page</td><td class="num">40 % of the width · or 500 pt/s</td><td>one page per swipe; a flick counts</td></tr>
+    <tr><td>Gutter</td><td class="num">20 pt</td><td>iOS Photos's</td></tr>
+    <tr><td>Dismiss</td><td class="num">120 pt · or 900 pt/s · tick at the line</td><td>felt before it is seen</td></tr>
+    <tr><td>Dismiss progress</td><td class="num">backdrop 1 → 0.3 over 300 pt · scale 1 → 0.75 over 600 pt</td><td>the room shows through before the decision</td></tr>
+    <tr><td>Zoom</td><td class="num">min 1 · max the larger of 3 and one image pixel per device pixel</td><td>a receipt is readable at full resolution</td></tr>
+    <tr><td>Double tap</td><td class="num">2.5× at the point · then fit</td><td>Photos's</td></tr>
+    <tr><td>Pinch under</td><td class="num">0.75, let go → close</td><td>Photos's</td></tr>
+    <tr><td>Rubber band</td><td class="num">0.55</td><td>the platform's lists</td></tr>
+    <tr><td>Chrome auto-hide</td><td class="num">3 s into a playing video</td><td>the film, not the buttons</td></tr>
+    <tr><td>Filmstrip</td><td class="num">56 px · at ≥ 768 pt (app) · ≥ 900 px (web)</td><td>room for it</td></tr>
+    <tr><td>View copy</td><td class="num">≤ 2,048 px · WebP</td><td>sharp at 3× on a phone; a moment to arrive</td></tr>
+    <tr><td>Grant</td><td class="num">10 min · a video's length + 10 min, ≤ 1 h</td><td>a player asks for ranges for as long as it plays</td></tr>
+    <tr><td>Web open</td><td class="num">350 ms on <code>--ease</code></td><td>the design system's curve</td></tr>
+  </tbody>
+</table>
+<p>Budgets to be measured once Phases 1 and 5 exist, on the phone with Instruments and on the desktop with the Performance panel: the first frame at the next frame after the tap; the open, the swipe and the drag at the display's rate; a view copy on screen within 400 ms on Wi-Fi; three items decoded at most, none above 2,048 pixels unless asked; a video's first frame within a second on the server's network.</p>
+</article>
+</div>

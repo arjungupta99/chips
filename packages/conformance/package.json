@@ -1,0 +1,47 @@
+{
+  "name": "@chipschat/conformance",
+  "version": "1.0.0",
+  "description": "The adapter conformance kit: a fake Chips that speaks the wire, a driver that plays the person through the golden scenario, and the checklist the app shows.",
+  "license": "Apache-2.0",
+  "homepage": "https://chipschat.ai/connect/conformance/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arjungupta99/chips.git",
+    "directory": "packages/conformance"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@chipschat/protocol": "workspace:*",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@chipschat/harness": "workspace:*",
+    "@chipschat/server": "workspace:*",
+    "@types/ws": "8.18.1",
+    "vitest": "4.1.11"
+  }
+}

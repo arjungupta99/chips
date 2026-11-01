@@ -1,0 +1,15 @@
+{
+  "name": "@chipschat/release-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Builds a Chips release: the CLI and server in one bundle, a pinned Node, the natives and the web app.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

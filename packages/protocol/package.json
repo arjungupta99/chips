@@ -1,0 +1,46 @@
+{
+  "name": "@chipschat/protocol",
+  "version": "1.0.0",
+  "description": "Agent Connect: the canonical Zod schemas, the identifier vocabulary, and everything generated from them.",
+  "license": "Apache-2.0",
+  "homepage": "https://chipschat.ai/reference/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arjungupta99/chips.git",
+    "directory": "packages/protocol"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/src/index.d.ts",
+        "default": "./dist/src/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "fixtures",
+    "generated"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "zod": "4.6.6"
+  },
+  "devDependencies": {
+    "fast-check": "4.9.0",
+    "vitest": "4.1.11"
+  }
+}

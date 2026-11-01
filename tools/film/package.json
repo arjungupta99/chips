@@ -1,0 +1,18 @@
+{
+  "name": "@chipschat/film",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Renders the films the app plays, frame by frame from its own screens (ADR 0217).",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "scripts": {
+    "film": "node film.mjs",
+    "jumps": "node jumps.mjs",
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "vitest": "4.1.11"
+  }
+}

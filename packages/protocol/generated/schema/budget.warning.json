@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Protocol major version."
+    },
+    "type": {
+      "type": "string",
+      "const": "budget.warning"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^evt_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "The event's own id. Stable across a retry of the same event."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "description": "When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced."
+    },
+    "workspace_id": {
+      "type": "string",
+      "pattern": "^ws_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "A workspace identifier: `ws_` followed by a ULID."
+    },
+    "space_id": {
+      "description": "The space, when the event belongs to one.",
+      "type": "string",
+      "pattern": "^spc_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "run_id": {
+      "description": "The run, when the event belongs to one.",
+      "type": "string",
+      "pattern": "^run_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "seq": {
+      "description": "Assigned by the server on append, monotonic per workspace. Absent on the way in.",
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "idempotency_key": {
+      "description": "Required on every client-originated write. Sending the same key twice is a no-op.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "harness",
+            "agent",
+            "system"
+          ],
+          "description": "Whether a person, a harness, one of a harness's agents or Chips itself acted."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The participant id, or `system` for Chips."
+        },
+        "harness_id": {
+          "description": "For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips.",
+          "type": "string",
+          "pattern": "^hrn_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "description": "The participant an event is attributed to."
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "limit_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The ceiling for this harness."
+        },
+        "spent_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Spent so far, estimated."
+        }
+      },
+      "required": [
+        "limit_usd",
+        "spent_usd"
+      ],
+      "description": "The ceiling and what was spent against it: the harness's budget, or for a job the room's ceiling and the job's spend."
+    },
+    "threshold": {
+      "anyOf": [
+        {
+          "type": "number",
+          "const": 80
+        },
+        {
+          "type": "number",
+          "const": 100
+        }
+      ],
+      "description": "Which ceiling was crossed, as a percentage."
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "warn",
+        "pause"
+      ],
+      "description": "`warn` at eighty, `pause` at a hundred."
+    },
+    "scope": {
+      "description": "Whose ceiling: the harness's own budget (absent says the same), or the job in the room named by `space_id` (ADR 0118).",
+      "type": "string",
+      "enum": [
+        "harness",
+        "job"
+      ]
+    },
+    "since_seq": {
+      "description": "For a job: where it began, as `context.spend.since_seq` says it. A later job in the room is a new allowance.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": [
+    "v",
+    "type",
+    "id",
+    "ts",
+    "workspace_id",
+    "actor",
+    "budget",
+    "threshold",
+    "action"
+  ],
+  "description": "Eighty percent spent. At a hundred the run pauses rather than warning again; for a room's job, the room's agents pause.",
+  "$id": "https://chipschat.ai/schema/v1/budget.warning.json",
+  "title": "BudgetWarning"
+}

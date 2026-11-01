@@ -1,0 +1,93 @@
+{
+  "name": "chips",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A chat app where harnesses are teammates and you're in charge.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "turbo run build --filter=!@chipschat/desktop",
+    "lint": "biome check . && pnpm run lint:deps && pnpm run check:architecture && pnpm run check:protocol",
+    "lint:fix": "biome check --write .",
+    "lint:deps": "depcruise --config .dependency-cruiser.cjs .",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run --coverage",
+    "test:watch": "vitest",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test && pnpm run mobile:test",
+    "gen:architecture": "node tools/architecture/generate.mjs",
+    "check:architecture": "node tools/architecture/generate.mjs --check",
+    "gen:protocol": "pnpm --filter @chipschat/protocol-tools run generate",
+    "live": "node tools/live/live.mjs",
+    "relay:bench": "tsx tools/relay-bench/bench.mts",
+    "check:protocol": "pnpm --filter @chipschat/protocol-tools run check",
+    "bench:append": "pnpm --filter @chipschat/server run bench",
+    "bench:fold": "pnpm --filter @chipschat/core run bench",
+    "bench:search": "pnpm --filter @chipschat/core run bench:search",
+    "desktop": "node tools/desktop/desktop.mjs",
+    "desktop:check": "pnpm --filter @chipschat/desktop run cargo:check && pnpm --filter @chipschat/desktop run cargo:test",
+    "desktop:dev": "pnpm --filter @chipschat/desktop run dev",
+    "desktop:build": "pnpm --filter @chipschat/desktop run build",
+    "film": "node tools/film/film.mjs",
+    "dev:server": "pnpm --filter @chipschat/server run serve",
+    "relay": "pnpm --filter @chipschat/relay run start",
+    "docs:check": "pnpm --filter @chipschat/docs run check",
+    "docs:build": "pnpm --filter @chipschat/docs run build",
+    "docs:dev": "pnpm --filter @chipschat/docs run dev",
+    "dev": "CHIPS_DATABASE_URL=\"sqlite:$PWD/.chips/chips.db\" turbo run dev --filter=@chipschat/server --filter=@chipschat/web",
+    "chips": "tsx cli/bin/chips.ts",
+    "web:build": "pnpm --filter @chipschat/web run build",
+    "e2e": "pnpm --filter @chipschat/web run e2e",
+    "journeys": "pnpm --filter @chipschat/web run journeys",
+    "e2e:people": "pnpm --filter @chipschat/web exec playwright test -c ../../testing/join-and-remove/playwright.config.ts",
+    "onboarding": "node tools/release/build.mjs && pnpm journeys && CHIPS_E2E_WEB_PORT=${CHIPS_E2E_WEB_PORT:-5199} pnpm e2e join.spec.ts --project=chromium && pnpm mobile:e2e join.spec.ts",
+    "release:build": "node tools/release/build.mjs",
+    "release:lock": "node tools/release/lock.mjs",
+    "release:sign": "node tools/release/sign.mjs",
+    "release:relay": "node tools/release/relay.mjs",
+    "release:sdk": "node tools/release/sdk.mjs",
+    "mobile:test": "pnpm --filter @chipschat/mobile run test",
+    "mobile:export": "pnpm --filter @chipschat/mobile run export",
+    "mobile:start": "pnpm --filter @chipschat/mobile exec expo start",
+    "mobile:dev": "pnpm --filter @chipschat/mobile run dev",
+    "visual": "sh tools/visual/run.sh",
+    "visual:update": "sh tools/visual/run.sh --update-snapshots",
+    "mobile:e2e": "pnpm --filter @chipschat/mobile run e2e",
+    "mobile:e2e:install": "pnpm --filter @chipschat/mobile run e2e:install",
+    "phone": "node tools/phone/phone.mjs",
+    "phone:android": "node tools/phone/android.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.11",
+    "@types/node": "22.20.1",
+    "@vitest/coverage-v8": "4.1.11",
+    "dependency-cruiser": "18.2.0",
+    "tsx": "4.23.13",
+    "turbo": "2.10.12",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "sharp"
+    ],
+    "overrides": {
+      "undici@>=8.0.0 <8.10.2": "8.12.2",
+      "devalue@<5.9.3": "5.9.4",
+      "brace-expansion@<1.1.20": "1.1.21",
+      "brace-expansion@>=4.0.0 <5.0.11": "5.0.12",
+      "decode-uri-component@<0.5.0": "0.5.0",
+      "zod@>=4.0.0 <4.6.6": "4.6.6"
+    },
+    "patchedDependencies": {
+      "react-native-screens@4.26.0": "patches/react-native-screens@4.26.0.patch",
+      "react-native-keyboard-controller@1.21.9": "patches/react-native-keyboard-controller@1.21.9.patch",
+      "react-native-reanimated@4.5.1": "patches/react-native-reanimated@4.5.1.patch"
+    }
+  }
+}

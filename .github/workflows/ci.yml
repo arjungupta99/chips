@@ -1,0 +1,321 @@
+name: CI
+
+# On every push to main of the public repository, arjungupta99/chips, where Actions cost nothing.
+# Anywhere else, a private copy included, a push starts a run whose jobs all skip, since minutes
+# on a private repository are counted (they ran out on 13 September and 10 October 2026); run it
+# there by hand to run every job. `pnpm check` and the e2e suites still run on the Mac before
+# anything lands.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Minutes on a private repository are counted against a monthly allowance, and a Mac's count ten
+# times. A full run was about fifty, and the month's ran out on 13 September 2026. So the first
+# job checks the sign-off and says what the push changed, and each job after it runs only where it
+# can find something (tools/ci/which-jobs.sh): prose alone runs nothing else, and the macOS shell
+# builds only when it changed. A skipped job is not a failed one. Run the workflow by hand to run
+# every job.
+
+permissions:
+  contents: read
+
+env:
+  # Turborepo is used only for local caching here; no remote cache, no telemetry.
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+
+jobs:
+  check:
+    name: lint, typecheck, test
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      # Node 22 LTS is the baseline the project targets (ADR 0001).
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Biome, the dependency-cruiser layer rules, and the architecture graph staleness
+      # check. Any layer violation or dependency cycle fails here (technical-plan 6.1).
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Build
+        run: pnpm run build
+
+      # A video's poster and playable copy are made by ffmpeg (ADR 0053). The tests that run the
+      # real binary are skipped where it is missing, except here: on CI a missing ffmpeg fails.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends ffmpeg
+
+      # Coverage thresholds live in vitest.config.ts and fail the run when unmet
+      # (technical-plan 6.3). No retries: a flaky test is a bug, not something to paper over.
+      - name: Test with coverage
+        run: pnpm run test
+
+      # The phone app. Its lint and typecheck are already in the two steps above — Biome walks
+      # the repository and turbo runs every package's typecheck — so what is left is the half
+      # Vitest cannot host (component tests, on jest-expo) and the bundle, which is the only
+      # thing that proves Metro resolves the shared packages' NodeNext imports. It bundles for iOS
+      # and Android both: Metro resolves each platform on its own, so either can break alone.
+      # No device, no Xcode, no Android SDK and no simulator: `expo export` is JavaScript.
+      - name: Test the phone app
+        run: pnpm run mobile:test
+
+      - name: Bundle the phone app
+        run: pnpm run mobile:export
+
+      # Decision 13: every sample under apps/docs/samples is executed, and a broken link fails
+      # the Astro build. Documentation is a product surface, not a manual.
+      - name: Run the documentation samples
+        run: pnpm run docs:check
+
+      - name: Build the documentation
+        run: pnpm run docs:build
+
+      # M0.6's acceptance criterion: the approval loop end to end, with a real chipsd, a real
+      # browser generating a real key, and a real harness on a real socket.
+      - name: Install the Playwright browser
+        run: pnpm --filter @chipschat/web exec playwright install --with-deps chromium
+
+      - name: End-to-end
+        run: pnpm run e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # M4.2: the phone's screens, through its web target, against a real chipsd and a real
+      # relay. After the web suite rather than beside it — they share ports 4432 and 4433 — and
+      # the browser is already installed by the step above. It is not a device: the swipe and
+      # the Keychain are the Maestro flows', which run nowhere automatically and say so.
+      - name: End-to-end, the phone app
+        run: pnpm run mobile:e2e
+
+      - name: Upload the phone app's Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: playwright-report-mobile
+          path: apps/mobile/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # Run alone, after the suite, so the numbers are not measured against sixteen test files
+      # competing for the same cores. Reported, not enforced: M0.3's budget is a laptop's, this
+      # runner takes about three times as long (5.0 s and 7.2 s against 1.6 s on an M4, 13 September
+      # 2026), and the Phase 0 review's finding 13 said so. The budget is enforced on the Mac at
+      # each gate; a CI baseline to fail against is M6.5's. The numbers go in the job summary.
+      - name: Benchmark the event log
+        run: |
+          set -o pipefail
+          { echo '```'; pnpm --silent run bench:append --report-only; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # M1.1's acceptance criterion: a snapshot of every component in both themes, and axe over
+  # the kitchen sink. Rendered in the Playwright image so the pixels match the committed
+  # snapshots, which `tools/visual/run.sh` produces in the same image. The tag is pinned to
+  # @playwright/test's version; tools/guardrails/playwright-image.test.ts keeps them together.
+  visual:
+    name: visual regression
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      # No lifecycle scripts: the image has no compiler, and rendering the kitchen sink needs
+      # nothing native. better-sqlite3 is the server's, and the server does not run here.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Snapshots and axe
+        run: pnpm --filter @chipschat/web run visual
+
+      - name: Upload the diffs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: visual-diffs
+          path: apps/web/test-results-visual/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # M2.2: the macOS shell. Its Rust is checked and tested on every push that changes the shell —
+  # clippy at `-D warnings`, so a warning is a failure the way lint is everywhere else — and the
+  # app is built into a `.dmg` that the run keeps as an artifact.
+  #
+  # The build is unsigned until the four Apple secrets exist. That is deliberate: an unsigned
+  # `.dmg` is a real build and a useful artifact, and pretending to sign without an identity
+  # produces something that fails to open on somebody else's Mac with no explanation. The
+  # script says which of the two it made, and this job's summary repeats it.
+  desktop:
+    name: desktop shell
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Cache the Rust build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/desktop/src-tauri/target
+          key: desktop-${{ runner.os }}-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: desktop-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `tauri::generate_context!` reads `frontendDist` while the crate compiles, so clippy and
+      # the tests cannot build the shell until the web app it embeds is on disk. A laptop that
+      # has ever run the app has an `apps/web/dist`; a fresh runner does not.
+      - name: Build the web app the shell embeds
+        run: pnpm run web:build
+
+      - name: Check and test the shell
+        run: pnpm run desktop:check
+
+      - name: Build the app
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: pnpm run desktop:build
+
+      - name: Say whether it was signed
+        if: always()
+        run: |
+          if [ -n "${{ secrets.APPLE_SIGNING_IDENTITY }}" ]; then
+            echo "### Chips for macOS: signed and notarized" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Chips for macOS: **unsigned**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "No Apple identity is configured, so Gatekeeper will refuse this build on any machine but the one that made it. Set APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD and APPLE_TEAM_ID to sign it." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the app
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chips-macos
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app
+          retention-days: 7
+          if-no-files-found: warn
+
+  # Every commit carries a Signed-off-by line (ADR 0014, docs/working-on-chips.md), and the jobs above
+  # learn from this one which of them have something to check. One job for both, since every job
+  # is counted as at least a minute. Commits that are not signed off run nothing else.
+  #
+  # When it ran on pushes it ran on a push to main as well as on a pull request. The project is
+  # trunk-based, so main is the path commits actually take; a check that only ran on pull requests
+  # never ran at all. The pull-request arm was for the contributors Phase 7 opens the repository to.
+  changes:
+    name: DCO sign-off, and what changed
+    # Every other job needs this one, so skipping it here skips them all.
+    if: github.repository == 'arjungupta99/chips' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.which.outputs.code }}
+      web: ${{ steps.which.outputs.web }}
+      desktop: ${{ steps.which.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: Check every commit is signed off
+        env:
+          # A pull request compares its own range; a push compares what it added.
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # A branch's first push leaves an all-zero `before`, a force-push can leave one that
+          # is no longer in the history, and a manual run has none at all. In each case check
+          # the commit at hand rather than mistaking the whole history for new work.
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            commits=$(git rev-list -n 1 "$HEAD")
+          else
+            commits=$(git rev-list "$BASE".."$HEAD")
+          fi
+
+          missing=0
+          for sha in $commits; do
+            if ! git log -1 --format=%B "$sha" | grep -qiE '^Signed-off-by: .+ <.+@.+>'; then
+              echo "::error::commit $sha is missing a Signed-off-by line"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Say which jobs have something to check
+        id: which
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # A manual run runs every job, and so does a push whose base is not in the history,
+          # since what it changed cannot be told. A pull request is compared from where it left
+          # its base, not with whatever landed there since.
+          if [ "$EVENT" = "workflow_dispatch" ] || [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            tools/ci/which-jobs.sh --all | tee -a "$GITHUB_OUTPUT"
+          else
+            git diff --name-only "$BASE...$HEAD" | tools/ci/which-jobs.sh | tee -a "$GITHUB_OUTPUT"
+          fi

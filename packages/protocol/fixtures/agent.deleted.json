@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "agent.deleted",
+  "id": "evt_01K4ZQPX0000000000000000G6",
+  "ts": "2026-10-02T17:05:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "agent_id": "agt_01K4ZQPX0000000000000000A1",
+  "harness_id": "hrn_01K4ZQPX000000000000000004",
+  "key": "space-kitchen",
+  "name": "Kitchen and bath",
+  "by": "usr_01K4ZQPX000000000000000003"
+}

@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "checkpoint",
+  "id": "evt_01K4ZQPX00000000000000006B",
+  "ts": "2026-09-02T14:22:07.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "label": "PO read and the CRM record checked.",
+  "next": "Draft the confirmation email.",
+  "compacted": false
+}

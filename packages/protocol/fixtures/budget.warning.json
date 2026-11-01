@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "type": "budget.warning",
+  "id": "evt_01K4ZQPX00000000000000007D",
+  "ts": "2026-09-02T14:22:25.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "budget": {
+    "limit_usd": 3,
+    "spent_usd": 2.41
+  },
+  "threshold": 80,
+  "action": "warn",
+  "scope": "job",
+  "since_seq": 14049
+}

@@ -1,0 +1,38 @@
+[package]
+name = "chips-desktop"
+version = "1.0.0"
+description = "Chips on the desktop: the web app in a native shell that can find a server, notify you, and be decided from."
+authors = ["Chips"]
+license = "FSL-1.1-ALv2"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "chips_desktop"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = ["tray-icon"] }
+tauri-plugin-deep-link = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# A key for a page the window holds for its frame (ADR 0201's addendum): 256 random bits.
+getrandom = "0.3.4"
+# Service discovery, so the app finds a server on the network without being told an address.
+mdns-sd = "0.21.1"
+# Notifications with real buttons. Apple's own notification centre through the system API:
+# `tauri-plugin-notification` shows a banner but gives no Approve and no Deny, and a banner you
+# cannot answer is not what M2.2 asks for.
+mac-notification-sys = "0.6.15"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Whether another copy of the app runs already, so a launch at login gives way to it (ADR 0215).
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "libc", "NSRunningApplication"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSBundle", "NSString"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,369 @@
+<meta charset="utf-8">
+<title>Chips · How far the blur reaches</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--green:#009B5C;--red:#E62728;
+  --cap:76%;--scrim:58%;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--green:#00BA7A;--red:#FE5550;
+  --cap:62%;--scrim:52%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1400px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.03em}
+.brand svg{width:22px;height:22px}
+.wrap{max-width:1400px;margin:0 auto;padding:0 24px 110px}
+h1{font-family:var(--font-display);font-size:clamp(28px,4vw,38px);margin:28px 0 6px;letter-spacing:-.02em}
+h1+p{color:var(--ink-2);max-width:70ch;margin:0 0 10px}
+h2{font-family:var(--font-display);font-size:22px;margin:46px 0 10px;padding-top:20px;border-top:1px solid var(--line)}
+p{color:var(--ink-2);max-width:74ch}
+ul{color:var(--ink-2);max-width:74ch}
+li{margin:5px 0}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 4px}
+.ctl button{font:inherit;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.ctl .hint{font-size:12.5px;color:var(--ink-3)}
+.opts{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;margin:24px 0 8px}
+.opt{display:grid;gap:10px;width:330px}
+.opt h3{font-family:var(--font-display);font-size:16.5px;margin:0;color:var(--ink);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.opt h3 .n{font:11px var(--font-mono);border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.opt h3 .n.us{background:var(--gold-soft);color:var(--gold-deep)}
+.opt .why{font-size:13.5px;color:var(--ink-3);line-height:1.52}
+.opt .why b{color:var(--ink-2)}
+.dial{display:grid;gap:7px;background:var(--surface-2);border-radius:14px;padding:11px 13px}
+.dial label{display:grid;grid-template-columns:76px 1fr 46px;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2)}
+.dial output{font:11.5px var(--font-mono);color:var(--gold-deep);text-align:right}
+.dial input[type=range]{width:100%;accent-color:var(--gold-deep)}
+.dial .seg{display:flex;gap:6px;align-items:center;font-size:12.5px;color:var(--ink-2)}
+.dial .seg span{width:76px}
+.dial .seg button{font:inherit;font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;
+  border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.dial .seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.dial .read{margin:2px 0 0;font:11.5px var(--font-mono);color:var(--gold-deep);text-align:center}
+
+/* One frame can be shown in the other scheme while the page stays as it is:
+   the tokens are redeclared on the frame, so everything inside it follows. */
+.phone[data-scheme="light"]{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--green:#009B5C;--red:#E62728;
+  --cap:76%;--scrim:58%}
+.phone[data-scheme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--green:#00BA7A;--red:#FE5550;
+  --cap:62%;--scrim:52%}
+
+/* ── the phone ───────────────────────────────────────────────── */
+.phone{position:relative;width:330px;height:668px;border-radius:40px;overflow:hidden;background:var(--bg);
+  border:1px solid var(--line);font-family:var(--font-ios);box-shadow:0 24px 50px -28px rgba(0,0,0,.45);
+  --navH:96px;--barH:92px;--keysH:0px;--rampT:28px;--rampB:28px;--maxBlur:26px;
+  /* where the capsules actually end: full blur reaches here, the ramp starts here */
+  --capT:84px;--capB:72px}
+.phone[data-keys="up"]{--barH:70px;--keysH:262px;--capB:50px}
+.room{position:absolute;left:0;right:0;top:0;bottom:var(--keysH);overflow:hidden}
+.scroll{position:absolute;inset:0;overflow-y:scroll;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.lines{display:grid;gap:3px;padding:calc(var(--navH) + 10px) 12px calc(var(--barH) + 10px)}
+.turn{display:grid;gap:2px;margin-top:9px}
+.row{display:flex;gap:7px;align-items:flex-end}
+.row.me{justify-content:flex-end}
+.face{width:26px;height:26px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
+.bub{position:relative;max-width:74%;border-radius:18px;padding:7px 12px 8px;font-size:15px;line-height:1.35;overflow:hidden;background:var(--surface-2);color:var(--ink)}
+.bub .nm{display:block;font-size:11.5px;font-weight:700;margin-bottom:1px;color:var(--ink-3)}
+.row.me .bub{color:#fff;background:#34669e}
+.row.me .bub .tx{position:relative}
+.field-g{position:absolute;left:0;right:0;top:0;height:668px;pointer-events:none;
+  background:linear-gradient(#6651A8 0%,#6651A8 8%,#34669E 50%,#0B737D 92%,#0B737D 100%);will-change:transform}
+.stamp{font-size:11px;color:color-mix(in srgb,#fff 78%,transparent);margin-left:8px}
+.bub.them .stamp{color:var(--ink-4)}
+.margin{text-align:center;font-size:11.5px;color:var(--ink-4);padding:9px 0 5px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:11px 12px;margin:8px 2px 2px;display:grid;gap:7px}
+.card b{font-size:14px;font-weight:600}
+.card p{margin:0;font-size:13px;color:var(--ink-3)}
+.card .btns{display:flex;gap:7px}
+.card .btns span{font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+.card .btns span.go{background:var(--ink);color:var(--bg)}
+.lane{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);padding:2px 4px}
+.lane i{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block}
+
+/* ── the band: full blur under the chrome, then a ramp of exactly --rampT/B ── */
+.band{position:absolute;left:0;right:0;pointer-events:none;z-index:4}
+.band>i{position:absolute;left:0;right:0;top:0;bottom:0;display:block}
+.band.t{top:0;height:calc(var(--capT) + var(--rampT))}
+.band.b{bottom:var(--keysH);height:calc(var(--capB) + var(--rampB))}
+.band .scrim{background:linear-gradient(to bottom,color-mix(in srgb,var(--bg) var(--scrim),transparent) 0,
+  color-mix(in srgb,var(--bg) var(--scrim),transparent) var(--capT),transparent calc(var(--capT) + var(--rampT)))}
+.band.b .scrim{background:linear-gradient(to top,color-mix(in srgb,var(--bg) var(--scrim),transparent) 0,
+  color-mix(in srgb,var(--bg) var(--scrim),transparent) var(--capB),transparent calc(var(--capB) + var(--rampB)))}
+/* ── floating glass chrome (arrangement B) ───────────────────── */
+.chrome{position:absolute;left:0;right:0;z-index:6}
+.chrome.t{top:0}
+.chrome.b{bottom:var(--keysH)}
+.status{display:flex;align-items:center;justify-content:space-between;padding:12px 20px 0;font-size:12.5px;font-weight:600;color:var(--ink)}
+.status .sig{display:flex;gap:3px;align-items:flex-end}
+.status .sig i{width:3px;background:var(--ink);border-radius:1px;display:block}
+.navrow{display:flex;align-items:center;gap:8px;padding:8px 12px 10px;min-height:46px}
+.glass{background:color-mix(in srgb,var(--surface) var(--cap),transparent);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);backdrop-filter:blur(16px) saturate(180%);
+  border:.5px solid color-mix(in srgb,var(--line-2) 55%,transparent);
+  box-shadow:0 6px 18px -10px rgba(0,0,0,.45)}
+.cap{border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none}
+.cap.sq{width:36px;height:36px}
+.chev svg{width:17px;height:17px;stroke:var(--blue);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.plus svg{width:17px;height:17px;stroke:var(--ink-2);stroke-width:2.2;fill:none;stroke-linecap:round}
+.mark i{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 26%,transparent);display:block}
+.who{min-width:0;display:grid;text-align:center}
+.who b{font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.namecap{padding:5px 14px 6px;border-radius:999px;min-width:0;max-width:200px}
+.spread{flex:1;min-width:0;display:flex;justify-content:center}
+.composer{display:flex;align-items:flex-end;gap:8px;padding:8px 12px 0}
+.pill{flex:1;display:flex;align-items:center;gap:6px;min-height:42px;border-radius:21px;padding:0 5px 0 9px}
+.pill span{flex:1;font-size:15px;color:var(--ink-3)}
+.send{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--blue)}
+.send svg{width:15px;height:15px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.home{height:22px;display:grid;place-items:center}
+.home i{width:106px;height:4px;border-radius:2px;background:var(--ink);opacity:.28;display:block}
+.phone[data-keys="up"] .home{display:none}
+.keys{position:absolute;left:0;right:0;bottom:0;height:var(--keysH);z-index:2;background:var(--surface-2);
+  border-top:1px solid var(--line);display:none;padding:9px 4px 0}
+.phone[data-keys="up"] .keys{display:block}
+.krow{display:flex;gap:5px;justify-content:center;padding:4px 3px}
+.key{flex:1;height:38px;border-radius:6px;background:var(--surface);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 22%,transparent);display:grid;place-items:center;font-size:14px;color:var(--ink)}
+.key.wide{flex:2.4}
+.key.plain{background:none;box-shadow:none;color:var(--ink-2);font-size:16px}
+.kfoot{display:flex;align-items:center;gap:5px;padding:2px 3px 0}
+.kfoot .bar-i{flex:1;height:4px;border-radius:2px;background:var(--ink);opacity:.28;margin:9px 26px 0}
+</style>
+
+<header class="top"><div class="top-in">
+  <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Chips</span>
+  <span style="font-size:13px;color:var(--ink-3)">How far the blur reaches</span>
+  <span style="margin-left:auto;font:12px var(--font-mono);color:var(--ink-3)">21 Sep 2026</span>
+</div></header>
+
+<div class="wrap">
+<h1>How far the blur reaches</h1>
+<p>Arrangement <strong>B</strong> everywhere here — back, name and mark in glass, the field one capsule with the + inside. The only thing that changes across the four is <strong>how far past the capsules the blur keeps going</strong>. Under the capsules it is always full strength; the number is the ramp below the top row and above the field, where the room is still meant to be readable.</p>
+
+<div class="ctl">
+  <button id="t-theme" aria-pressed="false">Dark</button>
+  <button id="t-keys" aria-pressed="false">Keyboard up</button>
+  <button id="t-run" aria-pressed="true">Scrolling</button>
+  <span class="hint">Drag a frame to scroll it yourself.</span>
+</div>
+
+<div class="opts" id="opts"></div>
+
+<h2>What picking a number decides</h2>
+<ul>
+  <li><strong>Short ramps are ours to draw, not UIKit's.</strong> <code>scrollEdgeEffects: 'soft'</code> has one length and it is Apple's — roughly the fourth frame. Anything tighter means drawing the band in the app: a stack of five or six <code>BlurView</code>s, each masked by a gradient, which is the standard way to make a blur fade. Since B already brings <code>expo-blur</code> in for the capsules, that is one more package for the mask (<code>@react-native-masked-view/masked-view</code>) and no second rebuild.</li>
+  <li><strong>And drawing it ourselves is what makes it match.</strong> With the native effect the top and bottom fades are whatever UIKit says; drawn, the two are the same number and the same curve, and they stay that way when the composer grows a second line or a staged-file capsule.</li>
+  <li><strong>Under 16 it stops reading as a fade.</strong> At 12 the eye sees an edge again — not a hairline, but a place where the picture changes. The point of the ramp is that there is nowhere to point at.</li>
+  <li><strong>The capsule does most of the work already.</strong> In B every capsule is real glass, so the words in it are legible against whatever is behind them without any band at all. The band is for the <em>gap</em> — the space beside the chevron, between the capsules, around the field — which is why it can be this short and still work.</li>
+  <li><strong>The cost is per-frame blurring while the room scrolls.</strong> Five masked blur layers at each end is ten of them; on iOS that is GPU work the scroll already pays for, and it is the one thing I want on your phone before I believe it. Android gets a flat scrim instead.</li>
+</ul>
+
+<h2>My call</h2>
+<p><strong>20 points, top and bottom.</strong> It clears the capsules by about half their height — enough that a bubble arriving under the field softens rather than clips — and it gives back nearly forty points of readable room against what you saw yesterday. 28 is the safe answer if you want the softness more obvious; I would not go past it, and I would not go under 16.</p>
+<p>Drag the dial on the last frame and tell me the number you land on. It is one constant in the room's chrome, so changing it later is a one-line edit, not a redesign.</p>
+</div>
+
+<script>
+const SIG = '<span class="sig"><i style="height:4px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:10px"></i></span>';
+const CHEV = '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>';
+const PLUS = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+const UP = '<svg viewBox="0 0 24 24"><path d="M12 19V6"/><path d="M6 12l6-6 6 6"/></svg>';
+
+const LINES = [
+  {k:'margin', t:'Today 09:12'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'Pulled the 14 failing specs. Eleven are the same assertion — the fixture still has the old column name.'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'Renaming it in the fixture fixes eleven. The other three are real.', st:'09:12'},
+  {k:'me', tx:'Do the fixture, leave the three.', st:'09:13'},
+  {k:'lane', t:'Ledger picked this up'},
+  {k:'them', who:'Ledger', hue:'#7a4a86', tx:'Fixture renamed. Eleven green.', st:'09:19'},
+  {k:'margin', t:'Checkpoint · before the migration'},
+  {k:'them', who:'Ledger', hue:'#7a4a86', tx:'The three left are all the rounding in `totalOf`. Half a cent either way depending on the order the rows arrive in.'},
+  {k:'me', tx:'That one is mine — do not touch it. What does the migration need?', st:'09:24'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'A backfill for the renamed column across 1.2M rows. About four minutes, and it locks writes while it runs.'},
+  {k:'card', b:'Run the backfill?', p:'Locks writes on `entries` for about four minutes. Scout would run it now.'},
+];
+function lineHTML(l){
+  if(l.k==='margin') return `<div class="margin">${l.t}</div>`;
+  if(l.k==='lane') return `<div class="lane"><i></i>${l.t}</div>`;
+  if(l.k==='card') return `<div class="card"><b>${l.b}</b><p>${l.p}</p><div class="btns"><span class="go">Approve</span><span>Not now</span><span>Details</span></div></div>`;
+  if(l.k==='me') return `<div class="turn"><div class="row me"><div class="bub mine"><div class="field-g"></div><span class="tx">${l.tx}${l.st?`<span class="stamp">${l.st}</span>`:''}</span></div></div></div>`;
+  return `<div class="turn"><div class="row"><div class="face" style="background:${l.hue}">${l.who[0]}</div><div class="bub them"><span class="nm" style="color:${l.hue}">${l.who}</span>${l.tx}${l.st?`<span class="stamp">${l.st}</span>`:''}</div></div></div>`;
+}
+const KEYS = [['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫']];
+const keysHTML = () => KEYS.map(r=>`<div class="krow">${r.map(k=>`<div class="key">${k}</div>`).join('')}</div>`).join('')
+  + `<div class="krow"><div class="key" style="flex:.7">123</div><div class="key wide">space</div><div class="key">return</div></div>`
+  + `<div class="kfoot"><div class="key plain" style="flex:none;width:34px;height:26px">☺</div><span class="bar-i"></span><div class="key plain" style="flex:none;width:34px;height:26px">🎙</div></div>`;
+
+/* Full blur under the chrome, then out over exactly `ramp` points.
+   Six panes: each blurs harder than the last and stops a sixth of the ramp sooner,
+   so the ramp is the only place the strength changes. */
+const N = 6;
+function bandHTML(edge){
+  const chrome = edge === 't' ? 'var(--capT)' : 'var(--capB)';
+  const ramp = edge === 't' ? 'var(--rampT)' : 'var(--rampB)';
+  const dir = edge === 't' ? 'to bottom' : 'to top';
+  const layers = [];
+  for (let k = 0; k < N; k++){
+    const blur = `calc(var(--maxBlur) / ${Math.pow(1.9, N - 1 - k).toFixed(3)})`;
+    const end = `calc(${chrome} + ${ramp} * ${((N - k) / N).toFixed(3)})`;
+    const fadeFrom = `calc(${chrome} + ${ramp} * ${((N - k - 1) / N).toFixed(3)})`;
+    const mask = `linear-gradient(${dir},#000 0,#000 ${fadeFrom},transparent ${end})`;
+    layers.push(`<i style="backdrop-filter:blur(${blur}) saturate(140%);-webkit-backdrop-filter:blur(${blur}) saturate(140%);mask-image:${mask};-webkit-mask-image:${mask}"></i>`);
+  }
+  layers.push('<i class="scrim"></i>');
+  return `<div class="band ${edge}">${layers.join('')}</div>`;
+}
+
+const navHTML = () => `<div class="navrow">
+  <div class="cap sq chev glass">${CHEV}</div>
+  <div class="spread"><div class="cap namecap glass"><div class="who"><b>Scout · deploy</b><small>You, Scout and Ledger</small></div></div></div>
+  <div class="cap sq mark glass"><i></i></div></div>`;
+const barHTML = () => `<div class="composer"><div class="pill cap glass">
+  <div class="cap sq plus" style="width:30px;height:30px;border:0;box-shadow:none;background:none">${PLUS}</div>
+  <span>Message, or /command</span><div class="send">${UP}</div></div></div>`;
+
+const FRAMES = [
+  {id:'r12', ramp:12, h:'12 points', who:'us', why:'<b>Almost a bar again.</b> The blur stops so close to the capsules that the eye finds the edge — you can see where the picture changes, which is the one thing a fade is supposed to prevent.'},
+  {id:'r20', ramp:20, h:'20 points', who:'us', why:'<b>My call.</b> Half a capsule\'s height of softening and then the room, sharp. A bubble sliding under the field goes soft as it passes rather than meeting a line, and nothing readable is sitting in the haze.'},
+  {id:'r28', ramp:28, h:'28 points', who:'us', why:'<b>Softness you can point at.</b> Closest to what iOS itself does without reaching into the room. If 20 feels abrupt on the phone, this is the next stop.'},
+  {id:'r56', ramp:56, h:'56 points', who:'ios', why:'<b>What you saw yesterday</b>, and roughly what UIKit\'s own <code>soft</code> gives: a whole line of the room is under haze at each end. This is the overlap you asked me to cut.'},
+];
+
+function frameHTML(f, dial){
+  return `<div class="opt">
+    <h3>${f.h} <span class="n ${f.who === 'us' ? 'us' : ''}">${f.who === 'us' ? 'drawn by us' : "UIKit's soft"}</span></h3>
+    <div class="phone" data-keys="down" id="ph-${f.id}" style="--rampT:${f.ramp}px;--rampB:${f.ramp}px">
+      <div class="room"><div class="scroll"><div class="lines">${LINES.map(lineHTML).join('')}</div></div></div>
+      ${bandHTML('t')}${bandHTML('b')}
+      <div class="chrome t"><div class="status"><span>9:41</span>${SIG}</div>${navHTML()}</div>
+      <div class="chrome b">${barHTML()}<div class="home"><i></i></div></div>
+      <div class="keys">${keysHTML()}</div>
+    </div>
+    ${dial ? `<div class="dial">
+      <label>Top ramp<input type="range" id="d-top" min="0" max="72" step="2" value="${f.ramp}"><output id="o-top">${f.ramp}pt</output></label>
+      <label>Bottom ramp<input type="range" id="d-bot" min="0" max="72" step="2" value="${f.ramp}"><output id="o-bot">${f.ramp}pt</output></label>
+      <label>Blur<input type="range" id="d-blur" min="8" max="44" step="2" value="26"><output id="o-blur">26px</output></label>
+      <label>Capsule alpha<input type="range" id="d-cap" min="30" max="100" step="2" value="76"><output id="o-cap">76%</output></label>
+      <label>Scrim alpha<input type="range" id="d-scrim" min="0" max="100" step="2" value="58"><output id="o-scrim">58%</output></label>
+      <div class="seg"><span>This frame</span>
+        <button id="s-light" aria-pressed="true">Light</button>
+        <button id="s-dark" aria-pressed="false">Dark</button></div>
+      <p class="read" id="dial-read"></p>
+    </div>` : ''}
+    <div class="why">${f.why}</div>
+  </div>`;
+}
+
+const DIAL = {id:'dial', ramp:20, h:'Dial it', who:'us',
+  why:'<b>Yours to set.</b> Drag the ramps and the blur until it looks right and tell me the numbers — they are three constants in the room\'s chrome.'};
+document.getElementById('opts').innerHTML = FRAMES.map(f => frameHTML(f, false)).join('') + frameHTML(DIAL, true);
+
+const dialPhone = document.getElementById('ph-dial');
+const $ = (id) => document.getElementById(id);
+/* What each scheme starts at, so switching the frame over shows that scheme's own
+   values — until a slider has been moved, and then the number moved to is the point. */
+const DEFAULTS = {light: {cap: 76, scrim: 58}, dark: {cap: 62, scrim: 52}};
+const touched = {cap: false, scrim: false};
+
+function say(){
+  $('dial-read').textContent =
+    `ramp ${$('d-top').value}/${$('d-bot').value}pt · blur ${$('d-blur').value}px · `
+    + `glass ${$('d-cap').value}% · scrim ${$('d-scrim').value}% · ${dialPhone.dataset.scheme}`;
+}
+const bind = (input, output, prop, unit, suffix = 'px', mark) => {
+  const el = $(input), out = $(output);
+  el.addEventListener('input', () => {
+    dialPhone.style.setProperty(prop, `${el.value}${suffix}`);
+    out.textContent = `${el.value}${unit}`;
+    if (mark) touched[mark] = true;
+    say();
+  });
+};
+bind('d-top','o-top','--rampT','pt');
+bind('d-bot','o-bot','--rampB','pt');
+bind('d-blur','o-blur','--maxBlur','px');
+bind('d-cap','o-cap','--cap','%','%','cap');
+bind('d-scrim','o-scrim','--scrim','%','%','scrim');
+
+function scheme(which){
+  dialPhone.dataset.scheme = which;
+  $('s-light').setAttribute('aria-pressed', String(which === 'light'));
+  $('s-dark').setAttribute('aria-pressed', String(which === 'dark'));
+  for (const key of ['cap','scrim']){
+    if (touched[key]) continue;
+    const value = DEFAULTS[which][key];
+    $(`d-${key}`).value = value;
+    $(`o-${key}`).textContent = `${value}%`;
+    dialPhone.style.setProperty(`--${key}`, `${value}%`);
+  }
+  say();
+}
+$('s-light').onclick = () => scheme('light');
+$('s-dark').onclick = () => scheme('dark');
+scheme('light');
+
+const phones = [...document.querySelectorAll('.phone')];
+const scrollers = phones.map(p => {
+  const sc = p.querySelector('.scroll');
+  sc.scrollTop = sc.scrollHeight;
+  return {phone:p, sc, dir:-1, held:false};
+});
+scrollers.forEach(s => {
+  s.sc.addEventListener('pointerdown', () => { s.held = true; });
+  window.addEventListener('pointerup', () => { s.held = false; });
+});
+let running = true;
+function tick(){
+  for (const s of scrollers){
+    const {sc} = s, max = sc.scrollHeight - sc.clientHeight;
+    if (running && !s.held && max > 0){
+      sc.scrollTop += s.dir * 0.55;
+      if (sc.scrollTop <= 0){ sc.scrollTop = 0; s.dir = 1; }
+      if (sc.scrollTop >= max){ sc.scrollTop = max; s.dir = -1; }
+    }
+    const top = s.phone.getBoundingClientRect().top;
+    for (const bub of s.phone.querySelectorAll('.bub.mine')){
+      bub.firstElementChild.style.transform = `translateY(${-(bub.getBoundingClientRect().top - top)}px)`;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+const press = (b, on) => b.setAttribute('aria-pressed', String(on));
+const run = document.getElementById('t-run');
+run.onclick = () => { running = !running; press(run, running); run.textContent = running ? 'Scrolling' : 'Still'; };
+const theme = document.getElementById('t-theme');
+theme.onclick = () => {
+  const dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  press(theme, dark); theme.textContent = dark ? 'Light' : 'Dark';
+};
+const keys = document.getElementById('t-keys');
+keys.onclick = () => {
+  const up = keys.getAttribute('aria-pressed') !== 'true';
+  press(keys, up);
+  for (const p of phones) p.setAttribute('data-keys', up ? 'up' : 'down');
+};
+</script>

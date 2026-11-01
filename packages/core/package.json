@@ -1,0 +1,42 @@
+{
+  "name": "@chipschat/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The protocol client, cache and state the web and mobile apps share.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "bench": "tsx bench/fold.ts",
+    "bench:search": "tsx bench/search.ts"
+  },
+  "dependencies": {
+    "@chipschat/protocol": "workspace:*",
+    "@chipschat/tunnel": "workspace:*",
+    "markdown-it": "15.0.3"
+  },
+  "devDependencies": {
+    "fast-check": "4.9.0",
+    "vitest": "4.1.11"
+  }
+}

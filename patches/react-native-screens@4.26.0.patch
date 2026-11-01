@@ -1,0 +1,14 @@
+diff --git a/ios/tabs/host/RNSTabsHostComponentView.mm b/ios/tabs/host/RNSTabsHostComponentView.mm
+index 8b61f5b7d3800bf090ff4a7878ad44676b50bbaf..d1ab42ea2a018f33191a0ebef2694cedba7f9e6d 100644
+--- a/ios/tabs/host/RNSTabsHostComponentView.mm
++++ b/ios/tabs/host/RNSTabsHostComponentView.mm
+@@ -244,7 +244,8 @@ - (void)updateProps:(const facebook::react::Props::Shared &)props
+     _tabBarHidden = newComponentProps.tabBarHidden;
+ #if RNS_IPHONE_OS_VERSION_AVAILABLE(18_0)
+     if (@available(iOS 18.0, *)) {
+-      [_controller setTabBarHidden:_tabBarHidden animated:NO];
++      // Chips: slid away and back as UIKit slides it, once the bar is on screen (ADR 0181).
++      [_controller setTabBarHidden:_tabBarHidden animated:self.window != nil];
+     } else
+ #endif // RNS_IPHONE_OS_VERSION_AVAILABLE(18_0)
+     {

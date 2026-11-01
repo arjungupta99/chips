@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "space.created",
+  "id": "evt_01K4ZQPX0000000000000000C8",
+  "ts": "2026-09-02T14:20:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "kind": "group",
+  "title": "PO-4471"
+}

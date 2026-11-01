@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "role.changed",
+  "id": "evt_01K4ZQPX0000000000000000D2",
+  "ts": "2026-09-06T09:05:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "idempotency_key": "role-usr_01K4ZQPX000000000000000009-1",
+  "participant_id": "usr_01K4ZQPX000000000000000009",
+  "role": "admin",
+  "reason": "Dana runs the finance harnesses now."
+}

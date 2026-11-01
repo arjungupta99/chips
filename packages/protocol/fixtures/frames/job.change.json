@@ -1,0 +1,9 @@
+{
+  "frame": "job.change",
+  "change_id": "chg_01JB0000000000000000000000",
+  "harness_id": "hrn_01JB0000000000000000000000",
+  "job_id": "heartbeat:main",
+  "on": false,
+  "asked_by": "usr_01JB0000000000000000000000",
+  "asked_at": "2026-10-31T16:10:00.000Z"
+}

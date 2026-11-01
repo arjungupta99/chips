@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "type": "run.completed",
+  "id": "evt_01K4ZQPX000000000000000071",
+  "ts": "2026-09-02T14:22:13.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "summary": "Confirmed PO #4471 with Northwind and updated the tracker.",
+  "changed": ["Emailed dana@northwind.com", "Tracker row 4471 set to Confirmed"],
+  "follow_ups": ["Chase an acknowledgement if none arrives by Thursday"],
+  "cost": {
+    "usd": 1.47,
+    "estimated": true
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "frame": "folder.run_state",
+  "space_id": "spc_01M5M82961AB2TETFXT2RJ0DB0",
+  "run": {
+    "state": "running",
+    "command": "python3 -m http.server 8000",
+    "since": "2026-10-24T09:05:02.000Z",
+    "opened": "http://localhost:8000",
+    "mac": "Arjun's Mac mini",
+    "said_at": "2026-10-24T09:05:03.000Z"
+  }
+}

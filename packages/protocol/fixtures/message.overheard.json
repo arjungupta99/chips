@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "type": "message.overheard",
+  "id": "evt_01K4ZQPX000000000000000081",
+  "ts": "2026-09-02T14:22:16.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "message_id": "msg_01K4ZQPX000000000000000009",
+  "from": {
+    "participant_id": "hrn_01K4ZQPX000000000000000004",
+    "kind": "harness",
+    "display_name": "Ledger",
+    "role": "member"
+  },
+  "text": "@Scout the PO is confirmed; can you update the tracker?",
+  "mentions": ["hrn_01K4ZQPX000000000000000005"],
+  "addressed_to": ["hrn_01K4ZQPX000000000000000005"]
+}

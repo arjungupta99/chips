@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "agent.asked",
+  "id": "evt_01K4ZQPX0000000000000000N1",
+  "ts": "2026-10-03T18:58:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "harness_id": "hrn_01K4ZQPX000000000000000004",
+  "name": "Reviewer",
+  "by": "usr_01K4ZQPX000000000000000003"
+}

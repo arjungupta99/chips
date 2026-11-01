@@ -1,0 +1,181 @@
+name: Release
+
+# A release (ADR 0119): one tarball per platform that carries its own Node, each built on a runner
+# of its platform, walked by the journeys (ADR 0121), installed in clean containers with no Node,
+# and attached to a draft release. Nothing here publishes anything: the draft is his to publish,
+# and nothing is public yet (his ruling, 5 October 2026).
+#
+# Minutes: a Mac's count ten times on a private repository, and the month's ran out on 13 September
+# 2026. So it runs only on a tag or by hand: the weekly run of Linux x64 alone was turned off on 26
+# October 2026 (Arjun's word: he doesn't use GitHub Actions). A run by hand may ask for Linux x64
+# alone, the cheapest proof that a release still installs and the tarball the hosted relay's box
+# runs (packaging/relay/README.md), downloaded from the run's artifacts with `gh run download`.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: "Which platforms to build"
+        type: choice
+        default: all
+        options: [all, linux-x64]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+
+jobs:
+  # Which platforms this run builds: all four on a tag or by hand, Linux x64 alone when a run by
+  # hand asks for it. Decided here rather than skipped inside each job, so a
+  # Mac is never started to do nothing.
+  targets:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        run: |
+          linux='{"os":"ubuntu-24.04","target":"linux-x64"}'
+          if [ "${{ inputs.targets }}" = linux-x64 ]; then
+            echo "matrix={\"include\":[$linux]}" >> "$GITHUB_OUTPUT"
+          else
+            arm='{"os":"ubuntu-24.04-arm","target":"linux-arm64"}'
+            mac='{"os":"macos-14","target":"darwin-arm64"}'
+            # The last Intel macOS image GitHub offers.
+            intel='{"os":"macos-15-intel","target":"darwin-x64"}'
+            echo "matrix={\"include\":[$linux,$arm,$mac,$intel]}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: build ${{ matrix.target }}
+    needs: targets
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the release
+        run: pnpm release:build
+
+      - name: Install the browser the journeys drive
+        run: pnpm --filter @chipschat/web exec playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+
+      # J1, J5 and J6: installed by install.sh into a home of its own with no Node on the PATH,
+      # started by `chips up`, paired, restarted, uninstalled.
+      - name: Walk the journeys
+        run: pnpm journeys
+
+      - name: Keep the tarball and its times
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: chips-${{ matrix.target }}
+          path: |
+            dist/release/*.tar.gz
+            dist/release/journeys.json
+          retention-days: 7
+
+  clean-machine:
+    name: install on ${{ matrix.image }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:12", "ubuntu:24.04"]
+    container: ${{ matrix.image }}
+    steps:
+      - name: The two tools install.sh needs, and nothing else
+        run: apt-get update && apt-get install --yes --no-install-recommends ca-certificates curl
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: chips-linux-x64
+          path: release
+
+      - name: There is no Node here
+        run: "! command -v node"
+
+      - name: Install, start, ask, uninstall
+        run: |
+          set -eu
+          export HOME="$(mktemp -d)"
+          tarball=$(ls release/*.tar.gz)
+          sh packaging/install.sh --from "$tarball" --no-path
+          chips="$HOME/.local/bin/chips"
+          "$chips" --version
+          "$chips" up --no-service --no-open --reach local --json --port 4450 > up.json &
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:4450/v1/health && break; sleep 0.5; done
+          cat up.json
+          grep -q '"created":true' up.json
+          "$chips" doctor || true
+          kill %1
+          wait || true
+          # The relay from the same tarball, as the hosted relay's box runs it.
+          CHIPS_RELAY_PORT=4460 "$chips" relay > relay.log 2>&1 &
+          relay=$!
+          for i in $(seq 1 60); do curl -fsS http://127.0.0.1:4460/health && break; sleep 0.5; done
+          curl -fsS http://127.0.0.1:4460/health | grep -q '"name":"chips-relay"' || { cat relay.log; exit 1; }
+          kill "$relay"
+          wait || true
+          "$chips" uninstall --yes --remove-data
+          left=$(find "$HOME" -type f | wc -l)
+          echo "files left: $left"
+          [ "$left" -eq 0 ]
+
+  draft:
+    name: draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, clean-machine]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: release
+          pattern: chips-*
+          merge-multiple: true
+
+      - name: One SHA256SUMS for every platform
+        working-directory: release
+        run: sha256sum chips-*.tar.gz > SHA256SUMS && cat SHA256SUMS
+
+      # A draft: visible only to people with access to the repository. Publishing it is his, after
+      # `pnpm release:sign` on the machine that holds the release key adds SHA256SUMS.sig (SEC-36).
+      - name: Attach to a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft
+          --title "Chips ${GITHUB_REF_NAME}" --notes "Install with: sh install.sh --from <tarball>"
+          release/chips-*.tar.gz release/SHA256SUMS packaging/install.sh

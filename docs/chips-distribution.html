@@ -1,0 +1,476 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chips Distribution</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+  color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;
+  --line:#E4E4DC;--line-2:#CDCDC3;
+  --ink:#16181D;--ink-2:#4A4D56;--ink-3:#7B7E88;--ink-4:#A9ABB3;
+  --gold:#F5C542;--gold-deep:#7D5B00;--gold-soft:#FFF3C4;
+  --blue:#2F6FED;--blue-ink:#1D4EBF;--blue-soft:#E6EDFF;
+  --amber:#E8791A;--amber-ink:#9A4B05;--amber-soft:#FFEDD9;
+  --red:#D6453D;--red-ink:#A62A22;--red-soft:#FFE7E5;
+  --green:#22995F;--green-ink:#176B43;--green-soft:#E0F4E9;
+  --shadow-1:0 1px 2px rgba(22,24,29,.06),0 6px 20px rgba(22,24,29,.07);
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#111215;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;
+    --line:#2A2D35;--line-2:#3D414B;
+    --ink:#ECEDE8;--ink-2:#B9BBC3;--ink-3:#868993;--ink-4:#5F626C;
+    --gold:#F5C542;--gold-deep:#F2CF6B;--gold-soft:#3B300E;
+    --blue:#6E9CFF;--blue-ink:#A9C1FF;--blue-soft:#1B2848;
+    --amber:#F39A45;--amber-ink:#FFC07E;--amber-soft:#3F2712;
+    --red:#F26A62;--red-ink:#FF9E98;--red-soft:#44201E;
+    --green:#48C088;--green-ink:#8CE0B6;--green-soft:#17352B;
+    --shadow-1:0 1px 2px rgba(0,0,0,.5),0 6px 20px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111215;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;
+  --line:#2A2D35;--line-2:#3D414B;
+  --ink:#ECEDE8;--ink-2:#B9BBC3;--ink-3:#868993;--ink-4:#5F626C;
+  --gold:#F5C542;--gold-deep:#F2CF6B;--gold-soft:#3B300E;
+  --blue:#6E9CFF;--blue-ink:#A9C1FF;--blue-soft:#1B2848;
+  --amber:#F39A45;--amber-ink:#FFC07E;--amber-soft:#3F2712;
+  --red:#F26A62;--red-ink:#FF9E98;--red-soft:#44201E;
+  --green:#48C088;--green-ink:#8CE0B6;--green-soft:#17352B;
+  --shadow-1:0 1px 2px rgba(0,0,0,.5),0 6px 20px rgba(0,0,0,.35);
+}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+h1,h2,h3,h4{font-family:var(--font-display);text-wrap:balance;margin:0}
+p{margin:0}
+a{color:inherit}
+code,kbd,pre{font-family:var(--font-mono)}
+ul,ol{margin:0;padding:0}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+.top{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1180px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:20px}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-.03em;text-decoration:none;flex:none}
+.mark{width:24px;height:24px;--mark-body:var(--gold);--mark-pins:var(--ink)}
+.top nav{display:flex;gap:2px;overflow-x:auto;flex:1;scrollbar-width:none;padding:0 6px}
+.top nav::-webkit-scrollbar{display:none}
+.top nav a{font-size:12px;font-weight:500;color:var(--ink-2);text-decoration:none;padding:6px 8px;border-radius:8px;white-space:nowrap}
+.top nav a:hover{background:var(--surface-2);color:var(--ink)}
+.ver{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);white-space:nowrap}
+
+.hero{padding:84px 0 60px}
+.eyebrow{display:inline-flex;align-items:center;gap:10px;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.eyebrow::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--gold);flex:none}
+.hero h1{font-size:clamp(40px,6.2vw,74px);line-height:1.02;letter-spacing:-.03em;font-weight:700;margin:22px 0 26px;max-width:16ch;font-variation-settings:"opsz" 96}
+.hero h1 em{font-style:normal;text-decoration:underline;text-decoration-color:var(--gold);text-decoration-thickness:.11em;text-underline-offset:.1em}
+.lede{font-size:clamp(18px,2vw,22px);line-height:1.45;color:var(--ink-2);max-width:58ch}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:44px}
+.fact{background:var(--surface);padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.fact b{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.fact span{font-size:15px}
+
+.sec{border-top:1px solid var(--line);padding:72px 0}
+.sec-in{max-width:1180px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
+@media (min-width:960px){.sec-in{grid-template-columns:300px minmax(0,1fr);gap:56px}}
+.sec-head{display:flex;flex-direction:column;gap:12px;align-self:start}
+@media (min-width:960px){.sec-head{position:sticky;top:80px}}
+.sec h2{font-size:clamp(26px,3vw,36px);line-height:1.1;letter-spacing:-.025em;font-weight:700;font-variation-settings:"opsz" 48}
+.sec-head p{color:var(--ink-2);font-size:15px;line-height:1.55}
+.sec-body{min-width:0;display:flex;flex-direction:column;gap:28px}
+.prose{display:flex;flex-direction:column;gap:14px;max-width:68ch}
+.prose p{font-size:16.5px;line-height:1.6;color:var(--ink-2)}
+.prose strong{color:var(--ink);font-weight:600}
+h3.sub{font-size:20px;letter-spacing:-.015em;font-weight:700}
+.lead-list{display:flex;flex-direction:column;gap:12px;max-width:72ch}
+.lead-list li{list-style:none;font-size:15.5px;line-height:1.55;color:var(--ink-2);padding-left:18px;position:relative}
+.lead-list li::before{content:"";position:absolute;left:0;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--gold)}
+.lead-list b{color:var(--ink);font-weight:600}
+.grid{display:grid;gap:14px}
+.grid.two{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.grid.three{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:10px}
+.card h3{font-size:17px;letter-spacing:-.01em;font-weight:700;line-height:1.25}
+.card p{font-size:14.5px;color:var(--ink-2);line-height:1.55}
+.pill{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:600;background:var(--surface-2);color:var(--ink-2);white-space:nowrap;align-self:flex-start}
+.pill-amber{background:var(--amber-soft);color:var(--amber-ink)}
+.pill-blue{background:var(--blue-soft);color:var(--blue-ink)}
+.pill-green{background:var(--green-soft);color:var(--green-ink)}
+.pill-gold{background:var(--gold-soft);color:var(--gold-deep)}
+
+figure{margin:0;display:flex;flex-direction:column;gap:12px}
+.dwrap{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px 16px;overflow-x:auto}
+figcaption{font-size:13.5px;color:var(--ink-3);line-height:1.5;max-width:70ch}
+svg.d{display:block;width:100%;min-width:520px;height:auto}
+svg.d text{font-family:var(--font-body)}
+svg.d .t{font-size:14px;font-weight:600;fill:var(--ink)}
+svg.d .s{font-size:12px;fill:var(--ink-3)}
+svg.d .n{fill:var(--surface-2);stroke:var(--line-2);stroke-width:1}
+svg.d .n-gold{fill:var(--gold-soft);stroke:var(--gold);stroke-width:1}
+svg.d .n-blue{fill:var(--blue-soft);stroke:var(--blue);stroke-width:1}
+svg.d .n-green{fill:var(--green-soft);stroke:var(--green);stroke-width:1}
+svg.d .ln{stroke:var(--line-2);stroke-width:1.5;fill:none}
+svg.d .ln-d{stroke:var(--ink-4);stroke-width:1;stroke-dasharray:4 4;fill:none}
+
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:none}
+td b{color:var(--ink);font-weight:600}
+td{color:var(--ink-2)}
+.num{font-family:var(--font-mono);font-size:13.5px;white-space:nowrap}
+
+.cmd{font-family:var(--font-mono);font-size:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--ink);overflow-x:auto;white-space:nowrap}
+.foot{border-top:1px solid var(--line);padding:44px 0 72px;color:var(--ink-3);font-size:13.5px}
+.foot a{color:var(--ink-2)}
+.foot p+p{margin-top:8px}
+</style>
+
+<svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true">
+  <defs>
+    <symbol id="chipmark" viewBox="0 0 24 24">
+      <path d="M8 4H14.61A4.5 4.5 0 0 0 20 9.39V16A4 4 0 0 1 16 20H8A4 4 0 0 1 4 16V8A4 4 0 0 1 8 4Z" style="fill:var(--mark-body,currentColor);stroke:none"/>
+      <path d="M8 1.5v2.5M12 1.5v2.5M8 20v2.5M12 20v2.5M16 20v2.5M1.5 8h2.5M1.5 12h2.5M1.5 16h2.5M20 12h2.5M20 16h2.5" style="fill:none;stroke:var(--mark-pins,currentColor);stroke-width:2;stroke-linecap:round"/>
+    </symbol>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5 0 10z" style="fill:var(--ink-4);stroke:none"/></marker>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#top"><svg class="mark" aria-hidden="true"><use href="#chipmark"/></svg>chips</a>
+    <nav aria-label="Sections">
+      <a href="#pieces">Pieces</a><a href="#channels">Channels</a><a href="#first">First install</a><a href="#relay">The relay</a><a href="#many">Many people</a><a href="#cost">What it costs</a><a href="#open">Free and open</a><a href="#names">Names</a><a href="#today">Where we are</a>
+    </nav>
+    <span class="ver">distribution · oct 2026</span>
+  </div>
+</header>
+
+<main id="top">
+<section class="hero wrap">
+  <span class="eyebrow">Distribution</span>
+  <h1>How Chips <em>reaches</em> people</h1>
+  <p class="lede">Five pieces, four front doors, and one small server in the middle. Everything is free and every line is readable; the only thing that costs anything to run is the relay, and it costs almost nothing.</p>
+  <div class="facts">
+    <div class="fact"><b>Licence</b><span>Protocol and SDK Apache-2.0; server and all three apps FSL-1.1-ALv2</span></div>
+    <div class="fact"><b>Price to a user</b><span>Free, no account, no sign-up</span></div>
+    <div class="fact"><b>Relay at 10,000 users</b><span>Roughly $15–50 a month</span></div>
+    <div class="fact"><b>What we run</b><span>The hosted relay, free; no Cloud for now</span></div>
+    <div class="fact"><b>Names held</b><span>chipschat.ai and npm <code>@chipschat</code>; “Chips” is not registered</span></div>
+  </div>
+</section>
+
+<section class="sec" id="pieces">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>The pieces</h2>
+      <p>Everything hangs off one server that runs on the user's own machine. The rest are windows onto it.</p>
+    </div>
+    <div class="sec-body">
+      <figure>
+        <div class="dwrap">
+          <svg class="d" viewBox="0 0 680 288" role="img"><title>The pieces Chips is made of</title><desc>The server, chipsd, runs on the user's own machine, with their coding agents connected on one side and a browser, desktop app and phone app on the other. The phone reaches it through a relay only when away from home.</desc>
+            <rect class="n-gold" x="250" y="60" width="180" height="120" rx="6"/><text class="t" x="340" y="109" text-anchor="middle" dominant-baseline="central">chipsd</text><text class="s" x="340" y="131" text-anchor="middle" dominant-baseline="central">on her machine</text>
+            <rect class="n-gold" x="40" y="92" width="150" height="56" rx="6"/><text class="t" x="115" y="109" text-anchor="middle" dominant-baseline="central">Her agents</text><text class="s" x="115" y="131" text-anchor="middle" dominant-baseline="central">Claude Code, etc.</text>
+            <rect class="n-blue" x="490" y="60" width="150" height="50" rx="6"/><text class="t" x="565" y="85" text-anchor="middle" dominant-baseline="central">In a browser</text>
+            <rect class="n-blue" x="490" y="130" width="150" height="50" rx="6"/><text class="t" x="565" y="155" text-anchor="middle" dominant-baseline="central">Desktop app</text>
+            <rect class="n-blue" x="490" y="212" width="150" height="56" rx="6"/><text class="t" x="565" y="240" text-anchor="middle" dominant-baseline="central">Phone app</text>
+            <rect class="n" x="250" y="212" width="150" height="56" rx="6"/><text class="t" x="325" y="229" text-anchor="middle" dominant-baseline="central">Relay</text><text class="s" x="325" y="251" text-anchor="middle" dominant-baseline="central">only when away</text>
+            <line class="ln" x1="195" y1="120" x2="245" y2="120"/><line class="ln" x1="435" y1="85" x2="485" y2="85"/><line class="ln" x1="435" y1="155" x2="485" y2="155"/><line class="ln" x1="340" y1="185" x2="340" y2="207"/><line class="ln" x1="405" y1="240" x2="485" y2="240"/>
+          </svg>
+        </div>
+        <figcaption>The three screens are the same web app in three frames. The relay is not part of anyone's Chips — it is a service, and only the phone away from home needs it.</figcaption>
+      </figure>
+      <div class="prose">
+        <p><strong>chipsd</strong> holds everything: messages, history, approvals, the event log. It runs on the machine the agents run on, so nothing leaves the house by default.</p>
+        <p>The browser page, the desktop app and the phone are three frames around one screen. The desktop app is a Tauri shell wrapping the same web build; the phone is Expo sharing the client core, not the components.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="channels">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>Where each piece comes from</h2>
+      <p>Two you publish yourself. One goes through a store you do not control. One is not installed at all.</p>
+    </div>
+    <div class="sec-body">
+      <figure>
+        <div class="dwrap">
+          <svg class="d" viewBox="0 0 680 310" role="img"><title>Where each piece of Chips comes from</title><desc>The server arrives by a one-line install command, the desktop app as a download from your own site, the phone app through the App Store and Google Play, and the relay is nothing to install.</desc>
+            <rect class="n" x="40" y="50" width="230" height="48" rx="6"/><text class="t" x="155" y="74" text-anchor="middle" dominant-baseline="central">The server</text>
+            <rect class="n-gold" x="390" y="50" width="250" height="48" rx="6"/><text class="t" x="515" y="74" text-anchor="middle" dominant-baseline="central">brew install chips</text>
+            <rect class="n" x="40" y="114" width="230" height="48" rx="6"/><text class="t" x="155" y="138" text-anchor="middle" dominant-baseline="central">Desktop app</text>
+            <rect class="n-gold" x="390" y="114" width="250" height="48" rx="6"/><text class="t" x="515" y="138" text-anchor="middle" dominant-baseline="central">Download from your site</text>
+            <rect class="n" x="40" y="178" width="230" height="48" rx="6"/><text class="t" x="155" y="202" text-anchor="middle" dominant-baseline="central">Phone app</text>
+            <rect class="n-blue" x="390" y="178" width="250" height="48" rx="6"/><text class="t" x="515" y="202" text-anchor="middle" dominant-baseline="central">App Store and Google Play</text>
+            <rect class="n" x="40" y="242" width="230" height="48" rx="6"/><text class="t" x="155" y="266" text-anchor="middle" dominant-baseline="central">The relay</text>
+            <rect class="n" x="390" y="242" width="250" height="48" rx="6"/><text class="t" x="515" y="266" text-anchor="middle" dominant-baseline="central">Nothing to install</text>
+            <line class="ln" x1="275" y1="74" x2="380" y2="74" marker-end="url(#ah)"/><line class="ln" x1="275" y1="138" x2="380" y2="138" marker-end="url(#ah)"/><line class="ln" x1="275" y1="202" x2="380" y2="202" marker-end="url(#ah)"/><line class="ln" x1="275" y1="266" x2="380" y2="266" marker-end="url(#ah)"/>
+          </svg>
+        </div>
+        <figcaption>Gold is a channel we own outright. Blue is one Apple and Google stand in the middle of.</figcaption>
+      </figure>
+      <div class="grid two">
+        <div class="card"><span class="pill pill-gold">Ours</span><h3>The server and CLI</h3><p>A Homebrew formula and a curl installer, both already written in <code>packaging/</code>, plus <code>docker compose up</code> for teams in Phase 6. They need a tagged release to point at.</p></div>
+        <div class="card"><span class="pill pill-gold">Ours</span><h3>The desktop app</h3><p>Tauri produces a <code>.dmg</code> and an <code>.msi</code>. Serve them from the site with auto-update. The Mac App Store is not worth the sandbox fight for a program that talks to local processes.</p></div>
+        <div class="card"><span class="pill pill-blue">Theirs</span><h3>The phone app</h3><p>$99 a year to Apple, $25 once to Google, and review on every version. A free app with no in-app purchase pays no commission. The store is delivery, not discovery.</p></div>
+        <div class="card"><span class="pill">Neither</span><h3>The relay</h3><p>An address compiled into the software and printed into the pairing QR. Anyone who prefers their own runs it with one command.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="first">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>A stranger's first install</h2>
+      <p>Four steps from hearing about Chips to watching an agent work. No account, no password, no phone.</p>
+    </div>
+    <div class="sec-body">
+      <figure>
+        <div class="dwrap">
+          <svg class="d" viewBox="0 0 680 421" role="img"><title>A new person's path from hearing about Chips to watching an agent</title><desc>She hears about Chips, runs a single install command, opens the page the server prints and pairs her browser with the code shown, then connects her first coding agent.</desc>
+            <rect class="n" x="190" y="45" width="300" height="56" rx="6"/><text class="t" x="340" y="63" text-anchor="middle" dominant-baseline="central">She hears about Chips</text><text class="s" x="340" y="85" text-anchor="middle" dominant-baseline="central">GitHub, a link, a friend</text>
+            <rect class="n" x="190" y="145" width="300" height="56" rx="6"/><text class="t" x="340" y="163" text-anchor="middle" dominant-baseline="central">She runs one command</text><text class="s" x="340" y="185" text-anchor="middle" dominant-baseline="central">brew install chips</text>
+            <rect class="n" x="190" y="245" width="300" height="56" rx="6"/><text class="t" x="340" y="263" text-anchor="middle" dominant-baseline="central">She opens the page it prints</text><text class="s" x="340" y="285" text-anchor="middle" dominant-baseline="central">and pairs with the code shown</text>
+            <rect class="n-gold" x="190" y="345" width="300" height="56" rx="6"/><text class="t" x="340" y="363" text-anchor="middle" dominant-baseline="central">She connects her first agent</text><text class="s" x="340" y="385" text-anchor="middle" dominant-baseline="central">and Chips is watching it</text>
+            <line class="ln" x1="340" y1="109" x2="340" y2="137" marker-end="url(#ah)"/><line class="ln" x1="340" y1="209" x2="340" y2="237" marker-end="url(#ah)"/><line class="ln" x1="340" y1="309" x2="340" y2="337" marker-end="url(#ah)"/>
+          </svg>
+        </div>
+        <figcaption>The whole growth engine lives in the distance between the first box and the last. Every extra step costs a share of the people who tried.</figcaption>
+      </figure>
+      <div class="prose">
+        <p>Nothing in that path involves a phone, a relay or a payment. She gets the full product from a browser on her own machine on day one; the desktop app and the phone are additions for people who want them.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="relay">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>The relay</h2>
+      <p>The one piece we run. It exists because a phone on a train cannot dial a laptop behind a home router.</p>
+    </div>
+    <div class="sec-body">
+      <figure>
+        <div class="dwrap">
+          <svg class="d" viewBox="0 0 680 230" role="img"><title>How the relay connects a home server to a phone</title><desc>Both the home server and the phone dial outward to a relay, which forwards encrypted bytes it cannot read. On the same home network the phone reaches the server directly and the relay is skipped.</desc>
+            <rect class="n-gold" x="40" y="60" width="160" height="70" rx="6"/><text class="t" x="120" y="86" text-anchor="middle" dominant-baseline="central">Her machine</text><text class="s" x="120" y="108" text-anchor="middle" dominant-baseline="central">behind her router</text>
+            <rect class="n" x="260" y="60" width="160" height="70" rx="6"/><text class="t" x="340" y="86" text-anchor="middle" dominant-baseline="central">Relay</text><text class="s" x="340" y="108" text-anchor="middle" dominant-baseline="central">cannot read it</text>
+            <rect class="n-gold" x="480" y="60" width="160" height="70" rx="6"/><text class="t" x="560" y="86" text-anchor="middle" dominant-baseline="central">Her phone</text><text class="s" x="560" y="108" text-anchor="middle" dominant-baseline="central">on cellular</text>
+            <line class="ln" x1="205" y1="95" x2="250" y2="95" marker-end="url(#ah)"/><line class="ln" x1="475" y1="95" x2="430" y2="95" marker-end="url(#ah)"/>
+            <path class="ln-d" d="M120 130 L120 180 L250 180"/><path class="ln-d" d="M430 180 L560 180 L560 130"/>
+            <rect class="n" x="250" y="165" width="180" height="30" rx="6"/><text class="s" x="340" y="180" text-anchor="middle" dominant-baseline="central">same Wi-Fi, no relay</text>
+          </svg>
+        </div>
+        <figcaption>Both arrows point inward. Neither end can be dialled, so both dial out and the relay holds the two together. The dashed path is what happens at home, where nothing touches the relay at all.</figcaption>
+      </figure>
+      <div class="prose">
+        <p><strong>It is a postman who cannot read the letters.</strong> The encryption runs between the phone and the server; the relay forwards sealed bytes. That is not a promise but an acceptance test — a packet capture at the relay must show no plaintext.</p>
+        <p>It knows which server spoke to which phone and when, because a switchboard must. It should keep as little of that as it can, for as short a time as it can.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="many">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>Many people, one relay</h2>
+      <p>The relay does not join people together. It is a telephone exchange, not a shared building.</p>
+    </div>
+    <div class="sec-body">
+      <figure>
+        <div class="dwrap">
+          <svg class="d" viewBox="0 0 680 260" role="img"><title>One relay serving three unrelated users</title><desc>Three people each run their own server. Each of their phones dials the same relay, which connects each person only to their own machine. The three paths never meet.</desc>
+            <rect class="n" x="265" y="55" width="150" height="184" rx="6"/><text class="t" x="340" y="136" text-anchor="middle" dominant-baseline="central">Relay</text><text class="s" x="340" y="158" text-anchor="middle" dominant-baseline="central">keeps them apart</text>
+            <rect class="n-gold" x="40" y="55" width="150" height="48" rx="6"/><text class="t" x="115" y="79" text-anchor="middle" dominant-baseline="central">Your machine</text>
+            <rect class="n-gold" x="490" y="55" width="150" height="48" rx="6"/><text class="t" x="565" y="79" text-anchor="middle" dominant-baseline="central">Your phone</text>
+            <rect class="n-blue" x="40" y="123" width="150" height="48" rx="6"/><text class="t" x="115" y="147" text-anchor="middle" dominant-baseline="central">Sarah's laptop</text>
+            <rect class="n-blue" x="490" y="123" width="150" height="48" rx="6"/><text class="t" x="565" y="147" text-anchor="middle" dominant-baseline="central">Sarah's phone</text>
+            <rect class="n-green" x="40" y="191" width="150" height="48" rx="6"/><text class="t" x="115" y="215" text-anchor="middle" dominant-baseline="central">Raj's server</text>
+            <rect class="n-green" x="490" y="191" width="150" height="48" rx="6"/><text class="t" x="565" y="215" text-anchor="middle" dominant-baseline="central">Raj's phone</text>
+            <line class="ln" x1="195" y1="79" x2="255" y2="79" marker-end="url(#ah)"/><line class="ln" x1="485" y1="79" x2="425" y2="79" marker-end="url(#ah)"/>
+            <line class="ln" x1="195" y1="147" x2="255" y2="147" marker-end="url(#ah)"/><line class="ln" x1="485" y1="147" x2="425" y2="147" marker-end="url(#ah)"/>
+            <line class="ln" x1="195" y1="215" x2="255" y2="215" marker-end="url(#ah)"/><line class="ln" x1="485" y1="215" x2="425" y2="215" marker-end="url(#ah)"/>
+          </svg>
+        </div>
+        <figcaption>Three private islands sharing one switchboard. Sarah's phone cannot reach anyone else's server: the relay pairs connections by device key, and neither side holds the other's.</figcaption>
+      </figure>
+      <figure>
+        <div class="dwrap">
+          <svg class="d" viewBox="0 0 680 215" role="img"><title>A teammate invited into someone else's workspace</title><desc>Sarah runs the only server. Her own phone and her colleague Tom's phone both dial the relay, which connects both back to Sarah's laptop.</desc>
+            <rect class="n" x="265" y="48" width="150" height="146" rx="6"/><text class="t" x="340" y="110" text-anchor="middle" dominant-baseline="central">Relay</text><text class="s" x="340" y="132" text-anchor="middle" dominant-baseline="central">forwards only</text>
+            <rect class="n-blue" x="40" y="92" width="170" height="58" rx="6"/><text class="t" x="125" y="110" text-anchor="middle" dominant-baseline="central">Sarah's laptop</text><text class="s" x="125" y="132" text-anchor="middle" dominant-baseline="central">holds the workspace</text>
+            <rect class="n-blue" x="470" y="48" width="170" height="58" rx="6"/><text class="t" x="555" y="66" text-anchor="middle" dominant-baseline="central">Sarah's phone</text><text class="s" x="555" y="88" text-anchor="middle" dominant-baseline="central">the owner</text>
+            <rect class="n-green" x="470" y="136" width="170" height="58" rx="6"/><text class="t" x="555" y="154" text-anchor="middle" dominant-baseline="central">Tom's phone</text><text class="s" x="555" y="176" text-anchor="middle" dominant-baseline="central">invited by Sarah</text>
+            <line class="ln" x1="215" y1="121" x2="255" y2="121" marker-end="url(#ah)"/><line class="ln" x1="465" y1="77" x2="425" y2="77" marker-end="url(#ah)"/><line class="ln" x1="465" y1="165" x2="425" y2="165" marker-end="url(#ah)"/>
+          </svg>
+        </div>
+        <figcaption>Tom runs no server. He opens Sarah's invite link, takes a role in her workspace, and reaches her laptop through the same relay her own phone uses.</figcaption>
+      </figure>
+      <div class="prose">
+        <p><strong>Two jobs that must stay apart.</strong> The relay decides who can be reached. Sarah's server decides what Tom may do — that is the authorization matrix, running on her machine, checking every request against his role. A relay that enforced a permission would have to read the traffic, and the privacy story would go with it.</p>
+        <p>Teammates are nearly free to carry: Tom adds a phone that connects only while his app is open, and no always-on server connection. The number that drives the bill is servers running Chips, not people using it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="cost">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>What it costs</h2>
+      <p>An estimate at ten thousand people, each running a server and carrying a phone.</p>
+    </div>
+    <div class="sec-body">
+      <div class="tw">
+        <table>
+          <thead><tr><th>Line</th><th>Hetzner</th><th>DigitalOcean</th><th>AWS</th></tr></thead>
+          <tbody>
+            <tr><td><b>Two 4&nbsp;GB boxes</b><br>~10,500 idle connections</td><td class="num">$12</td><td class="num">$48</td><td class="num">$70</td></tr>
+            <tr><td><b>Bandwidth included</b></td><td class="num">20 TB</td><td class="num">4 TB</td><td class="num">none</td></tr>
+            <tr><td><b>Everyday traffic</b><br>approvals and messages, ~70 GB</td><td class="num">included</td><td class="num">included</td><td class="num">$6</td></tr>
+            <tr><td><b>Media, normal</b><br>~500 GB</td><td class="num">included</td><td class="num">included</td><td class="num">$45</td></tr>
+            <tr><td><b>Media, heavy video</b><br>~3 TB</td><td class="num">included</td><td class="num">included</td><td class="num">$270</td></tr>
+            <tr><td><b>Push</b><br>APNs and FCM</td><td class="num">$0</td><td class="num">$0</td><td class="num">$0</td></tr>
+            <tr><td><b>Monthly total</b></td><td class="num">~$15</td><td class="num">~$50</td><td class="num">$120–350</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="lead-list">
+        <li><b>Under a cent per user per month</b>, because the relay stores nothing. No database, no files, no processing — each user's own machine does the work. A conventional app at this size runs $1,000 to $5,000 a month.</li>
+        <li><b>Where you host matters more than how many users you have.</b> The same traffic costs twenty times more on AWS than on Hetzner. Do not put a bandwidth-shaped service on a bandwidth-priced host.</li>
+        <li><b>Media is the only line that grows with use</b> rather than with users, and so the only one that can move quickly. Phase 4 builds it plainly; Gate 4 measures it.</li>
+        <li><b>The real cost is not money.</b> Two boxes, monitoring and someone to notice at 3am. Fifty dollars is nothing; being on the hook for uptime is the commitment.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="open">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>Free, and open</h2>
+      <p>For Chips the two are not a close call. Readable code is not a nicer kind of free — it is the distribution.</p>
+    </div>
+    <div class="sec-body">
+      <div class="grid three">
+        <div class="card"><h3>It holds their secrets</h3><p>chipsd sits between people and their agents: tokens, code, approvals for money and deletions. The first thousand users are the most source-suspicious population alive. Free does not fix that; readable does.</p></div>
+        <div class="card"><h3>Strangers must implement it</h3><p>Agent Connect only wins if other people's harnesses speak it. Nobody implements a closed protocol from an unknown vendor, and no vendor's lawyer signs off without a patent grant. So the protocol, the SDK and the conformance kit are Apache-2.0.</p></div>
+        <div class="card"><h3>It is how devtools travel</h3><p>Homebrew, Docker Hub, npm, Hacker News, awesome-lists. Closed-but-free gets none of that engine, and you would be buying users instead of earning them.</p></div>
+      </div>
+      <div class="prose">
+        <h3 class="sub">What actually protects the business</h3>
+        <p><strong>Not the code alone.</strong> Neither licence grants rights to the name or the mark, so a fork must rename (<a href="../TRADEMARKS.md">TRADEMARKS.md</a>). That is how Firefox, Grafana and Signal all do it, though their names are registered and ours is not, for now: see <a href="#names">the names</a>.</p>
+        <p><strong>The server and apps are FSL-1.1-ALv2</strong> (<a href="decisions/0128-the-protocol-stays-apache-and-the-server-and-apps-move-to-the-functional-source-license.md">ADR 0128</a>). Anyone can read, run and change them, a company can run Chips for its own people, and each version becomes Apache-2.0 two years after its release. What the licence refuses, until then, is someone else selling Chips as a product or a service — a company that would otherwise have to buy it included.</p>
+        <p><strong>The line is drawn at the network boundary, not at features.</strong> Everything that runs on the user's machine is free and readable, and Apache-2.0 two years on. What we run for them — the relay and push fan-out, and no hosted workspaces for now — is the service. It never requires crippling the open build, which is what makes open-core feel grubby and stalls adoption.</p>
+        <h3 class="sub">The phone app is public too</h3>
+        <p>Decided again on 16 October 2026. Free obliges nothing to be published, so the phone app could have stayed closed. It stays public under the FSL with the rest. Closing it would hide little: it shares <code>packages/core</code> with the web app, which ships readable in every install. It would also cost a repository split, and it would take away the one place people can read what happens to the approvals they give.</p>
+        <p><strong>So we say “free and source available.”</strong> Only the protocol, the SDK and the conformance kit are open source until each version of the rest turns Apache-2.0. Calling the whole of Chips open source would be called out, and rightly.</p>
+      </div>
+      <figure>
+        <div class="tw">
+          <table>
+            <thead><tr><th>A renamed copy that…</th><th>Under the FSL</th><th>What we can do</th></tr></thead>
+            <tbody>
+              <tr><td><b>Sells it</b>, charges for it or puts ads in it</td><td><span class="pill pill-green">Not allowed</span><br>A Competing Use</td><td>Take it down: GitHub's DMCA form, Apple's App Store content dispute, Google Play's equivalent. No lawyer is needed, because the copyright is ours.</td></tr>
+              <tr><td><b>Gives it away free</b> with nothing commercial behind it</td><td><span class="pill pill-amber">Grey area</span><br>The clause says “commercial”</td><td>Little. A company giving it away to win users would most likely count as commercial.</td></tr>
+              <tr><td><b>Starts from a version</b> more than two years old</td><td><span class="pill">Allowed</span><br>That version is Apache-2.0</td><td>Nothing, and that is the bargain: the copy is two years behind.</td></tr>
+              <tr><td><b>Rebuilds it</b> from screenshots</td><td><span class="pill">Out of reach</span><br>Of any licence, closed code included</td><td>Be the original: the name, the place updates come from, the relay, and the protocol other harnesses speak.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <figcaption>What the FSL stops and what it does not. Closed code would leave only the last row, and coding agents have made that one quick.</figcaption>
+      </figure>
+      <div class="prose">
+        <p>Neither licence closes iOS to us. The GPL family conflicts with App Store terms, and going copyleft to protect the server would have got us blanket-banned in enterprise procurement later; the FSL does neither, and we publish the app ourselves.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="names">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>The names</h2>
+      <p>What is ours, what is someone else's, and what was decided on 16 October 2026.</p>
+    </div>
+    <div class="sec-body">
+      <div class="tw">
+        <table>
+          <thead><tr><th>Name</th><th>Whose</th><th>Where it stands</th></tr></thead>
+          <tbody>
+            <tr><td><b>Chips</b>, the product</td><td><span class="pill pill-amber">Ours by use</span></td><td>Not registered, his call. A USPTO search that day found no live CHIPS mark for chat, messaging or AI software. The nearest is CHIPS for helmet audio and speaker-and-microphone devices (Outdoor Technology, reg. 90336946). Run the search again before the repository goes public.</td></tr>
+            <tr><td><b>chipschat.ai</b>, <b>chipschat.io</b></td><td><span class="pill pill-green">Ours</span></td><td>The site, <code>relay.chipschat.ai</code> and the mailboxes. The .io redirects.</td></tr>
+            <tr><td><b>npm <code>@chipschat</code></b></td><td><span class="pill pill-green">Ours</span></td><td>The free org, made that day. Every workspace package is <code>@chipschat/…</code>, and the connectors will be <code>@chipschat/openclaw</code>, <code>/acp</code>, <code>/hermes</code> and <code>/opencode</code>. Nothing is published, so the gallery's cards run from a checkout (<a href="decisions/0171-the-gallery-is-docs-content-the-server-hands-out.md">ADR 0171</a>).</td></tr>
+            <tr><td><b>chips.chat</b></td><td><span class="pill pill-blue">A stranger's</span></td><td>A live pay-per-use AI service since about September 2025, with no mark filed. Nothing of ours points at it, and a guardrail keeps it that way. Its earlier use of the name is the one risk a search cannot show.</td></tr>
+            <tr><td><b>npm <code>@chips</code></b></td><td><span class="pill pill-blue">A stranger's</span></td><td>An npm user has owned it for about ten years, so <code>@chips/…</code> could never be ours. Hence <code>@chipschat</code> (<a href="decisions/0128-the-protocol-stays-apache-and-the-server-and-apps-move-to-the-functional-source-license.md">ADR 0128</a>, addendum).</td></tr>
+            <tr><td><b>Chips</b> on the App Store</td><td><span class="pill">Not held yet</span></td><td>No exact match in nine storefronts on 6 October. The App Store Connect record reserves it, and comes with the first TestFlight upload.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="prose">
+        <p><strong>Why not register now.</strong> A registration would not stop a renamed copy; that is the licence's job. Nor would it beat anyone who used the name first. What it buys is a filing date, and quick takedowns of copies that keep the name. The open field cuts both ways: anyone could still file first.</p>
+        <p><strong>If it is ever wanted:</strong> CHIPS, on an intent-to-use basis, in classes 9 and 42, with narrow wording for the goods, about $700 at the USPTO. Not CHIPS CHAT, the form closest to chips.chat.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="today">
+  <div class="sec-in">
+    <div class="sec-head">
+      <h2>Where we actually are</h2>
+      <p>The diagrams above describe the destination. This is the position on 16 October 2026.</p>
+    </div>
+    <div class="sec-body">
+      <div class="tw">
+        <table>
+          <thead><tr><th>Piece</th><th>State</th><th>What is missing</th></tr></thead>
+          <tbody>
+            <tr><td><b>The web screen</b></td><td><span class="pill pill-green">Working</span></td><td>Nothing. chipsd serves it at its own address.</td></tr>
+            <tr><td><b>The server and CLI</b></td><td><span class="pill pill-amber">Private release</span></td><td>A release carries its own Node, and <code>chips up</code> installs and starts it. Releases are drafts only he can reach. Missing: a published release on the public repository, then Homebrew.</td></tr>
+            <tr><td><b>Desktop app</b></td><td><span class="pill pill-amber">Built on his Mac</span></td><td><code>pnpm desktop</code> builds and signs it, and it carries Chips for a Mac that has none. Missing: Developer ID signing, notarization and auto-update.</td></tr>
+            <tr><td><b>Phone app</b></td><td><span class="pill pill-amber">On his iPhone</span></td><td>A TestFlight build is archived and signed, not uploaded. Android runs only in an emulator.</td></tr>
+            <tr><td><b>Relay</b></td><td><span class="pill pill-green">Running</span></td><td><code>relay.chipschat.ai</code> on one Hetzner box, free, and his iPhone reaches home through it on cellular. Missing: other servers. Only his server's key is allowed until the box keeps no more than seven days of logs and <code>security@chipschat.ai</code> is a real mailbox.</td></tr>
+            <tr><td><b>Push</b></td><td><span class="pill pill-green">Working</span></td><td>On his iPhone, through APNs, down to approving from the lock screen.</td></tr>
+            <tr><td><b>npm packages</b></td><td><span class="pill pill-amber">Scope held</span></td><td><code>@chipschat</code> is ours. Nothing is published.</td></tr>
+            <tr><td><b>Hosted workspaces</b></td><td><span class="pill">Not planned</span></td><td>No Cloud for now (<a href="decisions/0128-the-protocol-stays-apache-and-the-server-and-apps-move-to-the-functional-source-license.md">ADR 0128</a>). The relay is the only thing we run.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="prose">
+        <p><strong>Nothing is public yet, by choice.</strong> Every piece works for one household. What stands between that and strangers is a list of his calls, not a rewrite:</p>
+      </div>
+      <ul class="lead-list">
+        <li><b>The repository.</b> A cleaned copy of the history, the contributor-agreement bot and a real <code>security@chipschat.ai</code>, then public.</li>
+        <li><b>The release.</b> Published on the public repository's GitHub releases, which <code>install.sh</code> downloads from, with the Homebrew formula pointed at it.</li>
+        <li><b>The phone app.</b> The TestFlight upload, which also reserves the App Store name.</li>
+        <li><b>The Mac app.</b> Developer ID signing and notarization.</li>
+        <li><b>The relay.</b> Seven-day log rotation, then other servers' keys on its allowlist.</li>
+        <li><b>npm.</b> <code>@chipschat/harness</code>, <code>/protocol</code>, <code>/conformance</code> and the connectors published, each then added to the gallery's published list.</li>
+        <li><b>The name.</b> The USPTO search run again.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="foot wrap">
+  <p>Companion to the <a href="chips-blueprint.html">blueprint</a> and the <a href="technical-plan.html">technical plan</a>. Decisions behind this page: <a href="decisions/0014-licensing-and-contribution.md">ADR 0014</a> and <a href="decisions/0128-the-protocol-stays-apache-and-the-server-and-apps-move-to-the-functional-source-license.md">ADR 0128</a> on licensing and contribution (its addendum on the npm scope), <a href="decisions/0171-the-gallery-is-docs-content-the-server-hands-out.md">ADR 0171</a> on the gallery, and <a href="decisions/0038-a-phone-takes-the-network-it-is-on-then-the-relay-and-nat-traversal-waits.md">ADR 0038</a> on how a phone reaches its server.</p>
+  <p>Cost figures are estimates, not measurements — they assume a passthrough relay that stores nothing, about 200 events per person per day, and about 50&nbsp;MB of media per person per month reaching the relay rather than going direct. Gate 4 measures the real thing.</p>
+</footer>
+</main>

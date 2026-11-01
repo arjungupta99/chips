@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "person.joined",
+  "id": "evt_01K4ZQPX0000000000000000D0",
+  "ts": "2026-09-06T09:00:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000009"
+  },
+  "participant_id": "usr_01K4ZQPX000000000000000009",
+  "display_name": "Dana",
+  "role": "member",
+  "invite_id": "inv_01K4ZQPX0000000000000000D1",
+  "invited_by": "usr_01K4ZQPX000000000000000003"
+}

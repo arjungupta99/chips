@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "agent.attached",
+  "id": "evt_01K4ZQPX0000000000000000G3",
+  "ts": "2026-09-30T09:06:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "agent_id": "agt_01K4ZQPX0000000000000000A1",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "by": "usr_01K4ZQPX000000000000000003",
+  "moved_from": "spc_01K4ZQPX0000000000000000S7"
+}

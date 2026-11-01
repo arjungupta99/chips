@@ -1,0 +1,11 @@
+{
+  "frame": "context.edit",
+  "edit_id": "edt_01JB0000000000000000000000",
+  "harness_id": "hrn_01JB0000000000000000000000",
+  "agent_id": "agt_01JB0000000000000000000000",
+  "name": "PERSONA.md",
+  "text": "# Who you are\n\nPlain, careful, curious.",
+  "base_hash": "a1b2c3",
+  "asked_by": "usr_01JB0000000000000000000000",
+  "asked_at": "2026-10-07T17:42:00.000Z"
+}

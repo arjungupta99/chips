@@ -1,0 +1,26 @@
+# Approve, by swiping — the one path the web target cannot reach, and the reason this file
+# exists. A gesture is not a click, and the only honest way to know it works is to make it.
+appId: ${APP_ID}
+# Maestro reads `${…}` as JavaScript, so the defaults are here, and `-e` still overrides them.
+env:
+  APP_ID: chat.chips.app
+  SPACE: PO-4471
+---
+- launchApp:
+    clearState: false
+
+# The app opens on Spaces. Into the room Scout is asking in: the ask stands at its foot, and the
+# card says so in words.
+- assertVisible: "Spaces"
+- tapOn:
+    text: "${SPACE}"
+- assertVisible:
+    text: ".* asks"
+
+# Right approves. The card goes from the foot of the room.
+- swipe:
+    from:
+      text: ".* asks"
+    direction: RIGHT
+- assertNotVisible:
+    text: ".* asks"

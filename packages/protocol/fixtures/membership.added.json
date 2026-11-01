@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "membership.added",
+  "id": "evt_01K4ZQPX0000000000000000C9",
+  "ts": "2026-09-02T14:20:05.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "participant_id": "hrn_01K4ZQPX000000000000000004",
+  "participant_kind": "harness",
+  "role": "member",
+  "joined_at": "2026-09-02T14:20:05.004Z"
+}

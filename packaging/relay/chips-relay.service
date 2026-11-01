@@ -1,0 +1,58 @@
+# chips relay as a system service: one process, started at boot, started again if it stops.
+#
+# It runs the release unpacked under /opt/chips (`CHIPS_PREFIX=/opt/chips sh install.sh --from …`)
+# as its own user, listens on loopback only, and reaches the internet through Caddy. The servers it
+# serves are named in /etc/chips-relay.env; it will not start until that file names at least one.
+# Each day's counts, how many and never which, go to /var/lib/chips-relay/counts.jsonl (ADR 0208).
+#
+#   sudo cp chips-relay.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now chips-relay
+#   journalctl -u chips-relay -f
+
+[Unit]
+Description=Chips relay
+Documentation=https://chipschat.ai/operate/relay/
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/chips/bin/chips
+
+[Service]
+Type=simple
+User=chips-relay
+Group=chips-relay
+ExecStart=/opt/chips/bin/chips relay
+Environment=CHIPS_RELAY_HOST=127.0.0.1
+Environment=CHIPS_RELAY_PORT=4440
+Environment=CHIPS_LOG_LEVEL=info
+Environment=CHIPS_LOG_PRETTY=false
+Environment=CHIPS_RELAY_COUNTS_FILE=/var/lib/chips-relay/counts.jsonl
+EnvironmentFile=/etc/chips-relay.env
+Restart=always
+RestartSec=2
+# One socket per phone and one per server.
+LimitNOFILE=65536
+
+# Nothing to write but the day's counts, and nothing to reach but the network.
+StateDirectory=chips-relay
+StateDirectoryMode=0750
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

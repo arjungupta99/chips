@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "attachment.limits_set",
+  "id": "evt_01K4ZQPX0000000000000000E9",
+  "ts": "2026-09-10T09:05:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "idempotency_key": "limits-1",
+  "image_bytes": 26214400,
+  "video_bytes": 104857600,
+  "file_bytes": null
+}

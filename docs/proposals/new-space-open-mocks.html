@@ -1,0 +1,453 @@
+<meta charset="utf-8">
+<title>Chips · Opening the + window</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--green-ink:#006C40;--green-soft:#DEF5E8;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold-deep:#F7CE54;--gold-soft:#3C3005;--green-ink:#7FE3B3;--green-soft:#12362A}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold-deep:#F7CE54;--gold-soft:#3C3005;--green-ink:#7FE3B3;--green-soft:#12362A}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1180px;margin:0 auto;padding:0 16px;height:56px;display:flex;align-items:center;gap:14px}
+.brand{font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-.03em}
+.top .what{font-size:13px;color:var(--ink-3)}
+.top .ver{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+article{max-width:1180px;margin:0 auto;padding:32px 16px 120px}
+h1,h2{font-family:var(--font-display);letter-spacing:-.02em;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(28px,4.2vw,40px);margin:0 0 8px}
+h2{font-size:clamp(21px,2.4vw,26px);margin:48px 0 12px;padding-top:22px;border-top:1px solid var(--line)}
+p.lede{color:var(--ink-2);font-size:17px;max-width:70ch;margin:0 0 10px}
+p,ul{margin:0 0 14px;color:var(--ink-2);max-width:74ch}
+li{margin-bottom:6px}
+strong,b{color:var(--ink);font-weight:600}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+figure{margin:24px 0;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.fig-head{display:flex;align-items:baseline;gap:12px;margin:0 0 18px;flex-wrap:wrap}
+.fig-no{font-family:var(--font-mono);font-size:12px;color:var(--gold-deep);letter-spacing:.06em}
+.fig-title{font-family:var(--font-display);font-weight:600;font-size:17px;margin:0}
+.tools{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.btn{font:600 12.5px var(--font-body);color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+.btn:hover{border-color:var(--line-2);color:var(--ink)}
+.btn.on{background:var(--gold-soft);border-color:var(--gold);color:var(--gold-deep)}
+.phones{display:flex;flex-wrap:wrap;gap:22px 18px;justify-content:center}
+.col{display:grid;gap:10px;justify-items:center}
+.col .lbl{display:flex;gap:8px;align-items:baseline}
+.col .k{font:700 12px var(--font-mono);color:var(--gold-deep);background:var(--gold-soft);border-radius:6px;padding:2px 7px}
+.col .k.now{color:var(--ink-3);background:var(--surface-2)}
+.col .n{font-family:var(--font-display);font-weight:600;font-size:15px}
+figcaption{font-size:13.5px;color:var(--ink-3);margin-top:18px}
+.opts{display:grid;gap:12px;margin:0 0 18px}
+.opt{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:16px 18px;display:grid;gap:6px}
+.opt.rec{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.opt .h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.opt .k{font:700 12px var(--font-mono);color:var(--gold-deep);background:var(--gold-soft);border-radius:6px;padding:2px 7px}
+.opt .n{font-family:var(--font-display);font-weight:600;font-size:17px;color:var(--ink)}
+.opt .tag{font:600 11.5px var(--font-body);text-transform:uppercase;letter-spacing:.06em;color:var(--green-ink);background:var(--green-soft);border-radius:999px;padding:2px 9px}
+.opt p{margin:0;font-size:14.5px}
+.opt .cost{font-size:13.5px;color:var(--ink-3)}
+.opt .cost b{color:var(--ink-2)}
+
+/* ── the phone, drawn at its own points and scaled ─────────────────────── */
+.frame{position:relative;flex:none;width:calc(393px * var(--s));height:calc(852px * var(--s));--s:.6}
+@media (max-width:1100px){.frame{--s:.52}}
+@media (max-width:560px){.frame{--s:.8}}
+.dev{position:absolute;left:0;top:0;width:393px;height:852px;transform:scale(var(--s));transform-origin:0 0;
+  border-radius:56px;background:#000;box-shadow:0 0 0 12px #1B1B1E,0 0 0 13px #3A3A3F,0 40px 80px -40px rgba(0,0,0,.55)}
+.screen{position:absolute;inset:0;overflow:hidden;border-radius:56px;font-family:var(--font-ios);user-select:none;-webkit-user-select:none;
+  --p-bg:#FBFBF8;--p-surface2:#F2F2EC;--p-line:#E4E4DC;
+  --p-ink:#14161B;--p-ink2:#454851;--p-ink3:#666973;--p-ink4:#A9ABB3;--p-gold:#F7C431;
+  --p-glass:rgba(255,255,255,.62);--p-glass-line:rgba(0,0,0,.09);--p-glass-hi:rgba(255,255,255,.95);
+  --p-card:rgba(255,255,255,.78);--p-sel:rgba(0,0,0,.065);--p-scrim:rgba(20,22,27,.2);
+  --p-kb:rgba(209,212,219,.97);--p-key:#FFFFFF;--p-key2:#ACB1BB;--p-keyink:#0B0B0C;--p-field:rgba(20,22,27,.055);--p-home:rgba(0,0,0,.85);
+  background:var(--p-bg);color:var(--p-ink)}
+.screen.dk{--p-bg:#0F1013;--p-surface2:#20232A;--p-line:#2A2D35;
+  --p-ink:#F1F2ED;--p-ink2:#BDBFC7;--p-ink3:#8A8D97;--p-ink4:#5F626C;
+  --p-glass:rgba(46,48,57,.5);--p-glass-line:rgba(255,255,255,.14);--p-glass-hi:rgba(255,255,255,.12);
+  --p-card:rgba(34,36,44,.72);--p-sel:rgba(255,255,255,.12);--p-scrim:rgba(0,0,0,.3);
+  --p-kb:rgba(40,40,44,.97);--p-key:#5C5C61;--p-key2:#3B3B3F;--p-keyink:#FFFFFF;--p-field:rgba(255,255,255,.075);--p-home:rgba(255,255,255,.9)}
+.glass{background:var(--p-glass);backdrop-filter:blur(22px) saturate(170%);-webkit-backdrop-filter:blur(22px) saturate(170%);
+  box-shadow:inset 0 0 0 .5px var(--p-glass-line),inset 0 1px 0 var(--p-glass-hi),0 8px 22px -10px rgba(0,0,0,.45)}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;border-radius:20px;background:#000;z-index:40}
+.home{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:140px;height:5px;border-radius:3px;background:var(--p-home);z-index:40;pointer-events:none}
+.sb{position:absolute;top:0;left:0;right:0;height:54px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 32px 6px 50px;font-size:17px;font-weight:600;z-index:30;color:var(--p-ink);pointer-events:none}
+.sb .bars{display:flex;gap:6px;align-items:center}
+.sb .bars i{display:block;height:11px;border-radius:2.5px;background:currentColor}
+.sb .bars .sig{width:18px;background:linear-gradient(90deg,currentColor 0 22%,transparent 22% 26%,currentColor 26% 48%,transparent 48% 52%,currentColor 52% 74%,transparent 74% 78%,currentColor 78%)}
+.sb .bars .wifi{width:15px;border-radius:8px 8px 2px 2px}
+.sb .bars .bat{width:25px;height:12px;border-radius:3.5px;box-shadow:inset 0 0 0 1px currentColor;background:linear-gradient(90deg,currentColor 0 80%,transparent 80%);background-clip:content-box;padding:2px}
+.lp{position:absolute;inset:0;background:var(--p-bg);z-index:1}
+.lp .big{position:absolute;top:66px;left:16px;font-size:34px;font-weight:700;letter-spacing:-.4px;line-height:41px}
+.lp .srch{position:absolute;top:118px;left:16px;right:16px;height:38px;border-radius:12px;background:var(--p-surface2);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--p-ink4);font-size:17px}
+.lp .srch svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
+.lp .rows{position:absolute;top:168px;left:0;right:0}
+.row{height:78px;display:flex;align-items:center;gap:12px;padding:0 16px;position:relative}
+.row+.row::before{content:"";position:absolute;left:82px;right:0;top:0;height:.5px;background:var(--p-line)}
+.face{flex:none;width:55px;height:55px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:21px;color:#fff;letter-spacing:.3px}
+.row .tx{flex:1;min-width:0;padding-right:44px}
+.row .nm{font-size:17px;font-weight:600;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ls{font-size:15px;line-height:20px;color:var(--p-ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .wh{position:absolute;right:34px;top:17px;font-size:15px;color:var(--p-ink3)}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:120px;z-index:5;pointer-events:none}
+.tabs .bar{position:absolute;bottom:21px;height:62px;left:20px;width:278px;border-radius:31px;display:flex;padding:4px}
+.tabs .tb{flex:1;display:grid;justify-items:center;align-content:center;gap:1px;border-radius:27px;font-size:10.5px;font-weight:600;color:var(--p-ink);letter-spacing:.1px}
+.tabs .tb.on{background:var(--p-sel);color:var(--p-gold)}
+.tabs .tb svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.plus{position:absolute;bottom:21px;right:21px;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:#F7C431;box-shadow:0 5px 12px -4px rgba(0,0,0,.45)}
+.plus svg{width:28px;height:28px;fill:none;stroke:#231A00;stroke-width:2.6;stroke-linecap:round}
+.scrim{position:absolute;inset:0;z-index:8;background:var(--p-scrim);opacity:0;pointer-events:none}
+.kb{position:absolute;left:0;right:0;bottom:0;height:336px;z-index:12;background:var(--p-kb);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  transform:translateY(102%);border-radius:26px 26px 0 0;padding:0 3px}
+.kb .pred{height:44px;display:flex;align-items:center;margin:0 6px 8px;color:var(--p-keyink);font-size:16px}
+.kb .pred span{flex:1;text-align:center;opacity:.9}
+.kb .pred span+span{border-left:1px solid color-mix(in srgb,var(--p-keyink) 18%,transparent)}
+.kr{display:flex;gap:6px;margin-bottom:11px;height:42px}
+.kr.r2{padding:0 18px}
+.kk{flex:1;border-radius:8.5px;background:var(--p-key);color:var(--p-keyink);display:grid;place-items:center;font-size:23px;font-style:normal;line-height:1;box-shadow:0 1px 0 rgba(0,0,0,.3)}
+.kk.sp{background:var(--p-key2);font-size:15px;flex:none;width:44px}
+.kk.w123{width:46px}
+.kk.space{flex:4;font-size:16px}
+.kk.go{flex:none;width:92px;background:#0A84FF;color:#fff;font-size:16px}
+.kr .gap{width:6px;flex:none}
+/* the window: a clip that moves and sizes, the words laid once inside it */
+.win{position:absolute;left:0;top:0;z-index:10;overflow:hidden;display:none;will-change:transform}
+.win>.lay{position:absolute;inset:0}
+.win .gl{background:var(--p-card);backdrop-filter:blur(30px) saturate(170%);-webkit-backdrop-filter:blur(30px) saturate(170%);box-shadow:inset 0 0 0 .5px var(--p-glass-line),inset 0 1px 0 var(--p-glass-hi)}
+.win .gd{background:#F7C431;opacity:0}
+.win .glyph{position:absolute;left:0;top:0;width:28px;height:28px;fill:none;stroke-width:2.6;stroke-linecap:round;stroke:#231A00}
+.card{position:absolute;left:0;top:0;width:373px;padding:16px 16px 14px}
+.card .ch{display:flex;align-items:flex-start;gap:10px}
+.card .ch>.cw{flex:1}
+.card .ct{font-size:20px;font-weight:700;letter-spacing:-.3px;line-height:25px;color:var(--p-ink)}
+.card .cs{font-size:13.5px;line-height:18px;color:var(--p-ink3);margin-top:2px}
+.card .cx{flex:none;width:30px;height:30px;border-radius:50%;background:var(--p-field);display:grid;place-items:center}
+.card .cx svg{width:13px;height:13px;stroke:var(--p-ink3);stroke-width:2.6;stroke-linecap:round;fill:none}
+.fld{position:relative;margin-top:14px;background:var(--p-field);border-radius:23px;padding:12px 52px 12px 16px;height:46px;font-size:17px;line-height:22px;color:var(--p-ink4)}
+.snd{position:absolute;right:7px;bottom:7px;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--p-ink4)}
+.snd svg{width:17px;height:17px;stroke:var(--p-bg);stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.finger{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(150,150,160,.38);border:2px solid rgba(255,255,255,.85);
+  box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none;opacity:0;z-index:35;transition:opacity .15s,transform .1s}
+.finger.on{opacity:1}
+.finger.down{transform:scale(.78)}
+</style>
+
+<div class="top"><div class="top-in"><span class="brand">Chips</span><span class="what">Spaces · how the + window opens</span><span class="ver">mock · 24 Sep 2026 · NOW picked</span></div></div>
+
+<article>
+<h1>The + window: a way in without the yellow</h1>
+<p class="lede">Today the window pours out of the <b>+</b> in its gold, the sides a beat ahead of the top. On the phone, that reads as a wide yellow pill smeared along the foot of the screen before the glass shows (the first phone below). There are three other ways in, and they differ in how much of the + they keep.</p>
+<p class="lede">These phones play by themselves, all at once: a tap on the <b>+</b>, the window up with the keyboard, then a tap outside to fold it away. <b>Slow motion</b> runs them at a fifth of the speed.</p>
+
+<figure>
+  <div class="fig-head"><span class="fig-no">FIG 1</span><h3 class="fig-title">Opening and folding, side by side</h3>
+    <div class="tools"><button class="btn" id="slow">Slow motion</button><button class="btn" id="theme">Light</button><button class="btn" id="again">Replay</button></div></div>
+  <div class="phones">
+    <div class="col"><div class="frame" data-opt="now"></div><div class="lbl"><span class="k now">NOW</span><span class="n">Gold, poured</span></div></div>
+    <div class="col"><div class="frame" data-opt="A"></div><div class="lbl"><span class="k">A</span><span class="n">Glass, out of the +</span></div></div>
+    <div class="col"><div class="frame" data-opt="B"></div><div class="lbl"><span class="k">B</span><span class="n">Up with the keyboard</span></div></div>
+    <div class="col"><div class="frame" data-opt="C"></div><div class="lbl"><span class="k">C</span><span class="n">Fade in place</span></div></div>
+  </div>
+  <figcaption>The springs for NOW are the app's (<code>Window.tsx</code>). The keyboard is drawn on the system's curve. In the app it is the phone's own keyboard, over everything, so the foot of the window slides under it as it rises.</figcaption>
+</figure>
+
+<h2>Pick one</h2>
+<p><b>Picked, 24 September 2026: NOW, the gold pour, kept</b> ("for #2 I want the gold poured one"). On the phone it did not look like the mock, and not because of its design. The phone brings a keyboard up in a tenth of a second or so and draws nothing while it does, and a pour begun at the tap lost its first frames to that: two or three frames 50 to 60 ms apart, cold or warm. The pour now waits for the keyboard to start rising, or for 300 ms when no keyboard is coming, and runs from its first frame.</p>
+<p><b>Later the same evening</b>, on his phone: the window "oddly expands and contracts when it comes into position". The two springs were 250/24 and 185/20, which carried two per cent past the card, and past the card the window grows towards the whole screen, so it stood a line taller for a moment and shrank back. They are damped all the way now, 420/41 and 320/36, so they stop at the card, and stiffer, so they get there about as soon. NOW above runs the new ones.</p>
+<div class="opts">
+  <div class="opt"><div class="h"><span class="k">NOW</span><span class="n">Gold, poured</span><span class="tag">Picked</span></div>
+    <p>The window pours out of the + in its gold, the sides a beat ahead of the top, and the gold fades as the glass grows.</p></div>
+  <div class="opt"><div class="h"><span class="k">A</span><span class="n">Glass, out of the +</span></div>
+    <p>The window still grows out of the + you tapped, but as glass from the first frame, with no gold. One spring moves the sides and the top together, so it swells instead of smearing. On the way, the + tips over into an × and travels to the window's corner, where it becomes the window's close button. The mark that opened the window is the one that closes it. Folding away runs the same path backwards.</p>
+    <p class="cost"><b>Cost: small.</b> In <code>Window.tsx</code>: drop the gold layer, drive both sides from one spring, and send the + glyph to the × instead of spinning it away. The clips, the send and the tests' shape stay as they are.</p></div>
+  <div class="opt"><div class="h"><span class="k">B</span><span class="n">Up with the keyboard</span></div>
+    <p>No growth. The window, whole, comes up from the bottom edge on the keyboard's own curve, as if it were the keyboard's top row. It is the calmest of the four and the closest to the system's feel. The link to the + goes: the window comes from the keyboard, not from what you tapped.</p>
+    <p class="cost"><b>Cost: small.</b> Replace the pour with a slide. The clips stay at the window's size, and the send's fill starts from there.</p></div>
+  <div class="opt"><div class="h"><span class="k">C</span><span class="n">Fade in place</span></div>
+    <p>The desktop's move. The window fades in where it rests, scaling up a little, and rides the keyboard up. It has the least motion, and nothing ties it to the +.</p>
+    <p class="cost"><b>Cost: smallest.</b> A fade and a scale in place of the springs.</p></div>
+</div>
+
+<h2>Also in hand, with no choice to make</h2>
+<ul>
+  <li><b>The + at launch.</b> It waited for the directory from the server. When that arrived, the tab bar was rebuilt to make room for the + (hiding or showing a tab remounts the bar), which was the jerk. The phone will remember who takes new spaces, so the + and its slot are drawn from the first frame.</li>
+  <li><b>The send.</b> Filmed on the simulator, it has these faults:
+    <ul>
+      <li>It stalls for about 125 ms after the tap.</li>
+      <li>The list is seen reordering behind the glass as the window grows.</li>
+      <li>The words re-wrap in mid-flight, then jump when the room says where its bubble is.</li>
+      <li>A blank page holds for most of a second before the room fades in all at once.</li>
+    </ul>
+    The fixes are mechanical and will be filmed before and after.</li>
+</ul>
+</article>
+
+<script>
+const W = 393, H = 852, KB = 336, FOOT = 34, GAP = 10, CH = 135, PLUS = 62, CORNER = 30;
+const FROM = { x: W - 21 - PLUS, y: H - 21 - PLUS, w: PLUS, h: PLUS };
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp01 = (t) => Math.max(0, Math.min(1, t));
+function bezier(x1, y1, x2, y2) {
+  const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+  const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+  const X = (t) => ((ax * t + bx) * t + cx) * t, Y = (t) => ((ay * t + by) * t + cy) * t;
+  const dX = (t) => (3 * ax * t + 2 * bx) * t + cx;
+  return (p) => {
+    let t = p;
+    for (let i = 0; i < 8; i++) { const e = X(t) - p, d = dX(t); if (Math.abs(e) < 1e-5 || Math.abs(d) < 1e-6) break; t -= e / d; }
+    return Y(clamp01(t));
+  };
+}
+const KEYS = bezier(.32, .72, 0, 1), EASE = bezier(.3, .8, .3, 1), OUT = bezier(0, 0, .2, 1), LIN = (p) => p;
+
+class Spring {
+  constructor(v = 0) { this.v = v; this.to = v; this.vel = 0; this.done = true; }
+  go(to, k, c, wait = 0) { Object.assign(this, { to, k, c, wait, done: false }); return this; }
+  set(v) { this.v = this.to = v; this.vel = 0; this.done = true; return this; }
+  step(dt) {
+    if (this.done) return;
+    if (this.wait > 0) { this.wait -= dt; return; }
+    const n = Math.max(1, Math.ceil(dt / 0.002)), h = dt / n;
+    for (let i = 0; i < n; i++) { const a = -this.k * (this.v - this.to) - this.c * this.vel; this.vel += a * h; this.v += this.vel * h; }
+    if (Math.abs(this.v - this.to) < 5e-4 && Math.abs(this.vel) < 5e-3) { this.v = this.to; this.vel = 0; this.done = true; }
+  }
+}
+class Tween {
+  constructor(v = 0) { this.v = v; this.done = true; }
+  go(to, dur, ease = OUT, wait = 0) { Object.assign(this, { a: this.v, to, dur, ease, wait, t: 0, done: false }); return this; }
+  set(v) { this.v = v; this.done = true; return this; }
+  step(dt) {
+    if (this.done) return;
+    if (this.wait > 0) { this.wait -= dt; if (this.wait > 0) return; dt = -this.wait; this.wait = 0; }
+    this.t += dt;
+    const p = Math.min(1, this.t / this.dur);
+    this.v = this.a + (this.to - this.a) * this.ease(p);
+    if (p >= 1) this.done = true;
+  }
+}
+
+const svg = (d, cls = "") => `<svg viewBox="0 0 24 24"${cls ? ` class="${cls}"` : ""}>${d}</svg>`;
+const I = {
+  search: svg('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
+  spaces: svg('<path d="M3.5 5.5h10a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H8.5l-3.5 3v-3H3.5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z"/><path d="M18 9.5h2.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H19v3l-3.5-3H11a2 2 0 0 1-2-1.6"/>'),
+  chip: svg('<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9 2.5V6M12 2.5V6M15 2.5V6M9 18v3.5M12 18v3.5M15 18v3.5M2.5 9H6M2.5 12H6M2.5 15H6M18 9h3.5M18 12h3.5M18 15h3.5"/>'),
+  you: svg('<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="10" r="3.3"/><path d="M5.8 18.6c1.4-2.4 3.6-3.7 6.2-3.7s4.8 1.3 6.2 3.7"/>'),
+  plus: '<path d="M12 4.5v15M4.5 12h15"/>',
+  x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+  up: svg('<path d="M12 19V6M6 11.5 12 5.5l6 6"/>'),
+};
+const ROWS = [
+  ["NQ", "Northwind quotes", "Two quotes in; the third on Friday.", "50m", "#2f6fb3"],
+  ["CT", "Compare three quotes", "The cheapest leaves out the gutters.", "1h", "#177a74"],
+  ["FA", "Find a venue for October", "Three halls hold 30; one has parking.", "1h", "#2c8a4f"],
+  ["KW", "Kalshi Weather", "Chicago's high looks 9¢ rich.", "3h", "#b0662f"],
+  ["T", "Test", "Set up. Tell me where to start.", "1d", "#2f6fb3"],
+  ["BM", "Book movers for the 3rd", "Two firms free that morning.", "2d", "#8a4fb3"],
+];
+const keys = (s) => [...s].map((k) => `<i class="kk">${k}</i>`).join("");
+function phoneHTML() {
+  const rows = ROWS.map(([i, n, l, w, c]) =>
+    `<div class="row"><div class="face" style="background:${c}">${i}</div><div class="tx"><div class="nm">${n}</div><div class="ls">${l}</div></div><span class="wh">${w}</span></div>`).join("");
+  return `<div class="dev"><div class="screen dk">
+    <div class="lp"><div class="big">Spaces</div><div class="srch">${I.search}<span>Anything said</span></div><div class="rows">${rows}</div></div>
+    <div class="tabs"><div class="bar glass"><div class="tb on">${I.spaces}<span>Spaces</span></div><div class="tb">${I.chip}<span>Harnesses</span></div><div class="tb">${I.you}<span>You</span></div></div>
+      <div class="plus">${svg(I.plus)}</div></div>
+    <div class="scrim"></div>
+    <div class="win"><div class="lay gl"></div><div class="lay gd"></div>
+      <div class="card"><div class="ch"><div class="cw"><div class="ct">Create new space</div><div class="cs">Jacobian</div></div><div class="cx">${I.x}</div></div>
+        <div class="fld">What's this space for?<div class="snd">${I.up}</div></div></div>
+      <svg viewBox="0 0 24 24" class="glyph">${I.plus}</svg></div>
+    <div class="kb"><div class="pred"><span>I</span><span>The</span><span>I'm</span></div><div class="kr">${keys("qwertyuiop")}</div><div class="kr r2">${keys("asdfghjkl")}</div>
+      <div class="kr"><i class="kk sp">⇧</i><span class="gap"></span>${keys("zxcvbnm")}<span class="gap"></span><i class="kk sp">⌫</i></div>
+      <div class="kr"><i class="kk sp w123">123</i><i class="kk space">space</i><i class="kk go">return</i></div></div>
+    <div class="sb"><span>9:41</span><span class="bars"><i class="sig"></i><i class="wifi"></i><i class="bat"></i></span></div>
+    <div class="island"></div><div class="finger"></div><div class="home"></div>
+  </div></div>`;
+}
+
+/** Where the window rests: above the keyboard, or above the foot of the screen without one. */
+const cardAt = (kb) => ({ x: GAP, y: H - Math.max(KB * kb, FOOT) - GAP - CH, w: W - 2 * GAP, h: CH });
+const between = (a, b, t) => ({ x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), w: Math.max(0, lerp(a.w, b.w, t)), h: Math.max(0, lerp(a.h, b.h, t)) });
+/** The × at the window's top right, where option A's + ends up. */
+const crossAt = (card) => ({ x: card.x + card.w - 16 - 15, y: card.y + 16 + 15 });
+
+const OPTIONS = {
+  // Today's app: two springs a little out of step, the gold fading as it grows, the + spinning away.
+  now: {
+    open(p) {
+      p.folding = false;
+      p.across.go(1, 420, 41); p.down.go(1, 320, 36, 0.025);
+      p.spin.go(1, 0.28, EASE); p.shown.set(0).go(1, 0.22, LIN, 0.15); p.rise.set(8).go(0, 0.34, EASE, 0.15);
+    },
+    close(p) {
+      p.folding = true;
+      p.shown.go(0, 0.1, LIN); p.spin.go(0, 0.28, EASE);
+      p.down.go(0, 260, 25); p.across.go(0, 300, 28, 0.02);
+    },
+    draw(p, card) {
+      const r = { x: side(FROM.x, FROM.w, card.x, card.w, p.across.v).at, w: side(FROM.x, FROM.w, card.x, card.w, p.across.v).size,
+                  y: side(FROM.y, FROM.h, card.y, card.h, p.down.v).at, h: side(FROM.y, FROM.h, card.y, card.h, p.down.v).size };
+      const grown = clamp01(Math.min(p.across.v, p.down.v));
+      const gold = p.folding ? clamp01((0.65 - grown) / 0.5) : 1 - clamp01(grown * 1.7);
+      const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+      return { rect: r, gold, content: p.shown.v, rise: p.rise.v, glyph: { ...c, rot: 90 * p.spin.v, scale: 1 - 0.6 * p.spin.v, op: 1 - p.spin.v, ink: 0 }, open: p.across.v > 0.001 || p.down.v > 0.001 };
+    },
+  },
+  // A: glass from the first frame, one spring for both sides, and the + becomes the ×.
+  A: {
+    open(p) { p.grow.go(1, 290, 29); p.shown.set(0).go(1, 0.2, LIN, 0.12); p.rise.set(6).go(0, 0.3, EASE, 0.12); },
+    close(p) { p.shown.go(0, 0.09, LIN); p.grow.go(0, 330, 33, 0.03); },
+    draw(p, card) {
+      const g = p.grow.v, r = between(FROM, card, g);
+      const x = crossAt(card), t = clamp01(g);
+      const glyph = { x: lerp(FROM.x + PLUS / 2, x.x, t), y: lerp(FROM.y + PLUS / 2, x.y, t), rot: 45 * t, scale: lerp(1, 0.62, t), op: 1 - clamp01((t - 0.8) / 0.2), ink: clamp01(t * 2.2) };
+      return { rect: r, gold: 0, glass: clamp01(g * 4), content: p.shown.v, rise: p.rise.v, glyph, crossIn: clamp01((t - 0.75) / 0.25), open: g > 0.001 };
+    },
+  },
+  // B: the whole window comes up from the bottom edge on the keyboard's curve.
+  B: {
+    open(p) { p.lift.set(0).go(1, 0.42, KEYS); },
+    close(p) { p.lift.go(0, 0.3, KEYS); },
+    draw(p, card) {
+      const rest = cardAt(1);
+      const r = { ...rest, y: lerp(H + 8, rest.y, p.lift.v) };
+      return { rect: r, gold: 0, content: 1, rise: 0, open: p.lift.v > 0.001 };
+    },
+  },
+  // C: the desk's move — a fade and a small scale where it rests, riding the keyboard up.
+  C: {
+    open(p) { p.fade.set(0).go(1, 0.2, LIN); p.scale.set(0.96).go(1, 0.26, OUT); },
+    close(p) { p.fade.go(0, 0.15, LIN); p.scale.go(0.98, 0.15, OUT); },
+    draw(p, card) {
+      return { rect: card, gold: 0, content: 1, rise: 0, opacity: p.fade.v, scale: p.scale.v, open: p.fade.v > 0.001 };
+    },
+  },
+};
+/** The app's windowRect on one axis: from the + to the window, and past it on a send. */
+function side(fromAt, fromSize, cardAt, cardSize, share) {
+  return { at: lerp(fromAt, cardAt, share), size: Math.max(0, lerp(fromSize, cardSize, share)) };
+}
+
+class Phone {
+  constructor(host, opt) {
+    this.opt = OPTIONS[opt];
+    host.innerHTML = phoneHTML();
+    const q = (s) => host.querySelector(s);
+    Object.assign(this, { screen: q(".screen"), win: q(".win"), gl: q(".gl"), gd: q(".gd"), card: q(".card"), glyph: q(".glyph"), cx: q(".cx"),
+      kbEl: q(".kb"), scrimEl: q(".scrim"), plus: q(".plus"), finger: q(".finger") });
+    this.reset();
+  }
+  reset() {
+    Object.assign(this, { across: new Spring(0), down: new Spring(0), grow: new Spring(0), press: new Spring(1),
+      spin: new Tween(0), shown: new Tween(0), rise: new Tween(8), lift: new Tween(0), fade: new Tween(0), scale: new Tween(1),
+      kb: new Tween(0), scrim: new Tween(0), folding: false });
+    this.finger.className = "finger";
+  }
+  tap(x, y) {
+    this.finger.style.left = `${x}px`; this.finger.style.top = `${y}px`;
+    this.finger.className = "finger on down";
+    return () => { this.finger.className = "finger on"; setTimeout(() => (this.finger.className = "finger"), 160); };
+  }
+  open() { this.kb.go(1, 0.42, KEYS, 0.05); this.scrim.go(1, 0.32, LIN); this.opt.open(this); }
+  close() { this.kb.go(0, 0.3, KEYS); this.scrim.go(0, 0.3, LIN); this.opt.close(this); }
+  step(dt) {
+    for (const v of [this.across, this.down, this.grow, this.press, this.spin, this.shown, this.rise, this.lift, this.fade, this.scale, this.kb, this.scrim]) v.step(dt);
+  }
+  draw() {
+    const card = cardAt(this.kb.v);
+    const f = this.opt.draw(this, card);
+    this.kbEl.style.transform = `translateY(${(1 - this.kb.v) * 102}%)`;
+    this.scrimEl.style.opacity = this.scrim.v;
+    this.plus.style.transform = `scale(${this.press.v})`;
+    const w = this.win;
+    w.style.display = f.open ? "block" : "none";
+    if (!f.open) return;
+    const r = f.rect;
+    w.style.width = `${r.w}px`; w.style.height = `${r.h}px`;
+    w.style.borderRadius = `${Math.min(CORNER, r.w / 2, r.h / 2)}px`;
+    w.style.transform = `translate(${r.x}px,${r.y}px)` + (f.scale ? ` scale(${f.scale})` : "");
+    w.style.transformOrigin = "50% 50%";
+    // Faded by its layers, not as a whole: an element with an opacity is where a glass's blur stops.
+    this.gl.style.opacity = (f.opacity ?? 1) * (f.glass ?? 1);
+    this.gd.style.opacity = f.gold;
+    // The words are laid where the window rests, whatever the window is doing around them.
+    this.card.style.transform = `translate(${card.x - r.x}px,${card.y - r.y + f.rise}px)`;
+    const head = this.card.children;
+    for (const el of head) el.style.opacity = f.content * (f.opacity ?? 1);
+    this.cx.style.opacity = f.crossIn ?? 1;
+    const g = f.glyph;
+    if (g) {
+      this.glyph.style.display = "block";
+      this.glyph.style.transform = `translate(${g.x - r.x - 14}px,${g.y - r.y - 14}px) rotate(${g.rot}deg) scale(${g.scale})`;
+      this.glyph.style.opacity = g.op;
+      this.glyph.style.stroke = mix("#231A00", getComputedStyle(this.screen).getPropertyValue("--p-ink3").trim(), g.ink);
+    } else this.glyph.style.display = "none";
+  }
+}
+function mix(a, b, t) {
+  const h = (s) => [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
+  const [x, y] = [h(a), h(b)];
+  return `rgb(${x.map((v, i) => Math.round(lerp(v, y[i], t))).join(",")})`;
+}
+
+const phones = [...document.querySelectorAll(".frame")].map((el) => new Phone(el, el.dataset.opt));
+let slow = 1, clock = 0, run = 0;
+const waits = [];
+const wait = (s, id) => new Promise((done) => waits.push({ at: clock + s, done, id }));
+async function play(id) {
+  const all = (f) => phones.forEach(f);
+  await wait(0.6, id);
+  while (id === run) {
+    let lift;
+    all((p) => { lift = p.tap(FROM.x + PLUS / 2, FROM.y + PLUS / 2); p.press.go(0.84, 520, 18); p.lifts = lift; });
+    await wait(0.1, id); if (id !== run) return;
+    all((p) => { p.lifts(); p.press.go(1, 520, 18); p.open(); });
+    window.__openAt = clock;
+    await wait(2.1, id); if (id !== run) return;
+    all((p) => { p.lifts = p.tap(W / 2, 250); });
+    await wait(0.09, id); if (id !== run) return;
+    all((p) => { p.lifts(); p.close(); });
+    window.__closeAt = clock;
+    await wait(1.3, id);
+  }
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000) / slow;
+  last = now;
+  clock += dt;
+  window.__clock = clock;
+  for (const p of phones) { p.step(dt); p.draw(); }
+  for (let i = waits.length - 1; i >= 0; i--) if (waits[i].at <= clock) { const w = waits.splice(i, 1)[0]; w.done(); }
+  requestAnimationFrame(frame);
+}
+function again() {
+  run += 1; waits.length = 0;
+  for (const p of phones) p.reset();
+  play(run);
+}
+document.getElementById("slow").onclick = (e) => { slow = slow === 1 ? 5 : 1; e.target.classList.toggle("on", slow !== 1); };
+document.getElementById("again").onclick = again;
+const themeBtn = document.getElementById("theme");
+themeBtn.onclick = () => {
+  const dark = phones[0].screen.classList.contains("dk");
+  for (const p of phones) p.screen.classList.toggle("dk", !dark);
+  themeBtn.textContent = dark ? "Dark" : "Light";
+};
+again();
+requestAnimationFrame(frame);
+</script>

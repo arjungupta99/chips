@@ -1,0 +1,24 @@
+{
+  "v": 1,
+  "type": "run.plan",
+  "id": "evt_01K4ZQPX0000000000000000CB",
+  "ts": "2026-09-02T14:22:20.504Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "plan": [
+    {
+      "step_id": "email-dana",
+      "title": "Email Dana to confirm, with the pallet count"
+    },
+    {
+      "step_id": "update-tracker",
+      "title": "Update the tracker"
+    }
+  ],
+  "reason": "Arjun asked for the pallet count in the email."
+}

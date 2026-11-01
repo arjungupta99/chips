@@ -1,0 +1,623 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Chips · Field to bubble</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;--gray:#8C8F98;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--green:#009B5C;--red:#E62728;
+  --lg-tint:rgba(255,255,255,.26);--lg-rim:rgba(255,255,255,.95);--lg-rim-2:rgba(255,255,255,.35);
+  --lg-shade:rgba(0,0,0,.16);--lg-drop:rgba(20,22,27,.28);
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;--gray:#6B6E78;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--green:#00BA7A;--red:#FE5550;
+  --lg-tint:rgba(40,42,48,.30);--lg-rim:rgba(255,255,255,.55);--lg-rim-2:rgba(255,255,255,.12);
+  --lg-shade:rgba(0,0,0,.35);--lg-drop:rgba(0,0,0,.55)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1340px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.03em}
+.brand svg{width:22px;height:22px}
+.wrap{max-width:1340px;margin:0 auto;padding:0 24px 110px}
+body[data-film] .wrap{max-width:none}
+h1{font-family:var(--font-display);font-size:clamp(28px,4vw,38px);margin:28px 0 6px;letter-spacing:-.02em}
+h1+p{color:var(--ink-2);max-width:74ch;margin:0 0 10px}
+h2{font-family:var(--font-display);font-size:22px;margin:46px 0 10px;padding-top:20px;border-top:1px solid var(--line)}
+p{color:var(--ink-2);max-width:76ch}
+ul{color:var(--ink-2);max-width:76ch}
+li{margin:6px 0}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.ctl{position:sticky;top:53px;z-index:25;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 4px;padding:8px 0;background:color-mix(in srgb,var(--bg) 92%,transparent)}
+.ctl button{font:inherit;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.ctl .hint{font-size:12.5px;color:var(--ink-3)}
+.opts{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;margin:24px 0 8px}
+body[data-film] .opts{flex-wrap:nowrap;gap:24px}
+.opt{display:grid;gap:10px;width:402px;flex:none}
+.opt h3{font-family:var(--font-display);font-size:18px;margin:0;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.opt .tag{font:11px var(--font-mono);border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.opt .tag.pick{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.opt .tag.now{background:var(--surface-3);color:var(--ink-2)}
+.opt .why{font-size:13.5px;color:var(--ink-3);line-height:1.55}
+.opt .why b{color:var(--ink-2)}
+.opt .cost{font:12px/1.5 var(--font-mono);color:var(--ink-3);border-top:1px dashed var(--line-2);padding-top:8px}
+
+/* ── the phone: iPhone 17, in points ───────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--bg);
+  border:1px solid var(--line);font-family:var(--font-ios);box-shadow:0 24px 50px -28px rgba(0,0,0,.45);
+  --navH:106px;--keysH:0px;--inset:34px}
+.phone[data-keys="up"]{--keysH:336px;--inset:0px}
+.room{position:absolute;inset:0 0 var(--keysH) 0;overflow:hidden}
+.scroll{position:absolute;inset:0;overflow-y:scroll;scrollbar-width:none;overflow-anchor:none}
+.scroll::-webkit-scrollbar{display:none}
+.lines{display:flow-root;padding:calc(var(--navH) + 10px) 16px calc(var(--inset) + 12px + 52px + 22px)}
+
+.turn{margin-top:12px}
+.row{display:flex;gap:8px;align-items:flex-end}
+.row.me{justify-content:flex-end}
+.face{width:28px;height:28px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.bub{position:relative;max-width:78%;border-radius:18px;padding:9px 14px;font-size:17px;line-height:22px;overflow:hidden;background:var(--surface-2);color:var(--ink)}
+.bub .nm{display:block;font-size:13px;font-weight:700;margin-bottom:1px}
+.bub.mine{color:#fff;background:#007c87}
+.bub .tx{position:relative;display:block}
+/* the outgoing colour: one picture the height of the room, anchored to the glass, sampled by each bubble */
+.field-g{position:absolute;left:0;right:0;top:0;height:calc(874px - var(--keysH));pointer-events:none;
+  background:linear-gradient(#6651A8 0%,#34669E 50%,#0B737D 100%)}
+.bub:not(.mine) .field-g{display:none}
+.stamp{display:block;text-align:right;font-size:12px;line-height:14px;margin-top:2px;color:rgba(255,255,255,.9)}
+.bub.them .stamp{color:var(--ink-2)}
+.margin{text-align:center;font-size:13px;color:var(--ink-3);padding:10px 0 4px}
+
+/* ── top: all glass since B ─────────────────────────────────── */
+.chrome{position:absolute;left:0;right:0;z-index:6}
+.chrome.t{top:0}
+.chrome.b{bottom:var(--keysH);padding:12px 12px calc(12px + var(--inset))}
+.status{display:flex;align-items:center;justify-content:space-between;padding:18px 32px 0 42px;font-size:16px;font-weight:600;color:var(--ink)}
+.status .sig{display:flex;gap:3px;align-items:flex-end}
+.status .sig i{width:3.5px;background:var(--ink);border-radius:1px;display:block}
+.navrow{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;min-height:60px}
+.cap{border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+.cap.sq{width:44px;height:44px}
+.chev svg{width:20px;height:20px;stroke:var(--ink);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.mark i{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 26%,transparent);display:block}
+.spread{flex:1;min-width:0;display:flex;justify-content:center}
+.namecap{padding:9px 20px;min-width:0;max-width:230px}
+.who{min-width:0;display:grid;text-align:center;line-height:1.2}
+.who b{font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tband{position:absolute;left:0;right:0;top:0;height:calc(var(--navH) + 40px);pointer-events:none;z-index:4;
+  -webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);
+  background:color-mix(in srgb,var(--bg) 2%,transparent);
+  -webkit-mask-image:linear-gradient(#000 calc(100% - 40px),transparent);mask-image:linear-gradient(#000 calc(100% - 40px),transparent)}
+
+/* Liquid Glass, as near as CSS gets: the lensing is an SVG displacement (Chromium only) */
+.lg{background:var(--lg-tint);isolation:isolate;
+  -webkit-backdrop-filter:blur(2.5px) saturate(170%) brightness(1.04);backdrop-filter:blur(2.5px) saturate(170%) brightness(1.04);
+  box-shadow:0 10px 26px -12px var(--lg-drop),0 1px 2px var(--lg-shade)}
+.lg::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.3px;pointer-events:none;z-index:2;
+  background:linear-gradient(140deg,var(--lg-rim) 0%,var(--lg-rim-2) 26%,transparent 48%,transparent 58%,var(--lg-rim-2) 78%,var(--lg-rim) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.lg::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
+  box-shadow:inset 0 1px 1.5px rgba(255,255,255,.55),inset 0 -1px 1.5px rgba(255,255,255,.18),inset 0 0 14px rgba(255,255,255,.12)}
+:root[data-theme="dark"] .lg::after{box-shadow:inset 0 1px 1px rgba(255,255,255,.22),inset 0 -1px 1px rgba(255,255,255,.06),inset 0 0 14px rgba(255,255,255,.05)}
+
+/* the composer as it is on your phone now: + in its own glass, the field in glass, Send inside */
+.composer{display:flex;align-items:flex-end;gap:8px}
+.plusout{width:52px;height:52px}
+.plusout svg{width:22px;height:22px;stroke:var(--ink);stroke-width:2.2;fill:none;stroke-linecap:round}
+.field{flex:1;min-width:0;min-height:52px;border-radius:26px;display:flex;align-items:flex-end;gap:8px;padding:10px 10px 10px 20px;position:relative}
+.fieldglass{position:absolute;inset:0;border-radius:inherit}
+.wordsbox{flex:1;min-width:0;position:relative;z-index:3}
+.words,.leave{padding:4.5px 0;font-size:17px;line-height:23px;color:var(--ink);overflow-wrap:break-word}
+.leave{position:absolute;left:0;right:0;bottom:0;pointer-events:none;opacity:0}
+.words .ph{color:var(--ink-3)}
+.caret{display:inline-block;width:2px;height:21px;margin:0 1px;vertical-align:-4px;background:var(--blue);animation:blink 1s steps(1) infinite}
+.phone[data-keys="down"] .caret{display:none}
+@keyframes blink{50%{opacity:0}}
+.send{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--gray);position:relative;z-index:3;opacity:.55}
+.phone[data-typing="on"] .send{background:var(--blue);opacity:1}
+.send svg{width:17px;height:17px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.home{position:absolute;left:0;right:0;bottom:8px;display:grid;place-items:center;z-index:7;pointer-events:none}
+.home i{width:140px;height:5px;border-radius:3px;background:var(--ink);opacity:.9;display:block}
+.phone[data-keys="up"] .home{display:none}
+
+/* the flight: above the room and above the composer, in the phone's own coordinates */
+.fly{position:absolute;inset:0;z-index:8;pointer-events:none}
+.flyer{position:absolute;max-width:none;transform-origin:14px 9px;background:transparent}
+
+.keys{position:absolute;left:0;right:0;bottom:0;height:var(--keysH);z-index:5;display:none;padding:10px 4px 0;
+  background:color-mix(in srgb,var(--surface-3) 88%,transparent);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px)}
+.phone[data-keys="up"] .keys{display:block}
+.krow{display:flex;gap:6px;justify-content:center;padding:5px 3px}
+.key{flex:1;height:44px;border-radius:8px;background:var(--surface);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 22%,transparent);display:grid;place-items:center;font-size:20px;color:var(--ink)}
+.key.wide{flex:3.2}
+.key.plain{background:none;box-shadow:none;color:var(--ink-2);font-size:18px}
+.kfoot{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 0}
+.legend{font:12px var(--font-mono);color:var(--gold-deep);margin:0}
+
+/* for the film: a label on each phone, inside what gets filmed */
+.label{display:none;position:absolute;left:14px;top:212px;z-index:9;font:600 13px var(--font-ios);padding:4px 10px;border-radius:999px;
+  background:color-mix(in srgb,var(--ink) 86%,transparent);color:var(--bg)}
+body[data-film] .label{display:block}
+</style>
+
+<svg id="filters" width="0" height="0" style="position:absolute" aria-hidden="true"><defs></defs></svg>
+
+<header class="top"><div class="top-in">
+  <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Chips</span>
+  <span style="font-size:13px;color:var(--ink-3)">From the field to the bubble</span>
+  <span style="margin-left:auto;font:12px var(--font-mono);color:var(--ink-3)">24 Sep 2026</span>
+</div></header>
+
+<div class="wrap">
+<h1>From the field to the bubble</h1>
+<p>This is what happens between tapping Send and seeing your message in the room. Today the words vanish from the field, and the message fades in at the foot of the room as the room scrolls up to make space. Below are three ways to carry the words from the field into the bubble instead. All four phones type and send the same messages at the same moment, on a loop. Turn on slow motion to see each step.</p>
+<p class="legend">The glass is the CSS stand-in from the last mock. The motion is not a stand-in: these are the springs and timings the app would run.</p>
+
+<div class="ctl">
+  <button id="t-theme" aria-pressed="false">Dark</button>
+  <button id="t-keys" aria-pressed="true">Keyboard up</button>
+  <button id="t-slow" aria-pressed="false">Slow motion ×4</button>
+  <button id="t-run" aria-pressed="true">Playing</button>
+  <span class="hint" id="lens-state"></span>
+</div>
+
+<div class="opts" id="opts"></div>
+
+<h2>The same in all three</h2>
+<ul>
+  <li><strong>The field swells under your thumb as you press Send.</strong> That's the interactive glass already on your phone, not something new.</li>
+  <li><strong>The time replaces <em>sending…</em></strong> once the server has the message, as it does today.</li>
+  <li><strong>Replies land as they do today.</strong> Only your own sends get the new motion.</li>
+  <li><strong>The placeholder comes back once the words have left the field,</strong> not underneath them as they go. Today it shows the instant you tap.</li>
+  <li><strong>With Reduce Motion on, all three do today's fade.</strong></li>
+  <li><strong>If you send from halfway up the history,</strong> the room still runs to the foot and the message lands the way it does today. The flight needs its landing spot on screen when it starts.</li>
+  <li><strong>A photo sent from the staging chip lands the way it does today</strong> in the first version. The flight carries words. The chip could fly later if you want it to.</li>
+</ul>
+
+<h2>My call</h2>
+<p><strong>A.</strong> It's what you described: the words you typed become the bubble, and your eye follows one thing from the field to the room. It's also what Messages does. <strong>B</strong> is the cheap version. It looks good through the glass, but the words disappear on the left while the bubble comes up on the right, so there's nothing to follow. <strong>C</strong> adds a lot of motion to something you'll do hundreds of times a day. I'd build A, live with it for a day, and add C's ripple only if A feels stiff.</p>
+</div>
+
+<script>
+const SIG = '<span class="sig"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span>';
+const CHEV = '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>';
+const PLUS = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+const UP = '<svg viewBox="0 0 24 24"><path d="M12 19V6"/><path d="M6 12l6-6 6 6"/></svg>';
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+const SCOUT = {who:'Scout', hue:'#317243'}, LEDGER = {who:'Ledger', hue:'#7a4a86'};
+const LINES = [
+  {k:'margin', t:'Yesterday 17:40'},
+  {k:'me', tx:'Can you find out why CI went red after the rename?', st:'17:40'},
+  {k:'them', ...SCOUT, tx:'On it. I\'ll pull the failing specs first thing and group them by assertion.', st:'17:41'},
+  {k:'margin', t:'Today 09:12'},
+  {k:'them', ...SCOUT, tx:'Pulled the 14 failing specs. Eleven are the same assertion: the fixture still has the old column name.', st:'09:12'},
+  {k:'me', tx:'Do the fixture, leave the three.', st:'09:13'},
+  {k:'them', ...LEDGER, tx:'Fixture renamed. Eleven green. The three left are all the rounding in totalOf.', st:'09:19'},
+  {k:'them', ...SCOUT, tx:'The migration is a backfill across 1.2M rows. About four minutes, and it locks writes while it runs.', st:'09:25', cont:true},
+];
+const SCRIPT = [
+  {me:'Run it after lunch.', them:{...SCOUT, tx:'Will do. Starting the backfill at 13:00.'}},
+  {me:'Leave totalOf to me.', them:{...LEDGER, tx:'Understood. I won\'t touch it.'}},
+  {me:'Ping me when it\'s done, with the row counts before and after.', them:{...SCOUT, tx:'I will.'}},
+];
+
+function mineHTML(tx, st){
+  return `<div class="bub mine"><div class="field-g"></div><span class="tx">${esc(tx)}<span class="stamp">${st}</span></span></div>`;
+}
+function themHTML(l, st){
+  return `<div class="face" style="background:${l.hue}">${l.who[0]}</div><div class="bub them"><span class="nm" style="color:${l.hue}">${l.who}</span>${esc(l.tx)}<span class="stamp">${st}</span></div>`;
+}
+function lineHTML(l){
+  if (l.k === 'margin') return `<div class="margin">${l.t}</div>`;
+  if (l.k === 'me') return `<div class="turn"><div class="row me">${mineHTML(l.tx, l.st)}</div></div>`;
+  return `<div class="turn"${l.cont ? ' style="margin-top:2px"' : ''}><div class="row">${themHTML(l, l.st)}</div></div>`;
+}
+
+const KEYS = [['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫']];
+const keysHTML = () => KEYS.map(r=>`<div class="krow">${r.map(k=>`<div class="key">${k}</div>`).join('')}</div>`).join('')
+  + `<div class="krow"><div class="key" style="flex:1.3;font-size:16px">123</div><div class="key wide" style="font-size:16px">space</div><div class="key" style="flex:1.3;font-size:16px">return</div></div>`
+  + `<div class="kfoot"><div class="key plain" style="flex:none;width:34px;height:30px">☺</div><div class="key plain" style="flex:none;width:34px;height:30px">🎙</div></div>`;
+
+const FRAMES = [
+  {id:'now', h:'Today', tag:'on your phone', cls:'now', label:'Today',
+   why:'<b>The words vanish; the message fades in.</b> The field empties the moment you tap. The room scrolls up to make space, which brings the message up from behind the field, but the message is fading in as it comes, over its last ten points. What you notice is the words disappearing and a bubble appearing a moment later.',
+   cost:'—'},
+  {id:'a', h:'A · The words lift into a bubble', tag:'about a day', cls:'pick', label:'A · lift',
+   why:'<b>The words you typed become the bubble.</b> They leave the field from exactly where they sat. The colour grows around them as they rise, and the bubble springs up and across into its place, reaching it a little after it reaches its height, so the path curves. The room rises on the same spring, so the space opens as the bubble arrives.',
+   cost:'A copy of the bubble, drawn above the composer, flies from the field\'s words to the row\'s place on transforms only, measured once at each end like the viewer\'s flight. The row stays hidden until the copy lands. The room\'s rise switches from the scroll\'s ease to the spring. The field already keeps a hidden twin of its words for measuring, so the start point is known.'},
+  {id:'b', h:'B · Up through the glass', tag:'an hour or two', cls:'', label:'B · through',
+   why:'<b>The bubble rises from behind the field.</b> It starts whole and coloured under the glass, so for a moment you see it through the field, then springs up into its place. The words in the field lift away and fade on the same beat. This is closer to today than it looks: today\'s message already comes up from behind the field as the room scrolls, but it\'s faded, so you barely see it.',
+   cost:'Arrive in Motion.tsx changes for your own lines: no fade, and a spring from the middle of the field instead of ten points low. The room keeps today\'s scroll. No copy, no overlay. The words leaving the field are one more fade.'},
+  {id:'c', h:'C · A, and the room ripples', tag:'A + half a day', cls:'', label:'C · ripple',
+   why:'<b>A\'s flight, and the room catches up a beat behind.</b> Each line above moves a moment after the one below it, so the room stretches as the bubble lands and then settles. It\'s the springy feel Messages has had since iOS 7.',
+   cost:'A, plus a spring on every row on screen, each delayed by its distance from the foot. More to tune, and more motion on every send, in a room you\'ll send in hundreds of times a day.'},
+];
+
+function navHTML(){
+  return `<div class="navrow">
+    <div class="cap sq chev lg">${CHEV}</div>
+    <div class="spread"><div class="cap namecap lg"><div class="who"><b>Scout · deploy</b><small>You, Scout and Ledger</small></div></div></div>
+    <div class="cap sq mark lg"><i></i></div></div>`;
+}
+function barHTML(){
+  return `<div class="composer"><div class="cap sq plusout lg">${PLUS}</div>
+    <div class="cap field"><div class="fieldglass lg"></div><div class="wordsbox"><div class="words" data-words></div><div class="leave"></div></div><span class="send">${UP}</span></div></div>`;
+}
+function frameHTML(f){
+  return `<div class="opt">
+    <h3>${f.h} <span class="tag ${f.cls}">${f.tag}</span></h3>
+    <div class="phone" data-keys="up" data-typing="off" id="ph-${f.id}">
+      <div class="room"><div class="scroll"><div class="lines">${LINES.map(lineHTML).join('')}</div></div></div>
+      <div class="tband"></div>
+      <div class="chrome t"><div class="status"><span>9:41</span>${SIG}</div>${navHTML()}</div>
+      <div class="chrome b">${barHTML()}</div>
+      <div class="fly"></div>
+      <div class="home"><i></i></div>
+      <div class="keys">${keysHTML()}</div>
+      <div class="label">${f.label}</div>
+    </div>
+    <div class="why">${f.why}</div>
+    <div class="cost">${f.cost}</div>
+  </div>`;
+}
+document.getElementById('opts').innerHTML = FRAMES.map(frameHTML).join('');
+
+/* ── the lens: a displacement map per size, sampled inward across a rim ─── */
+const BEZEL = 13, STRENGTH = 26;
+const isChromium = !!window.chrome || /Chrome\//.test(navigator.userAgent);
+const made = new Map();
+function sdfCapsule(x, y, w, h, r){
+  const qx = Math.abs(x - w/2) - (w/2 - r), qy = Math.abs(y - h/2) - (h/2 - r);
+  const ox = Math.max(qx, 0), oy = Math.max(qy, 0);
+  return Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) - r;
+}
+function mapFor(w, h, r){
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const px = x + .5, py = y + .5, d = -sdfCapsule(px, py, w, h, r);
+    let dx = 0, dy = 0;
+    if (d > 0 && d < BEZEL){
+      const e = .5;
+      const gx = sdfCapsule(px + e, py, w, h, r) - sdfCapsule(px - e, py, w, h, r);
+      const gy = sdfCapsule(px, py + e, w, h, r) - sdfCapsule(px, py - e, w, h, r);
+      const len = Math.hypot(gx, gy) || 1, m = Math.pow(1 - d / BEZEL, 2.2);
+      dx = -gx / len * m; dy = -gy / len * m;
+    }
+    const i = (y * w + x) * 4;
+    img.data[i] = 128 + dx * 127; img.data[i+1] = 128 + dy * 127; img.data[i+2] = 128; img.data[i+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL();
+}
+function lensFor(w, h){
+  const key = `${w}x${h}`;
+  if (made.has(key)) return made.get(key);
+  const id = `lens-${key}`, r = Math.min(h / 2, w / 2), ns = 'http://www.w3.org/2000/svg';
+  const f = document.createElementNS(ns, 'filter');
+  f.setAttribute('id', id);
+  f.setAttribute('x', '0'); f.setAttribute('y', '0'); f.setAttribute('width', w); f.setAttribute('height', h);
+  f.setAttribute('filterUnits', 'userSpaceOnUse'); f.setAttribute('primitiveUnits', 'userSpaceOnUse');
+  f.setAttribute('color-interpolation-filters', 'sRGB');
+  f.innerHTML = `<feImage href="${mapFor(w, h, r)}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>
+    <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="soft"/>
+    <feDisplacementMap in="soft" in2="map" scale="${STRENGTH}" xChannelSelector="R" yChannelSelector="G" result="bent"/>
+    <feColorMatrix in="bent" type="saturate" values="1.7"/>`;
+  document.querySelector('#filters defs').appendChild(f);
+  made.set(key, id);
+  return id;
+}
+function lensAll(){
+  if (!isChromium) return;
+  document.querySelectorAll('.lg').forEach(el => {
+    const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
+    if (!w || !h || el.dataset.lens === `${w}x${h}`) return;
+    el.dataset.lens = `${w}x${h}`;
+    const bf = `url(#${lensFor(w, h)}) brightness(1.04)`;
+    el.style.backdropFilter = bf; el.style.webkitBackdropFilter = bf;
+  });
+}
+document.getElementById('lens-state').textContent = isChromium
+  ? 'Lensing on (Chromium).' : 'Lensing off: this browser shows the blur only.';
+
+/* ── motion: springs as closed forms, so any frame can be drawn at any moment ──
+   A spring is given as UIKit gives one, a response (the period, in seconds) and a damping ratio.
+   Each returns the progress from 0 to 1 (a little past 1 while it overshoots) t ms after it starts. */
+function spring(response, zeta){
+  const w = 2 * Math.PI / response;
+  if (zeta >= 1) return t => t <= 0 ? 0 : 1 - (1 + w * t / 1000) * Math.exp(-w * t / 1000);
+  const wd = w * Math.sqrt(1 - zeta * zeta), k = zeta * w / wd;
+  return t => { if (t <= 0) return 0; const s = t / 1000; return 1 - Math.exp(-zeta * w * s) * (Math.cos(wd * s) + k * Math.sin(wd * s)); };
+}
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const easeOut = x => 1 - Math.pow(1 - x, 3), easeIn = x => x * x * x;
+const easeInOut = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+/* the app's spring today (ui/motion.ts): stiffness 320, damping 32, mass 1 */
+const IOS = spring(2 * Math.PI / Math.sqrt(320), 32 / (2 * Math.sqrt(320)));
+/* the list's animated scroll to the foot: UIKit's, about 0.3 s, eased both ends */
+const SCROLL = t => t <= 0 ? 0 : t >= 300 ? 1 : easeInOut(t / 300);
+/* A's flight: height on a spring with a touch of overshoot, across on a slower, flatter one */
+const LIFT_Y = spring(0.42, 0.78), LIFT_X = spring(0.52, 0.92), GROW = spring(0.3, 0.72);
+const LAND = 760;
+/* B's rise */
+const RISE_B = spring(0.46, 0.8);
+/* C's ripple: each line up from the foot waits this much longer than the one below it */
+const STAGGER = 28;
+/* the glass under a thumb: a quick swell, and a looser settle when it lets go */
+const PRESS = 110, SETTLE = spring(0.42, 0.55);
+const ACK = 420;
+
+function inkRGB(){
+  const hex = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim().replace('#', '');
+  return [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+}
+function mix(a, b, k){ return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(',')})`; }
+
+/* ── the phones ─────────────────────────────────────────────── */
+const P = FRAMES.map(f => {
+  const el = document.getElementById('ph-' + f.id);
+  return { kind: f.id, el, sc: el.querySelector('.scroll'), lines: el.querySelector('.lines'),
+    field: el.querySelector('.field'), glass: el.querySelector('.fieldglass'), words: el.querySelector('[data-words]'),
+    leave: el.querySelector('.leave'), send: el.querySelector('.send'), fly: el.querySelector('.fly'),
+    shifts: [], arrivals: [], sent: null, stamps: [] };
+});
+
+let vnow = 0, slow = 1, playing = true, sendAt = null, clock = 9 * 60 + 31;
+let queue = [];
+const at = (t, fn) => { queue.push({ t, fn }); queue.sort((a, b) => a.t - b.t); };
+
+function setTyped(text){
+  for (const p of P){
+    p.words.innerHTML = text ? `${esc(text)}<span class="caret"></span>` : `<span class="caret"></span><span class="ph">Message, or /command</span>`;
+    p.el.dataset.typing = text ? 'on' : 'off';
+  }
+  lensAll();
+}
+
+function toFoot(p){ p.sc.scrollTop = p.sc.scrollHeight; }
+/* put a turn at the foot and return how far it pushed the room: measured with every motion off */
+function place(p, turn){
+  const before = p.sc.scrollHeight;
+  p.lines.appendChild(turn);
+  p.lines.style.transform = '';
+  for (const r of p.lines.children){ r.style.transform = ''; }
+  toFoot(p);
+  return p.sc.scrollHeight - before;
+}
+function origin(p){
+  const r = p.el.getBoundingClientRect();
+  return { x: r.left + p.el.clientLeft, y: r.top + p.el.clientTop };
+}
+
+function sendOn(p, text, time){
+  const t0 = vnow, o = origin(p);
+  const words = p.words.getBoundingClientRect(), field = p.field.getBoundingClientRect();
+  if (p.sent && p.sent.flyer) p.sent.flyer.remove();
+  const turn = document.createElement('div');
+  turn.className = 'turn';
+  turn.innerHTML = `<div class="row me">${mineHTML(text, 'sending…')}</div>`;
+  const h = place(p, turn);
+  const inner = turn.firstElementChild, bub = inner.firstElementChild;
+  const b = bub.getBoundingClientRect();
+  const ex = b.left - o.x, ey = b.top - o.y;
+  // where the words were: the field's line box, less the bubble's padding, so the glyphs coincide
+  const sx = words.left - o.x - 14, sy = words.top - o.y + 4.5 + .5 - 9;
+  const s = { t0, inner, bub, h, stamps: [bub.querySelector('.stamp')], time };
+  if (p.kind === 'now'){
+    p.shifts.push({ h, start: t0, curve: SCROLL });
+    p.arrivals.push({ el: inner, t0 });
+  } else if (p.kind === 'b'){
+    s.d = (field.top + field.height / 2) - (b.top + b.height / 2);
+    p.shifts.push({ h, start: t0, curve: SCROLL });
+    p.leave.textContent = text;
+  } else {
+    const fl = document.createElement('div');
+    fl.className = 'bub mine flyer';
+    fl.style.left = ex + 'px'; fl.style.top = ey + 'px'; fl.style.width = b.width + 'px';
+    fl.innerHTML = bub.innerHTML;
+    p.fly.appendChild(fl);
+    Object.assign(s, { flyer: fl, fg: fl.querySelector('.field-g'), tx: fl.querySelector('.tx'), dx: sx - ex, dy: sy - ey });
+    s.stamps.push(fl.querySelector('.stamp'));
+    p.shifts.push({ h, start: t0, curve: LIFT_Y, stagger: p.kind === 'c' });
+  }
+  p.sent = s;
+}
+function sendAll(text){
+  const time = `09:${String(clock % 60).padStart(2, '0')}`;
+  for (const p of P) sendOn(p, text, time);
+  setTyped('');
+}
+function replyAll(l){
+  const time = `09:${String(clock % 60).padStart(2, '0')}`; clock++;
+  for (const p of P){
+    const turn = document.createElement('div');
+    turn.className = 'turn';
+    turn.innerHTML = `<div class="row">${themHTML(l, time)}</div>`;
+    const h = place(p, turn);
+    p.shifts.push({ h, start: vnow, curve: SCROLL });
+    p.arrivals.push({ el: turn.firstElementChild, t0: vnow });
+  }
+}
+function trim(){
+  for (const p of P){
+    while (p.lines.children.length > 22) p.lines.firstElementChild.remove();
+    toFoot(p);
+  }
+}
+
+/* ── one frame, drawn from the clock alone ──────────────────── */
+let ink = inkRGB();
+function pressScale(){
+  if (sendAt === null) return [1, 1];
+  const t = vnow - sendAt;
+  if (t < -PRESS || t > 1400) return [1, 1];
+  if (t < 0){ const q = IOS(t + PRESS); return [1 + .04 * q, 1 - .14 * q]; }
+  const q = IOS(PRESS);
+  return [1 + .04 * q * (1 - SETTLE(t)), 1 - .14 * q * (1 - IOS(t))];
+}
+function renderPhone(p, glassScale, sendScale){
+  const now = vnow;
+  p.glass.style.transform = glassScale === 1 ? '' : `scale(${glassScale})`;
+  p.send.style.transform = sendScale === 1 ? '' : `scale(${sendScale})`;
+
+  // the room making space
+  p.shifts = p.shifts.filter(s => now - s.start < 2500 + 40 * STAGGER);
+  const rows = p.lines.children;
+  if (p.kind === 'c'){
+    p.lines.style.transform = '';
+    for (let i = 0; i < rows.length; i++){
+      const k = rows.length - 1 - i;
+      let y = 0;
+      for (const s of p.shifts) y += s.h * (1 - s.curve(now - s.start - (s.stagger ? k * STAGGER : 0)));
+      rows[i].style.transform = Math.abs(y) > .01 ? `translateY(${y}px)` : '';
+    }
+  } else {
+    let y = 0;
+    for (const s of p.shifts) y += s.h * (1 - s.curve(now - s.start));
+    p.lines.style.transform = Math.abs(y) > .01 ? `translateY(${y}px)` : '';
+  }
+
+  // lines arriving as they do today: ten points low and unseen, up and in on the app's spring
+  p.arrivals = p.arrivals.filter(a => {
+    const t = now - a.t0, q = IOS(t);
+    if (t > 1600){ a.el.style.opacity = ''; a.el.style.transform = ''; return false; }
+    a.el.style.opacity = clamp(q);
+    a.el.style.transform = `translateY(${10 * (1 - q)}px)`;
+    return true;
+  });
+
+  const s = p.sent;
+  if (s){
+    const t = Math.max(0, now - s.t0);
+    for (const el of s.stamps) el.textContent = t >= ACK ? s.time : 'sending…';
+    // the placeholder waits for the words to be gone, rather than showing through them
+    const ph = p.words.querySelector('.ph');
+    if (ph && p.kind !== 'now') ph.style.opacity = clamp((t - 160) / 140);
+    if (p.kind === 'b'){
+      const q = RISE_B(t);
+      // the room still scrolls as it does today; the row makes up the rest, so its own path is the spring
+      s.inner.style.transform = t > 1600 ? '' : `translateY(${s.d * (1 - q) - s.h * (1 - SCROLL(t))}px)`;
+      s.inner.style.opacity = clamp(t / 90);
+      const e = easeIn(clamp(t / 170));
+      p.leave.style.opacity = t > 400 ? 0 : 1 - e;
+      p.leave.style.transform = `translateY(${-12 * e}px)`;
+    } else if (s.flyer){
+      const landed = t >= LAND;
+      s.inner.style.visibility = landed ? '' : 'hidden';
+      s.flyer.style.display = landed ? 'none' : '';
+      if (!landed){
+        const g = easeOut(clamp(t / 110));
+        const x = s.dx * (1 - LIFT_X(t)), y = s.dy * (1 - LIFT_Y(t)), k = .94 + .06 * GROW(t);
+        s.flyer.style.transform = `translate(${x}px,${y}px) scale(${k})`;
+        s.flyer.style.backgroundColor = `rgba(0,124,135,${g})`;
+        s.fg.style.opacity = g;
+        s.tx.style.color = mix(ink, [255, 255, 255], g);
+        s.stamps[1].style.opacity = clamp((t - 80) / 220);
+      }
+    }
+  }
+
+  // the outgoing colour, anchored to the glass
+  const top = origin(p).y;
+  for (const bub of p.el.querySelectorAll('.bub.mine')){
+    bub.firstElementChild.style.transform = `translateY(${-(bub.getBoundingClientRect().top - top)}px)`;
+  }
+}
+function render(){
+  const [g, s] = pressScale();
+  for (const p of P) renderPhone(p, g, s);
+}
+
+/* ── the loop: type, press, send, a reply, again ────────────── */
+let turnNo = 0;
+function cycle(){
+  const m = SCRIPT[turnNo % SCRIPT.length]; turnNo++;
+  trim();
+  const t0 = vnow, TYPE = 40;
+  for (let i = 1; i <= m.me.length; i++) at(t0 + 300 + i * TYPE, () => setTyped(m.me.slice(0, i)));
+  const send = t0 + 300 + m.me.length * TYPE + 600;
+  at(send - PRESS, () => { sendAt = send; });
+  at(send, () => sendAll(m.me));
+  at(send + 1700, () => replyAll(m.them));
+  at(send + 3100, cycle);
+}
+
+let last = performance.now();
+function tick(ts){
+  const dt = Math.min(50, ts - last); last = ts;
+  if (playing){
+    vnow += dt / slow;
+    while (queue.length && queue[0].t <= vnow) queue.shift().fn();
+  }
+  render();
+  requestAnimationFrame(tick);
+}
+
+/* ── controls ───────────────────────────────────────────────── */
+const phones = P.map(p => p.el);
+function flip(id){ const b = document.getElementById(id); const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', String(on)); return on; }
+function setTheme(dark){
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.getElementById('t-theme').setAttribute('aria-pressed', String(dark));
+  ink = inkRGB();
+}
+document.getElementById('t-theme').onclick = () => setTheme(document.documentElement.dataset.theme !== 'dark');
+document.getElementById('t-keys').onclick = () => {
+  const on = flip('t-keys');
+  phones.forEach(el => el.dataset.keys = on ? 'up' : 'down');
+  requestAnimationFrame(() => { P.forEach(toFoot); lensAll(); });
+};
+document.getElementById('t-slow').onclick = () => { slow = flip('t-slow') ? 4 : 1; };
+document.getElementById('t-run').onclick = e => { playing = flip('t-run'); e.currentTarget.textContent = playing ? 'Playing' : 'Paused'; };
+
+/* ?theme=dark|light  ?keys=down  ?slow=4
+   ?still=1&t=<ms from the tap>&msg=<0..2>  draws one moment and stops; window.seek(ms) draws a later one
+     (negative is before the tap, with the words still in the field)
+   ?film=1  lays the four phones in a row and labels them, for filming */
+const q = new URLSearchParams(location.search);
+const wantDark = q.get('theme') ? q.get('theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+setTheme(wantDark);
+if (q.get('keys') === 'down') document.getElementById('t-keys').click();
+if (q.get('slow')) { slow = Number(q.get('slow')) || 1; document.getElementById('t-slow').setAttribute('aria-pressed', String(slow > 1)); }
+if (q.get('film') === '1') document.body.dataset.film = '';
+
+document.fonts.ready.then(() => {
+  P.forEach(toFoot);
+  if (q.get('still') === '1'){
+    playing = false;
+    document.getElementById('t-run').setAttribute('aria-pressed', 'false');
+    document.getElementById('t-run').textContent = 'Paused';
+    const m = SCRIPT[Number(q.get('msg') || 0) % SCRIPT.length];
+    setTyped(m.me);
+    vnow = 10000; sendAt = 10000;
+    lensAll();
+    let sent = false;
+    // forward only: the tap happens once, the first time a moment at or after it is asked for
+    window.seek = t => {
+      if (t >= 0 && !sent){ vnow = 10000; sendAll(m.me); sent = true; }
+      vnow = 10000 + t; render();
+    };
+    window.seek(Number(q.get('t') || 0));
+    requestAnimationFrame(() => { window.seek(Number(q.get('t') || 0)); document.body.dataset.ready = ''; });
+    return;
+  }
+  setTyped('');
+  lensAll();
+  at(vnow + 500, cycle);
+  requestAnimationFrame(tick);
+  document.body.dataset.ready = '';
+});
+</script>

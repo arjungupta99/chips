@@ -1,0 +1,73 @@
+{
+  "title": "Your agents, up close",
+  "beats": [
+    {
+      "key": "page",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Agent page",
+        "line": "Every agent has a page",
+        "sentence": "Where it is, what it's doing, and what it runs on. Tap an agent's face anywhere to open it."
+      },
+      "shots": [{ "app": "phone", "film": "agents", "chapter": 0, "from": 400 }]
+    },
+    {
+      "key": "model",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Model",
+        "line": "Choose its model and effort",
+        "sentence": "Higher effort is slower and costs more. The change goes to Errand, the harness Milo runs on."
+      },
+      "shots": [
+        {
+          "app": "phone",
+          "film": "agents",
+          "chapter": 1,
+          "from": 400
+        }
+      ]
+    },
+    {
+      "key": "instructions",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Instructions",
+        "line": "Change what it's told",
+        "sentence": "An agent's instructions are files you can edit here. Milo reads the saved ones from its next turn."
+      },
+      "shots": [{ "app": "phone", "film": "agents", "chapter": 2, "from": 400 }]
+    },
+    {
+      "key": "compact",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Compact",
+        "line": "Make room in its context",
+        "sentence": "Compacting sums up the conversation so far, and Milo carries on from the summary. Details from early on may be lost."
+      },
+      "shots": [{ "app": "phone", "film": "agents", "chapter": 3, "from": 400 }]
+    },
+    {
+      "key": "fork",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Fork",
+        "line": "Fork it to try something else",
+        "sentence": "A copy joins a new space, remembering everything so far. From then on, the two remember separately."
+      },
+      "shots": [{ "app": "phone", "film": "agents", "chapter": 4, "from": 400 }]
+    },
+    {
+      "key": "move",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Move",
+        "line": "Move it where it's needed",
+        "sentence": "An agent is in one space at a time. Move Milo, and the space it joins says so."
+      },
+      "shots": [{ "app": "phone", "film": "agents", "chapter": 5, "from": 400 }]
+    },
+    { "key": "end", "layout": "end", "seconds": 3.2, "line": "Chat with your AI agents" }
+  ]
+}

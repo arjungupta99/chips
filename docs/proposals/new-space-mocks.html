@@ -1,0 +1,927 @@
+<meta charset="utf-8">
+<title>Chips · New space</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--green-ink:#006C40;--green-soft:#DEF5E8;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold-deep:#F7CE54;--gold-soft:#3C3005;--green-ink:#7FE3B3;--green-soft:#12362A}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold-deep:#F7CE54;--gold-soft:#3C3005;--green-ink:#7FE3B3;--green-soft:#12362A}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1080px;margin:0 auto;padding:0 16px;height:56px;display:flex;align-items:center;gap:14px}
+.brand{font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-.03em}
+.top .what{font-size:13px;color:var(--ink-3)}
+.top .ver{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+article{max-width:1080px;margin:0 auto;padding:32px 16px 120px}
+h1,h2,h3{font-family:var(--font-display);letter-spacing:-.02em;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(30px,4.5vw,44px);margin:0 0 8px}
+p.lede{color:var(--ink-2);font-size:17px;max-width:66ch;margin:0 0 8px}
+h2{font-size:clamp(22px,2.6vw,28px);margin:56px 0 12px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:28px 0 10px}
+p,ul{margin:0 0 14px;color:var(--ink-2);max-width:72ch}
+li{margin-bottom:6px}
+strong,b{color:var(--ink);font-weight:600}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+figure{margin:24px 0;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.fig-head{display:flex;align-items:baseline;gap:12px;margin:0 0 16px;flex-wrap:wrap}
+.fig-no{font-family:var(--font-mono);font-size:12px;color:var(--gold-deep);letter-spacing:.06em}
+.fig-title{font-family:var(--font-display);font-weight:600;font-size:17px;margin:0}
+.tools{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.btn{font:600 12.5px var(--font-body);color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+.btn:hover{border-color:var(--line-2);color:var(--ink)}
+.btn.on{background:var(--gold-soft);border-color:var(--gold);color:var(--gold-deep)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.seg .btn{border:0;border-radius:0}
+.seg .btn+.btn{border-left:1px solid var(--line)}
+.live{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+.live .side{flex:1 1 280px;max-width:420px;font-size:14.5px}
+.live .side ol{padding-left:20px;margin:0 0 12px;color:var(--ink-2)}
+.frames{display:flex;flex-wrap:wrap;gap:18px;justify-content:center}
+.stepped{display:grid;gap:8px;justify-items:center}
+.stepped .t{font:12px var(--font-mono);color:var(--ink-3);text-align:center;max-width:230px;line-height:1.5}
+.frame.xs+.t{max-width:172px}
+@media (max-width:460px){.frame.xs+.t{max-width:230px}}
+figcaption{font-size:13.5px;color:var(--ink-3);margin-top:16px}
+.opts{display:grid;gap:12px;margin:0 0 18px}
+.opt{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:16px 18px;display:grid;gap:6px}
+.opt.rec{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.opt .h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.opt .k{font:700 12px var(--font-mono);color:var(--gold-deep);background:var(--gold-soft);border-radius:6px;padding:2px 7px}
+.opt .n{font-family:var(--font-display);font-weight:600;font-size:17px;color:var(--ink)}
+.opt .tag{font:600 11.5px var(--font-body);text-transform:uppercase;letter-spacing:.06em;color:var(--green-ink);background:var(--green-soft);border-radius:999px;padding:2px 9px}
+.opt .tag.no{color:var(--ink-3);background:var(--surface-2)}
+.opt p{margin:0;font-size:14.5px}
+.opt .cost{font-size:13.5px;color:var(--ink-3)}
+.opt .cost b{color:var(--ink-2)}
+
+/* ── the phone, drawn at its own points and scaled ─────────────────────── */
+.frame{position:relative;flex:none;width:calc(393px * var(--s));height:calc(852px * var(--s));--s:.82}
+.frame.sm{--s:.5}
+.frame.xs{--s:.44}
+@media (max-width:460px){.frame{--s:.8}.frame.sm,.frame.xs{--s:.74}}
+.dev{position:absolute;left:0;top:0;width:393px;height:852px;transform:scale(var(--s));transform-origin:0 0;
+  border-radius:56px;background:#000;box-shadow:0 0 0 12px #1B1B1E,0 0 0 13px #3A3A3F,0 40px 80px -40px rgba(0,0,0,.55)}
+.screen{position:absolute;inset:0;overflow:hidden;border-radius:56px;font-family:var(--font-ios);user-select:none;-webkit-user-select:none;--k:1;
+  --p-bg:#FBFBF8;--p-surface:#FFFFFF;--p-surface2:#F2F2EC;--p-surface3:#E7E7DF;--p-line:#E4E4DC;
+  --p-ink:#14161B;--p-ink2:#454851;--p-ink3:#666973;--p-ink4:#A9ABB3;--p-gold:#F7C431;
+  --p-glass:rgba(255,255,255,.62);--p-glass-line:rgba(0,0,0,.09);--p-glass-hi:rgba(255,255,255,.95);
+  --p-card:rgba(255,255,255,.9);--p-sel:rgba(0,0,0,.065);--p-scrim:rgba(20,22,27,.2);
+  --p-kb:rgba(209,212,219,.97);--p-key:#FFFFFF;--p-key2:#ACB1BB;--p-keyink:#0B0B0C;--p-field:rgba(20,22,27,.055);
+  --p-theirs:#EDEDE6;--p-home:rgba(0,0,0,.85);
+  background:var(--p-bg);color:var(--p-ink)}
+.screen.dk{--p-bg:#0F1013;--p-surface:#191B20;--p-surface2:#20232A;--p-surface3:#2B2E37;--p-line:#2A2D35;
+  --p-ink:#F1F2ED;--p-ink2:#BDBFC7;--p-ink3:#8A8D97;--p-ink4:#5F626C;
+  --p-glass:rgba(46,48,57,.5);--p-glass-line:rgba(255,255,255,.14);--p-glass-hi:rgba(255,255,255,.12);
+  --p-card:rgba(30,32,39,.88);--p-sel:rgba(255,255,255,.12);--p-scrim:rgba(0,0,0,.36);
+  --p-kb:rgba(40,40,44,.97);--p-key:#5C5C61;--p-key2:#3B3B3F;--p-keyink:#FFFFFF;--p-field:rgba(255,255,255,.075);
+  --p-theirs:#20232A;--p-home:rgba(255,255,255,.9)}
+.screen.still *{transition:none!important;animation:none!important}
+.glass{background:var(--p-glass);backdrop-filter:blur(22px) saturate(170%);-webkit-backdrop-filter:blur(22px) saturate(170%);
+  box-shadow:inset 0 0 0 .5px var(--p-glass-line),inset 0 1px 0 var(--p-glass-hi),0 8px 22px -10px rgba(0,0,0,.45)}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;border-radius:20px;background:#000;z-index:40}
+.home{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:140px;height:5px;border-radius:3px;background:var(--p-home);z-index:40;pointer-events:none}
+.sb{position:absolute;top:0;left:0;right:0;height:54px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 32px 6px 50px;font-size:17px;font-weight:600;z-index:30;color:var(--p-ink);pointer-events:none}
+.sb .bars{display:flex;gap:6px;align-items:center}
+.sb .bars i{display:block;height:11px;border-radius:2.5px;background:currentColor}
+.sb .bars .sig{width:18px;background:linear-gradient(90deg,currentColor 0 22%,transparent 22% 26%,currentColor 26% 48%,transparent 48% 52%,currentColor 52% 74%,transparent 74% 78%,currentColor 78%)}
+.sb .bars .wifi{width:15px;border-radius:8px 8px 2px 2px}
+.sb .bars .bat{width:25px;height:12px;border-radius:3.5px;box-shadow:inset 0 0 0 1px currentColor;background:linear-gradient(90deg,currentColor 0 80%,transparent 80%);background-clip:content-box;padding:2px}
+
+/* the list */
+.lp{position:absolute;inset:0;background:var(--p-bg);z-index:1;will-change:transform}
+.lp .big{position:absolute;top:66px;left:16px;font-size:34px;font-weight:700;letter-spacing:-.4px;line-height:41px}
+.lp .srch{position:absolute;top:118px;left:16px;right:16px;height:38px;border-radius:12px;background:var(--p-surface2);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--p-ink4);font-size:17px}
+.lp .srch svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
+.lp .rows{position:absolute;top:168px;left:0;right:0}
+.row{height:78px;display:flex;align-items:center;gap:12px;padding:0 16px;position:relative;transition:background calc(var(--k)*1.4s) ease}
+.row+.row::before{content:"";position:absolute;left:82px;right:0;top:0;height:.5px;background:var(--p-line)}
+.row.fresh{background:var(--p-surface3)}
+.row.fresh.out{background:transparent}
+.face{flex:none;width:55px;height:55px;border-radius:50%;display:grid;place-items:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -8px 16px rgba(0,0,0,.14)}
+.face svg{width:27px;height:27px;stroke:#fff;fill:none;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 1px rgba(0,0,0,.2))}
+.row .tx{flex:1;min-width:0;padding-right:44px}
+.row .nm{font-size:17px;font-weight:600;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--p-ink)}
+.row .ls{font-size:15px;line-height:20px;color:var(--p-ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .wh{position:absolute;right:34px;top:17px;font-size:15px;color:var(--p-ink3)}
+.row .chev{position:absolute;right:16px;top:27px;width:9px;height:14px;stroke:var(--p-ink4);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* the tab bar, and the + beside it */
+.tabs{position:absolute;left:0;right:0;bottom:0;height:120px;z-index:5;pointer-events:none}
+.tabs .bar{position:absolute;bottom:20px;height:60px;left:20px;width:281px;border-radius:30px;display:flex;padding:4px;pointer-events:auto}
+.tabs .tb{flex:1;display:grid;justify-items:center;align-content:center;gap:1px;border-radius:26px;font-size:10.5px;font-weight:600;color:var(--p-ink);letter-spacing:.1px}
+.tabs .tb.on{background:var(--p-sel);color:var(--p-gold)}
+.tabs .tb svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabs .tb.new{display:none;cursor:pointer}
+.tabs .tb.new svg{stroke:var(--p-gold);stroke-width:2.3}
+.plus{position:absolute;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;border:0;padding:0;pointer-events:auto;display:grid;place-items:center;cursor:pointer;
+  transition:transform calc(var(--k)*.32s) cubic-bezier(.34,1.56,.64,1);-webkit-tap-highlight-color:transparent}
+.plus svg{width:28px;height:28px;fill:none;stroke-width:2.6;stroke-linecap:round;position:relative;z-index:1}
+.plus.down{transform:scale(.84);transition-duration:calc(var(--k)*.12s)}
+.plus.gone{visibility:hidden}
+.tabs .ring{position:absolute;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;box-shadow:0 0 0 2px var(--p-gold);opacity:0;pointer-events:none}
+.tabs .ring.go{animation:ring calc(var(--k)*.6s) cubic-bezier(.2,.7,.2,1)}
+@keyframes ring{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(1.7)}}
+/* gold glass */
+.gold-flat{background:#F7C431;box-shadow:0 6px 16px -8px rgba(0,0,0,.5)}
+.gold-tint{background:rgba(247,196,49,.66);backdrop-filter:blur(22px) saturate(180%);-webkit-backdrop-filter:blur(22px) saturate(180%);
+  box-shadow:inset 0 0 0 .5px rgba(255,255,255,.3),0 8px 22px -10px rgba(0,0,0,.45)}
+.look-flat .plus svg,.look-tint .plus svg{stroke:#231A00}
+.look-clear .plus svg{stroke:var(--p-gold)}
+.in-bar .plus,.in-bar .ring{display:none}
+.in-bar .bar{left:30px;width:333px}
+.in-bar .tb.new{display:grid}
+
+/* the window */
+.scrim{position:absolute;inset:0;z-index:8;background:var(--p-scrim);opacity:0;pointer-events:none;transition:opacity calc(var(--k)*.32s) ease}
+.scrim.on{opacity:1;pointer-events:auto}
+.blob{position:absolute;z-index:12;display:none;overflow:hidden;border-radius:30px;left:0;top:0;width:60px;height:60px}
+.blob.settled{transition:top calc(var(--k)*.2s) ease,height calc(var(--k)*.2s) ease}
+.blob>.lay{position:absolute;inset:0;border-radius:inherit}
+.blob .gl{background:var(--p-card);backdrop-filter:blur(30px) saturate(170%);-webkit-backdrop-filter:blur(30px) saturate(170%);box-shadow:inset 0 0 0 .5px var(--p-glass-line),inset 0 1px 0 var(--p-glass-hi)}
+.blob .gd{opacity:0}
+.blob .fill{background:var(--p-bg);opacity:0}
+.blob .sheen{background:linear-gradient(105deg,transparent 35%,rgba(247,196,49,.28) 50%,transparent 65%);transform:translateX(-120%);opacity:0}
+.blob .sheen.go{animation:sweep calc(var(--k)*.9s) cubic-bezier(.3,.6,.3,1)}
+@keyframes sweep{0%{transform:translateX(-120%);opacity:1}100%{transform:translateX(120%);opacity:1}}
+.blob .bplus{position:absolute;left:50%;top:50%;width:28px;height:28px;margin:-14px 0 0 -14px;fill:none;stroke-width:2.6;stroke-linecap:round;stroke:#231A00;
+  transition:transform calc(var(--k)*.28s) cubic-bezier(.3,.7,.3,1),opacity calc(var(--k)*.2s) ease}
+.look-clear .blob .bplus,.in-bar .blob .bplus{stroke:var(--p-gold)}
+.blob .bplus.spin{transform:rotate(90deg) scale(.4);opacity:0}
+.card{position:absolute;left:0;top:0;width:373px;padding:16px 16px 14px}
+.card>*{opacity:0;transform:translateY(8px);transition:opacity calc(var(--k)*.22s) ease,transform calc(var(--k)*.34s) cubic-bezier(.3,.8,.3,1)}
+.card.show>*{opacity:1;transform:none}
+.card.show>:nth-child(2){transition-delay:calc(var(--k)*.05s)}
+.card.hide>*{opacity:0;transform:none;transition-duration:calc(var(--k)*.1s);transition-delay:0s}
+.card .ch{display:flex;align-items:flex-start;gap:10px}
+.card .ch>div{flex:1}
+.card .ct{font-size:20px;font-weight:700;letter-spacing:-.3px;line-height:25px;color:var(--p-ink)}
+.card .cs{font-size:13.5px;line-height:18px;color:var(--p-ink3);margin-top:2px}
+.card .cx{flex:none;width:30px;height:30px;border-radius:50%;border:0;background:var(--p-field);display:grid;place-items:center;cursor:pointer;padding:0}
+.card .cx svg{width:13px;height:13px;stroke:var(--p-ink3);stroke-width:2.6;stroke-linecap:round;fill:none}
+.fld{position:relative;margin-top:14px;background:var(--p-field);border-radius:23px;padding:12px 52px 12px 16px;min-height:46px}
+.fld textarea{display:block;width:100%;height:22px;border:0;outline:0;resize:none;background:transparent;padding:0;margin:0;font:17px/22px var(--font-ios);color:var(--p-ink);caret-color:var(--p-gold);overflow:hidden}
+.fld textarea::placeholder{color:var(--p-ink4)}
+.snd{position:absolute;right:7px;bottom:7px;width:32px;height:32px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;background:var(--p-ink4);cursor:pointer;
+  transition:background calc(var(--k)*.2s),transform calc(var(--k)*.3s) cubic-bezier(.34,1.56,.64,1)}
+.snd svg{width:17px;height:17px;stroke:var(--p-bg);stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.snd.ok{background:var(--p-gold)}
+.snd.ok svg{stroke:#231A00}
+.snd.pop{transform:scale(1.22)}
+
+/* the keyboard */
+.kb{position:absolute;left:0;right:0;bottom:0;height:336px;z-index:10;background:var(--p-kb);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  transform:translateY(102%);transition:transform calc(var(--k)*.42s) cubic-bezier(.32,.72,0,1);border-radius:26px 26px 0 0;padding:0 3px}
+.kb.up{transform:none}
+.kb .pred{height:44px;display:flex;align-items:center;margin:0 6px 8px;color:var(--p-keyink);font-size:16px}
+.kb .pred span{flex:1;text-align:center;opacity:.9}
+.kb .pred span+span{border-left:1px solid color-mix(in srgb,var(--p-keyink) 18%,transparent)}
+.kr{display:flex;gap:6px;margin-bottom:11px;height:42px}
+.kr.r2{padding:0 18px}
+.k{flex:1;border-radius:8.5px;background:var(--p-key);color:var(--p-keyink);display:grid;place-items:center;font-size:23px;font-style:normal;line-height:1;cursor:pointer;
+  box-shadow:0 1px 0 rgba(0,0,0,.3);transition:background calc(var(--k)*.08s)}
+.k.sp{background:var(--p-key2);font-size:15px;flex:none;width:44px}
+.k.w123{width:46px}
+.k.space{flex:4;font-size:16px}
+.k.go{flex:none;width:92px;background:#0A84FF;color:#fff;font-size:16px}
+.k.hit{background:var(--p-key2)}
+.k.go.hit{background:#0060d0}
+.kr .gap{width:6px;flex:none}
+.kfoot{display:flex;justify-content:space-between;padding:4px 26px 0;color:var(--p-keyink);opacity:.8}
+.kfoot svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round}
+
+/* the room */
+.room{position:absolute;inset:0;z-index:14;display:none;will-change:transform}
+.room.solid{background:var(--p-bg)}
+.room .msgs{position:absolute;left:16px;right:16px;bottom:118px;display:flex;flex-direction:column;gap:8px;z-index:1}
+.mine{align-self:flex-end;max-width:301px;padding:10px 14px;border-radius:20px 20px 6px 20px;font-size:17px;line-height:22px;color:#fff;background:#007c87;will-change:transform;white-space:pre-wrap;word-break:break-word}
+.theirs{align-self:flex-start;position:relative;max-width:309px;padding:10px 14px;border-radius:20px 20px 20px 6px;font-size:17px;line-height:22px;color:var(--p-ink);background:var(--p-theirs);overflow:hidden;transform-origin:0 100%}
+.theirs.pop{animation:pop calc(var(--k)*.45s) cubic-bezier(.34,1.56,.64,1)}
+@keyframes pop{0%{transform:scale(.4);opacity:0}100%{transform:none;opacity:1}}
+.theirs.grow{transition:width calc(var(--k)*.46s) cubic-bezier(.34,1.3,.64,1),height calc(var(--k)*.46s) cubic-bezier(.34,1.3,.64,1)}
+.theirs .dots{display:flex;gap:5px;height:22px;align-items:center;padding:0 4px;transition:opacity calc(var(--k)*.15s)}
+.theirs .dots i{width:8px;height:8px;border-radius:50%;background:var(--p-ink3);animation:dot calc(var(--k)*1.2s) infinite ease-in-out}
+.theirs .dots i:nth-child(2){animation-delay:calc(var(--k)*.15s)}
+.theirs .dots i:nth-child(3){animation-delay:calc(var(--k)*.3s)}
+@keyframes dot{0%,60%,100%{opacity:.35;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+.theirs .txt{position:absolute;left:14px;top:10px;opacity:0;transition:opacity calc(var(--k)*.26s) ease calc(var(--k)*.04s)}
+.theirs.said .dots{opacity:0}
+.theirs.said .txt{opacity:1}
+.room .fade{position:absolute;top:0;left:0;right:0;height:128px;background:linear-gradient(var(--p-bg) 42%,color-mix(in srgb,var(--p-bg) 0%,transparent));z-index:2;opacity:0;transition:opacity calc(var(--k)*.3s)}
+.room .back{position:absolute;left:16px;top:58px;width:46px;height:46px;border-radius:50%;border:0;padding:0;display:grid;place-items:center;z-index:3;cursor:pointer}
+.room .back svg{width:22px;height:22px;stroke:var(--p-ink);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.room .pillpos{position:absolute;top:55px;left:0;right:0;display:flex;justify-content:center;z-index:3;pointer-events:none}
+.room .pill{position:relative;height:52px;border-radius:26px;overflow:hidden;transition:width calc(var(--k)*.55s) cubic-bezier(.34,1.45,.64,1)}
+.room .pill .t1{position:absolute;left:0;right:0;top:8px;height:21px}
+.room .pill .t1 span{position:absolute;left:50%;top:0;transform:translateX(-50%);white-space:nowrap;font-size:17px;font-weight:700;line-height:21px;color:var(--p-ink);
+  transition:transform calc(var(--k)*.42s) cubic-bezier(.3,.8,.3,1),opacity calc(var(--k)*.3s) ease}
+.room .pill .t1 span.out{transform:translate(-50%,-16px);opacity:0}
+.room .pill .t1 span.nx{transform:translate(-50%,16px);opacity:0}
+.room .pill .t1 span.nx.in{transform:translateX(-50%);opacity:1}
+.room .pill .t2{position:absolute;left:0;right:0;top:29px;text-align:center;font-size:12.5px;line-height:16px;color:var(--p-ink3);white-space:nowrap}
+.room .pill .sweep{position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(247,196,49,.42) 50%,transparent 70%);transform:translateX(-120%);opacity:0}
+.room .pill .sweep.go{animation:sweep calc(var(--k)*.95s) cubic-bezier(.3,.6,.3,1)}
+.room .cmp{position:absolute;left:12px;right:12px;bottom:42px;height:52px;display:flex;gap:8px;z-index:3}
+.room .cplus{flex:none;width:52px;height:52px;border-radius:50%;display:grid;place-items:center}
+.room .cplus svg{width:22px;height:22px;stroke:var(--p-ink2);stroke-width:2.2;fill:none;stroke-linecap:round}
+.room .cf{flex:1;border-radius:26px;display:flex;align-items:center;padding:0 8px 0 18px;font-size:17px;color:var(--p-ink4)}
+.room .cf span{flex:1}
+.room .cf i{width:32px;height:32px;border-radius:50%;background:var(--p-ink4);display:grid;place-items:center}
+.room .cf i svg{width:16px;height:16px;stroke:var(--p-bg);stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.room .en{opacity:0;transform:translateY(10px) scale(.94);transition:opacity calc(var(--k)*.3s) ease,transform calc(var(--k)*.5s) cubic-bezier(.34,1.4,.64,1)}
+.room .en.pillpos{transform:translateY(-10px) scale(.94)}
+.room .en.back{transform:scale(.6)}
+.room.in .en{opacity:1;transform:none}
+.room.in .fade{opacity:1}
+.room.in .pillpos{transition-delay:calc(var(--k)*.05s)}
+.room.in .cmp{transition-delay:calc(var(--k)*.1s)}
+
+.finger{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(150,150,160,.38);border:2px solid rgba(255,255,255,.85);
+  box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none;opacity:0;z-index:35;
+  transition:opacity calc(var(--k)*.18s),transform calc(var(--k)*.12s),left calc(var(--k)*.5s) cubic-bezier(.4,.1,.2,1),top calc(var(--k)*.5s) cubic-bezier(.4,.1,.2,1)}
+.finger.on{opacity:1}
+.finger.down{transform:scale(.78)}
+</style>
+
+<div class="top"><div class="top-in"><span class="brand">Chips</span><span class="what">Spaces · a new space from the tab bar</span><span class="ver">mock · 24 Sep 2026</span></div></div>
+
+<article>
+<h1>A new space, from a <b style="color:var(--gold-deep)">+</b> by the tab bar</h1>
+<p class="lede">A flat gold <b>+</b> sits beside the tab bar. Tap it and it stretches into a small window, <b>Create new space</b>, with a field above the keyboard. Say what the space is for and send. The window fills the screen and becomes the room, and your words become its first message. The room says <b>New space</b> until the harness names it.</p>
+<p class="lede">This is a running mock, not the app. It plays on its own until you touch the phone. After that you can tap the <b>+</b>, type on your own keyboard or the drawn one, and press Enter. Turn on <b>Slow motion</b> to judge the movement.</p>
+
+<figure>
+  <div class="fig-head"><span class="fig-no">FIG 1</span><h3 class="fig-title">The Spaces tab, live</h3>
+    <div class="tools">
+      <span class="seg" id="looks"><button class="btn on" data-look="flat">Flat gold</button><button class="btn" data-look="tint">Gold tint</button><button class="btn" data-look="clear">Clear glass</button><button class="btn" data-look="bar">In the bar</button></span>
+      <button class="btn" id="slow">Slow motion</button><button class="btn" id="theme">Light</button><button class="btn on" id="play">Playing</button></div></div>
+  <div class="live">
+    <div class="frame" id="live"></div>
+    <div class="side">
+      <ol>
+        <li><b>The +</b> sits in the spot iOS 26 keeps beside the tabs for an app's one main action. It's plain gold with no shading, so it reads as the thing to press without looking like a sweet. Pressing it gives a squeeze and a gold ring.</li>
+        <li><b>On release</b> the button pours up into the window. It widens and grows taller on two springs slightly out of step, so it flows rather than scales. The <b>+</b> spins away, the keyboard rises with it, the list dims, and a gold light crosses the window as it lands.</li>
+        <li><b>Type what it's for.</b> The field grows with what you write, up to four lines. The arrow turns gold once there's something to send.</li>
+        <li><b>Send</b> with the keyboard's send key, the arrow, or Enter. The window fills the screen, the keyboard drops, and your words fly from the field to where the room's first message sits.</li>
+        <li><b>The room</b> reads <b>New space</b> while the harness works. When it names the space, the new name slides into the title with the same gold light, and the reply follows.</li>
+        <li><b>Tap outside</b> the window, or ×, and it folds back into the <b>+</b>. What you typed is kept for next time.</li>
+      </ol>
+      <p style="font-size:13.5px;color:var(--ink-3)">The four buttons above the phone switch the look of the <b>+</b>. Everything after the tap is the same for all four.</p>
+    </div>
+  </div>
+</figure>
+
+<figure>
+  <div class="fig-head"><span class="fig-no">FIG 2</span><h3 class="fig-title">The steps, still</h3></div>
+  <div class="frames">
+    <div class="stepped"><div class="frame xs" id="s1"></div><div class="t">The list: the + beside the bar</div></div>
+    <div class="stepped"><div class="frame xs" id="s2"></div><div class="t">The window, over the keyboard</div></div>
+    <div class="stepped"><div class="frame xs" id="s3"></div><div class="t">Sent: the room, not named yet</div></div>
+    <div class="stepped"><div class="frame xs" id="s4"></div><div class="t">Named by the harness, and its reply</div></div>
+    <div class="stepped"><div class="frame xs" id="s5"></div><div class="t">Back: the new space at the top</div></div>
+  </div>
+  <figcaption>The subtitle under the window's title and under the room's name is the harness that will take it. With more than one harness that accepts new spaces, that line becomes a small picker: “For Jacobian ▾”.</figcaption>
+</figure>
+
+<figure>
+  <div class="fig-head"><span class="fig-no">FIG 3</span><h3 class="fig-title">Four looks for the +</h3></div>
+  <div class="frames">
+    <div class="stepped"><div class="frame sm" id="v1"></div><div class="t">Flat gold</div></div>
+    <div class="stepped"><div class="frame sm" id="v2"></div><div class="t">Gold-tinted glass</div></div>
+    <div class="stepped"><div class="frame sm" id="v3"></div><div class="t">Clear glass, gold +</div></div>
+    <div class="stepped"><div class="frame sm" id="v4"></div><div class="t">In the bar, as a fourth tab</div></div>
+  </div>
+</figure>
+
+<h2>The + : pick one</h2>
+<p>All four open the same window and move into the room the same way. The difference is how the button looks and how much of it is the system's own. None of them has shading or a highlight. The first version did, and it looked like a 3D ball. The excitement belongs in the movement, not the button.</p>
+<div class="opts">
+  <div class="opt rec"><div class="h"><span class="k">F</span><span class="n">Flat gold, beside the bar</span><span class="tag">recommended</span></div>
+    <p>A plain gold circle with a dark <b>+</b> and a soft shadow so it floats over the list. It's the one bright thing at the bottom of the screen, in the colour Chips already uses for what needs you. Because the button is ours, the window pours straight out of it.</p>
+    <p class="cost"><b>Cost:</b> a plain round view, so it's the cheapest of our own. The open question is placement. Either it sits over the slot iOS 26 keeps for a separate tab (a tab marked <code>search</code>), or in the gap beside the centred bar. I'd settle that with an hour on the simulator first, including what happens when the bar shrinks as the list scrolls.</p></div>
+  <div class="opt"><div class="h"><span class="k">T</span><span class="n">Gold-tinted glass, beside the bar</span></div>
+    <p>The same circle in iOS 26's tinted glass: gold you can see the list through, matching the bar's material. Quieter than flat gold, and more of a piece with the bar.</p>
+    <p class="cost"><b>Cost:</b> the same as F, drawn with expo-glass-effect's <code>GlassView</code> and a gold tint, which is iOS's own glass. It's paler over light rows, so the <b>+</b> is a little less loud in light mode.</p></div>
+  <div class="opt"><div class="h"><span class="k">C</span><span class="n">Clear glass, gold +</span></div>
+    <p>The system's own separate circle beside the bar, holding a <b>+</b>. Its glass, its press and its shrink-on-scroll are all iOS's.</p>
+    <p class="cost"><b>Cost:</b> the least code. It's a tab marked <code>search</code> and <code>disabled</code>, so it never opens, and we catch its press. The expo-router version here supports both. Two limits: the system's circle can't stretch, so the window grows from a copy laid over it, and the <b>+</b> may only come in grey, not gold. That second one needs checking.</p></div>
+  <div class="opt"><div class="h"><span class="k">B</span><span class="n">In the bar, as a fourth tab</span><span class="tag no">not recommended</span></div>
+    <p>A fourth item in the bar, <b>New</b>, with a gold <b>+</b>.</p>
+    <p class="cost"><b>Cost:</b> the same as C. It looks like a place to go rather than a thing to do, and it takes a quarter of the bar.</p></div>
+</div>
+
+<h2>How the movement would be built</h2>
+<ul>
+  <li><b>On the UI thread</b>, with Reanimated. The window is one glass view laid over everything. Its content is laid out once at full size and faded in, so only one view's frame and corners change per frame and nothing reflows. That's ADR 0061's lesson: the room's own height is never animated.</li>
+  <li><b>Two springs, across and up,</b> slightly out of step. That's what makes it pour instead of scale. The same pair runs in reverse when the window folds back into the <b>+</b>.</li>
+  <li><b>Into the room:</b> the room opens under the window with no transition of its own. The window fills the screen, the first message flies from the field to its place, and then the window lifts away. The room already shows that message from the send queue, so there's no gap.</li>
+  <li><b>Haptics:</b> a light tap on the <b>+</b> and a firmer one on send, from <code>ui/haptics.ts</code>.</li>
+  <li><b>Reduce Motion:</b> the window fades in and cross-fades into the room. No stretch, no flight, no sweep.</li>
+  <li><b>Android:</b> the same movement, with the <b>+</b> to the right of the bar. Not walked unless you ask.</li>
+</ul>
+
+<h2>Desktop and web</h2>
+<p>The <b>+</b> at the head of the sidebar, beside <i>Recent</i>, stays where it is. Today it opens a one-line form that makes a room nobody answers in. Instead it opens a small centred dialog with the same words and field, using a plain fade and scale of about 150 ms. Enter closes the dialog and opens the room the same way clicking a room does. No pouring, no flight.</p>
+
+<h2>What this changes in the plan</h2>
+<ul>
+  <li><b>The connection mark stays top right.</b> The <b>+</b> no longer competes for that corner, so nothing moves and the three placements from yesterday are dropped.</li>
+  <li><b>Phase 3 (phone)</b> becomes: the <b>+</b> by the tab bar, the window, the move into the room, and the room's first words standing in as its name if the harness never names it.</li>
+  <li><b>Phase 4 (desktop)</b> becomes the dialog above.</li>
+  <li>Phases 1, 2 and 5 are unchanged: the server, the SDK and test kit, and Jacobian's half.</li>
+</ul>
+</article>
+
+<script>
+(() => {
+"use strict";
+const W = 393, H = 852, KB = 336;
+let SLOW = 1;
+const STOP = Symbol("stop");
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp01 = (t) => Math.max(0, Math.min(1, t));
+
+const svg = (d, cls = "") => `<svg viewBox="0 0 24 24"${cls ? ` class="${cls}"` : ""}>${d}</svg>`;
+const I = {
+  search: svg('<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>'),
+  spaces: svg('<path d="M3.5 5.5h10a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H8.5l-3.5 3v-3H3.5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z"/><path d="M18 9.5h2.5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H19v3l-3.5-3H11a2 2 0 0 1-2-1.6"/>'),
+  chip: svg('<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9 2.5V6M12 2.5V6M15 2.5V6M9 18v3.5M12 18v3.5M15 18v3.5M2.5 9H6M2.5 12H6M2.5 15H6M18 9h3.5M18 12h3.5M18 15h3.5"/>'),
+  you: svg('<circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="10" r="3.3"/><path d="M5.8 18.6c1.4-2.4 3.6-3.7 6.2-3.7s4.8 1.3 6.2 3.7"/>'),
+  plus: svg('<path d="M12 4.5v15M4.5 12h15"/>'),
+  x: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+  up: svg('<path d="M12 19V6M6 11.5 12 5.5l6 6"/>'),
+  back: svg('<path d="M15 4.5 7.5 12l7.5 7.5"/>'),
+  chev: '<svg class="chev" viewBox="0 0 9 14"><path d="M1.5 1.5 7 7l-5.5 5.5"/></svg>',
+  globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9S14.5 18.4 12 21c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/>'),
+  mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>'),
+};
+const FACE = {
+  chip: svg('<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3"/>'),
+  crown: svg('<path d="M4 17.5h16l1-9.5-5 4-4-7-4 7-5-4z"/><path d="M5 21h14"/>'),
+  rocket: svg('<path d="M12 2.5c3 2 4.5 5.6 4.5 9.6L14 16h-4l-2.5-3.9c0-4 1.5-7.6 4.5-9.6z"/><circle cx="12" cy="9.5" r="1.7"/><path d="M10 16l-1.2 4.5L12 18.6l3.2 1.9L14 16"/>'),
+  book: svg('<path d="M5 4.5h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17.5a3 3 0 0 1 3-3h11"/>'),
+  plane: svg('<path d="M21 3 3 10.5l7.2 3.3L13.5 21z"/><path d="M10.2 13.8 21 3"/>'),
+  leaf: svg('<path d="M5 19C5 10.5 10 5 19.5 4.5 19 14 13.5 19 5 19z"/><path d="M5 19 14.5 9.5"/>'),
+  compass: svg('<circle cx="12" cy="12" r="9"/><path d="m15.8 8.2-2.3 5.3-5.3 2.3 2.3-5.3z"/>'),
+  cloud: svg('<circle cx="9" cy="8.5" r="3"/><path d="M9 2.8v1.2M3.3 8.5h1.2M5 4.5l.8.8M13 4.5l-.8.8"/><path d="M8.5 20h9a3.5 3.5 0 0 0 .3-7 5 5 0 0 0-9.4 1.3A2.9 2.9 0 0 0 8.5 20z"/>'),
+};
+const ROWS = [
+  {name:"J", last:"Placed the Kalshi pull in Research.", when:"2m", icon:"chip", c:["#e0906a","#a9502d"]},
+  {name:"Chess Game", last:"Your move. I'd play Nf3 here.", when:"14m", icon:"crown", c:["#43b068","#1e7a42"]},
+  {name:"Game of Life", last:"The glider gun is stable at gen 400.", when:"2h", icon:"rocket", c:["#e871a8","#b1427d"]},
+  {name:"Research Digest", last:"Six papers this week; two worth reading.", when:"1d", icon:"book", c:["#26aeb6","#0c6e86"]},
+  {name:"Trip to Goa", last:"Flights hold until Friday.", when:"1d", icon:"plane", c:["#35aee0","#1669b6"]},
+  {name:"Backyard Garden", last:"With the soil still wet, skip watering today.", when:"2d", icon:"leaf", c:["#41b08b","#1d6c59"]},
+  {name:"Scout", last:"All quiet on the fleet.", when:"3d", icon:"compass", c:["#9170f2","#5a3ccc"]},
+  {name:"Old Backtests", last:"Sharpe 0.4 over the full window.", when:"Sep 12", icon:"chip", c:["#c49a2c","#8a6200"]},
+];
+const DEMO = "Track Kalshi weather markets and tell me when a city's high looks mispriced";
+const DEMO_NAME = "Kalshi Weather";
+const DEMO_REPLY = "Kalshi Weather is set up under J. Each morning I'll check the highs for New York, Chicago and Miami, and tell you when a market is more than 8¢ off the forecast.";
+
+function nameFrom(t) {
+  if (/kalshi/i.test(t) && /weather/i.test(t)) return DEMO_NAME;
+  const stop = new Set("a an the and or of for to my me i we our in on at with about this that it its space track plan help keep tell when what is are be let lets want need please make create new all can you your some any from into up".split(" "));
+  const words = t.replace(/[^\p{L}\p{N}\s'-]/gu, " ").split(/\s+/).filter((w) => w && !stop.has(w.toLowerCase()));
+  const pick = words.slice(0, 2).map((w) => w[0].toUpperCase() + w.slice(1));
+  return pick.join(" ") || "New space";
+}
+
+function rowHTML(r) {
+  return `<div class="row${r.fresh ? " fresh" : ""}"><div class="face" style="background:linear-gradient(160deg,${r.c[0]},${r.c[1]})">${FACE[r.icon]}</div>` +
+    `<div class="tx"><div class="nm">${esc(r.name)}</div><div class="ls">${esc(r.last)}</div></div><span class="wh">${r.when}</span>${I.chev}</div>`;
+}
+
+function kbHTML() {
+  const keys = (s) => [...s].map((k) => `<i class="k" data-k="${k}">${k}</i>`).join("");
+  return `<div class="pred"><span>the</span><span>I</span><span>and</span></div>` +
+    `<div class="kr">${keys("qwertyuiop")}</div>` +
+    `<div class="kr r2">${keys("asdfghjkl")}</div>` +
+    `<div class="kr"><i class="k sp" data-k="shift">⇧</i><span class="gap"></span>${keys("zxcvbnm")}<span class="gap"></span><i class="k sp" data-k="del">⌫</i></div>` +
+    `<div class="kr"><i class="k sp w123" data-k="123">123</i><i class="k sp" data-k="emoji">☺</i><i class="k space" data-k=" ">space</i><i class="k go" data-k="send">send</i></div>` +
+    `<div class="kfoot">${I.globe}${I.mic}</div>`;
+}
+
+function phoneHTML() {
+  return `<div class="dev"><div class="screen dk look-flat">
+    <div class="lp"><div class="big">Spaces</div><div class="srch">${I.search}<span>Anything said</span></div><div class="rows"></div></div>
+    <div class="tabs">
+      <div class="bar glass">
+        <div class="tb on">${I.spaces}<span>Spaces</span></div>
+        <div class="tb">${I.chip}<span>Harnesses</span></div>
+        <div class="tb">${I.you}<span>You</span></div>
+        <div class="tb new" data-act="plus">${I.plus}<span>New</span></div>
+      </div>
+      <i class="ring"></i>
+      <button class="plus" data-act="plus" aria-label="Create new space">${I.plus}</button>
+    </div>
+    <div class="scrim" data-act="dismiss"></div>
+    <div class="kb">${kbHTML()}</div>
+    <div class="blob">
+      <div class="lay gl"></div><div class="lay gd"></div><div class="lay fill"></div><div class="lay sheen"></div>
+      ${I.plus.replace("<svg", '<svg class="bplus"')}
+      <div class="card">
+        <div class="ch"><div><div class="ct">Create new space</div><div class="cs">Jacobian sets it up and names it.</div></div><button class="cx" data-act="dismiss" aria-label="Close">${I.x}</button></div>
+        <div class="fld"><textarea rows="1" placeholder="What's this space for?" enterkeyhint="send" spellcheck="false"></textarea><button class="snd" data-act="send" aria-label="Send">${I.up}</button></div>
+      </div>
+    </div>
+    <div class="room">
+      <div class="msgs"></div>
+      <div class="fade"></div>
+      <button class="back glass en" data-act="back" aria-label="Back">${I.back}</button>
+      <div class="pillpos en"><div class="pill glass"><div class="t1"><span class="cur">New space</span></div><div class="t2">Jacobian</div><i class="sweep"></i></div></div>
+      <div class="cmp en"><div class="cplus glass">${I.plus}</div><div class="cf glass"><span>Message, or /command</span><i>${I.up}</i></div></div>
+    </div>
+    <div class="sb"><span>9:41</span><span class="bars"><i class="sig"></i><i class="wifi"></i><i class="bat"></i></span></div>
+    <div class="island"></div>
+    <div class="finger"></div>
+    <div class="home"></div>
+  </div></div>`;
+}
+
+class Phone {
+  constructor(host, o = {}) {
+    this.host = host;
+    this.still = !!o.still;
+    host.innerHTML = phoneHTML();
+    const q = (s) => host.querySelector(s);
+    this.screen = q(".screen"); this.lp = q(".lp"); this.rows = q(".rows");
+    this.plus = q(".plus"); this.ring = q(".ring"); this.newTab = q(".tb.new");
+    this.scrim = q(".scrim"); this.kb = q(".kb");
+    this.blob = q(".blob"); this.gd = q(".blob .gd"); this.fill = q(".blob .fill"); this.sheen = q(".blob .sheen");
+    this.bplus = q(".bplus"); this.card = q(".card"); this.ta = q("textarea"); this.snd = q(".snd"); this.cs = q(".cs");
+    this.room = q(".room"); this.msgs = q(".msgs"); this.pill = q(".pill"); this.t1 = q(".pill .t1"); this.sweep = q(".pill .sweep");
+    this.finger = q(".finger");
+    this.gen = 0; this.state = "list"; this.look = o.look || "flat"; this.fresh = [];
+    if (this.still) { this.screen.classList.add("still"); this.ta.readOnly = true; }
+    this.setTheme(o.theme || "dk");
+    this.setLook(this.look);
+    this.renderRows();
+    this.wire();
+  }
+
+  // ── plumbing ──
+  alive(gen) { if (gen !== this.gen) throw STOP; }
+  wait(ms) {
+    if (this.still) return Promise.resolve();
+    const gen = this.gen;
+    return new Promise((res, rej) => setTimeout(() => (gen === this.gen ? res() : rej(STOP)), ms * SLOW));
+  }
+  later(ms, fn) { if (this.still) fn(); else { const gen = this.gen; setTimeout(() => gen === this.gen && fn(), ms * SLOW); } }
+  spring(o) {
+    const to = o.to ?? 1;
+    if (this.still) { o.on(to); return Promise.resolve(); }
+    const gen = this.gen, k = o.k ?? 200, c = o.c ?? 22;
+    return new Promise((res) => {
+      let x = o.from ?? 0, v = 0, last = null;
+      const tick = (now) => {
+        if (gen !== this.gen) return res();
+        if (last === null) last = now;
+        const dt = Math.min(0.034, (now - last) / 1000) / SLOW; last = now;
+        const n = 6, h = dt / n;
+        for (let i = 0; i < n; i++) { const a = -k * (x - to) - c * v; v += a * h; x += v * h; }
+        if (Math.abs(x - to) < 0.0006 && Math.abs(v) < 0.02) { o.on(to); return res(); }
+        o.on(x); requestAnimationFrame(tick);
+      };
+      const go = () => requestAnimationFrame(tick);
+      if (o.delay) setTimeout(go, o.delay * SLOW); else go();
+    });
+  }
+  rect(el) {
+    const s = this.screen.getBoundingClientRect(), r = el.getBoundingClientRect(), k = s.width / W;
+    return {x: (r.left - s.left) / k, y: (r.top - s.top) / k, w: r.width / k, h: r.height / k};
+  }
+  reflow(el) { void el.offsetWidth; }
+
+  // ── set-up ──
+  setTheme(t) { this.screen.classList.toggle("dk", t === "dk"); }
+  setLook(look) {
+    this.look = look;
+    this.screen.classList.remove("look-flat", "look-tint", "look-clear", "in-bar");
+    this.screen.classList.add(look === "bar" ? "in-bar" : `look-${look}`);
+    const gold = look === "flat" ? "gold-flat" : look === "tint" ? "gold-tint" : "";
+    this.plus.classList.remove("gold-flat", "gold-tint", "glass");
+    this.plus.classList.add(gold || "glass");
+    this.gd.className = "lay gd " + gold;
+  }
+  renderRows() {
+    this.rows.innerHTML = [...this.fresh, ...ROWS].slice(0, 9).map(rowHTML).join("");
+  }
+  origin() {
+    if (this.look === "bar") {
+      const r = this.rect(this.newTab.querySelector("svg"));
+      return {x: r.x + r.w / 2 - 22, y: r.y + r.h / 2 - 22, w: 44, h: 44};
+    }
+    return {x: W - 80, y: H - 80, w: 60, h: 60};
+  }
+  cardRect() {
+    const h = this.card.offsetHeight;
+    return {x: 10, y: H - KB - 10 - h, w: W - 20, h};
+  }
+  place(r, radius) {
+    const b = this.blob.style;
+    b.left = r.x + "px"; b.top = r.y + "px"; b.width = r.w + "px"; b.height = r.h + "px";
+    b.borderRadius = Math.min(radius, r.w / 2, r.h / 2) + "px";
+  }
+  wire() {
+    if (this.still) return;
+    this.host.addEventListener("click", (e) => {
+      const act = e.target.closest("[data-act]")?.dataset.act;
+      if (act === "plus") this.openCard();
+      else if (act === "dismiss") this.closeCard();
+      else if (act === "send") this.send();
+      else if (act === "back") this.back();
+    });
+    this.plus.addEventListener("pointerdown", () => this.press(true));
+    this.plus.addEventListener("pointerup", () => this.press(false));
+    this.plus.addEventListener("pointerleave", () => this.plus.classList.remove("down"));
+    this.ta.addEventListener("input", () => this.fit());
+    this.ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); this.send(); }
+    });
+    this.kb.addEventListener("pointerdown", (e) => {
+      const k = e.target.closest(".k")?.dataset.k;
+      if (!k || this.state !== "open") return;
+      e.preventDefault();
+      this.flash(k);
+      if (k === "send") return this.send();
+      if (k === "del") this.ta.value = this.ta.value.slice(0, -1);
+      else if (k.length === 1) this.ta.value += k;
+      this.fit();
+    });
+  }
+  press(down) {
+    this.plus.classList.toggle("down", down);
+    if (!down) { this.ring.classList.remove("go"); this.reflow(this.ring); this.ring.classList.add("go"); }
+  }
+  flash(k) {
+    const key = this.kb.querySelector(`[data-k="${k === " " ? " " : k.toLowerCase()}"]`);
+    if (!key) return;
+    key.classList.add("hit");
+    setTimeout(() => key.classList.remove("hit"), 110 * SLOW);
+  }
+  fit() {
+    const ta = this.ta;
+    ta.style.height = "22px";
+    ta.style.height = Math.min(88, Math.max(22, ta.scrollHeight)) + "px";
+    this.snd.classList.toggle("ok", ta.value.trim() !== "");
+    if (this.state === "open") this.place(this.cardRect(), 30);
+  }
+
+  // ── the list → the window ──
+  async openCard() {
+    if (this.state !== "list") return;
+    this.state = "opening";
+    const gen = this.gen;
+    const from = this.origin();
+    this.blob.classList.remove("settled");
+    this.blob.style.display = "block";
+    this.card.classList.remove("show", "hide");
+    this.fit();
+    const to = this.cardRect();
+    const goldAtStart = this.look === "flat" || this.look === "tint" ? 1 : 0;
+    this.gd.style.opacity = goldAtStart;
+    this.fill.style.opacity = 0;
+    this.bplus.classList.remove("spin");
+    this.place(from, 30);
+    this.plus.classList.add("gone"); this.plus.classList.remove("down");
+    this.newTab.style.visibility = "hidden";
+    this.reflow(this.blob);
+    this.bplus.classList.add("spin");
+    this.scrim.classList.add("on");
+    this.kb.classList.add("up");
+    let ph = 0, pv = 0;
+    const draw = () => {
+      this.place({x: lerp(from.x, to.x, ph), w: lerp(from.w, to.w, ph), y: lerp(from.y, to.y, pv), h: lerp(from.h, to.h, pv)}, 30);
+      this.gd.style.opacity = goldAtStart * (1 - clamp01(Math.min(ph, pv) * 1.7));
+    };
+    this.later(150, () => this.card.classList.add("show"));
+    this.later(230, () => { this.sheen.classList.remove("go"); this.reflow(this.sheen); this.sheen.classList.add("go"); });
+    await Promise.all([
+      this.spring({k: 250, c: 24, on: (p) => { ph = p; draw(); }}),
+      this.spring({k: 185, c: 20, delay: 25, on: (p) => { pv = p; draw(); }}),
+    ]);
+    if (gen !== this.gen) return;
+    this.state = "open";
+    this.blob.classList.add("settled");
+    if (!this.still && this.interactive) this.ta.focus({preventScroll: true});
+  }
+
+  async closeCard() {
+    if (this.state !== "open") return;
+    this.state = "closing";
+    const gen = this.gen;
+    this.ta.blur();
+    this.blob.classList.remove("settled");
+    const from = this.cardRect(), to = this.origin();
+    const goldAtEnd = this.look === "flat" || this.look === "tint" ? 1 : 0;
+    this.card.classList.add("hide");
+    this.scrim.classList.remove("on");
+    this.kb.classList.remove("up");
+    this.bplus.classList.remove("spin");
+    let ph = 0, pv = 0;
+    const draw = () => {
+      this.place({x: lerp(from.x, to.x, ph), w: lerp(from.w, to.w, ph), y: lerp(from.y, to.y, pv), h: lerp(from.h, to.h, pv)}, 30);
+      this.gd.style.opacity = goldAtEnd * clamp01((Math.min(ph, pv) - .35) / .5);
+    };
+    await Promise.all([
+      this.spring({k: 300, c: 28, delay: 20, on: (p) => { ph = p; draw(); }}),
+      this.spring({k: 260, c: 25, on: (p) => { pv = p; draw(); }}),
+    ]);
+    if (gen !== this.gen) return;
+    this.blob.style.display = "none";
+    this.plus.classList.remove("gone");
+    this.newTab.style.visibility = "";
+    this.state = "list";
+  }
+
+  // ── the window → the room ──
+  resetRoom() {
+    this.room.classList.remove("in", "solid");
+    this.room.style.transition = ""; this.room.style.transform = "";
+    this.room.style.display = "none";
+    this.msgs.innerHTML = "";
+    this.t1.innerHTML = '<span class="cur">New space</span>';
+    this.pill.style.width = "";
+    this.sweep.classList.remove("go");
+  }
+  sizePill(text) {
+    const probe = document.createElement("span");
+    probe.textContent = text; probe.style.visibility = "hidden";
+    this.t1.appendChild(probe);
+    const w = Math.max(probe.offsetWidth, 64) + 44;
+    probe.remove();
+    return w;
+  }
+  async send() {
+    const text = this.ta.value.trim();
+    if (!text || this.state !== "open") return;
+    this.state = "sending";
+    const gen = this.gen;
+    this.name = nameFrom(text);
+    this.snd.classList.add("pop");
+    this.later(160, () => this.snd.classList.remove("pop"));
+    this.ta.blur();
+
+    // the room, built under the window, with the first message where it will sit
+    this.resetRoom();
+    this.room.style.display = "block";
+    this.pill.style.width = this.sizePill("New space") + "px";
+    const b = document.createElement("div");
+    b.className = "mine"; b.textContent = text;
+    this.msgs.appendChild(b);
+    const bt = this.rect(b), tr = this.rect(this.ta);
+    const dx = tr.x - (bt.x + 14), dy = tr.y - (bt.y + 10);
+    const flight = (p) => {
+      b.style.transform = `translate(${(1 - p) * dx}px,${(1 - p) * dy}px) scale(${lerp(.985, 1, clamp01(p))})`;
+      b.style.backgroundColor = `rgba(0,124,135,${clamp01((p - .15) / .55)})`;
+    };
+    flight(0);
+    this.ta.style.color = "transparent";
+    this.card.classList.add("hide");
+    this.kb.classList.remove("up");
+    this.blob.classList.remove("settled");
+
+    const from = this.cardRect(), to = {x: 0, y: 0, w: W, h: H};
+    let ph = 0, pv = 0;
+    const draw = () => {
+      const p = Math.min(ph, pv);
+      this.place({x: lerp(from.x, to.x, ph), w: lerp(from.w, to.w, ph), y: lerp(from.y, to.y, pv), h: lerp(from.h, to.h, pv)}, lerp(30, 56, clamp01(p)));
+      this.fill.style.opacity = clamp01((p - .1) / .55);
+    };
+    this.later(170, () => this.room.classList.add("in"));
+    await Promise.all([
+      this.spring({k: 210, c: 24, on: (p) => { ph = p; draw(); }}),
+      this.spring({k: 165, c: 21, delay: 20, on: (p) => { pv = p; draw(); }}),
+      this.spring({k: 150, c: 19, delay: 70, on: flight}),
+    ]);
+    if (gen !== this.gen) return;
+    b.style.transform = ""; b.style.backgroundColor = "";
+    this.room.classList.add("solid");
+    this.blob.style.display = "none";
+    this.scrim.classList.remove("on");
+    this.plus.classList.remove("gone");
+    this.newTab.style.visibility = "";
+    this.ta.value = ""; this.ta.style.color = ""; this.fit();
+    this.state = "room";
+    await this.think();
+  }
+  async think() {
+    const gen = this.gen;
+    await this.wait(380).catch(() => {});
+    if (gen !== this.gen) return;
+    const t = document.createElement("div");
+    t.className = "theirs think" + (this.still ? "" : " pop");
+    t.innerHTML = '<span class="dots"><i></i><i></i><i></i></span><div class="txt"></div>';
+    this.msgs.appendChild(t);
+    this.thinking = t;
+    if (!this.interactive || this.still) return;
+    // on its own, the harness names the room and answers
+    try {
+      await this.wait(1500); await this.rename(this.name);
+      await this.wait(650); await this.reply(this.name === DEMO_NAME ? DEMO_REPLY : `${this.name} is set up under J. I've written its brief from what you said, and I'm starting on it now.`);
+    } catch (e) { if (e !== STOP) throw e; }
+  }
+  async rename(name) {
+    const cur = this.t1.querySelector(".cur");
+    const nx = document.createElement("span");
+    nx.className = "nx"; nx.textContent = name;
+    this.t1.appendChild(nx);
+    this.pill.style.width = this.sizePill(name) + "px";
+    this.reflow(nx);
+    cur.classList.add("out"); nx.classList.add("in");
+    this.sweep.classList.remove("go"); this.reflow(this.sweep); this.sweep.classList.add("go");
+    this.later(500, () => { cur.remove(); nx.className = "cur"; });
+  }
+  async reply(text) {
+    const t = this.thinking; if (!t) return;
+    const probe = document.createElement("div");
+    probe.className = "theirs"; probe.style.visibility = "hidden"; probe.style.position = "absolute"; probe.textContent = text;
+    this.msgs.appendChild(probe);
+    const w = probe.offsetWidth, h = probe.offsetHeight;
+    probe.remove();
+    const txt = t.querySelector(".txt");
+    txt.textContent = text; txt.style.width = (w - 28) + "px";
+    t.classList.remove("pop");
+    t.style.width = t.offsetWidth + "px"; t.style.height = t.offsetHeight + "px";
+    this.reflow(t);
+    t.classList.add("grow", "said");
+    t.style.width = w + "px"; t.style.height = h + "px";
+    this.thinking = null;
+  }
+
+  // ── the room → the list ──
+  async back() {
+    if (this.state !== "room") return;
+    this.state = "leaving";
+    const gen = this.gen;
+    const name = this.t1.querySelector(".cur")?.textContent || this.name;
+    const last = this.msgs.lastElementChild?.querySelector(".txt")?.textContent || this.msgs.firstElementChild?.textContent || "";
+    this.fresh.unshift({name, last, when:"now", icon:"cloud", c:["#57b2f7","#2d6bd8"], fresh:true});
+    this.renderRows();
+    const row = this.rows.firstElementChild;
+    const ease = "cubic-bezier(.32,.72,0,1)";
+    if (this.still) { row.classList.add("out"); this.resetRoom(); this.state = "list"; return; }
+    this.lp.style.transition = "none"; this.lp.style.transform = "translateX(-96px)";
+    this.reflow(this.lp);
+    this.lp.style.transition = `transform ${.52 * SLOW}s ${ease}`; this.lp.style.transform = "";
+    this.room.style.transition = `transform ${.52 * SLOW}s ${ease}`;
+    this.room.style.transform = `translateX(${W}px)`;
+    this.later(520, () => row.classList.add("out"));
+    await this.wait(560).catch(() => {});
+    if (gen !== this.gen) return;
+    this.resetRoom();
+    this.lp.style.transition = "";
+    this.fresh.forEach((r) => (r.fresh = false));
+    this.state = "list";
+  }
+
+  // ── back to the start, at once ──
+  toList(keepFresh) {
+    this.gen++;
+    this.screen.classList.add("still");
+    this.resetRoom();
+    this.blob.style.display = "none"; this.blob.classList.remove("settled");
+    this.card.classList.remove("show", "hide");
+    this.scrim.classList.remove("on"); this.kb.classList.remove("up");
+    this.plus.classList.remove("gone", "down"); this.newTab.style.visibility = "";
+    this.ta.value = ""; this.ta.style.color = ""; this.fit();
+    this.lp.style.transform = ""; this.lp.style.transition = "";
+    this.finger.classList.remove("on", "down");
+    if (!keepFresh) this.fresh = [];
+    this.renderRows();
+    this.state = "list";
+    this.reflow(this.screen);
+    if (!this.still) this.screen.classList.remove("still");
+  }
+
+  // ── the finger, for the demo ──
+  async tap(x, y, onRelease) {
+    const f = this.finger;
+    if (!f.classList.contains("on")) { f.style.transition = "none"; f.style.left = x + 20 + "px"; f.style.top = y + 60 + "px"; this.reflow(f); f.style.transition = ""; f.classList.add("on"); }
+    f.style.left = x + "px"; f.style.top = y + "px";
+    await this.wait(560);
+    f.classList.add("down");
+    await this.wait(150);
+    f.classList.remove("down");
+    onRelease?.();
+    await this.wait(120);
+  }
+  hideFinger() { this.finger.classList.remove("on"); }
+
+  async demo() {
+    this.interactive = false;
+    for (;;) {
+      this.toList();
+      await this.wait(900);
+      const o = this.origin();
+      await this.tap(o.x + o.w / 2, o.y + o.h / 2, null);
+      if (this.look !== "bar") { this.press(true); await this.wait(110); this.press(false); }
+      this.openCard();
+      this.hideFinger();
+      await this.wait(720);
+      let seed = 7;
+      for (const ch of DEMO) {
+        seed = (seed * 9301 + 49297) % 233280;
+        this.ta.value += ch; this.flash(ch); this.fit();
+        await this.wait(34 + (seed / 233280) * 46 + (ch === " " ? 30 : 0));
+      }
+      await this.wait(420);
+      await this.tap(344, 748, () => this.flash("send"));
+      this.hideFinger();
+      this.send();
+      await this.wait(1150 + 380);
+      await this.wait(1500);
+      await this.rename(DEMO_NAME);
+      await this.wait(650);
+      await this.reply(DEMO_REPLY);
+      await this.wait(2600);
+      await this.tap(39, 81, null);
+      this.hideFinger();
+      this.back();
+      await this.wait(2600);
+    }
+  }
+  play() {
+    this.demo().catch((e) => { if (e !== STOP) console.error(e); });
+  }
+  takeOver() {
+    this.interactive = true;
+    this.toList();
+  }
+
+  // ── stills ──
+  async pose(step, look) {
+    if (look) this.setLook(look);
+    this.interactive = false;
+    this.toList();
+    if (step === "list") return;
+    if (step === "back") {
+      this.fresh = [{name: DEMO_NAME, last: DEMO_REPLY, when: "now", icon: "cloud", c: ["#57b2f7", "#2d6bd8"]}];
+      this.renderRows(); return;
+    }
+    await this.openCard();
+    this.ta.value = DEMO; this.fit();
+    if (step === "card") return;
+    await this.send();
+    if (step === "landed") return;
+    await this.rename(DEMO_NAME);
+    await this.reply(DEMO_REPLY);
+  }
+}
+
+// ── the page ──
+const live = new Phone(document.getElementById("live"));
+const playBtn = document.getElementById("play");
+let auto = true;
+const setPlaying = (on) => { auto = on; playBtn.classList.toggle("on", on); playBtn.textContent = on ? "Playing" : "Replay"; };
+live.play();
+live.host.addEventListener("pointerdown", (e) => {
+  if (!auto || !e.isTrusted) return;
+  setPlaying(false);
+  live.takeOver();
+}, true);
+playBtn.addEventListener("click", () => { setPlaying(true); live.toList(); live.play(); });
+document.getElementById("slow").addEventListener("click", (e) => {
+  SLOW = SLOW === 1 ? 4 : 1;
+  e.currentTarget.classList.toggle("on", SLOW > 1);
+  document.querySelectorAll(".screen").forEach((s) => s.style.setProperty("--k", SLOW));
+});
+let dark = true;
+const phones = [live];
+document.getElementById("theme").addEventListener("click", (e) => {
+  dark = !dark;
+  e.currentTarget.textContent = dark ? "Light" : "Dark";
+  phones.forEach((p) => p.setTheme(dark ? "dk" : "lt"));
+});
+document.querySelectorAll("#looks .btn").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("#looks .btn").forEach((x) => x.classList.toggle("on", x === b));
+  live.setLook(b.dataset.look);
+  if (auto) { live.toList(); live.play(); } else live.toList(true);
+}));
+
+const stills = () => {
+  const make = (id, step, look) => { const p = new Phone(document.getElementById(id), {still: true, look}); p.pose(step); phones.push(p); return p; };
+  make("s1", "list"); make("s2", "card"); make("s3", "landed"); make("s4", "named"); make("s5", "back");
+  make("v1", "list", "flat"); make("v2", "list", "tint"); make("v3", "list", "clear"); make("v4", "list", "bar");
+};
+(document.fonts?.ready ?? Promise.resolve()).then(stills);
+window.__phones = phones;
+})();
+</script>

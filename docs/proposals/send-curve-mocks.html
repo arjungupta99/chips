@@ -1,0 +1,665 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Chips · The send's curve</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;--gray:#8C8F98;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--green:#009B5C;--red:#E62728;
+  --lg-tint:rgba(255,255,255,.26);--lg-rim:rgba(255,255,255,.95);--lg-rim-2:rgba(255,255,255,.35);
+  --lg-shade:rgba(0,0,0,.16);--lg-drop:rgba(20,22,27,.28);
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;--gray:#6B6E78;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--green:#00BA7A;--red:#FE5550;
+  --lg-tint:rgba(40,42,48,.30);--lg-rim:rgba(255,255,255,.55);--lg-rim-2:rgba(255,255,255,.12);
+  --lg-shade:rgba(0,0,0,.35);--lg-drop:rgba(0,0,0,.55)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1340px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.03em}
+.brand svg{width:22px;height:22px}
+.wrap{max-width:1340px;margin:0 auto;padding:0 24px 110px}
+body[data-film] .wrap{max-width:none}
+h1{font-family:var(--font-display);font-size:clamp(28px,4vw,38px);margin:28px 0 6px;letter-spacing:-.02em}
+h1+p{color:var(--ink-2);max-width:74ch;margin:0 0 10px}
+h2{font-family:var(--font-display);font-size:22px;margin:46px 0 10px;padding-top:20px;border-top:1px solid var(--line)}
+p{color:var(--ink-2);max-width:76ch}
+ul{color:var(--ink-2);max-width:76ch}
+li{margin:6px 0}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.ctl{position:sticky;top:53px;z-index:25;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 4px;padding:8px 0;background:color-mix(in srgb,var(--bg) 92%,transparent)}
+.ctl button{font:inherit;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.ctl .hint{font-size:12.5px;color:var(--ink-3)}
+.opts{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;margin:24px 0 8px}
+body[data-film] .opts{flex-wrap:nowrap;gap:24px}
+.opt{display:grid;gap:10px;width:402px;flex:none}
+.opt h3{font-family:var(--font-display);font-size:18px;margin:0;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.opt .tag{font:11px var(--font-mono);border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.opt .tag.pick{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.opt .tag.now{background:var(--surface-3);color:var(--ink-2)}
+.opt .why{font-size:13.5px;color:var(--ink-3);line-height:1.55}
+.opt .why b{color:var(--ink-2)}
+.opt .cost{font:12px/1.5 var(--font-mono);color:var(--ink-3);border-top:1px dashed var(--line-2);padding-top:8px}
+
+/* ── the phone: iPhone 17, in points ───────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--bg);
+  border:1px solid var(--line);font-family:var(--font-ios);box-shadow:0 24px 50px -28px rgba(0,0,0,.45);
+  --navH:106px;--keysH:0px;--inset:34px;--stripH:0px}
+.phone[data-keys="up"]{--keysH:336px;--inset:0px}
+.phone[data-strip="up"]{--stripH:60px}
+.room{position:absolute;inset:0 0 var(--keysH) 0;overflow:hidden}
+.scroll{position:absolute;inset:0;overflow-y:scroll;scrollbar-width:none;overflow-anchor:none}
+.scroll::-webkit-scrollbar{display:none}
+.lines{display:flow-root;padding:calc(var(--navH) + 10px) 16px calc(var(--inset) + 12px + 52px + 22px + var(--stripH))}
+
+.turn{margin-top:12px}
+.row{display:flex;gap:8px;align-items:flex-end}
+.row.me{justify-content:flex-end}
+.face{width:28px;height:28px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.bub{position:relative;max-width:78%;border-radius:18px;padding:9px 14px;font-size:17px;line-height:22px;overflow:hidden;background:var(--surface-2);color:var(--ink)}
+.bub .nm{display:block;font-size:13px;font-weight:700;margin-bottom:1px}
+.bub.mine{color:#fff;background:#007c87}
+.bub .tx{position:relative;display:block}
+/* the outgoing colour: one picture the height of the room, anchored to the glass, sampled by each bubble */
+.field-g{position:absolute;left:0;right:0;top:0;height:calc(874px - var(--keysH));pointer-events:none;
+  background:linear-gradient(#6651A8 0%,#34669E 50%,#0B737D 100%)}
+.bub:not(.mine) .field-g{display:none}
+.stamp{display:block;text-align:right;font-size:12px;line-height:14px;margin-top:2px;color:rgba(255,255,255,.9)}
+.bub.them .stamp,.pic .stamp{color:var(--ink-2)}
+.margin{text-align:center;font-size:13px;color:var(--ink-3);padding:10px 0 4px}
+/* a photo of yours: the tile at its own shape, and its time under it, as the room draws one today */
+.pic{display:grid;justify-items:end}
+.tile{width:240px;height:180px;border-radius:10px;background:var(--surface-3);overflow:hidden}
+.photo{background:
+  radial-gradient(circle at 74% 26%,#FFE9A8 0 26px,transparent 27px),
+  linear-gradient(180deg,#6FA9E3 0%,#BBD8F2 52%,#5D9A45 53%,#2E6B2C 100%)}
+/* the thinking bubble at the foot: the harness at work, as on your phone */
+.think{display:flex;gap:8px;align-items:flex-end}
+.think .bub{font-size:15px;line-height:20px;padding:9px 14px;display:flex;align-items:center;gap:10px}
+.think .bub b{font-weight:600;color:var(--ink-2)}
+.dots{display:inline-flex;gap:3px;align-items:center}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--gold);display:block;animation:dot 1.1s infinite ease-in-out}
+.dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
+@keyframes dot{0%,80%,100%{opacity:.35;transform:translateY(0)}40%{opacity:1;transform:translateY(-2px)}}
+
+/* ── top: all glass since B ─────────────────────────────────── */
+.chrome{position:absolute;left:0;right:0;z-index:6}
+.chrome.t{top:0}
+.chrome.b{bottom:var(--keysH);padding:12px 12px calc(12px + var(--inset));display:grid;gap:8px}
+.status{display:flex;align-items:center;justify-content:space-between;padding:18px 32px 0 42px;font-size:16px;font-weight:600;color:var(--ink)}
+.status .sig{display:flex;gap:3px;align-items:flex-end}
+.status .sig i{width:3.5px;background:var(--ink);border-radius:1px;display:block}
+.navrow{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;min-height:60px}
+.cap{border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+.cap.sq{width:44px;height:44px}
+.chev svg{width:20px;height:20px;stroke:var(--ink);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.mark i{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 26%,transparent);display:block}
+.spread{flex:1;min-width:0;display:flex;justify-content:center}
+.namecap{padding:9px 20px;min-width:0;max-width:230px}
+.who{min-width:0;display:grid;text-align:center;line-height:1.2}
+.who b{font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tband{position:absolute;left:0;right:0;top:0;height:calc(var(--navH) + 40px);pointer-events:none;z-index:4;
+  -webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);
+  background:color-mix(in srgb,var(--bg) 2%,transparent);
+  -webkit-mask-image:linear-gradient(#000 calc(100% - 40px),transparent);mask-image:linear-gradient(#000 calc(100% - 40px),transparent)}
+
+/* Liquid Glass, as near as CSS gets: the lensing is an SVG displacement (Chromium only) */
+.lg{background:var(--lg-tint);isolation:isolate;
+  -webkit-backdrop-filter:blur(2.5px) saturate(170%) brightness(1.04);backdrop-filter:blur(2.5px) saturate(170%) brightness(1.04);
+  box-shadow:0 10px 26px -12px var(--lg-drop),0 1px 2px var(--lg-shade)}
+.lg::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.3px;pointer-events:none;z-index:2;
+  background:linear-gradient(140deg,var(--lg-rim) 0%,var(--lg-rim-2) 26%,transparent 48%,transparent 58%,var(--lg-rim-2) 78%,var(--lg-rim) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.lg::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
+  box-shadow:inset 0 1px 1.5px rgba(255,255,255,.55),inset 0 -1px 1.5px rgba(255,255,255,.18),inset 0 0 14px rgba(255,255,255,.12)}
+:root[data-theme="dark"] .lg::after{box-shadow:inset 0 1px 1px rgba(255,255,255,.22),inset 0 -1px 1px rgba(255,255,255,.06),inset 0 0 14px rgba(255,255,255,.05)}
+
+/* the staged strip above the field: the chip a picked photo makes, as on your phone */
+.strip{display:none;gap:8px;padding:2px 0;height:52px}
+.phone[data-strip="up"] .strip{display:flex}
+.chip{display:flex;align-items:center;gap:8px;padding:6px 10px 6px 6px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);height:52px}
+.chip .thumb{width:40px;height:40px;border-radius:8px;overflow:hidden;background-size:cover;background-position:center}
+.chip .thumb.away{visibility:hidden}
+.chip .nm{font-size:15px;font-weight:600;color:var(--ink);line-height:1.1}
+.chip .meta{font-size:12px;color:var(--ink-3)}
+.chip .x{font-size:20px;color:var(--ink-2);padding:0 4px}
+
+/* the composer as it is on your phone now: + in its own glass, the field in glass, Send inside */
+.composer{display:flex;align-items:flex-end;gap:8px}
+.plusout{width:50px;height:50px}
+.plusout svg{width:22px;height:22px;stroke:var(--ink);stroke-width:2.2;fill:none;stroke-linecap:round}
+.field{flex:1;min-width:0;min-height:50px;border-radius:25px;display:flex;align-items:flex-end;gap:8px;padding:9px 9px 9px 20px;position:relative}
+.fieldglass{position:absolute;inset:0;border-radius:inherit}
+.wordsbox{flex:1;min-width:0;position:relative;z-index:3}
+.words,.leave{padding:4.5px 0;font-size:17px;line-height:23px;color:var(--ink);overflow-wrap:break-word}
+.leave{position:absolute;left:0;right:0;bottom:0;pointer-events:none;opacity:0}
+.words .ph{color:var(--ink-3)}
+.caret{display:inline-block;width:2px;height:21px;margin:0 1px;vertical-align:-4px;background:var(--blue);animation:blink 1s steps(1) infinite}
+.phone[data-keys="down"] .caret{display:none}
+@keyframes blink{50%{opacity:0}}
+.send{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--gray);position:relative;z-index:3;opacity:.55}
+.phone[data-typing="on"] .send{background:var(--blue);opacity:1}
+.send svg{width:17px;height:17px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.home{position:absolute;left:0;right:0;bottom:8px;display:grid;place-items:center;z-index:7;pointer-events:none}
+.home i{width:140px;height:5px;border-radius:3px;background:var(--ink);opacity:.9;display:block}
+.phone[data-keys="up"] .home{display:none}
+
+/* the flight: above the room and above the composer, in the phone's own coordinates */
+.fly{position:absolute;inset:0;z-index:8;pointer-events:none}
+.flyer{position:absolute;max-width:none;transform-origin:14px 9px;background:transparent}
+.flyer.pic{background-size:cover;background-position:center;overflow:hidden}
+
+.keys{position:absolute;left:0;right:0;bottom:0;height:var(--keysH);z-index:5;display:none;padding:10px 4px 0;
+  background:color-mix(in srgb,var(--surface-3) 88%,transparent);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px)}
+.phone[data-keys="up"] .keys{display:block}
+.krow{display:flex;gap:6px;justify-content:center;padding:5px 3px}
+.key{flex:1;height:44px;border-radius:8px;background:var(--surface);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 22%,transparent);display:grid;place-items:center;font-size:20px;color:var(--ink)}
+.key.wide{flex:3.2}
+.key.plain{background:none;box-shadow:none;color:var(--ink-2);font-size:18px}
+.kfoot{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 0}
+.legend{font:12px var(--font-mono);color:var(--gold-deep);margin:0}
+
+/* for the film: a label on each phone, inside what gets filmed */
+.label{display:none;position:absolute;left:14px;top:212px;z-index:9;font:600 13px var(--font-ios);padding:4px 10px;border-radius:999px;
+  background:color-mix(in srgb,var(--ink) 86%,transparent);color:var(--bg)}
+body[data-film] .label{display:block}
+</style>
+
+<svg id="filters" width="0" height="0" style="position:absolute" aria-hidden="true"><defs></defs></svg>
+
+<header class="top"><div class="top-in">
+  <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Chips</span>
+  <span style="font-size:13px;color:var(--ink-3)">The send's curve, and a photo's send</span>
+  <span style="margin-left:auto;font:12px var(--font-mono);color:var(--ink-3)">25 Sep 2026</span>
+</div></header>
+
+<div class="wrap">
+<h1>The send's curve, and a photo's send</h1>
+<p>Since the settle, everything that lands at the foot of the room moves the room on one spring: your words, the thinking bubble coming up, the reply. You said it's too quick. The three phones below run the same minute — a message, the harness thinking, its reply, then a photo — on three springs. The left one is the spring on your phone now. Turn on slow motion to see the shape of each.</p>
+<p class="legend">The motion is not a stand-in: these are the springs the app would run. The photo's flight is new in all three — today a photo lands with a fade.</p>
+
+<div class="ctl">
+  <button id="t-theme" aria-pressed="false">Dark</button>
+  <button id="t-keys" aria-pressed="true">Keyboard up</button>
+  <button id="t-slow" aria-pressed="false">Slow motion ×4</button>
+  <button id="t-run" aria-pressed="true">Playing</button>
+  <span class="hint" id="lens-state"></span>
+</div>
+
+<div class="opts" id="opts"></div>
+
+<h2>What a spring's numbers mean</h2>
+<ul>
+  <li><strong>The response</strong> is how long one swing takes. It sets the pace: the room is most of the way in about half of it, and still there at the end of it.</li>
+  <li><strong>The damping</strong> is how much it overshoots. At 0.78 it goes a point or two past and comes back; at 0.9 it barely does. Messages sits near 0.8.</li>
+  <li><strong>Everything shares it.</strong> The words, the room, the thinking bubble opening, the reply, and now the photo all move on the one spring, so they read as one body. Changing it changes them all.</li>
+</ul>
+
+<h2>The photo</h2>
+<ul>
+  <li><strong>The staged thumbnail becomes the tile.</strong> It leaves the chip at its own forty points, grows to the tile's size as it rises, and its corner rounds from the chip's to the tile's. The room rises under it on the same spring, and the strip closes behind it.</li>
+  <li><strong>The tile is held until the picture is on it,</strong> as your words' bubble is, and the time comes up with it.</li>
+  <li><strong>Words and a photo together</strong> would fly as one: the words' bubble above, the picture under it, both from where they sat. Not drawn here; it follows from the two.</li>
+</ul>
+
+<h2>My call</h2>
+<p><strong>The middle one, 0.55 s at 0.82.</strong> Today's spring was chosen for the words alone, and a copy of a one-line bubble can afford to be brisk. Now it moves the whole room, a reply, a photo, and the same pace reads as a snap. Half a second is where the room is seen to move rather than jump, and it's still done before you'd wait for it. The slow one is lovely on a photo and a little sleepy on a one-word reply.</p>
+</div>
+
+<script>
+const SIG = '<span class="sig"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span>';
+const CHEV = '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>';
+const PLUS = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+const UP = '<svg viewBox="0 0 24 24"><path d="M12 19V6"/><path d="M6 12l6-6 6 6"/></svg>';
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+const SCOUT = {who:'Scout', hue:'#317243'}, LEDGER = {who:'Ledger', hue:'#7a4a86'};
+const LINES = [
+  {k:'margin', t:'Yesterday 17:40'},
+  {k:'me', tx:'Can you find out why CI went red after the rename?', st:'17:40'},
+  {k:'them', ...SCOUT, tx:'On it. I\'ll pull the failing specs first thing and group them by assertion.', st:'17:41'},
+  {k:'margin', t:'Today 09:12'},
+  {k:'them', ...SCOUT, tx:'Pulled the 14 failing specs. Eleven are the same assertion: the fixture still has the old column name.', st:'09:12'},
+  {k:'me', tx:'Do the fixture, leave the three.', st:'09:13'},
+  {k:'them', ...LEDGER, tx:'Fixture renamed. Eleven green. The three left are all the rounding in totalOf.', st:'09:19'},
+  {k:'them', ...SCOUT, tx:'The migration is a backfill across 1.2M rows. About four minutes, and it locks writes while it runs.', st:'09:25', cont:true},
+];
+const SCRIPT = [
+  {me:'Run it after lunch.', them:{...SCOUT, tx:'Will do. Starting the backfill at 13:00.'}, pic:{name:'IMG_4471.jpg', them:{...SCOUT, tx:'Got it. That\'s the receipt I was after.'}}},
+  {me:'Leave totalOf to me.', them:{...LEDGER, tx:'Understood. I won\'t touch it.'}, pic:{name:'IMG_4472.jpg', them:{...LEDGER, tx:'Saved with the ticket.'}}},
+  {me:'Ping me when it\'s done, with the row counts.', them:{...SCOUT, tx:'I will.'}, pic:{name:'IMG_4473.jpg', them:{...SCOUT, tx:'Filed under the run.'}}},
+];
+
+function mineHTML(tx, st){
+  return `<div class="bub mine"><div class="field-g"></div><span class="tx">${esc(tx)}<span class="stamp">${st}</span></span></div>`;
+}
+function themHTML(l, st){
+  return `<div class="face" style="background:${l.hue}">${l.who[0]}</div><div class="bub them"><span class="nm" style="color:${l.hue}">${l.who}</span>${esc(l.tx)}<span class="stamp">${st}</span></div>`;
+}
+function picHTML(st){
+  return `<div class="pic"><div class="tile photo"></div><span class="stamp">${st}</span></div>`;
+}
+function thinkHTML(){
+  return `<div class="think"><div class="face" style="background:${SCOUT.hue}">S</div><div class="bub"><b>Scout</b> · Reading what was asked <span class="dots"><i></i><i></i><i></i></span></div></div>`;
+}
+function lineHTML(l){
+  if (l.k === 'margin') return `<div class="margin">${l.t}</div>`;
+  if (l.k === 'me') return `<div class="turn"><div class="row me">${mineHTML(l.tx, l.st)}</div></div>`;
+  return `<div class="turn"${l.cont ? ' style="margin-top:2px"' : ''}><div class="row">${themHTML(l, l.st)}</div></div>`;
+}
+
+const KEYS = [['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫']];
+const keysHTML = () => KEYS.map(r=>`<div class="krow">${r.map(k=>`<div class="key">${k}</div>`).join('')}</div>`).join('')
+  + `<div class="krow"><div class="key" style="flex:1.3;font-size:16px">123</div><div class="key wide" style="font-size:16px">space</div><div class="key" style="flex:1.3;font-size:16px">return</div></div>`
+  + `<div class="kfoot"><div class="key plain" style="flex:none;width:34px;height:30px">☺</div><div class="key plain" style="flex:none;width:34px;height:30px">🎙</div></div>`;
+
+/* The three springs, as UIKit gives one: a response in seconds and a damping ratio. The app keeps
+   them as stiffness and damping over a mass of one; the numbers in the cost line are those. */
+const FRAMES = [
+  {id:'now', h:'Today · 0.42 s', tag:'on your phone', cls:'now', label:'Today · 0.42 s', up:[0.42, 0.78], across:[0.52, 0.92],
+   why:'<b>The spring the words were given on the 24th.</b> Brisk: the room is where it is going in a quarter of a second, and the last sixth of a second is a point of overshoot and back. It was chosen for a one-line copy on its own. Now it moves the room, the reply and the bubble too.',
+   cost:'UP stiffness 224, damping 23 · ACROSS 146, 22'},
+  {id:'mid', h:'Softer · 0.55 s', tag:'my call', cls:'pick', label:'Softer · 0.55 s', up:[0.55, 0.82], across:[0.66, 0.92],
+   why:'<b>A third slower, a touch less overshoot.</b> The room is seen to travel; the words still arrive before you have looked away from them. The photo grows into its tile rather than snapping to it.',
+   cost:'UP stiffness 130, damping 19 · ACROSS 91, 18'},
+  {id:'slow', h:'Slow · 0.68 s', tag:'for comparison', cls:'', label:'Slow · 0.68 s', up:[0.68, 0.86], across:[0.80, 0.94],
+   why:'<b>Messages-slow.</b> Nearly no overshoot, and the room takes most of half a second to come up. Handsome on a photo; on a one-word reply the room is still moving after the reply has landed.',
+   cost:'UP stiffness 85, damping 16 · ACROSS 62, 15'},
+];
+
+function navHTML(){
+  return `<div class="navrow">
+    <div class="cap sq chev lg">${CHEV}</div>
+    <div class="spread"><div class="cap namecap lg"><div class="who"><b>Scout · deploy</b><small>You, Scout and Ledger</small></div></div></div>
+    <div class="cap sq mark lg"><i></i></div></div>`;
+}
+function barHTML(){
+  return `<div class="strip"><div class="chip"><div class="thumb photo" data-thumb></div><div><div class="nm" data-chipname>IMG_4471.jpg</div><div class="meta">2.1 MB</div></div><div class="x">×</div></div></div>
+    <div class="composer"><div class="cap sq plusout lg">${PLUS}</div>
+    <div class="cap field"><div class="fieldglass lg"></div><div class="wordsbox"><div class="words" data-words></div><div class="leave"></div></div><span class="send">${UP}</span></div></div>`;
+}
+function frameHTML(f){
+  return `<div class="opt">
+    <h3>${f.h} <span class="tag ${f.cls}">${f.tag}</span></h3>
+    <div class="phone" data-keys="up" data-typing="off" data-strip="down" id="ph-${f.id}">
+      <div class="room"><div class="scroll"><div class="lines">${LINES.map(lineHTML).join('')}</div></div></div>
+      <div class="tband"></div>
+      <div class="chrome t"><div class="status"><span>9:41</span>${SIG}</div>${navHTML()}</div>
+      <div class="chrome b">${barHTML()}</div>
+      <div class="fly"></div>
+      <div class="home"><i></i></div>
+      <div class="keys">${keysHTML()}</div>
+      <div class="label">${f.label}</div>
+    </div>
+    <div class="why">${f.why}</div>
+    <div class="cost">${f.cost}</div>
+  </div>`;
+}
+document.getElementById('opts').innerHTML = FRAMES.map(frameHTML).join('');
+
+/* ── the lens: a displacement map per size, sampled inward across a rim ─── */
+const BEZEL = 13, STRENGTH = 26;
+const isChromium = !!window.chrome || /Chrome\//.test(navigator.userAgent);
+const made = new Map();
+function sdfCapsule(x, y, w, h, r){
+  const qx = Math.abs(x - w/2) - (w/2 - r), qy = Math.abs(y - h/2) - (h/2 - r);
+  const ox = Math.max(qx, 0), oy = Math.max(qy, 0);
+  return Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) - r;
+}
+function mapFor(w, h, r){
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const px = x + .5, py = y + .5, d = -sdfCapsule(px, py, w, h, r);
+    let dx = 0, dy = 0;
+    if (d > 0 && d < BEZEL){
+      const e = .5;
+      const gx = sdfCapsule(px + e, py, w, h, r) - sdfCapsule(px - e, py, w, h, r);
+      const gy = sdfCapsule(px, py + e, w, h, r) - sdfCapsule(px, py - e, w, h, r);
+      const len = Math.hypot(gx, gy) || 1, m = Math.pow(1 - d / BEZEL, 2.2);
+      dx = -gx / len * m; dy = -gy / len * m;
+    }
+    const i = (y * w + x) * 4;
+    img.data[i] = 128 + dx * 127; img.data[i+1] = 128 + dy * 127; img.data[i+2] = 128; img.data[i+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL();
+}
+function lensFor(w, h){
+  const key = `${w}x${h}`;
+  if (made.has(key)) return made.get(key);
+  const id = `lens-${key}`, r = Math.min(h / 2, w / 2), ns = 'http://www.w3.org/2000/svg';
+  const f = document.createElementNS(ns, 'filter');
+  f.setAttribute('id', id);
+  f.setAttribute('x', '0'); f.setAttribute('y', '0'); f.setAttribute('width', w); f.setAttribute('height', h);
+  f.setAttribute('filterUnits', 'userSpaceOnUse'); f.setAttribute('primitiveUnits', 'userSpaceOnUse');
+  f.setAttribute('color-interpolation-filters', 'sRGB');
+  f.innerHTML = `<feImage href="${mapFor(w, h, r)}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>
+    <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="soft"/>
+    <feDisplacementMap in="soft" in2="map" scale="${STRENGTH}" xChannelSelector="R" yChannelSelector="G" result="bent"/>
+    <feColorMatrix in="bent" type="saturate" values="1.7"/>`;
+  document.querySelector('#filters defs').appendChild(f);
+  made.set(key, id);
+  return id;
+}
+function lensAll(){
+  if (!isChromium) return;
+  document.querySelectorAll('.lg').forEach(el => {
+    const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
+    if (!w || !h || el.dataset.lens === `${w}x${h}`) return;
+    el.dataset.lens = `${w}x${h}`;
+    const bf = `url(#${lensFor(w, h)}) brightness(1.04)`;
+    el.style.backdropFilter = bf; el.style.webkitBackdropFilter = bf;
+  });
+}
+document.getElementById('lens-state').textContent = isChromium
+  ? 'Lensing on (Chromium).' : 'Lensing off: this browser shows the blur only.';
+
+/* ── motion: springs as closed forms, so any frame can be drawn at any moment ──
+   A spring is given as UIKit gives one, a response (the period, in seconds) and a damping ratio.
+   Each returns the progress from 0 to 1 (a little past 1 while it overshoots) t ms after it starts. */
+function spring(response, zeta){
+  const w = 2 * Math.PI / response;
+  if (zeta >= 1) return t => t <= 0 ? 0 : 1 - (1 + w * t / 1000) * Math.exp(-w * t / 1000);
+  const wd = w * Math.sqrt(1 - zeta * zeta), k = zeta * w / wd;
+  return t => { if (t <= 0) return 0; const s = t / 1000; return 1 - Math.exp(-zeta * w * s) * (Math.cos(wd * s) + k * Math.sin(wd * s)); };
+}
+/* when a spring has arrived: within a point and a half of the mark, and slow, as the app decides it */
+function landTime(f, distance){
+  for (let t = 40; t < 3000; t += 8){
+    const v = Math.abs(f(t + 8) - f(t)) * distance / .008;
+    if (Math.abs(1 - f(t)) * distance < 1.5 && v < 20) return t;
+  }
+  return 1200;
+}
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+/* the app's spring today (ui/motion.ts): stiffness 320, damping 32, mass 1 — the rise of a line landing */
+const IOS = spring(2 * Math.PI / Math.sqrt(320), 32 / (2 * Math.sqrt(320)));
+/* the glass under a thumb: a quick swell, and a looser settle when it lets go */
+const PRESS = 110, SETTLE = spring(0.42, 0.55);
+const ACK = 420;
+
+function inkRGB(){
+  const hex = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim().replace('#', '');
+  return [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+}
+function mix(a, b, k){ return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(',')})`; }
+
+/* ── the phones ─────────────────────────────────────────────── */
+const P = FRAMES.map(f => {
+  const el = document.getElementById('ph-' + f.id);
+  return { kind: f.id, el, up: spring(...f.up), across: spring(...f.across), sc: el.querySelector('.scroll'), lines: el.querySelector('.lines'),
+    field: el.querySelector('.field'), glass: el.querySelector('.fieldglass'), words: el.querySelector('[data-words]'),
+    leave: el.querySelector('.leave'), send: el.querySelector('.send'), fly: el.querySelector('.fly'),
+    thumb: el.querySelector('[data-thumb]'), chipName: el.querySelector('[data-chipname]'),
+    shifts: [], arrivals: [], sent: null, think: null };
+});
+
+let vnow = 0, slow = 1, playing = true, sendAt = null, clock = 9 * 60 + 31;
+let queue = [];
+const at = (t, fn) => { queue.push({ t, fn }); queue.sort((a, b) => a.t - b.t); };
+
+function setTyped(text){
+  for (const p of P){
+    p.words.innerHTML = text ? `${esc(text)}<span class="caret"></span>` : `<span class="caret"></span><span class="ph">Message, or /command</span>`;
+    p.el.dataset.typing = text ? 'on' : 'off';
+  }
+  lensAll();
+}
+function timeNow(){ return `09:${String(clock % 60).padStart(2, '0')}`; }
+
+function toFoot(p){ p.sc.scrollTop = p.sc.scrollHeight; }
+/* put something at the foot (or take it away) and return how far it moved the room: measured with every motion off */
+function place(p, change){
+  const before = p.sc.scrollHeight;
+  change();
+  p.lines.style.transform = '';
+  toFoot(p);
+  return p.sc.scrollHeight - before;
+}
+function origin(p){
+  const r = p.el.getBoundingClientRect();
+  return { x: r.left + p.el.clientLeft, y: r.top + p.el.clientTop };
+}
+/* the room moving to its foot on the spring: the foot (the thinking bubble) holds its place while the words or a photo go above it */
+function shift(p, h, pin){ if (Math.abs(h) > .01) p.shifts.push({ h, start: vnow, pin }); }
+
+/* your words, from the field to their bubble */
+function sendOn(p, text, time){
+  const t0 = vnow, o = origin(p);
+  const words = p.words.getBoundingClientRect();
+  if (p.sent && p.sent.flyer) p.sent.flyer.remove();
+  const turn = document.createElement('div');
+  turn.className = 'turn';
+  turn.innerHTML = `<div class="row me">${mineHTML(text, 'sending…')}</div>`;
+  const h = place(p, () => p.lines.insertBefore(turn, p.think ? p.think.el : null));
+  const inner = turn.firstElementChild, bub = inner.firstElementChild;
+  const b = bub.getBoundingClientRect();
+  const ex = b.left - o.x, ey = b.top - o.y;
+  // where the words were: the field's line box, less the bubble's padding, so the glyphs coincide
+  const sx = words.left - o.x - 14, sy = words.top - o.y + 4.5 + .5 - 9;
+  const fl = document.createElement('div');
+  fl.className = 'bub mine flyer';
+  fl.style.left = ex + 'px'; fl.style.top = ey + 'px'; fl.style.width = b.width + 'px';
+  fl.innerHTML = bub.innerHTML;
+  p.fly.appendChild(fl);
+  p.sent = { t0, inner, bub, h, time, kind: 'words', flyer: fl, fg: fl.querySelector('.field-g'), tx: fl.querySelector('.tx'),
+    stamps: [bub.querySelector('.stamp'), fl.querySelector('.stamp')], dx: sx - ex, dy: sy - ey,
+    land: landTime(p.up, Math.hypot(sx - ex, sy - ey)) };
+  shift(p, h, true);
+}
+/* a photo, from the chip to its tile */
+function sendPicOn(p, time){
+  const t0 = vnow, o = origin(p);
+  if (p.sent && p.sent.flyer) p.sent.flyer.remove();
+  const th = p.thumb.getBoundingClientRect();
+  const sx = th.left - o.x, sy = th.top - o.y;
+  const turn = document.createElement('div');
+  turn.className = 'turn';
+  turn.innerHTML = `<div class="row me">${picHTML('sending…')}</div>`;
+  // the line goes in and the strip goes away in the same breath: the room moves by the difference
+  const h = place(p, () => { p.lines.insertBefore(turn, p.think ? p.think.el : null); p.el.dataset.strip = 'down'; });
+  const inner = turn.firstElementChild, tile = inner.querySelector('.tile');
+  const b = tile.getBoundingClientRect();
+  const ex = b.left - o.x, ey = b.top - o.y;
+  const fl = document.createElement('div');
+  fl.className = 'flyer pic photo';
+  fl.style.left = sx + 'px'; fl.style.top = sy + 'px'; fl.style.width = '40px'; fl.style.height = '40px'; fl.style.borderRadius = '8px';
+  p.fly.appendChild(fl);
+  p.sent = { t0, inner, h, time, kind: 'pic', flyer: fl, stamps: [inner.querySelector('.stamp')],
+    from: { x: sx, y: sy, w: 40, h: 40, r: 8 }, to: { x: ex, y: ey, w: b.width, h: b.height, r: 10 },
+    land: landTime(p.up, Math.hypot(sx - ex, sy - ey)) };
+  shift(p, h, true);
+}
+/* the harness at work: the bubble comes up under the newest line, and the room opens for it */
+function thinkOn(p){
+  const el = document.createElement('div');
+  el.className = 'turn';
+  el.innerHTML = thinkHTML();
+  const h = place(p, () => p.lines.appendChild(el));
+  p.think = { el, t0: vnow };
+  p.arrivals.push({ el: el.firstElementChild, t0: vnow });
+  shift(p, h, true);
+}
+/* the reply lands: the bubble goes at once, and the reply takes its place */
+function replyOn(p, l, time){
+  const turn = document.createElement('div');
+  turn.className = 'turn';
+  turn.innerHTML = `<div class="row">${themHTML(l, time)}</div>`;
+  const h = place(p, () => { if (p.think){ p.think.el.remove(); p.think = null; } p.lines.appendChild(turn); });
+  p.arrivals.push({ el: turn.firstElementChild, t0: vnow });
+  shift(p, h, false);
+}
+/* a photo picked: the chip comes up over the field, and the room's foot moves up with the bar */
+function stageOn(p, name){
+  p.chipName.textContent = name;
+  const h = place(p, () => { p.el.dataset.strip = 'up'; });
+  shift(p, h, false);
+  lensAll();
+}
+function sendAll(text){ const time = timeNow(); for (const p of P) sendOn(p, text, time); setTyped(''); }
+function sendPicAll(){ const time = timeNow(); for (const p of P) sendPicOn(p, time); }
+function thinkAll(){ for (const p of P) thinkOn(p); }
+function replyAll(l){ const time = timeNow(); clock++; for (const p of P) replyOn(p, l, time); }
+function stageAll(name){ for (const p of P) stageOn(p, name); }
+function trim(){
+  for (const p of P){
+    while (p.lines.children.length > 22) p.lines.firstElementChild.remove();
+    toFoot(p);
+  }
+}
+
+/* ── one frame, drawn from the clock alone ──────────────────── */
+let ink = inkRGB();
+function pressScale(){
+  if (sendAt === null) return [1, 1];
+  const t = vnow - sendAt;
+  if (t < -PRESS || t > 1400) return [1, 1];
+  if (t < 0){ const q = IOS(t + PRESS); return [1 + .04 * q, 1 - .14 * q]; }
+  const q = IOS(PRESS);
+  return [1 + .04 * q * (1 - SETTLE(t)), 1 - .14 * q * (1 - IOS(t))];
+}
+function renderPhone(p, glassScale, sendScale){
+  const now = vnow;
+  p.glass.style.transform = glassScale === 1 ? '' : `scale(${glassScale})`;
+  p.send.style.transform = sendScale === 1 ? '' : `scale(${sendScale})`;
+
+  // the room settling to its foot on the spring; the foot holding its place where it is to
+  p.shifts = p.shifts.filter(s => now - s.start < 2500);
+  let y = 0, held = 0;
+  for (const s of p.shifts){ const d = s.h * (1 - p.up(now - s.start)); y += d; if (s.pin) held += d; }
+  p.lines.style.transform = Math.abs(y) > .01 ? `translateY(${y}px)` : '';
+  if (p.think) p.think.el.style.transform = Math.abs(held) > .01 ? `translateY(${-held}px)` : '';
+
+  // lines arriving as they do today: ten points low and unseen, up and in on the app's spring
+  p.arrivals = p.arrivals.filter(a => {
+    const t = now - a.t0, q = IOS(t);
+    if (t > 1600){ a.el.style.opacity = ''; a.el.style.transform = ''; return false; }
+    a.el.style.opacity = clamp(q);
+    a.el.style.transform = `translateY(${10 * (1 - q)}px)`;
+    return true;
+  });
+
+  const s = p.sent;
+  if (s){
+    const t = Math.max(0, now - s.t0);
+    for (const el of s.stamps) el.textContent = t >= ACK ? s.time : 'sending…';
+    const landed = t >= s.land;
+    s.inner.style.visibility = landed ? '' : 'hidden';
+    s.flyer.style.display = landed ? 'none' : '';
+    if (s.kind === 'words'){
+      // the placeholder waits for the words to be gone, rather than showing through them
+      const ph = p.words.querySelector('.ph');
+      if (ph) ph.style.opacity = clamp((t - 160) / 140);
+      if (!landed){
+        const g = easeOut(clamp(t / 110));
+        const x = s.dx * (1 - p.across(t)), yy = s.dy * (1 - p.up(t));
+        s.flyer.style.transform = `translate(${x}px,${yy}px)`;
+        s.flyer.style.backgroundColor = `rgba(0,124,135,${g})`;
+        s.fg.style.opacity = g;
+        s.tx.style.color = mix(ink, [255, 255, 255], g);
+        s.stamps[1].style.opacity = clamp((t - 80) / 220);
+      }
+    } else if (!landed){
+      // the picture: across on the flatter spring, up and growing on the room's own
+      const qx = p.across(t), qy = p.up(t), { from, to } = s;
+      s.flyer.style.left = from.x + (to.x - from.x) * qx + 'px';
+      s.flyer.style.top = from.y + (to.y - from.y) * qy + 'px';
+      s.flyer.style.width = from.w + (to.w - from.w) * qy + 'px';
+      s.flyer.style.height = from.h + (to.h - from.h) * qy + 'px';
+      s.flyer.style.borderRadius = from.r + (to.r - from.r) * clamp(qy) + 'px';
+    }
+  }
+
+  // the outgoing colour, anchored to the glass
+  const top = origin(p).y;
+  for (const bub of p.el.querySelectorAll('.bub.mine')){
+    bub.firstElementChild.style.transform = `translateY(${-(bub.getBoundingClientRect().top - top)}px)`;
+  }
+}
+function render(){
+  const [g, s] = pressScale();
+  for (const p of P) renderPhone(p, g, s);
+}
+
+/* ── the loop: type, send, the harness thinks, replies; a photo, the same ── */
+let turnNo = 0;
+function cycle(){
+  const m = SCRIPT[turnNo % SCRIPT.length]; turnNo++;
+  trim();
+  const t0 = vnow, TYPE = 40;
+  for (let i = 1; i <= m.me.length; i++) at(t0 + 300 + i * TYPE, () => setTyped(m.me.slice(0, i)));
+  const send = t0 + 300 + m.me.length * TYPE + 600;
+  at(send - PRESS, () => { sendAt = send; });
+  at(send, () => sendAll(m.me));
+  at(send + 700, thinkAll);
+  at(send + 2600, () => replyAll(m.them));
+  const stage = send + 3800;
+  at(stage, () => stageAll(m.pic.name));
+  const send2 = stage + 1300;
+  at(send2 - PRESS, () => { sendAt = send2; });
+  at(send2, sendPicAll);
+  at(send2 + 800, thinkAll);
+  at(send2 + 2800, () => replyAll(m.pic.them));
+  at(send2 + 4200, cycle);
+}
+
+let last = performance.now();
+function tick(ts){
+  const dt = Math.min(50, ts - last); last = ts;
+  if (playing){
+    vnow += dt / slow;
+    while (queue.length && queue[0].t <= vnow) queue.shift().fn();
+  }
+  render();
+  requestAnimationFrame(tick);
+}
+
+/* ── controls ───────────────────────────────────────────────── */
+const phones = P.map(p => p.el);
+function flip(id){ const b = document.getElementById(id); const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', String(on)); return on; }
+function setTheme(dark){
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.getElementById('t-theme').setAttribute('aria-pressed', String(dark));
+  ink = inkRGB();
+}
+document.getElementById('t-theme').onclick = () => setTheme(document.documentElement.dataset.theme !== 'dark');
+document.getElementById('t-keys').onclick = () => {
+  const on = flip('t-keys');
+  phones.forEach(el => el.dataset.keys = on ? 'up' : 'down');
+  requestAnimationFrame(() => { P.forEach(toFoot); lensAll(); });
+};
+document.getElementById('t-slow').onclick = () => { slow = flip('t-slow') ? 4 : 1; };
+document.getElementById('t-run').onclick = e => { playing = flip('t-run'); e.currentTarget.textContent = playing ? 'Playing' : 'Paused'; };
+
+/* ?theme=dark|light  ?keys=down  ?slow=4  ?film=1 lays the phones in a row and labels them, for filming */
+const q = new URLSearchParams(location.search);
+const wantDark = q.get('theme') ? q.get('theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+setTheme(wantDark);
+if (q.get('keys') === 'down') document.getElementById('t-keys').click();
+if (q.get('slow')) { slow = Number(q.get('slow')) || 1; document.getElementById('t-slow').setAttribute('aria-pressed', String(slow > 1)); }
+if (q.get('film') === '1') document.body.dataset.film = '';
+
+document.fonts.ready.then(() => {
+  P.forEach(toFoot);
+  setTyped('');
+  lensAll();
+  at(vnow + 500, cycle);
+  requestAnimationFrame(tick);
+  document.body.dataset.ready = '';
+});
+</script>

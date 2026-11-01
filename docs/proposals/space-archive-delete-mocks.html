@@ -1,0 +1,506 @@
+<meta charset="utf-8">
+<title>Chips · Archive and delete a space</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--red:#E62728;--green-ink:#006C40;--green-soft:#DEF5E8;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold-deep:#F7CE54;--gold-soft:#3C3005;--red:#FE5550;--green-ink:#7FE3B3;--green-soft:#12362A}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold-deep:#F7CE54;--gold-soft:#3C3005;--red:#FE5550;--green-ink:#7FE3B3;--green-soft:#12362A}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1080px;margin:0 auto;padding:0 16px;height:56px;display:flex;align-items:center;gap:14px}
+.brand{font-family:var(--font-display);font-weight:700;font-size:21px;letter-spacing:-.03em}
+.top .what{font-size:13px;color:var(--ink-3)}
+.top .ver{margin-left:auto;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+article{max-width:1080px;margin:0 auto;padding:32px 16px 120px}
+h1,h2,h3{font-family:var(--font-display);letter-spacing:-.02em;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(30px,4.5vw,44px);margin:0 0 8px}
+p.lede{color:var(--ink-2);font-size:17px;max-width:66ch;margin:0 0 8px}
+h2{font-size:clamp(22px,2.6vw,28px);margin:56px 0 12px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:28px 0 10px}
+p,ul{margin:0 0 14px;color:var(--ink-2);max-width:72ch}
+strong,b{color:var(--ink);font-weight:600}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+figure{margin:24px 0;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.fig-head{display:flex;align-items:baseline;gap:12px;margin:0 0 16px;flex-wrap:wrap}
+.fig-no{font-family:var(--font-mono);font-size:12px;color:var(--gold-deep);letter-spacing:.06em}
+.fig-title{font-family:var(--font-display);font-weight:600;font-size:17px;margin:0}
+.tools{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.btn{font:600 12.5px var(--font-body);color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+.btn:hover{border-color:var(--line-2);color:var(--ink)}
+.btn.on{background:var(--gold-soft);border-color:var(--gold);color:var(--gold-deep)}
+.live{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+.live .side{flex:1 1 280px;max-width:420px;font-size:14.5px}
+.live .side ol{padding-left:20px;margin:0 0 12px;color:var(--ink-2)}
+.live .side li{margin-bottom:6px}
+.frames{display:flex;flex-wrap:wrap;gap:22px;justify-content:center}
+.stepped{display:grid;gap:8px;justify-items:center}
+.stepped .t{font:12px var(--font-mono);color:var(--ink-3);text-align:center;max-width:230px;line-height:1.5}
+figcaption{font-size:13.5px;color:var(--ink-3);margin-top:16px}
+
+/* options */
+.opts{display:grid;gap:12px;margin:0 0 18px}
+.opt{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:16px 18px;display:grid;gap:6px}
+.opt.rec{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}
+.opt .h{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.opt .k{font:700 12px var(--font-mono);color:var(--gold-deep);background:var(--gold-soft);border-radius:6px;padding:2px 7px}
+.opt .n{font-family:var(--font-display);font-weight:600;font-size:17px;color:var(--ink)}
+.opt .tag{font:600 11.5px var(--font-body);text-transform:uppercase;letter-spacing:.06em;color:var(--green-ink);background:var(--green-soft);border-radius:999px;padding:2px 9px}
+.opt .tag.no{color:var(--ink-3);background:var(--surface-2)}
+.opt p{margin:0;font-size:14.5px}
+.opt .cost{font-size:13.5px;color:var(--ink-3)}
+.opt .cost b{color:var(--ink-2)}
+
+/* ── the phone, drawn at its own points and scaled ─────────────────────── */
+.frame{position:relative;flex:none;width:calc(393px * var(--s));height:calc(852px * var(--s));--s:.8}
+.frame.sm{--s:.56}
+@media (max-width:460px){.frame{--s:.78}.frame.sm{--s:.72}}
+.dev{position:absolute;left:0;top:0;width:393px;height:852px;transform:scale(var(--s));transform-origin:0 0;
+  border-radius:56px;background:#000;box-shadow:0 0 0 12px #1B1B1E,0 0 0 13px #3A3A3F,0 40px 80px -40px rgba(0,0,0,.55)}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;border-radius:20px;background:#000;z-index:30}
+.home{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:140px;height:5px;border-radius:3px;background:var(--p-home);z-index:30}
+.screen{position:absolute;inset:0;overflow:hidden;border-radius:inherit;font-family:var(--font-ios);user-select:none;-webkit-user-select:none;
+  --p-bg:#FBFBF8;--p-surface:#FFFFFF;--p-surface2:#F2F2EC;--p-line:#E4E4DC;--p-line2:#C4C4BA;
+  --p-ink:#14161B;--p-ink2:#454851;--p-ink3:#666973;--p-ink4:#A9ABB3;--p-gold:#F7C431;
+  --p-amber-ink:#9B4A00;--p-amber:#D76C00;--p-red:#E62728;--p-archive:#6e48c1;--p-blue:#1D6AFF;
+  --p-home:rgba(0,0,0,.85);--p-scrim:rgba(0,0,0,.38);
+  background:var(--p-bg);color:var(--p-ink)}
+.screen.dk{--p-bg:#0F1013;--p-surface:#191B20;--p-surface2:#20232A;--p-line:#2A2D35;--p-line2:#454953;
+  --p-ink:#F1F2ED;--p-ink2:#BDBFC7;--p-ink3:#8A8D97;--p-ink4:#5F626C;
+  --p-amber-ink:#FFC07E;--p-amber:#F38B00;--p-archive:#7d58d4;--p-blue:#3F7BFF;
+  --p-home:rgba(255,255,255,.9);--p-scrim:rgba(0,0,0,.55)}
+.screen.still *{transition:none!important;animation:none!important}
+.sb{position:absolute;top:0;left:0;right:0;height:59px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 34px 12px;font-size:16px;font-weight:600;z-index:4;color:var(--p-ink);background:var(--p-bg)}
+.sb .bars{display:flex;gap:6px;align-items:center}
+.sb .bars i{display:block;width:18px;height:11px;border-radius:2px;background:currentColor}
+.sb .bars i.sig{width:20px;background:linear-gradient(90deg,currentColor 0 25%,transparent 25% 30%,currentColor 30% 55%,transparent 55% 60%,currentColor 60% 85%,transparent 85%)}
+.list{position:absolute;left:0;right:0;top:59px;bottom:0;overflow-y:auto;overflow-x:hidden;padding-bottom:96px;scrollbar-width:none}
+.list::-webkit-scrollbar{width:0}
+.big{display:flex;align-items:center;justify-content:space-between;font-size:34px;font-weight:700;letter-spacing:-.5px;padding:10px 16px 8px;color:var(--p-ink)}
+.big .cm{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;letter-spacing:0;color:var(--p-ink3)}
+.big .cm i{width:8px;height:8px;border-radius:50%;background:#1F9D5B}
+.pad{padding:0 16px 12px}
+.srch{display:flex;align-items:center;gap:8px;height:38px;border-radius:11px;background:var(--p-surface2);padding:0 12px;color:var(--p-ink4);font-size:16px}
+.srch svg{width:17px;height:17px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:83px;padding-top:9px;display:flex;z-index:5;
+  background:color-mix(in srgb,var(--p-bg) 78%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-top:.5px solid var(--p-line)}
+.tabbar .tb{flex:1;display:grid;justify-items:center;align-content:start;gap:3px;font-size:10px;font-weight:600;color:var(--p-ink4)}
+.tabbar .tb svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabbar .tb.on{color:var(--p-gold)}
+
+/* a row, and what a swipe uncovers behind it */
+.rw{position:relative;overflow:hidden;transition:height .3s cubic-bezier(.32,.72,0,1)}
+.acts{position:absolute;top:0;bottom:0;right:0;width:0;display:flex;overflow:hidden}
+.act{flex:1 1 0;min-width:0;border:0;padding:0;display:grid;place-content:center;justify-items:center;gap:4px;color:#fff;font:600 13px var(--font-ios);cursor:pointer;overflow:hidden;white-space:nowrap}
+.act svg{width:24px;height:24px;stroke:#fff;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.act.archive{background:var(--p-archive)}
+.act.unarchive{background:var(--p-blue)}
+.act.delete{background:var(--p-red)}
+.act.pressed{filter:brightness(.82)}
+.row{display:flex;align-items:center;gap:12px;padding:0 16px;min-height:80px;position:relative;background:var(--p-bg);touch-action:pan-y;cursor:grab;will-change:transform}
+.row.pressed{background:var(--p-surface2)}
+.rw+.rw .row::before{content:"";position:absolute;left:84px;right:0;top:0;height:.5px;background:var(--p-line)}
+.row .body{flex:1;min-width:0;display:grid;gap:2px}
+.row .t1{display:flex;align-items:baseline;gap:8px}
+.row .nm{font-size:17px;font-weight:600;color:var(--p-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .wh{font-size:13px;color:var(--p-ink4);margin-left:auto;flex:none}
+.row .ls{font-size:13.5px;color:var(--p-ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ct{font:700 12px var(--font-ios);color:#16181D;background:var(--p-gold);border-radius:999px;padding:2px 8px;flex:none}
+.row .chev{color:var(--p-ink4);font-size:20px;flex:none;opacity:.8;margin-left:2px}
+.av{flex:none;width:56px;height:56px;display:grid;place-items:center;color:#fff;font-weight:700;font-size:20px;letter-spacing:-.3px}
+.av.sm{width:44px;height:44px;font-size:16px}
+.sect{display:flex;align-items:center;justify-content:space-between;min-height:44px;padding:0 16px;color:var(--p-ink3);cursor:pointer;margin-top:6px}
+.sect b{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:inherit}
+.sect span{font-size:13px;font-weight:600}
+.sect .num{display:inline-block}
+.sect .num.bump{animation:bump .5s cubic-bezier(.32,.72,0,1)}
+@keyframes bump{0%{transform:scale(1)}35%{transform:scale(1.5);color:var(--p-archive)}100%{transform:scale(1)}}
+
+/* the sheet that asks first */
+.scrim{position:absolute;inset:0;background:var(--p-scrim);opacity:0;pointer-events:none;transition:opacity .3s;z-index:10}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:12;background:var(--p-surface);border-radius:30px 30px 0 0;padding:8px 20px 40px;
+  transform:translateY(105%);transition:transform .38s cubic-bezier(.32,.72,0,1);box-shadow:0 -12px 40px rgba(0,0,0,.18)}
+.sheet.up{transform:none}
+.sheet .grab{width:36px;height:5px;border-radius:3px;background:var(--p-line2);margin:0 auto 16px}
+.sheet .who{display:flex;gap:12px;align-items:center;padding:12px;border-radius:18px;background:var(--p-surface2);margin-bottom:18px}
+.sheet .who .nm{font-size:16px;font-weight:600;color:var(--p-ink)}
+.sheet .who .ls{font-size:13px;color:var(--p-ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet .who>div{min-width:0;display:grid;gap:1px}
+.sheet h4{margin:0 0 6px;font-size:22px;font-weight:700;letter-spacing:-.3px;color:var(--p-ink);line-height:1.2}
+.sheet p{margin:0 0 8px;font-size:15px;line-height:1.45;color:var(--p-ink2)}
+.sheet p.q{font-size:13.5px;color:var(--p-ink3)}
+.sheet .go,.sheet .no{display:block;width:100%;height:52px;border:0;border-radius:14px;font:600 17px var(--font-ios);cursor:pointer}
+.sheet .go{color:#fff;margin-top:18px}
+.sheet .go.archive{background:var(--p-archive)}
+.sheet .go.delete{background:var(--p-red)}
+.sheet .no{background:var(--p-surface2);color:var(--p-ink);margin-top:10px}
+.sheet .pressed{filter:brightness(.85)}
+
+.finger{position:absolute;left:0;top:0;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(140,140,150,.35);border:2px solid rgba(255,255,255,.85);
+  box-shadow:0 2px 10px rgba(0,0,0,.25);pointer-events:none;opacity:0;z-index:25;transition:opacity .18s,transform .15s}
+.finger.on{opacity:1}
+.finger.down{transform:scale(.8)}
+</style>
+
+<div class="top"><div class="top-in"><span class="brand">Chips</span><span class="what">Spaces · archive and delete</span><span class="ver">mock · 22 Sep 2026</span></div></div>
+
+<article>
+<h1>Archive and delete, by swiping a row</h1>
+<p class="lede">Swipe a space's row left and two buttons come out from under it, the way Mail and Messages do it on iOS: <b>Archive</b> and <b>Delete</b>. Tapping either one opens a sheet with the space on it, so you can see which one you're about to act on. Nothing happens until you confirm.</p>
+<p class="lede">This is a running mock, not the app. You can drag the rows yourself, with a mouse or a finger. The sheets and the rows are drawn to the phone's own sizes and colours.</p>
+
+<figure>
+  <div class="fig-head"><span class="fig-no">FIG 1</span><h3 class="fig-title">The Spaces tab, live</h3>
+    <div class="tools"><button class="btn on" id="play">Playing</button><button class="btn" id="theme">Dark</button><button class="btn" id="reset">Reset</button></div></div>
+  <div class="live">
+    <div class="frame" id="live"></div>
+    <div class="side">
+      <ol>
+        <li><b>Swipe left</b> on a row to show Archive and Delete. Let go before halfway and the row springs back. Tapping anywhere else closes it.</li>
+        <li><b>Archive</b> asks first. After you confirm, the row slides away and the <b>Archived</b> count at the bottom of the list goes up by one.</li>
+        <li><b>Delete</b> asks first, with a red button. After you confirm, the row is gone.</li>
+        <li>A <b>direct room with a harness</b> (J, Scout) can be archived but not deleted, because it's the channel the harness talks to you on.</li>
+        <li>An <b>archived row</b> swipes to <b>Unarchive</b> and <b>Delete</b>. Unarchive doesn't ask first, because it only puts the room back.</li>
+        <li>Long press still opens the icon picker. Nothing about that changes.</li>
+      </ol>
+      <p style="font-size:13.5px;color:var(--ink-3)">The demo plays on its own until you touch the phone. After that, it's yours to drag. Reset puts everything back.</p>
+    </div>
+  </div>
+</figure>
+
+<figure>
+  <div class="fig-head"><span class="fig-no">FIG 2</span><h3 class="fig-title">The four states, still</h3></div>
+  <div class="frames">
+    <div class="stepped"><div class="frame sm" id="s1"></div><div class="t">Swiped left: Archive and Delete</div></div>
+    <div class="stepped"><div class="frame sm" id="s2"></div><div class="t">Archive asks first</div></div>
+    <div class="stepped"><div class="frame sm" id="s3"></div><div class="t">Delete asks first, in red</div></div>
+    <div class="stepped"><div class="frame sm" id="s4"></div><div class="t">An archived room: Unarchive and Delete</div></div>
+  </div>
+  <figcaption>The sheet's wording depends on the room. When Jacobian opened the room, the Delete sheet says what happens the next time that Space speaks. A room a person opened doesn't get that line.</figcaption>
+</figure>
+
+<h2>What “archive” and “delete” can mean here, and what each costs</h2>
+<p>The swipe and the sheets are the same work whichever options you pick. That part is the phone's list, one gesture and one sheet. The real choice is what the two words do to a room. Two facts drive it.</p>
+<ul>
+  <li><b>Chips already has half of archive.</b> A room can be <code>closed</code>. Closing takes it off the list, keeps its history, and it can be reopened. That's the <b>Closed · N</b> row at the bottom of the list now, where Jacobian's archived Spaces go. That row would be renamed <b>Archived · N</b>, so it's one word for both.</li>
+  <li><b>Jacobian reopens rooms.</b> Every time its registry changes (a new Space is enough), it moves every room it opened back in line with its Space. A room you archived by hand for a Space that is still live would come back within hours.</li>
+</ul>
+
+<h3>Archive: pick one</h3>
+<div class="opts">
+  <div class="opt"><div class="h"><span class="k">A0</span><span class="n">Close, under a new name</span><span class="tag no">not recommended</span></div>
+    <p>The swipe calls the close that already exists. Rooms of live Jacobian Spaces come back at Jacobian's next registry change, so it would look broken within a day.</p>
+    <p class="cost"><b>Cost:</b> phone only, then a phone rebuild. The smallest option, but it doesn't do the job.</p></div>
+  <div class="opt rec"><div class="h"><span class="k">A1</span><span class="n">Archive holds until you unarchive</span><span class="tag">recommended</span></div>
+    <p>Same swipe. A room you archive stays archived whatever its Jacobian Space is doing. A room you unarchive stays open. Rooms you never touched still follow their Spaces, as they do today. This is the rule Chips already has for names: once a person renames a room, a harness's name for it stops applying.</p>
+    <p class="cost"><b>Cost:</b> the server records whether a person or a harness archived the room (one column, migration 0026). The room list Jacobian reads leaves out rooms a person has moved, so <b>Jacobian needs no change</b>. The server also refuses a harness that tries to reopen one. On the desktop, <i>Close space</i> becomes <i>Archive</i>, and its Closed row becomes Archived. Then restart the 4431 server and run <code>pnpm phone</code>.</p></div>
+  <div class="opt"><div class="h"><span class="k">A2</span><span class="n">A1, and it archives the Space in Jacobian too</span></div>
+    <p>Archiving a room in Chips also archives its Space in Jacobian, and unarchiving restores it. Chips and Jacobian never disagree about what's put away.</p>
+    <p class="cost"><b>Cost:</b> everything in A1, plus a change to Jacobian's adapter: it notices a room a person archived and archives the Space. That needs your go-ahead to edit, commit and restart Jacobian.</p></div>
+</div>
+
+<h3>Delete: pick one</h3>
+<div class="opts">
+  <div class="opt rec"><div class="h"><span class="k">D1</span><span class="n">Gone from every list; the server keeps the record</span><span class="tag">recommended</span></div>
+    <p>The room disappears from every device and from search, for everyone in it, and can't be brought back from the app. The server's log keeps what was said, the same way it does for a deleted message now. If Jacobian speaks in that Space again, a fresh, empty room opens. Direct rooms with a harness can only be archived.</p>
+    <p class="cost"><b>Cost:</b> a third room state, <code>deleted</code>, next to open and closed. It needs no new event type. The rest: the projection and search leave deleted rooms out; the server only lets the room's owner or a workspace owner or admin delete; and a harness's key for the room is freed, so the next message opens a new room. An ADR. It shares A1's restart and rebuild. On the desktop, <i>Delete space…</i> sits next to Archive and opens a dialog with the same wording.</p></div>
+  <div class="opt"><div class="h"><span class="k">D2</span><span class="n">Erased from the server</span></div>
+    <p>Everything in D1, and the room's messages, files, search entries, read marks and icon are also removed from the database and the disk. Each device drops its cached copy.</p>
+    <p class="cost"><b>Cost:</b> the log stops being the complete record, so rebuilding from it no longer brings the room back. It needs its own ADR on erasure, a sweep over about ten tables and the attachment store, and a cache purge on every device. It's several times D1. I'd hold it until privacy or a teammate asks for it.</p></div>
+</div>
+
+<p><b>What I'd build: A1 + D1.</b> Neither changes Jacobian. Rolling it out takes one migration, a restart of the 4431 server, and a <code>pnpm phone</code> rebuild. I'd walk it on the iPhone simulator first. Android uses the same swipe library but won't be walked unless you ask.</p>
+</article>
+
+<script>
+(() => {
+"use strict";
+const ICON = {
+  archive:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1"/><path d="M5 8.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.5M10 12.5h4"/></svg>',
+  unarchive:'<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1"/><path d="M5 8.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8.5M12 17.5v-6M9.5 14 12 11.5 14.5 14"/></svg>',
+  delete:'<svg viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l.9 12.2a1 1 0 0 0 1 .8h7.2a1 1 0 0 0 1-.8L17.5 7M10 11v5.5M14 11v5.5"/></svg>',
+};
+const LABEL = {archive:"Archive", unarchive:"Unarchive", delete:"Delete"};
+const ROOMS = [
+  {id:"j", name:"J", ini:"J", harness:true, direct:true, hue:"#1c6aa8", last:"Placed the Kalshi pull in Research.", when:"now", unread:2},
+  {id:"chess", name:"Chess Game", ini:"CG", hue:"#2a8452", by:"Jacobian", last:"Your move. I'd play Nf3 here.", when:"4m"},
+  {id:"kalshi", name:"Kalshi Weather", ini:"KW", hue:"#a76341", by:"Jacobian", last:"NYC's high for Thursday looks mispriced.", when:"38m", unread:1},
+  {id:"life", name:"Game of Life", ini:"GL", hue:"#b84d86", by:"Jacobian", last:"The glider gun is stable at gen 400.", when:"2h"},
+  {id:"digest", name:"Research Digest", ini:"RD", hue:"#00736d", by:"Jacobian", last:"Six papers this week; two worth reading.", when:"Mon"},
+  {id:"goa", name:"Trip to Goa", ini:"TG", hue:"#007f9a", last:"Flights hold until Friday.", when:"Sun"},
+  {id:"scout", name:"Scout", ini:"S", harness:true, direct:true, hue:"#a94cbe", last:"All quiet on the fleet.", when:"Sat"},
+];
+const ARCHIVED = [
+  {id:"tax", name:"Q3 Taxes", ini:"QT", hue:"#7f3965", last:"Filed. Receipts are in the drive.", when:"Aug 30"},
+  {id:"bt", name:"Old Backtests", ini:"OB", hue:"#9c6a00", by:"Jacobian", last:"Sharpe 0.4 over the full window.", when:"Aug 12"},
+];
+const STOP = Symbol("stop");
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function avatar(room, sm) {
+  const r = room.harness ? .32 : .22, side = sm ? 44 : 56;
+  return `<div class="av${sm ? " sm" : ""}" style="background:${room.hue};border-radius:${Math.round(side * r)}px">${esc(room.ini)}</div>`;
+}
+function actionsFor(room, archived) {
+  if (archived) return room.direct ? ["unarchive"] : ["unarchive", "delete"];
+  return room.direct ? ["archive"] : ["archive", "delete"];
+}
+const ACT_W = 78;
+
+function phone(host, {dark = false, still = false} = {}) {
+  host.innerHTML = `<div class="dev"><div class="island"></div><div class="screen${dark ? " dk" : ""}${still ? " still" : ""}">
+    <div class="sb"><span>9:41</span><span class="bars"><i class="sig"></i><i></i></span></div>
+    <div class="list"></div>
+    <div class="tabbar">
+      <div class="tb on"><svg viewBox="0 0 24 24"><path d="M4 5h11a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/><path d="M19 9h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1v2l-3-2h-4"/></svg>Spaces</div>
+      <div class="tb"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>Harnesses</div>
+      <div class="tb"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>You</div>
+    </div>
+    <div class="scrim"></div>
+    <div class="sheet" role="dialog"></div>
+    <div class="finger"></div>
+    <div class="home"></div></div></div>`;
+  const screen = host.querySelector(".screen");
+  const list = screen.querySelector(".list");
+  const sheet = screen.querySelector(".sheet");
+  const scrim = screen.querySelector(".scrim");
+  const finger = screen.querySelector(".finger");
+  const st = {open: ROOMS.map((r) => ({...r})), archived: ARCHIVED.map((r) => ({...r})), shown: false, openId: null, asking: null, onUser: null};
+
+  function render() {
+    const rows = (rooms, archived) => rooms.map((room) => {
+      const acts = actionsFor(room, archived);
+      return `<div class="rw" data-id="${room.id}" data-w="${acts.length * ACT_W}">
+        <div class="acts">${acts.map((a) => `<button class="act ${a}" data-act="${a}" tabindex="-1">${ICON[a]}<span>${LABEL[a]}</span></button>`).join("")}</div>
+        <div class="row">${avatar(room)}<div class="body"><div class="t1"><span class="nm">${esc(room.name)}</span><span class="wh">${room.when}</span></div>
+          <div class="ls">${esc(room.last)}</div></div>${room.unread ? `<span class="ct">${room.unread}</span>` : ""}<span class="chev">›</span></div></div>`;
+    }).join("");
+    list.innerHTML = `<div class="big">Spaces<span class="cm"><i></i>Home</span></div>
+      <div class="pad"><div class="srch"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>Anything said</div></div>
+      <div class="grp" data-g="open">${rows(st.open, false)}</div>
+      ${st.archived.length ? `<div class="sect"><b>Archived · <span class="num">${st.archived.length}</span></b><span>${st.shown ? "Hide" : "Show"}</span></div>` : ""}
+      ${st.shown ? `<div class="grp" data-g="archived">${rows(st.archived, true)}</div>` : ""}`;
+    st.openId = null;
+  }
+  const rw = (id) => list.querySelector(`.rw[data-id="${id}"]`);
+  const find = (id) => st.open.find((r) => r.id === id) ?? st.archived.find((r) => r.id === id);
+  const isArchived = (id) => st.archived.some((r) => r.id === id);
+
+  function setX(el, x, ms = 0) {
+    const row = el.querySelector(".row"), acts = el.querySelector(".acts");
+    const t = ms ? `${ms}ms cubic-bezier(.2,.9,.25,1)` : "none";
+    row.style.transition = ms ? `transform ${t}` : "none";
+    acts.style.transition = ms ? `width ${t}` : "none";
+    row.style.transform = `translateX(${x}px)`;
+    acts.style.width = `${Math.max(0, -x)}px`;
+    el.dataset.x = x;
+  }
+  function closeOpen(ms = 320) {
+    if (st.openId) { const el = rw(st.openId); if (el) setX(el, 0, ms); st.openId = null; }
+  }
+  function openRow(id, ms = 320) {
+    if (st.openId && st.openId !== id) closeOpen();
+    const el = rw(id); setX(el, -Number(el.dataset.w), ms); st.openId = id;
+  }
+
+  function ask(kind, id) {
+    const room = find(id);
+    st.asking = {kind, id};
+    const body = kind === "archive"
+      ? `<h4>Archive ${esc(room.name)}?</h4>
+         <p>It moves to Archived at the foot of your list. Nothing in it is lost, and anything new still lands in it.</p>
+         <p class="q">It stays archived until you unarchive it.</p>`
+      : `<h4>Delete ${esc(room.name)}?</h4>
+         <p>It goes from the list and from search on every device, for everyone in it. You can't bring it back.</p>
+         ${room.by ? `<p class="q">If ${room.by} speaks in this Space again, a new, empty room opens for it.</p>` : ""}`;
+    sheet.innerHTML = `<div class="grab"></div>
+      <div class="who">${avatar(room, true)}<div><span class="nm">${esc(room.name)}</span><span class="ls">${esc(room.last)}</span></div></div>
+      ${body}
+      <button class="go ${kind}" data-sheet="go">${kind === "archive" ? "Archive" : "Delete"}</button>
+      <button class="no" data-sheet="no">Cancel</button>`;
+    sheet.classList.add("up"); scrim.classList.add("on");
+  }
+  function dismiss() { sheet.classList.remove("up"); scrim.classList.remove("on"); st.asking = null; }
+
+  async function removeRow(id, then) {
+    const el = rw(id);
+    setX(el, -(393 + 20), 260);
+    await wait(240);
+    el.style.height = `${el.offsetHeight}px`; void el.offsetHeight; el.style.height = "0px";
+    await wait(310);
+    then(); st.openId = null; render();
+  }
+  async function confirm() {
+    const {kind, id} = st.asking; dismiss();
+    await wait(120);
+    if (kind === "archive") {
+      await removeRow(id, () => { const i = st.open.findIndex((r) => r.id === id); st.archived.unshift(st.open.splice(i, 1)[0]); });
+      const n = list.querySelector(".sect .num"); if (n) n.classList.add("bump");
+    } else {
+      await removeRow(id, () => { st.open = st.open.filter((r) => r.id !== id); st.archived = st.archived.filter((r) => r.id !== id); });
+    }
+  }
+  async function unarchive(id) {
+    await removeRow(id, () => {
+      const i = st.archived.findIndex((r) => r.id === id);
+      const room = st.archived.splice(i, 1)[0];
+      const at = ROOMS.findIndex((r) => r.id === id);
+      const before = st.open.findIndex((r) => ROOMS.findIndex((x) => x.id === r.id) > at);
+      st.open.splice(before < 0 ? st.open.length : before, 0, room);
+      if (!st.archived.length) st.shown = false;
+    });
+  }
+  function act(kind, id) {
+    if (kind === "unarchive") { void unarchive(id); return; }
+    ask(kind, id);
+  }
+
+  // ── a person's own drag ───────────────────────────────────────────────
+  let drag = null;
+  list.addEventListener("pointerdown", (e) => {
+    st.onUser?.();
+    if (e.target.closest(".act")) return;
+    const el = e.target.closest(".rw");
+    if (!el) { closeOpen(); return; }
+    drag = {el, x0: e.clientX, y0: e.clientY, base: Number(el.dataset.x || 0), s: screen.getBoundingClientRect().width / 393, on: false, id: e.pointerId, last: e.clientX, t: performance.now(), v: 0};
+  });
+  list.addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = (e.clientX - drag.x0) / drag.s, dy = (e.clientY - drag.y0) / drag.s;
+    if (!drag.on) {
+      if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) { drag = null; return; }
+      if (Math.abs(dx) < 6) return;
+      drag.on = true; drag.el.setPointerCapture(e.pointerId);
+      if (st.openId && st.openId !== drag.el.dataset.id) closeOpen();
+    }
+    const now = performance.now();
+    drag.v = (e.clientX - drag.last) / drag.s / Math.max(1, now - drag.t); drag.last = e.clientX; drag.t = now;
+    const w = Number(drag.el.dataset.w);
+    let x = drag.base + dx;
+    if (x > 0) x = x * .12;
+    if (x < -w) x = -w + (x + w) * .35;
+    setX(drag.el, x);
+  });
+  const up = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const {el, on, v} = drag; drag = null;
+    const id = el.dataset.id;
+    if (!on) {
+      if (st.openId) { closeOpen(); return; }
+      const row = el.querySelector(".row"); row.classList.add("pressed"); setTimeout(() => row.classList.remove("pressed"), 180);
+      return;
+    }
+    const w = Number(el.dataset.w), x = Number(el.dataset.x);
+    const flick = e.type === "pointerup" ? v : 0;
+    if (x < -w / 2 || flick < -.5) { setX(el, -w, 300); st.openId = id; } else { setX(el, 0, 300); if (st.openId === id) st.openId = null; }
+  };
+  list.addEventListener("pointerup", up); list.addEventListener("pointercancel", up);
+  list.addEventListener("click", (e) => {
+    const a = e.target.closest(".act");
+    if (a) { act(a.dataset.act, a.closest(".rw").dataset.id); return; }
+    if (e.target.closest(".sect")) { st.onUser?.(); st.shown = !st.shown; render(); }
+  });
+  scrim.addEventListener("click", () => { st.onUser?.(); dismiss(); closeOpen(); });
+  sheet.addEventListener("pointerdown", () => st.onUser?.());
+  sheet.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-sheet]"); if (!b) return;
+    if (b.dataset.sheet === "no") { dismiss(); closeOpen(); } else void confirm();
+  });
+
+  // ── the demo's finger ─────────────────────────────────────────────────
+  let gen = 0;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const nap = async (g, ms) => { await wait(ms); if (g !== gen) throw STOP; };
+  function at(el) {
+    const s = screen.getBoundingClientRect(), r = el.getBoundingClientRect(), k = s.width / 393;
+    return {x: (r.left - s.left) / k, y: (r.top - s.top) / k, w: r.width / k, h: r.height / k};
+  }
+  function place(x, y, ms = 0) { finger.style.transition = `opacity .18s,transform .15s${ms ? `,left ${ms}ms cubic-bezier(.2,.9,.25,1),top ${ms}ms cubic-bezier(.2,.9,.25,1)` : ""}`; finger.style.left = `${x}px`; finger.style.top = `${y}px`; }
+  async function tap(g, el, pressEl = el) {
+    const p = at(el); place(p.x + p.w / 2, p.y + p.h / 2);
+    finger.classList.add("on"); await nap(g, 260);
+    finger.classList.add("down"); pressEl.classList.add("pressed"); await nap(g, 160);
+    finger.classList.remove("down"); pressEl.classList.remove("pressed"); await nap(g, 80);
+    finger.classList.remove("on");
+  }
+  async function swipe(g, id) {
+    const el = rw(id), p = at(el), y = p.y + p.h / 2, w = Number(el.dataset.w);
+    place(330, y); finger.classList.add("on"); await nap(g, 240);
+    finger.classList.add("down"); await nap(g, 120);
+    place(330 - w - 20, y, 380); setX(el, -w - 14, 380); await nap(g, 400);
+    finger.classList.remove("down"); setX(el, -w, 220); st.openId = id; await nap(g, 120);
+    finger.classList.remove("on");
+  }
+  async function script(g) {
+    await nap(g, 900);
+    await swipe(g, "chess"); await nap(g, 800);
+    await tap(g, rw("chess").querySelector(".act.archive")); ask("archive", "chess"); await nap(g, 2000);
+    await tap(g, sheet.querySelector(".go")); await confirm(); await nap(g, 1200);
+    await swipe(g, "kalshi"); await nap(g, 700);
+    await tap(g, rw("kalshi").querySelector(".act.delete")); ask("delete", "kalshi"); await nap(g, 2400);
+    await tap(g, sheet.querySelector(".go")); await confirm(); await nap(g, 1200);
+    await swipe(g, "j"); await nap(g, 1500);
+    await tap(g, list.querySelector(".big")); closeOpen(); await nap(g, 900);
+    await tap(g, list.querySelector(".sect")); st.shown = true; render();
+    list.scrollTo({top: list.scrollHeight, behavior: "smooth"}); await nap(g, 1000);
+    await swipe(g, "chess"); await nap(g, 1300);
+    await tap(g, rw("chess").querySelector(".act.unarchive")); await unarchive("chess"); await nap(g, 1200);
+    list.scrollTo({top: 0, behavior: "smooth"}); await nap(g, 1400);
+  }
+  function clear() { dismiss(); st.open = ROOMS.map((r) => ({...r})); st.archived = ARCHIVED.map((r) => ({...r})); st.shown = false; render(); list.scrollTop = 0; finger.classList.remove("on", "down"); }
+  function reset() { gen++; clear(); }
+  async function loop(onDone) {
+    const g = ++gen;
+    try { for (;;) { clear(); await script(g); } } catch (e) { if (e !== STOP) throw e; }
+    onDone?.();
+  }
+  render();
+  return {st, screen, list, rw, setX, openRow, ask, render, reset, loop, stop: () => { gen++; finger.classList.remove("on", "down"); }};
+}
+
+// ── the live one ─────────────────────────────────────────────────────────
+const dark = () => document.documentElement.dataset.theme === "dark" || (document.documentElement.dataset.theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+const live = phone(document.getElementById("live"), {dark: dark()});
+const play = document.getElementById("play");
+let playing = false;
+function start() { playing = true; play.textContent = "Playing"; play.classList.add("on"); void live.loop(); }
+function stop() { if (!playing) return; playing = false; live.stop(); play.textContent = "Play"; play.classList.remove("on"); }
+live.st.onUser = stop;
+play.addEventListener("click", () => { if (playing) stop(); else start(); });
+document.getElementById("reset").addEventListener("click", () => { stop(); live.reset(); });
+const themeBtn = document.getElementById("theme");
+function paintTheme() {
+  const d = dark();
+  themeBtn.textContent = d ? "Light" : "Dark";
+  document.querySelectorAll(".screen").forEach((s) => s.classList.toggle("dk", d));
+}
+themeBtn.addEventListener("click", () => { document.documentElement.dataset.theme = dark() ? "light" : "dark"; paintTheme(); });
+paintTheme();
+if (!new URLSearchParams(location.search).has("still")) start(); else { playing = false; play.textContent = "Play"; play.classList.remove("on"); }
+
+// ── the stills ───────────────────────────────────────────────────────────
+function still(id, set) { const p = phone(document.getElementById(id), {dark: dark(), still: true}); set(p); return p; }
+still("s1", (p) => p.openRow("chess", 0));
+still("s2", (p) => { p.openRow("chess", 0); p.ask("archive", "chess"); });
+still("s3", (p) => { p.openRow("kalshi", 0); p.ask("delete", "kalshi"); });
+still("s4", (p) => { p.st.shown = true; p.render(); p.list.scrollTop = p.list.scrollHeight; p.openRow("tax", 0); });
+})();
+</script>

@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "type": "agent.lock_set",
+  "id": "evt_01K4ZQPX0000000000000000Z7",
+  "ts": "2026-10-18T07:00:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "agent_id": "agt_01K4ZQPX0000000000000000A1",
+  "locked": true
+}

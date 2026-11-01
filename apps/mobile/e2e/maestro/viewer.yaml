@@ -1,0 +1,109 @@
+# The media viewer's gestures (the media viewer, Phases 1 and 3), which Playwright cannot make: a
+# video that plays on the stage and is dragged away, a swipe between photos, a double tap to zoom
+# and back, and a drag down that closes the viewer into the tile it opened from. The room needs a
+# video the server has measured and a message with at least two photos in it — an album, or two
+# messages a few lines apart — both of which a harness can send (`e2e/viewer.spec.ts` shows how).
+# The room opens at its newest line: the video is looked for from there, and the photos above it.
+#
+# There is no pinch: Maestro drives one finger. A pinch, and a pinch let go under three quarters
+# closing the viewer, are for a hand on the simulator (Option-drag) or a phone.
+appId: ${APP_ID}
+# Maestro reads `${…}` as JavaScript, so the defaults are here, and `-e` still overrides them.
+env:
+  APP_ID: chat.chips.app
+  SPACE: PO-4471
+---
+- launchApp:
+    clearState: false
+
+# Into the room.
+- tapOn: "Spaces"
+- tapOn:
+    text: ${SPACE}
+- assertVisible:
+    id: "composer"
+
+# A video: its tile opens the viewer on it, and it plays once its copy has come — the clock moves
+# off 0:00. Maestro takes seconds a step while a video plays, so a short clip may have finished by
+# the time it looks, which is a clock that moved too.
+- scrollUntilVisible:
+    element:
+      id: "video-att_.*"
+    direction: UP
+    timeout: 120000
+    centerElement: true
+- tapOn:
+    id: "video-att_.*"
+    index: 0
+- assertVisible:
+    id: "viewer-counter"
+- assertVisible:
+    id: "viewer-time"
+- extendedWaitUntil:
+    notVisible:
+      id: "viewer-time"
+      text: "0:00 / .*"
+    timeout: 60000
+
+# A drag down past the line takes it away, into its tile.
+- swipe:
+    start: 50%, 45%
+    end: 50%, 85%
+    duration: 400
+- assertNotVisible:
+    id: "viewer-counter"
+- assertVisible:
+    id: "composer"
+
+# Onto a photo's tile, however far up the room it is.
+- scrollUntilVisible:
+    element:
+      id: "photo-att_.*"
+    direction: UP
+    timeout: 300000
+    centerElement: true
+- tapOn:
+    id: "photo-att_.*"
+    index: 0
+
+# The viewer, with its bars come in: Close, the counter, Share and the menu.
+- assertVisible:
+    id: "viewer-counter"
+- assertVisible: "Share"
+- copyTextFrom:
+    id: "viewer-counter"
+- evalScript: ${output.first = maestro.copiedText}
+
+# A swipe from right to left is the next item; the counter says so once the page has settled.
+- swipe:
+    start: 80%, 50%
+    end: 15%, 50%
+    duration: 250
+- assertNotVisible:
+    text: ${output.first}
+- swipe:
+    start: 20%, 50%
+    end: 85%, 50%
+    duration: 250
+- assertVisible:
+    text: ${output.first}
+
+# A double tap zooms to two and a half times at the point, and the bars leave; another fits it.
+- doubleTapOn:
+    point: 50%, 50%
+- assertNotVisible: "Share"
+- doubleTapOn:
+    point: 50%, 50%
+- tapOn:
+    point: 50%, 50%
+    optional: true
+
+# A drag down past the line closes the viewer back into the room.
+- swipe:
+    start: 50%, 45%
+    end: 50%, 85%
+    duration: 400
+- assertNotVisible:
+    id: "viewer-counter"
+- assertVisible:
+    id: "composer"

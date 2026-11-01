@@ -1,0 +1,17 @@
+{
+  "name": "@chipschat/guardrails",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tests that the repository's own guardrails fire on known-bad code.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "dependency-cruiser": "18.2.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}

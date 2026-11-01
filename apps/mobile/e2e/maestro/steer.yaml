@@ -1,0 +1,34 @@
+# Steer, from the room. The command goes through core's own `parseCommand` and `act`, so what
+# this proves on a device is the keyboard: a composer that cannot be typed into on a real phone
+# is a composer that works only in a browser.
+appId: ${APP_ID}
+# Maestro reads `${…}` as JavaScript, so the defaults are here, and `-e` still overrides them.
+env:
+  APP_ID: chat.chips.app
+  SPACE: PO-4471
+---
+- launchApp:
+    clearState: false
+
+- tapOn: "Rooms"
+- tapOn:
+    text: "${SPACE}"
+- assertVisible:
+    id: "composer"
+
+# A steer, which needs a run going: `node apps/mobile/e2e/maestro/golden.mjs` starts one.
+- tapOn:
+    id: "composer"
+- inputText: "/steer use the other address"
+- tapOn: "Send"
+
+# The steer is in the room, under this person's name, marked as a steer.
+- assertVisible: "use the other address"
+- assertVisible: "steer"
+
+# And a plain message, which is the other half of the same box.
+- tapOn:
+    id: "composer"
+- inputText: "On it."
+- tapOn: "Send"
+- assertVisible: "On it."

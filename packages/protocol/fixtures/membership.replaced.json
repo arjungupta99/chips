@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "membership.replaced",
+  "id": "evt_01K4ZQPX0000000000000000G3",
+  "ts": "2026-09-30T09:00:00.104Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "idempotency_key": "replace-spc_01K4ZQPX000000000000000002-hrn_01K4ZQPX000000000000000004",
+  "from": "hrn_01K4ZQPX000000000000000004",
+  "to": "agt_01K4ZQPX0000000000000000A1"
+}

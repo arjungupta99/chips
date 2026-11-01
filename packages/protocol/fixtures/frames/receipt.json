@@ -1,0 +1,5 @@
+{
+  "frame": "receipt",
+  "idempotency_key": "arjun-msg-7",
+  "disposition": "steered"
+}

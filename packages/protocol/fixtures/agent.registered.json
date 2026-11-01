@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "type": "agent.registered",
+  "id": "evt_01K4ZQPX0000000000000000G1",
+  "ts": "2026-09-30T09:00:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "idempotency_key": "agent-hrn_01K4ZQPX000000000000000004-e0d0f115",
+  "agent_id": "agt_01K4ZQPX0000000000000000A1",
+  "harness_id": "hrn_01K4ZQPX000000000000000004",
+  "key": "e0d0f115",
+  "name": "Kitchen remodel",
+  "lead": false
+}

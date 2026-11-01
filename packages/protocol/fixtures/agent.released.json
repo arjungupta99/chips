@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "agent.released",
+  "id": "evt_01K4ZQPX0000000000000000G4",
+  "ts": "2026-09-30T09:06:00.002Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "agent_id": "agt_01K4ZQPX0000000000000000A1",
+  "space_id": "spc_01K4ZQPX0000000000000000S7",
+  "by": "usr_01K4ZQPX000000000000000003",
+  "reason": "moved",
+  "moved_to": "spc_01K4ZQPX000000000000000002"
+}

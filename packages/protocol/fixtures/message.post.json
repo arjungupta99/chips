@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "message.post",
+  "id": "evt_01K4ZQPX000000000000000067",
+  "ts": "2026-09-02T14:22:03.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "text": "The PO is for **120 units**, delivery 19 September. Drafting the confirmation to Dana now."
+}

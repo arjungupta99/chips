@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Chips",
+  "version": "1.0.0",
+  "identifier": "chat.chips.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @chipschat/web exec vite --port 5175 --strictPort",
+    "devUrl": "http://localhost:5175",
+    "beforeBuildCommand": "pnpm --filter @chipschat/web run build",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Chips",
+        "width": 1180,
+        "height": 780,
+        "minWidth": 880,
+        "minHeight": 560,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://*:* https://*:* ws://*:* wss://*:*; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src blob:; frame-src chips-page:",
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": ["icons/icon.png"],
+    "category": "Productivity",
+    "shortDescription": "Supervise your harnesses",
+    "longDescription": "Chat with your harnesses, watch what they do, and decide when they ask.",
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "entitlements": "Entitlements.plist"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["chips"]
+      }
+    }
+  }
+}

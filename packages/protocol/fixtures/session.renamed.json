@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "session.renamed",
+  "id": "evt_01K4ZQPX0000000000000000S3",
+  "ts": "2026-09-07T09:12:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "idempotency_key": "scout:3f9c1a-named-1",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "session_ref": "scout:3f9c1a",
+  "title": "Sync spec flakes"
+}

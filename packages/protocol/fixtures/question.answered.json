@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "type": "question.answered",
+  "id": "evt_01K4ZQPX000000000000000077",
+  "ts": "2026-09-02T14:22:19.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "ask_id": "qst_01K4ZQPX000000000000000009",
+  "answers": [
+    {
+      "question_id": "delivery-window",
+      "values": ["19"]
+    }
+  ],
+  "answered_by": "usr_01K4ZQPX000000000000000003",
+  "answered_at": "2026-09-02T14:29:40.117Z",
+  "timed_out": false
+}

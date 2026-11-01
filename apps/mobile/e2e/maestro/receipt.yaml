@@ -1,0 +1,39 @@
+# What the run did, on a press and hold (ADR 0050, ADR 0200). The receipt is not in the room; the
+# reply that closed the run lifts, and What the run did on its menu opens the receipt. What this
+# proves on a device is the long press itself, which the web target only stands in for with a held
+# click.
+appId: ${APP_ID}
+# Maestro reads `${…}` as JavaScript, so the defaults are here, and `-e` still overrides them.
+env:
+  APP_ID: chat.chips.app
+  SPACE: PO-4471
+  REPLY: "Confirmed PO #4471 with Northwind"
+---
+- launchApp:
+    clearState: false
+
+- tapOn: "Spaces"
+- tapOn:
+    text: "${SPACE}"
+- assertVisible:
+    id: "composer"
+
+# No receipt under any reply in the room.
+- assertNotVisible:
+    id: "receipt"
+
+# A press and hold on the reply that closed a run — `golden.mjs`, approved, leaves one — lifts it,
+# and What the run did on its menu opens the sheet with the receipt in it.
+- longPressOn:
+    text: "${REPLY}"
+- assertVisible:
+    id: "lift-card"
+- tapOn:
+    id: "lift-receipt"
+- assertVisible:
+    id: "receipt"
+- assertVisible: "step"
+- tapOn:
+    id: "line-pages-.*-close"
+- assertNotVisible:
+    id: "receipt"

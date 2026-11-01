@@ -1,0 +1,327 @@
+.ui-avatar {
+  --avatar-color: var(--surface-3);
+  /* A chosen face's lit ground: flat where the browser cannot work it out (below). */
+  --avatar-top: var(--avatar-color);
+  --avatar-foot: var(--avatar-color);
+  --ring: transparent;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--avatar-color);
+  color: var(--on-avatar);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  flex: none;
+  user-select: none;
+}
+
+.ui-avatar[data-size="xs"] {
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+
+.ui-avatar[data-size="lg"] {
+  width: 58px;
+  height: 58px;
+  font-size: 22px;
+}
+
+/* Harnesses are squircles, and wear a ring that says their state. */
+.ui-avatar[data-kind="harness"] {
+  border-radius: var(--radius-md);
+}
+
+/* The still ring, where no light is running round the face in its place (below). */
+.ui-avatar[data-kind="harness"]:not([data-busy])::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 13px;
+  border: 2px solid var(--ring);
+  pointer-events: none;
+}
+
+.ui-avatar[data-kind="harness"][data-size="xs"] {
+  border-radius: 7px;
+}
+
+.ui-avatar[data-kind="harness"][data-size="xs"]:not([data-busy])::after {
+  border-radius: 10px;
+}
+
+.ui-avatar[data-kind="harness"][data-size="lg"] {
+  border-radius: 17px;
+}
+
+.ui-avatar[data-kind="harness"][data-size="lg"]:not([data-busy])::after {
+  inset: -4px;
+  border-radius: 21px;
+  border-width: 3px;
+}
+
+/*
+ * The light that runs round a face while there is work going in the room it stands for (ADR
+ * 0090). The ring is state, and it was a still border on harness-named rooms alone, so a list of
+ * fifty rooms said nothing about which of them was busy. The band follows the face's own shape:
+ * a ring of the corner it inherits, painted by a turning conic gradient and masked to its own
+ * padding, so one rule rings a circle, a squircle and a square alike. The phone turns an arc
+ * inside a clip of the same shape for the same reason (`BusyRing.tsx`).
+ *
+ * With Reduce Motion on, `base.css` takes the turn away, and what is left would be an arc stopped
+ * at twelve o'clock, which reads as a measure of something. It is a quiet whole ring instead: the
+ * same ring, saying the same thing.
+ */
+@property --busy-at {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.ui-avatar[data-busy="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 0;
+  border-radius: inherit;
+  padding: 2px;
+  --busy-dim: color-mix(in oklab, var(--blue) 20%, transparent);
+  background: conic-gradient(
+    from var(--busy-at),
+    var(--busy-dim) 0 70%,
+    color-mix(in oklab, var(--blue) 45%, transparent) 86%,
+    var(--blue) 99%,
+    var(--busy-dim) 100%
+  );
+  /* The band is the padding: the box less its own content box, which is any opaque paint in one
+     and not the other (`ring.css` cuts its hole with the same token). */
+  -webkit-mask:
+    linear-gradient(var(--ink) 0 0) content-box,
+    linear-gradient(var(--ink) 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(var(--ink) 0 0) content-box,
+    linear-gradient(var(--ink) 0 0);
+  mask-composite: exclude;
+  animation: ui-avatar-sweep 2600ms linear infinite;
+  pointer-events: none;
+}
+
+/* The gradient turns, not the box: a rotated ring takes a squircle's corners round with it. */
+@keyframes ui-avatar-sweep {
+  to {
+    --busy-at: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-avatar[data-busy="true"]::after {
+    background: color-mix(in oklab, var(--blue) 40%, transparent);
+  }
+}
+
+.ui-avatar[data-ring="blue"] {
+  --ring: var(--blue);
+}
+
+.ui-avatar[data-ring="amber"] {
+  --ring: var(--amber);
+}
+
+.ui-avatar[data-ring="red"] {
+  --ring: var(--red);
+}
+
+.ui-avatar[data-ring="green"] {
+  --ring: var(--green);
+}
+
+.ui-avatar[data-ring="neutral"] {
+  --ring: var(--gray);
+}
+
+/* A channel is a hash in a quiet square. */
+.ui-avatar[data-kind="channel"] {
+  --avatar-color: var(--surface-3);
+  color: var(--ink-2);
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * A chosen face (22 September 2026): the library's mark as folded paper, on the ground lit a
+ * little lighter and cooler at the top and deeper at the foot, worked out in OKLCH so all twelve
+ * grounds take the light alike. The phone does the same sum in `apps/mobile/src/ui/lit.ts`.
+ */
+@supports (color: oklch(from red l c h)) {
+  .ui-avatar {
+    --avatar-top: oklch(from var(--avatar-color) calc(l + 0.075) calc(c * 1.06) calc(h - 12));
+    --avatar-foot: oklch(from var(--avatar-color) calc(l - 0.03) calc(c * 1.02) calc(h + 8));
+  }
+}
+
+/* The face fills the avatar and takes its corners; the ring is outside it, on ::after. */
+.ui-avatar-face {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.ui-avatar-face .ui-face {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Initials on a face chosen as a colour alone stand on the lit ground, not under it. */
+.ui-avatar-letters {
+  position: relative;
+}
+
+/*
+ * An agent that can't answer now wears a small amber mark across its corner (ADR 0083), ringed in
+ * what the face stands on: the page, unless the place it is drawn says otherwise with --mark-ring.
+ */
+.ui-avatar-mark {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 2px var(--mark-ring, var(--bg));
+  pointer-events: none;
+}
+
+.ui-avatar[data-size="xs"] .ui-avatar-mark {
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+}
+
+.ui-avatar[data-size="lg"] .ui-avatar-mark {
+  width: 16px;
+  height: 16px;
+}
+
+/*
+ * In an overlapped group, the face after each covers its right edge, so the mark goes on the left
+ * corner: each face's mark then sits over the one before it, and shows.
+ */
+.ui-faces[data-many="true"] .ui-avatar-mark {
+  right: auto;
+  left: -2px;
+}
+
+/*
+ * An agent (ADR 0089): the Chips mark's bitten body, drawn by the face's own SVG, so the box has
+ * no ground and no corners of its own. Its letters sit a little away from the bite, as its mark
+ * does.
+ */
+.ui-avatar[data-kind="agent"] {
+  background: none;
+  border-radius: 0;
+}
+
+/* The body, which everything else of the face is drawn against: the box, less the pins' reach. */
+.ui-avatar-body {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.ui-avatar[data-kind="agent"] .ui-avatar-face {
+  border-radius: 0;
+  overflow: visible;
+}
+
+.ui-avatar[data-kind="agent"] .ui-avatar-letters {
+  transform: translate(-1.6%, 1.6%);
+}
+
+/* Its state sits in the bite, on nothing: amber when it can't answer, green while it works. */
+.ui-avatar[data-kind="agent"] .ui-avatar-mark,
+.ui-avatar-working {
+  position: absolute;
+  left: 78%;
+  top: 0;
+  right: auto;
+  bottom: auto;
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.ui-avatar-working {
+  background: var(--green);
+  animation: ui-avatar-working 1500ms ease-in-out infinite;
+}
+
+@keyframes ui-avatar-working {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/*
+ * The pins, behind the body, always out where the face has room for them. While the agent works a
+ * light runs round them, each lit by opacity alone and a step behind the last, as the working
+ * mark's are (`mark.css`). At rest they are dim, as they are between flashes (ADR 0103), by the
+ * outline's `PIN_REST`, which the face hands down as `--pin-rest`: with Reduce Motion on,
+ * `base.css` takes every animation away, and what is left is the pins out, dim and still.
+ *
+ * Each pin is its metal (`--pin-metal`) with its colour over it. In light the metal is a neutral
+ * grey and `--pin-dim` takes the colour out between flashes, because the colour at a fraction over
+ * paper read as a faded print of the face; in dark there is no metal and the colour rests dim, as
+ * it always did (ADR 0192).
+ */
+.ui-avatar-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ui-avatar-pins i {
+  position: absolute;
+  border-radius: 999px;
+  background: var(--pin-metal);
+}
+
+.ui-avatar-pins i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in oklab, var(--avatar-foot) var(--pin-down, 50%), var(--avatar-top));
+  opacity: calc(var(--pin-rest, 0.3) * var(--pin-dim, 1));
+}
+
+.ui-avatar[data-working="true"] .ui-avatar-pins i::after {
+  animation: ui-avatar-pin 1500ms linear infinite;
+  animation-delay: inherit;
+}
+
+@keyframes ui-avatar-pin {
+  0% {
+    opacity: calc(0.3 * var(--pin-dim, 1));
+  }
+  8.6% {
+    opacity: 1;
+  }
+  26% {
+    opacity: calc(0.3 * var(--pin-dim, 1));
+  }
+  100% {
+    opacity: calc(0.3 * var(--pin-dim, 1));
+  }
+}

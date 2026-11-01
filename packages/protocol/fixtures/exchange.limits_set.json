@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "exchange.limits_set",
+  "id": "evt_01K4ZQPX0000000000000000M1",
+  "ts": "2026-10-17T15:30:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "idempotency_key": "exchange-limits-1",
+  "stop": 32,
+  "hold": null,
+  "circles": false
+}

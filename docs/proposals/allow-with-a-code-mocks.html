@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Allow With a Code</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=JetBrains+Mono:wght@400..700&amp;display=swap">
+<style>
+/* Layout: rows of iPhone 17 frames (402 × 874 pt): who asks, and who lets them in. Captions and cost under each. */
+*,*::before,*::after{box-sizing:border-box}
+:root{--k:1;
+  --page:#EFEFE9;--bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--blue-ink:#1048CE;
+  --red:#C8352B;--red-soft:#FCE7E4;--green:#0B7258;
+  --scrim:rgba(20,22,27,.32);
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--blue-ink:#A9C1FF;
+  --red:#FF7A6E;--red-soft:#3A1714;--green:#5FD3B0;--scrim:rgba(0,0,0,.55)}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--blue-ink:#A9C1FF;
+  --red:#FF7A6E;--red-soft:#3A1714;--green:#5FD3B0;--scrim:rgba(0,0,0,.55)}
+
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px}
+.wrap{max-width:1330px;margin:0 auto}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(27px,4vw,38px);line-height:1.12;letter-spacing:-.02em;margin:34px 0 0;text-wrap:balance;max-width:26ch}
+h2{font-family:var(--font-display);font-weight:650;font-size:22px;line-height:1.2;margin:0;text-wrap:balance}
+p{margin:0;max-width:68ch;color:var(--ink-2)}
+b,strong{color:var(--ink);font-weight:650}
+header{display:grid;gap:16px}
+.tools{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font:12px var(--font-mono);color:var(--ink-3);margin-right:2px}
+button.tg{font:600 14px var(--font-body);color:var(--ink);background:var(--surface);border:1px solid var(--line-2);border-radius:999px;padding:7px 15px;cursor:pointer}
+button.tg[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.tg:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.row-head{margin-top:56px;display:grid;gap:8px;max-width:820px}
+.figs{display:flex;flex-wrap:wrap;gap:48px 34px;margin-top:26px;align-items:flex-start}
+.fig{width:calc(402px * var(--k));display:grid;gap:14px;margin:0;min-width:0}
+.pw{width:calc(402px * var(--k));height:calc(874px * var(--k));position:relative}
+.pw>.phone{position:absolute;left:0;top:0;transform:scale(var(--k));transform-origin:0 0}
+figcaption{display:grid;gap:9px;min-width:0}
+figcaption p{font-size:14.5px}
+.tag{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag .o{font:700 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 7px}
+.tag .rec{font:600 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--gold);color:#1A1400;border-radius:6px;padding:5px 7px}
+.tag .now{font:600 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line-2);border-radius:6px;padding:4px 7px}
+.tag h3{font-family:var(--font-display);font-size:18px;margin:0;font-weight:650}
+.cost{font-size:13.5px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:9px}
+.cost b{color:var(--ink-2)}
+section{margin-top:72px;display:grid;gap:14px;max-width:820px}
+section ul{margin:0;padding-left:20px;display:grid;gap:8px;color:var(--ink-2);max-width:72ch}
+
+/* ── the phone ───────────────────────────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);font-family:var(--font-ios);line-height:normal;isolation:isolate;
+  box-shadow:0 30px 60px -32px rgba(0,0,0,.5);user-select:none;-webkit-user-select:none}
+.status{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:19px 34px 0 46px;font-size:16.5px;font-weight:600}
+.sbi{display:block;width:25px;height:12px;border-radius:4px;border:1.5px solid currentColor;position:relative;opacity:.9}
+.sbi::after{content:"";position:absolute;inset:1.5px 5px 1.5px 1.5px;background:currentColor;border-radius:1.5px}
+.home{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:140px;height:5px;border-radius:3px;background:var(--ink);opacity:.85;z-index:30}
+
+/* the Spaces tab behind a sheet */
+.under{position:absolute;inset:0;padding:64px 16px 0}
+.under h4{font-family:var(--font-ios);font-size:34px;font-weight:700;margin:14px 4px 14px;letter-spacing:.2px}
+.srow{display:flex;gap:12px;align-items:center;padding:11px 4px;border-bottom:1px solid var(--line)}
+.srow i{width:46px;height:46px;border-radius:14px;flex:none;background:var(--surface-2);border:1px solid var(--line)}
+.srow div{display:grid;gap:3px;min-width:0}
+.srow b{font-size:16.5px;font-weight:600}
+.srow span{font-size:14px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:5}
+
+/* a sheet from the bottom */
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:10;background:var(--bg);border-radius:30px 30px 0 0;padding:10px 22px 42px;
+  box-shadow:0 -10px 40px -18px rgba(0,0,0,.4)}
+.grab{width:38px;height:5px;border-radius:3px;background:var(--line-2);margin:0 auto 8px}
+.x{position:absolute;right:16px;top:16px;width:32px;height:32px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;color:var(--ink-3)}
+.x svg{width:13px;height:13px}
+.who{display:grid;justify-items:center;gap:8px;text-align:center;margin-top:14px}
+.av{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font:600 26px var(--font-ios);color:#3B2A00;background:#F4D9A6}
+.av.sq{border-radius:18px;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+.av.sq svg{width:30px;height:30px}
+.title{font-size:22px;font-weight:700;letter-spacing:-.2px;line-height:1.22;max-width:300px;text-wrap:balance}
+.where{font-size:14.5px;color:var(--ink-3);line-height:1.35}
+.label{font-size:13px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin:24px 0 8px;text-align:center}
+.code{font:600 34px/1 var(--font-mono);letter-spacing:.16em;text-align:center;padding:16px 0 15px;border-radius:16px;background:var(--surface);border:1px solid var(--line);font-variant-numeric:tabular-nums}
+.code.big{font-size:44px;padding:22px 0 20px;background:var(--gold-soft);border-color:transparent;color:var(--ink)}
+.field{font:600 30px/1 var(--font-mono);letter-spacing:.16em;text-align:center;padding:16px 0 15px;border-radius:16px;background:var(--surface);border:1.5px solid var(--line-2);color:var(--ink);position:relative}
+.field .ph{color:var(--ink-4)}
+.field .caret{display:inline-block;width:2px;height:30px;background:var(--blue);vertical-align:-4px;margin-left:2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.field.ok{border-color:var(--green)}
+.field.bad{border-color:var(--red);background:var(--red-soft)}
+.note{font-size:14.5px;line-height:1.4;color:var(--ink-3);margin-top:12px;text-align:center;text-wrap:pretty}
+.note.bad{color:var(--red);font-weight:500}
+.btns{display:grid;gap:10px;margin-top:24px}
+.btn{height:52px;border-radius:16px;display:grid;place-items:center;font-size:17px;font-weight:600}
+.btn.gold{background:var(--gold);color:#1A1400}
+.btn.gold.off{opacity:.38}
+.btn.plain{color:var(--ink-2)}
+.keys{position:absolute;left:0;right:0;bottom:0;height:291px;background:var(--surface-2);border-top:1px solid var(--line);z-index:12;padding:8px 6px 40px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.keys span{background:var(--surface);border-radius:7px;display:grid;place-items:center;font-size:25px;box-shadow:0 1px 0 rgba(0,0,0,.18)}
+.keys span.e{background:transparent;box-shadow:none}
+.phone:not(.lifted) .keys{display:none}
+.lifted .sheet{bottom:291px;padding-bottom:16px}
+.lifted .who{margin-top:2px;gap:6px}
+.lifted .av{width:46px;height:46px;font-size:20px}
+.lifted .av.sq svg{width:24px;height:24px}
+.lifted .title{font-size:20px}
+.lifted .where{font-size:13.5px}
+.lifted .label{margin-top:16px}
+.lifted .note{font-size:13.5px;margin-top:10px}
+.lifted .btns{margin-top:16px;gap:4px}
+.lifted .btn{height:48px}
+
+/* the joining phone: a whole screen, as the join card is */
+.card{position:absolute;inset:0;padding:64px 26px 0;display:flex;flex-direction:column}
+.cancel{font-size:17px;color:var(--blue);margin:10px 0 0 -2px}
+.mark{width:88px;height:88px;margin:44px auto 0;position:relative}
+.mark i{position:absolute;inset:0;border-radius:26px;background:var(--gold);box-shadow:0 10px 30px -12px rgba(125,91,0,.6)}
+.mark i::before,.mark i::after{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#1A1400;top:30px}
+.mark i::before{left:20px}.mark i::after{right:20px}
+.mark b{position:absolute;inset:-10px;border-radius:34px;border:2px solid var(--gold);opacity:.5;animation:pulse 2.4s cubic-bezier(.2,.8,.2,1) infinite}
+@keyframes pulse{0%{transform:scale(.92);opacity:.55}70%{transform:scale(1.12);opacity:0}100%{opacity:0}}
+.card .title{margin:26px auto 0;text-align:center;font-size:26px;max-width:320px}
+.card .body{font-size:16.5px;line-height:1.42;color:var(--ink-2);text-align:center;margin:10px auto 0;max-width:330px;text-wrap:pretty}
+.card .code.big{margin-top:26px}
+.card .note{margin-top:14px}
+.card .foot{margin-top:auto;margin-bottom:46px;font-size:13.5px;color:var(--ink-3);text-align:center;line-height:1.4;text-wrap:pretty}
+.in{display:none}
+.phone[data-state="in"] .in{display:block}
+.phone[data-state="in"] .waiting{display:none}
+.tick{width:88px;height:88px;border-radius:50%;margin:44px auto 0;background:var(--green);display:grid;place-items:center;color:#fff}
+.tick svg{width:40px;height:40px}
+.name{font-size:17px;padding:15px 16px;border-radius:14px;background:var(--surface);border:1px solid var(--line);margin-top:26px;color:var(--ink)}
+
+/* the computer: a browser window, at the figure's width */
+.mac{width:100%;max-width:402px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--bg);box-shadow:0 30px 60px -32px rgba(0,0,0,.5);font-family:var(--font-ios)}
+.bar{display:flex;align-items:center;gap:7px;padding:10px 12px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+.bar i{width:11px;height:11px;border-radius:50%;background:var(--line-2)}
+.bar span{flex:1;margin-left:8px;font-size:12px;color:var(--ink-3);background:var(--bg);border-radius:7px;padding:4px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mac .card{position:static;padding:22px 26px 26px}
+.mac .mark{margin-top:8px;width:64px;height:64px}
+.mac .mark i{border-radius:19px}.mac .mark i::before,.mac .mark i::after{width:16px;height:16px;top:22px}
+.mac .mark i::before{left:14px}.mac .mark i::after{right:14px}
+.mac .card .title{font-size:21px;margin-top:18px}
+.mac .card .body{font-size:14.5px}
+.mac .code.big{font-size:36px;padding:16px 0 15px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>A link asks before it lets anyone in</h1>
+  <p>The second security review's SEC-42. Today an invite link, or a pairing link opened at the relay's page, lets whoever has it straight in. Your call: <b>"Invites through the relay page wait for my Allow, and the Allow sheet shows a short code that must match the one on the joining device."</b> The same goes for a pairing code: <b>"Allow plus the matching code"</b>.</p>
+  <p>The code comes from the joining device's own key, so only that device can show it, and a link passed on to somebody else shows a different code. Below: who is asked, what they see, and what the joining phone shows while it waits.</p>
+  <div class="tools">
+    <div class="seg" role="group" aria-label="What happens"><span>step</span>
+      <button class="tg" data-step="asking" aria-pressed="true">Asking</button>
+      <button class="tg" data-step="typed" aria-pressed="false">Code typed</button>
+      <button class="tg" data-step="wrong" aria-pressed="false">Wrong code</button>
+      <button class="tg" data-step="in" aria-pressed="false">Let in</button>
+    </div>
+    <div class="seg" role="group" aria-label="Theme"><span>theme</span>
+      <button class="tg" data-theme-pick="light" aria-pressed="false">Light</button>
+      <button class="tg" data-theme-pick="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<div class="row-head">
+  <h2>Priya joins Japan trip from your invite</h2>
+  <p>Arjun sends Priya an invite to Japan trip as a guest. She opens it on her iPhone, types her name and presses Join. Every phone of Arjun's that's open is asked; the first answer counts.</p>
+</div>
+
+<div class="figs">
+  <!-- Today -->
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-state="asking">
+      <div class="status"><span>2:16</span><span class="sbi"></span></div>
+      <div class="card">
+        <div class="cancel">Cancel</div>
+        <div class="mark"><i></i></div>
+        <div class="title">Join Japan trip</div>
+        <div class="body">Arjun invited you to Japan trip in Arjun's Chips as a guest.</div>
+        <div class="body" style="font-size:14.5px;color:var(--ink-3)">A guest is in Japan trip only, and sees only the people and agents there.</div>
+        <div class="name">Priya</div>
+        <div class="btns"><div class="btn gold">Join</div></div>
+        <div class="foot">No password: this iPhone makes a key it keeps to itself, and the invite tells Arjun's Chips whose key it is.</div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="now">TODAY</span><h3>Join, and she's in</h3></div>
+      <p>Join lets her straight in: whoever holds the link is let in, and Arjun is never asked. A link that came through somebody else's hands works the same way.</p>
+    </figcaption>
+  </figure>
+
+  <!-- A · Compare -->
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-state="asking" data-sheet="compare">
+      <div class="status"><span>2:16</span><span class="sbi"></span></div>
+      <div class="under"><h4>Spaces</h4>
+        <div class="srow"><i></i><div><b>Japan trip</b><span>Indie: The ryokan has two rooms left for the 14th.</span></div></div>
+        <div class="srow"><i></i><div><b>Sudoku mini</b><span>Wynn: Bigger cells on small screens are in.</span></div></div>
+        <div class="srow"><i></i><div><b>Garage door replacement</b><span>Three quotes, the cheapest from Ace.</span></div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="x"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></div>
+        <div class="who">
+          <div class="av">P</div>
+          <div class="title">Priya is asking to join Japan trip</div>
+          <div class="where">As a guest · from your invite of 2:14 PM · through the relay</div>
+        </div>
+        <div class="label">Her phone shows</div>
+        <div class="code big">742 913</div>
+        <div class="note asking-only">Ask Priya what her phone shows. Allow only if it's this code.</div>
+        <div class="btns"><div class="btn gold">Allow</div><div class="btn plain">Don't allow</div></div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="o">A</span><h3>The sheet shows the code</h3></div>
+      <p>Arjun's phone shows the code Priya's phone should show. He asks her, and presses Allow if the two match. Nothing checks that he did: a quick Allow lets in whoever is asking.</p>
+      <p class="cost"><b>Cost:</b> the smallest. The server holds the join as a request and makes the code; the sheet is today's join-request sheet with a code in place of the switches. Allow is one tap, as now.</p>
+    </figcaption>
+  </figure>
+
+  <!-- B · Type -->
+  <figure class="fig">
+    <div class="pw"><div class="phone lifted" data-state="asking" data-sheet="type" id="type-phone">
+      <div class="status"><span>2:16</span><span class="sbi"></span></div>
+      <div class="under"><h4>Spaces</h4>
+        <div class="srow"><i></i><div><b>Japan trip</b><span>Indie: The ryokan has two rooms left for the 14th.</span></div></div>
+        <div class="srow"><i></i><div><b>Sudoku mini</b><span>Wynn: Bigger cells on small screens are in.</span></div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="x"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></div>
+        <div class="who">
+          <div class="av">P</div>
+          <div class="title">Priya is asking to join Japan trip</div>
+          <div class="where">As a guest · from your invite of 2:14 PM · through the relay</div>
+        </div>
+        <div class="label">Type the code on her phone</div>
+        <div class="field" data-field><span class="ph">000 000</span><span class="caret"></span></div>
+        <div class="note" data-note>Ask Priya for the code her phone shows. Only her phone has it, so a link passed on to somebody else can't be let in.</div>
+        <div class="btns"><div class="btn gold off" data-allow>Allow</div><div class="btn plain">Don't allow</div></div>
+      </div>
+      <div class="keys"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span class="e"></span><span>0</span><span class="e">⌫</span></div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="o">B</span><span class="rec">RECOMMENDED</span><h3>Arjun types the code</h3></div>
+      <p>Arjun types the code Priya reads out to him. Allow wakes once six digits are in, and the server lets her in only if they're her phone's. A wrong code says so and lets nobody in.</p>
+      <p class="cost"><b>Cost:</b> a little more than A: the server checks the typed code instead of trusting a tap. It is the sheet that already asks for a device's code when a phone pairs over the Wi-Fi (SEC-6), so the field, its keys and its words are there to reuse.</p>
+    </figcaption>
+  </figure>
+
+  <!-- Priya's phone -->
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-state="asking" id="priya">
+      <div class="status"><span>2:16</span><span class="sbi"></span></div>
+      <div class="card waiting">
+        <div class="cancel">Cancel</div>
+        <div class="mark"><i></i><b></b></div>
+        <div class="title">Waiting for Arjun</div>
+        <div class="body">Arjun lets you into Japan trip from his phone. He'll ask you for this code:</div>
+        <div class="code big">742 913</div>
+        <div class="note">Only this iPhone shows it: it comes from the key this iPhone just made.</div>
+        <div class="foot">Japan trip opens here as soon as he allows it. You can leave this screen; Chips waits up to 30 minutes.</div>
+      </div>
+      <div class="card in">
+        <div class="tick"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 21l7 7 14-15"/></svg></div>
+        <div class="title">You're in Japan trip</div>
+        <div class="body">Arjun let you in. Everything said in Japan trip so far is there for you to read.</div>
+        <div class="btns"><div class="btn gold">Open Japan trip</div></div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="o">PRIYA</span><h3>The joining phone shows its own</h3></div>
+      <p>After Join, Priya's phone shows its code and waits. It's the same with A or B. She tells Arjun the code; once he allows it, Japan trip opens on her phone. Until then she sees nothing of the workspace.</p>
+      <p class="cost"><b>Cost:</b> a new state of the join card, which already has the mark, the title and the words. The phone asks how its request stands each time it comes back, as a device's join request does now.</p>
+    </figcaption>
+  </figure>
+</div>
+
+<div class="row-head">
+  <h2>A computer pairs from Pair a computer</h2>
+  <p>On his phone Arjun presses You → Pair a computer and opens the link on his laptop. The phone that made the code is asked, with B's sheet.</p>
+</div>
+
+<div class="figs">
+  <figure class="fig">
+    <div class="pw"><div class="phone lifted" data-state="asking" data-sheet="type" id="pair-phone">
+      <div class="status"><span>2:21</span><span class="sbi"></span></div>
+      <div class="under"><h4>You</h4>
+        <div class="srow"><i></i><div><b>Pair a computer</b><span>A link for a laptop or a desktop</span></div></div>
+        <div class="srow"><i></i><div><b>People</b><span>Arjun, Natalie, Priya</span></div></div>
+      </div>
+      <div class="scrim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="x"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></div>
+        <div class="who">
+          <div class="av sq"><svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="6" width="22" height="14" rx="2"/><path d="M2 24h26" stroke-linecap="round"/></svg></div>
+          <div class="title">A computer is asking to pair as you</div>
+          <div class="where">Safari on a Mac · from your code of 2:20 PM · through the relay</div>
+        </div>
+        <div class="label">Type the code on the computer</div>
+        <div class="field" data-field><span class="ph">000 000</span><span class="caret"></span></div>
+        <div class="note" data-note>The computer shows it on the page that opened. A code nobody types lets nothing in.</div>
+        <div class="btns"><div class="btn gold off" data-allow>Allow</div><div class="btn plain">Don't allow</div></div>
+      </div>
+      <div class="keys"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span class="e"></span><span>0</span><span class="e">⌫</span></div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="o">ARJUN</span><h3>The phone that made the code</h3></div>
+      <p>The same sheet, for a computer: what it is and where from, and its code typed. It pairs as Arjun, the code's owner, as a pairing code does now.</p>
+    </figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="mac" data-state="asking" id="laptop">
+      <div class="bar"><i></i><i></i><i></i><span>adas-mac-mini.tail2f9c1e.ts.net</span></div>
+      <div class="card waiting">
+        <div class="mark"><i></i><b></b></div>
+        <div class="title">Waiting for your phone</div>
+        <div class="body">Allow this computer on the phone that made the code, and type this code there:</div>
+        <div class="code big">508 266</div>
+        <div class="note">Only this browser shows it: it comes from the key it just made.</div>
+      </div>
+      <div class="card in">
+        <div class="tick" style="width:64px;height:64px;margin-top:8px"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 21l7 7 14-15"/></svg></div>
+        <div class="title">Paired as Arjun</div>
+        <div class="body">This computer is yours in Arjun's Chips now.</div>
+      </div>
+    </div>
+    <figcaption>
+      <div class="tag"><span class="o">LAPTOP</span><h3>The computer shows its own</h3></div>
+      <p>The page the link opened shows the code and waits, in a browser or in Chips for Mac. Arjun types it on his phone, and the page goes on to Chips once he allows it.</p>
+    </figcaption>
+  </figure>
+</div>
+
+<section>
+  <h2>With it</h2>
+  <ul>
+    <li><b>Links last 30 minutes.</b> Invite someone loses its Lasts choice and says the link works for 30 minutes. The limit is checked when a link is used too, so the 7-day invites out there now stop working.</li>
+    <li><b>Every link asks</b>, the QR too, whenever a relay is set: today that's every link Chips hands out.</li>
+    <li><b>What stays.</b> A dishonest relay page could still send Priya to another server dressed as yours, and she'd see that server's code. Only trusting the relay, or opening links outside its page, prevents that. It goes into SECURITY.md and ADR 0207.</li>
+  </ul>
+  <h2>To settle here</h2>
+  <ul>
+    <li>A or B for the sheet.</li>
+    <li>Six digits, read out as two threes, as drawn; or the letters a pairing code uses now (ABC-234).</li>
+    <li>Whether the sheet asks only the inviter's phones, as drawn, or every owner's.</li>
+  </ul>
+</section>
+</div>
+
+<script>
+const steps = {
+  asking: { typed: "", ok: false, bad: false, state: "asking" },
+  typed: { typed: "742 913", ok: true, bad: false, state: "asking" },
+  wrong: { typed: "742 931", ok: false, bad: true, state: "asking" },
+  in: { typed: "742 913", ok: true, bad: false, state: "in" },
+};
+const pairCodes = { "742 913": "508 266", "742 931": "508 626" };
+function show(step) {
+  const s = steps[step];
+  for (const b of document.querySelectorAll("[data-step]")) b.setAttribute("aria-pressed", String(b.dataset.step === step));
+  for (const phone of document.querySelectorAll("[data-sheet=type]")) {
+    const pairing = phone.id === "pair-phone";
+    const field = phone.querySelector("[data-field]");
+    const note = phone.querySelector("[data-note]");
+    const allow = phone.querySelector("[data-allow]");
+    const typed = s.typed === "" ? "" : pairing ? pairCodes[s.typed] : s.typed;
+    field.className = "field" + (s.ok ? " ok" : "") + (s.bad ? " bad" : "");
+    field.innerHTML = typed === "" ? '<span class="ph">000 000</span><span class="caret"></span>' : typed + (s.ok || s.bad ? "" : '<span class="caret"></span>');
+    allow.classList.toggle("off", !s.ok && !s.bad);
+    note.className = "note" + (s.bad ? " bad" : "");
+    note.textContent = s.bad
+      ? (pairing ? "That isn't the code on the computer. Look again, or don't allow it." : "That isn't the code on Priya's phone. Ask her again, or don't allow it.")
+      : pairing ? "The computer shows it on the page that opened. A code nobody types lets nothing in."
+      : "Ask Priya for the code her phone shows. Only her phone has it, so a link passed on to somebody else can't be let in.";
+    phone.classList.toggle("lifted", step === "asking" || step === "wrong");
+  }
+  for (const id of ["priya", "laptop"]) document.getElementById(id).dataset.state = s.state;
+}
+for (const b of document.querySelectorAll("[data-step]")) b.addEventListener("click", () => show(b.dataset.step));
+for (const b of document.querySelectorAll("[data-theme-pick]")) b.addEventListener("click", () => {
+  const was = document.documentElement.dataset.theme;
+  const next = was === b.dataset.themePick ? undefined : b.dataset.themePick;
+  if (next) document.documentElement.dataset.theme = next; else delete document.documentElement.dataset.theme;
+  for (const o of document.querySelectorAll("[data-theme-pick]")) o.setAttribute("aria-pressed", String(o.dataset.themePick === next));
+});
+// Fit the frames to a narrow screen.
+function fit() { const w = Math.min(402, document.querySelector(".wrap").clientWidth); document.documentElement.style.setProperty("--k", String(w / 402)); }
+addEventListener("resize", fit); fit();
+</script>
+</body>
+</html>

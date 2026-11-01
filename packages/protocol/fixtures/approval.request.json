@@ -1,0 +1,45 @@
+{
+  "v": 1,
+  "type": "approval.request",
+  "id": "evt_01K4ZQPX000000000000000068",
+  "ts": "2026-09-02T14:22:04.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "approval_id": "apr_01K4ZQPX000000000000000006",
+  "step_id": "email-dana",
+  "action": {
+    "kind": "email.send",
+    "input": {
+      "to": "dana@northwind.com",
+      "subject": "PO #4471 confirmation"
+    },
+    "external": true,
+    "irreversible": true
+  },
+  "question": "Send this email to dana@northwind.com?",
+  "effect": "It confirms PO #4471 for 120 units, delivered 19 September.",
+  "lasts": "once",
+  "preview": {
+    "format": "markdown",
+    "title": "To dana@northwind.com",
+    "body": "Hi Dana, confirming PO #4471 for 120 units, delivery 19 September. Shout if anything looks off."
+  },
+  "risk": ["external_communication", "irreversible"],
+  "sources": [
+    {
+      "kind": "external",
+      "label": "vendor website",
+      "url": "https://northwind.example/contact"
+    }
+  ],
+  "expires_in": 3600,
+  "fallback": "deny",
+  "approvers": ["usr_01K4ZQPX000000000000000003"],
+  "editable": true,
+  "resume_token": "rt_9f2c7d0184a05c3b"
+}

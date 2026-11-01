@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the app's own Info.plist by Tauri. macOS asks with these sentences: for the
+     microphone the first time the window records a voice note (ADR 0055), and for the local network
+     the first time Find your server looks for `_chips._tcp` (src/discovery.rs). -->
+<plist version="1.0">
+<dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Chips records sound for a voice note you send to a space.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Chips finds the Chips servers on your network, so you can connect to one without typing its address.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_chips._tcp</string>
+	</array>
+</dict>
+</plist>

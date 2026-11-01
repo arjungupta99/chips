@@ -1,0 +1,43 @@
+{
+  "name": "@chipschat/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "chips: serve, connect, doctor, conformance, export, import.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "bin": {
+    "chips": "./bin/chips.ts"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "start": "tsx bin/chips.ts"
+  },
+  "dependencies": {
+    "@chipschat/conformance": "workspace:*",
+    "@chipschat/harness": "workspace:*",
+    "@chipschat/platform": "workspace:*",
+    "@chipschat/protocol": "workspace:*",
+    "@chipschat/relay": "workspace:*",
+    "@chipschat/server": "workspace:*",
+    "bonjour-service": "1.4.4",
+    "kysely": "0.29.5",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "1.5.5",
+    "tsx": "4.23.13",
+    "vitest": "4.1.11"
+  }
+}

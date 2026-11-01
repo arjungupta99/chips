@@ -1,0 +1,34 @@
+{
+  "v": 1,
+  "type": "run.requested",
+  "id": "evt_01K4ZQPX000000000000000075",
+  "ts": "2026-09-02T14:22:17.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX00000000000000000C",
+  "run_id": "run_01K4ZQPX00000000000000000D",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "lane_id": "lane_01K4ZQPX00000000000000000A",
+  "goal": "Are the Northwind quotes in line with last quarter?",
+  "constraints": ["Use the finance warehouse, not the CRM"],
+  "deadline": "2026-09-02T18:00:00.000Z",
+  "on_behalf_of": "usr_01K4ZQPX000000000000000003",
+  "requested_by": "hrn_01K4ZQPX000000000000000004",
+  "specialist_id": "hrn_01K4ZQPX00000000000000000B",
+  "trail": [
+    {
+      "participant_id": "usr_01K4ZQPX000000000000000003",
+      "goal": "Get PO #4471 confirmed with Northwind."
+    },
+    {
+      "participant_id": "hrn_01K4ZQPX000000000000000004",
+      "run_id": "run_01K4ZQPX000000000000000005",
+      "goal": "Are the Northwind quotes in line with last quarter?"
+    }
+  ],
+  "autonomy": 1,
+  "link_to": ["spc_01K4ZQPX000000000000000002"],
+  "origin": "msg_01K4ZQPX000000000000000007"
+}

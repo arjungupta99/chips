@@ -1,0 +1,34 @@
+<!--
+  Android's adaptive icon wants the mark alone on a transparent ground, with the ink behind it given
+  as a colour (`app.json`), because the launcher masks and parallaxes the two apart. Drawn small
+  enough to survive the mask: the safe circle is the middle two thirds, and the furthest pin sits
+  inside it. Since ADR 0096 the mark is the outline an agent wears
+  (`src/ui/outline.ts`): the body and the ten pins below are its `bittenPath` and `pinsOf` for the
+  square each `data-outline` and `data-pins` names (left, top, side), and
+  `tools/guardrails/icons-wear-the-outline.test.ts` fails when they drift apart.
+  The body is lit from above as an agent's face is, a little lighter at the top and deeper at
+  the foot: `litGround` of the gold at `MARK_LIGHT` (`apps/mobile/src/ui/lit.ts`), which the guardrail holds.
+  `adaptive-icon.png` is this file at 1024 square.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>The Chips mark: a chip, in gold</title>
+  <g fill="#ecede8" fill-opacity="0.55" data-pins="317 317 390">
+    <rect x="390.13" y="266.3" width="48.75" height="66.3" rx="24.38"/>
+    <rect x="487.63" y="266.3" width="48.75" height="66.3" rx="24.38"/>
+    <rect x="691.4" y="487.63" width="66.3" height="48.75" rx="24.38"/>
+    <rect x="691.4" y="585.13" width="66.3" height="48.75" rx="24.38"/>
+    <rect x="585.13" y="691.4" width="48.75" height="66.3" rx="24.38"/>
+    <rect x="487.63" y="691.4" width="48.75" height="66.3" rx="24.38"/>
+    <rect x="390.13" y="691.4" width="48.75" height="66.3" rx="24.38"/>
+    <rect x="266.3" y="585.13" width="66.3" height="48.75" rx="24.38"/>
+    <rect x="266.3" y="487.63" width="66.3" height="48.75" rx="24.38"/>
+    <rect x="266.3" y="390.13" width="66.3" height="48.75" rx="24.38"/>
+  </g>
+  <defs>
+    <linearGradient id="lit" x1="0" y1="317" x2="0" y2="707" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fed17b"/>
+      <stop offset="1" stop-color="#ebc339"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#lit)" data-outline="317 317 390" d="M414.5 317H575.68A109.69 109.69 0 0 0 707 448.32V609.5A97.5 97.5 0 0 1 609.5 707H414.5A97.5 97.5 0 0 1 317 609.5V414.5A97.5 97.5 0 0 1 414.5 317Z"/>
+</svg>

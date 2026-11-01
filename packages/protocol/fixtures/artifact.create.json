@@ -1,0 +1,18 @@
+{
+  "v": 1,
+  "type": "artifact.create",
+  "id": "evt_01K4ZQPX00000000000000006A",
+  "ts": "2026-09-02T14:22:06.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "artifact_id": "att_01K4ZQPX00000000000000000C",
+  "kind": "document",
+  "title": "Northwind confirmation, PO #4471",
+  "version": 1,
+  "body": "Hi Dana, confirming PO #4471 for 120 units, delivery 19 September."
+}

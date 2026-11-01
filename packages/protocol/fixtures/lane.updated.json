@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "type": "lane.updated",
+  "id": "evt_01K4ZQPX00000000000000007E",
+  "ts": "2026-09-02T14:22:26.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "lane_id": "lane_01K4ZQPX00000000000000000A",
+  "state": "completed",
+  "delivery": "queued_to_lead",
+  "summary": "Northwind's unit price is 4 percent under last quarter's average.",
+  "cost_usd": 0.03
+}

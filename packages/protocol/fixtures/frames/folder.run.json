@@ -1,0 +1,8 @@
+{
+  "frame": "folder.run",
+  "space_id": "spc_01M5M82961AB2TETFXT2RJ0DB0",
+  "op": "run",
+  "command": "python3 -m http.server 8000",
+  "asked_from": "iPhone",
+  "asked_at": "2026-10-24T09:05:00.000Z"
+}

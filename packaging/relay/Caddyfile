@@ -1,0 +1,9 @@
+# The hosted relay's front door: TLS from Let's Encrypt, and every request handed to the relay on
+# loopback. Caddy passes the WebSocket upgrade through and sets X-Forwarded-For to the address it
+# saw, which the relay believes only because this proxy is on the same machine.
+#
+# No access log: Caddy keeps none unless a `log` directive asks, and this file does not.
+
+relay.chipschat.ai {
+	reverse_proxy 127.0.0.1:4440
+}

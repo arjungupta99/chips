@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "agent.fork",
+  "id": "evt_01K4ZQPX0000000000000000F1",
+  "ts": "2026-10-01T16:12:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "agent_id": "agt_01K4ZQPX0000000000000000A1",
+  "by": "usr_01K4ZQPX000000000000000003"
+}

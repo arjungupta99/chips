@@ -1,0 +1,18 @@
+{
+  "name": "@chipschat/protocol-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Generates JSON Schema, TypeScript types and the docs reference from the protocol schemas.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "scripts": {
+    "generate": "tsx generate.ts",
+    "check": "tsx generate.ts --check",
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "@chipschat/protocol": "workspace:*",
+    "tsx": "4.23.13",
+    "zod": "4.5.4"
+  }
+}

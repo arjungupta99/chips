@@ -1,0 +1,401 @@
+<meta charset="utf-8">
+<title>Chips · The palette, lifted</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--line:#E4E4DC;--line-2:#CDCDC3;
+  --ink:#16181D;--ink-2:#4A4D56;--ink-3:#7B7E88;--ink-4:#A9ABB3;
+  --gold:#F5C542;--gold-deep:#7D5B00;--gold-soft:#FFF3C4;--green-ink:#176B43;--green-soft:#E0F4E9;--red:#D6453D;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#111215;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#3D414B;
+  --ink:#ECEDE8;--ink-2:#B9BBC3;--ink-3:#868993;--ink-4:#5F626C;
+  --gold-deep:#F2CF6B;--gold-soft:#3B300E;--green-ink:#8CE0B6;--green-soft:#17352B;--red:#F26A62}}
+html{scroll-behavior:smooth;scroll-padding-top:120px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition-duration:.01ms!important}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1180px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.03em}
+.brand svg{width:22px;height:22px}
+.stops{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.btn{font:600 12.5px var(--font-body);color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:6px 13px;cursor:pointer}
+.btn:hover{border-color:var(--line-2);color:var(--ink)}
+.btn.on{background:var(--gold-soft);border-color:var(--gold);color:var(--gold-deep)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+article{padding:32px 0 120px}
+h1,h2,h3{font-family:var(--font-display);letter-spacing:-.02em;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(31px,4.4vw,44px);margin:0 0 8px}
+h1+p.lede{color:var(--ink-2);font-size:17px;max-width:64ch}
+h2{font-size:clamp(22px,2.5vw,28px);margin:56px 0 14px;padding-top:22px;border-top:1px solid var(--line)}
+p,ul,ol{margin:0 0 14px;color:var(--ink-2);max-width:70ch}
+strong{color:var(--ink);font-weight:600}
+code{font-family:var(--font-mono);font-size:.88em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.eyebrow{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:0 0 6px}
+ol.rules{counter-reset:r;list-style:none;padding:0;display:grid;gap:9px;max-width:none}
+ol.rules li{counter-increment:r;position:relative;padding-left:36px;min-height:24px;font-size:14.5px;color:var(--ink-2);line-height:1.55}
+ol.rules li::before{content:counter(r);position:absolute;left:0;top:2px;font:700 12px var(--font-mono);color:var(--gold-deep);background:var(--gold-soft);width:24px;height:24px;border-radius:50%;display:grid;place-items:center}
+ol.rules li b{color:var(--ink)}
+figure{margin:26px 0;padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+figure .fig-head{display:flex;align-items:baseline;gap:12px;margin:0 0 16px;flex-wrap:wrap}
+figure .fig-no{font-family:var(--font-mono);font-size:12px;color:var(--gold-deep)}
+figure .fig-title{font-family:var(--font-display);font-weight:600;font-size:17px;color:var(--ink);margin:0}
+figcaption{font-size:13.5px;color:var(--ink-3);margin-top:14px}
+.frames{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;justify-content:center}
+.stepped{display:grid;gap:8px;justify-items:center}
+.stepped .t{font:12px var(--font-mono);color:var(--ink-3);text-align:center}
+
+/* device */
+.frame{position:relative;flex:none;width:calc(393px * var(--s));height:calc(852px * var(--s));--s:.62}
+.frame>.dev{position:absolute;left:0;top:0;width:393px;height:852px;transform:scale(var(--s));transform-origin:0 0;
+  border-radius:56px;background:#000;box-shadow:0 0 0 12px #1B1B1E,0 0 0 13px #3A3A3F,0 36px 70px -40px rgba(0,0,0,.5)}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;border-radius:20px;background:#000;z-index:8}
+.screen{position:absolute;inset:0;overflow:hidden;border-radius:inherit;font-family:var(--font-ios);background:var(--p-bg);color:var(--p-ink);transition:background .35s}
+.sb{position:absolute;top:0;left:0;right:0;height:59px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 34px 12px;font-size:16px;font-weight:600;z-index:4;color:var(--p-ink)}
+.sb .bars{display:flex;gap:6px;align-items:center}
+.sb .bars i{display:block;width:18px;height:11px;border-radius:2px;background:currentColor}
+.big{font-size:34px;font-weight:700;letter-spacing:-.5px;padding:12px 16px 8px;color:var(--p-ink)}
+.srch{display:flex;align-items:center;gap:8px;height:36px;border-radius:10px;background:var(--p-surface2);padding:0 12px;color:var(--p-ink4);font-size:15px;margin:0 16px 12px}
+.srch svg{width:17px;height:17px;flex:none}
+.list{position:absolute;left:0;right:0;top:59px;bottom:83px;overflow:hidden}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:83px;padding-top:9px;display:flex;z-index:5;
+  background:color-mix(in srgb,var(--p-bg) 80%,transparent);backdrop-filter:blur(18px);border-top:.5px solid var(--p-line)}
+.tabbar .tb{flex:1;display:grid;justify-items:center;gap:3px;font-size:10px;font-weight:600;color:var(--p-ink4)}
+.tabbar .tb svg{width:26px;height:26px}
+.tabbar .tb.on{color:var(--p-gold)}
+.row{display:flex;align-items:center;gap:12px;padding:0 16px;min-height:80px;position:relative}
+.row+.row::before{content:"";position:absolute;left:84px;right:0;top:0;height:.5px;background:var(--p-line)}
+.row .body{flex:1;min-width:0;display:grid;gap:2px}
+.row .t1{display:flex;align-items:baseline;gap:8px}
+.row .nm{font-size:17px;font-weight:600;color:var(--p-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .wh{font-size:13px;color:var(--p-ink4);margin-left:auto;flex:none}
+.row .t2{display:flex;align-items:center;gap:6px}
+.row .ls{font-size:13px;color:var(--p-ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t2.wait .ls{color:var(--p-amberink)}
+.row .t2 .dt{width:7px;height:7px;border-radius:50%;background:var(--p-amber);flex:none}
+.row .ct{font:700 12px var(--font-ios);color:#16181D;background:var(--p-gold);border-radius:999px;padding:2px 8px;flex:none}
+.row .chev{color:var(--p-ink4);font-size:17px;flex:none;opacity:.7}
+.av{flex:none;display:grid;place-items:center;transition:background .35s}
+.av .ini{font-weight:700;color:#fff}
+.av svg{width:58%;height:58%;stroke:#fff;stroke-width:1.75;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* the room */
+.nav{position:absolute;top:59px;left:0;right:0;height:46px;display:flex;align-items:center;justify-content:center;border-bottom:.5px solid var(--p-line);background:var(--p-bg);z-index:3}
+.nav b{font-size:17px;font-weight:600;color:var(--p-ink)}
+.nav .chev{position:absolute;left:14px;font-size:26px;color:var(--p-gold)}
+.thread{position:absolute;top:105px;left:0;right:0;bottom:83px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.bub{max-width:78%;padding:9px 14px;border-radius:18px;font-size:17px;line-height:22px;background:var(--p-surface2);color:var(--p-ink);align-self:flex-start;transition:background .35s,color .35s}
+.bub .who{display:block;font-size:13px;line-height:16px;color:var(--p-ink3);margin:-2px 0 2px}
+.bub.me{align-self:flex-end;background:var(--p-out);color:#fff;border-bottom-right-radius:5px}
+.pillrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;align-self:flex-start;margin:2px 0}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:600;border-radius:999px;padding:3px 10px;transition:background .35s,color .35s}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.blue{background:var(--p-bluesoft);color:var(--p-blueink)}
+.pill.amber{background:var(--p-ambersoft);color:var(--p-amberink)}
+.pill.green{background:var(--p-greensoft);color:var(--p-greenink)}
+.pill.red{background:var(--p-redsoft);color:var(--p-redink)}
+.pill.gold{background:var(--p-goldsoft);color:var(--p-golddeep)}
+.card{align-self:stretch;background:var(--p-surface);border:1px solid var(--p-line);border-radius:14px;padding:12px 14px;display:grid;gap:9px;transition:background .35s,border-color .35s}
+.card .ch{font-size:15px;font-weight:600;color:var(--p-ink)}
+.card .cs{font-size:13px;color:var(--p-ink3)}
+.card .acts{display:flex;gap:8px}
+.act{flex:1;text-align:center;font-size:15px;font-weight:600;border-radius:10px;padding:8px 0;transition:background .35s,color .35s}
+.act.go{background:var(--p-green);color:#fff}
+.act.no{background:var(--p-surface2);color:var(--p-ink2)}
+.bar{height:4px;border-radius:2px;background:var(--p-surface3);overflow:hidden;align-self:stretch}
+.bar i{display:block;height:100%;width:62%;background:var(--p-blue);border-radius:2px}
+
+/* swatches */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(206px,1fr));gap:8px}
+/* a swatch inside a themed panel wears that panel's ink, not the page's */
+.sw{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;border:1px solid var(--p-line)}
+.sw .chip{width:40px;height:40px;border-radius:9px;flex:none;border:1px solid rgba(128,128,128,.28);transition:background .35s}
+.sw .meta{min-width:0;display:grid;gap:1px}
+.sw .n{font:600 12.5px var(--font-mono);color:var(--p-ink)}
+.sw .h{font:11.5px var(--font-mono);color:var(--p-ink3)}
+.sw .h b{color:var(--p-ink);font-weight:600}
+.sw.moved{border-color:var(--p-gold);background:var(--p-goldsoft)}
+.sw.moved .n,.sw.moved .h b{color:var(--p-golddeep)}
+.panel{padding:14px;border-radius:12px;background:var(--p-bg);border:1px solid var(--p-line);transition:background .35s}
+.panel h5{margin:0 0 10px;font:700 11.5px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--p-ink3)}
+.two{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:860px){.two{grid-template-columns:1fr 1fr}}
+.strip{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.band{display:grid;gap:9px;padding:10px 0}
+.band+.band{border-top:1px solid var(--p-line)}
+.band.dim{}  /* both bands render at full strength: a fair comparison or none */
+.bl{font:11px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--p-ink3)}
+.band .pillrow{align-self:flex-start;margin:0}
+.dotbig{width:34px;height:34px;border-radius:50%;flex:none;transition:background .35s}
+.avrow{display:flex;flex-wrap:wrap;gap:9px}
+.avrow .a{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 15px var(--font-ios);transition:background .35s}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:0 0 18px;display:block;overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table thead th{text-align:left;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:11px 13px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+table td{padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2);min-width:100px}
+table tr:last-child td{border-bottom:0}
+table td:first-child{color:var(--ink);font-weight:600}
+.ok{color:var(--green-ink);font-weight:600}
+.bad{color:var(--red);font-weight:600}
+.wheel{display:grid;place-items:center}
+.note{font-size:13.5px;color:var(--ink-3);margin-top:10px}
+</style>
+
+<header class="top"><div class="top-in">
+  <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Chips</span>
+  <span class="stops" id="stops"></span>
+</div></header>
+
+<div class="wrap"><article>
+<p class="eyebrow">Proposal · the design system</p>
+<h1>The palette, lifted</h1>
+<p class="lede">Same hues, same character, more voltage. Chroma goes up on the coloured tokens, the inks pull apart from their grounds, and in dark the page drops away from the cards. Use the buttons at the top to dial it — everything on this page repaints. <strong>Lift</strong> is what I would ship.</p>
+
+<h2 id="what">What actually moves</h2>
+<ol class="rules">
+  <li><b>Chroma, not hue.</b> Every coloured token keeps its hue angle in OKLCH and gains chroma — the status colours most (×1.22), the rest ×1.15, the brand gold least (×1.06, because it is the brand and should not wobble). Lightness is held except where contrast demands otherwise, so nothing changes its identity: blue is the same blue, louder.</li>
+  <li><b>Ink pulls away from paper.</b> Light <code>--ink-2</code> and <code>--ink-3</code> darken a step; dark <code>--ink</code> brightens a step. <code>--ink-3</code> at 13px was 4.53:1 on <code>--surface-2</code>, a hair over the line; it lands at 4.9.</li>
+  <li><b>In dark, the page drops.</b> <code>--bg</code> goes #111215 → #0f1013 while the cards stay put, so a surface reads as raised rather than as the same grey. That is the whole Spotify trick — near-black page, cards a clear step above it, one loud accent.</li>
+  <li><b>Two real failures get fixed on the way.</b> Light <code>--amber</code> was 2.92:1 as a mark on white and <code>--gray</code> 2.71:1 — both under the 3:1 a non-text mark needs. They pass now.</li>
+  <li><b>Nothing gets a new name.</b> Same 29 tokens, same four blocks in <code>tokens.css</code>, same transcription on the phone. No component changes.</li>
+</ol>
+
+<h2 id="phone">The phone</h2>
+<figure>
+  <div class="fig-head"><span class="fig-no">Figure 1</span><p class="fig-title">A list and a room, light and dark</p></div>
+  <div class="frames">
+    <div class="stepped"><div class="frame"><div class="dev"><div class="screen" id="listLight" data-pal="light"></div><div class="island"></div></div></div><p class="t">list · light</p></div>
+    <div class="stepped"><div class="frame"><div class="dev"><div class="screen" id="listDark" data-pal="dark"></div><div class="island"></div></div></div><p class="t">list · dark</p></div>
+    <div class="stepped"><div class="frame"><div class="dev"><div class="screen" id="roomLight" data-pal="light"></div><div class="island"></div></div></div><p class="t">room · light</p></div>
+    <div class="stepped"><div class="frame"><div class="dev"><div class="screen" id="roomDark" data-pal="dark"></div><div class="island"></div></div></div><p class="t">room · dark</p></div>
+  </div>
+  <figcaption>The list is the plain-list proposal from the Spaces mocks, so the two can be judged together. The room carries a status pill, a lane bar, an ask card and your own teal bubble — every coloured token the phone draws in one screen.</figcaption>
+</figure>
+
+<h2 id="status">The status colours</h2>
+<figure>
+  <div class="fig-head"><span class="fig-no">Figure 2</span><p class="fig-title">Marks, soft chips and inks, at a glance</p></div>
+  <div class="two">
+    <div class="panel" data-pal="light"><h5>light</h5><div id="dotsL"></div><span id="pillsL" hidden></span></div>
+    <div class="panel" data-pal="dark"><h5>dark</h5><div id="dotsD"></div><span id="pillsD" hidden></span></div>
+  </div>
+  <figcaption>Working, needs you, blocked, done, idle — always with a word beside them, which is why the solid mark only needs 3:1 and the soft chip's ink needs 4.5.</figcaption>
+</figure>
+
+<h2 id="avatars">The eight avatar hues</h2>
+<p>Lifting the palette exposed something the muted version hid: <strong>the eight hues are really six</strong>. <code>--avatar-1</code> and <code>--avatar-7</code> sit <strong>1.1° apart</strong> on the hue wheel — the same pink twice — and <code>--avatar-4</code> has a chroma of 0.022, which is a grey with an opinion. At 44 points nobody noticed. At 56, next to seven saturated neighbours, they will.</p>
+<figure>
+  <div class="fig-head"><span class="fig-no">Figure 3</span><p class="fig-title">The wheel, and the two collisions</p></div>
+  <div class="two">
+    <div class="panel" data-pal="light"><h5>the wheel</h5><div class="wheel" id="wheel"></div></div>
+    <div class="panel" data-pal="light"><h5>the eight, today and lifted</h5><div id="avL"></div>
+      <span id="avD" hidden></span><p class="note" id="avNote"></p></div>
+  </div>
+  <figcaption>The <em>respace</em> stop moves only two of the eight: <code>--avatar-7</code> to magenta and <code>--avatar-4</code> off its grey into teal. Every name keeps its slot — the hash is untouched — so people keep their colour relative to each other; only the slot's paint changes.</figcaption>
+</figure>
+
+<h2 id="tokens">Every token</h2>
+<figure>
+  <div class="fig-head"><span class="fig-no">Figure 4</span><p class="fig-title">Swatches and hexes · gold-ringed is what moved</p></div>
+  <div class="two">
+    <div class="panel" data-pal="light"><h5>light</h5><div class="swatches" id="swL"></div></div>
+    <div class="panel" data-pal="dark"><h5>dark</h5><div class="swatches" id="swD"></div></div>
+  </div>
+</figure>
+
+<h2 id="contrast">What it does to the numbers</h2>
+<div id="contrast"></div>
+
+<h2 id="cost">What it costs</h2>
+<ol class="rules">
+  <li><b>One file is the change.</b> <code>packages/ui/src/styles/tokens.css</code> — and it says the palette four times on purpose (<code>:root</code>, <code>[data-theme=light]</code>, <code>[data-theme=dark]</code>, and the media query), so it is four identical edits that <code>tokens.test.ts</code> already checks agree.</li>
+  <li><b>Then the phone's transcription.</b> <code>apps/mobile/src/ui/tokens.ts</code> holds the same values by hand; <code>tokens.vitest.ts</code> reads the stylesheet and fails on any drift, so it will tell me if I fat-finger one.</li>
+  <li><b>Two tests move with it.</b> <code>sourceColours.vitest.ts</code> pins <code>avatarHue("Designer")</code> to the literal <code>#6c4fb5</code> — it becomes the lifted violet. Its contrast test is a real check and keeps passing: every hue clears 4.5:1 for the derived ground-and-ink pair in both themes, which I verified before writing this page.</li>
+  <li><b>One value lives outside the system.</b> <code>OUTGOING</code> on the phone — your own bubble's teal, #0d7c86 — is deliberately not a token. It lifts to #007c87 with everything else.</li>
+  <li><b>No component touches it.</b> Every colour in the packages is already <code>var(--…)</code>; <code>tokens.test.ts</code> fails any stylesheet that names a hex. Nothing but the token files changes.</li>
+  <li><b>Half an hour, plus the suite.</b> The risk is not the edit, it is agreeing which stop. That is what the buttons at the top are for.</li>
+</ol>
+<p><strong>My call: Lift, with the respace.</strong> Lift on its own is the minor change you asked for and it is honest about it. The respace is the one extra thing I would push for, because two identical pinks is a bug you paid for twice and it gets worse the moment the faces grow. <em>More</em> is defensible if you want it to read younger; <em>Vivid</em> is there to show where it stops being Chips and starts being a slide deck.</p>
+</article></div>
+
+<script>
+const PAL = {
+  "Today": {light:{bg:"#fbfbf8",surface:"#ffffff",surface2:"#f2f2ec",surface3:"#e7e7df",line:"#e4e4dc",line2:"#cdcdc3",ink:"#16181d",ink2:"#4a4d56",ink3:"#6b6e78",ink4:"#a9abb3",gold:"#f5c542",golddeep:"#7d5b00",goldsoft:"#fff3c4",blue:"#2f6fed",blueink:"#1d4ebf",bluesoft:"#e6edff",amber:"#e8791a",amberink:"#9a4b05",ambersoft:"#ffedd9",red:"#d6453d",redink:"#a62a22",redsoft:"#ffe7e5",green:"#22995f",greenink:"#176b43",greensoft:"#e0f4e9",gray:"#9a9da6",me:"#e6edff",meink:"#16181d"},dark:{bg:"#111215",surface:"#191b20",surface2:"#20232a",surface3:"#2b2e37",line:"#2a2d35",line2:"#3d414b",ink:"#ecede8",ink2:"#b9bbc3",ink3:"#868993",ink4:"#5f626c",gold:"#f5c542",golddeep:"#f2cf6b",goldsoft:"#3b300e",blue:"#6e9cff",blueink:"#a9c1ff",bluesoft:"#1b2848",amber:"#f39a45",amberink:"#ffc07e",ambersoft:"#3f2712",red:"#f26a62",redink:"#ff9e98",redsoft:"#44201e",green:"#48c088",greenink:"#8ce0b6",greensoft:"#17352b",gray:"#6b6e78",me:"#1b2848",meink:"#ecede8"},av:["#b4547a","#3e7c8e","#a0674b","#5c6470","#2d6a9f","#6c4fb5","#c2497a","#3a8257"],out:"#0d7c86"},
+  "Lift": {light:{bg:"#fbfbf8",surface:"#ffffff",surface2:"#f2f2ec",surface3:"#e7e7df",line:"#e4e4dc",line2:"#c4c4ba",ink:"#14161b",ink2:"#454851",ink3:"#666973",ink4:"#a9abb3",gold:"#f7c431",golddeep:"#7d5b00",goldsoft:"#fff3c3",blue:"#1d6aff",blueink:"#1048ce",bluesoft:"#e6edff",amber:"#d76c00",amberink:"#9b4a00",ambersoft:"#ffedd9",red:"#e62728",redink:"#af1512",redsoft:"#ffe7e5",green:"#009b5c",greenink:"#006c40",greensoft:"#def5e8",gray:"#8c8f98",me:"#e6edff",meink:"#14161b"},dark:{bg:"#0f1013",surface:"#191b20",surface2:"#20232a",surface3:"#2b2e37",line:"#2a2d35",line2:"#454953",ink:"#f1f2ed",ink2:"#bdbfc7",ink3:"#8a8d97",ink4:"#5f626c",gold:"#f7c431",golddeep:"#f7ce54",goldsoft:"#3c3005",blue:"#5f91ff",blueink:"#a9c1ff",bluesoft:"#19274c",amber:"#f38b00",amberink:"#ffc07e",ambersoft:"#41260c",red:"#fe5550",redink:"#ff9e98",redsoft:"#471e1c",green:"#00ba7a",greenink:"#7fe3b3",greensoft:"#12362a",gray:"#6b6e78",me:"#19274c",meink:"#f1f2ed"},av:["#bc4c7a","#007f9a","#a76341","#5b6472","#1c6aa8","#6e48c1","#cb3b7a","#2a8452"],out:"#007c87"},
+  "Lift + respace": {light:{bg:"#fbfbf8",surface:"#ffffff",surface2:"#f2f2ec",surface3:"#e7e7df",line:"#e4e4dc",line2:"#c4c4ba",ink:"#14161b",ink2:"#454851",ink3:"#666973",ink4:"#a9abb3",gold:"#f7c431",golddeep:"#7d5b00",goldsoft:"#fff3c3",blue:"#1d6aff",blueink:"#1048ce",bluesoft:"#e6edff",amber:"#d76c00",amberink:"#9b4a00",ambersoft:"#ffedd9",red:"#e62728",redink:"#af1512",redsoft:"#ffe7e5",green:"#009b5c",greenink:"#006c40",greensoft:"#def5e8",gray:"#8c8f98",me:"#e6edff",meink:"#14161b"},dark:{bg:"#0f1013",surface:"#191b20",surface2:"#20232a",surface3:"#2b2e37",line:"#2a2d35",line2:"#454953",ink:"#f1f2ed",ink2:"#bdbfc7",ink3:"#8a8d97",ink4:"#5f626c",gold:"#f7c431",golddeep:"#f7ce54",goldsoft:"#3c3005",blue:"#5f91ff",blueink:"#a9c1ff",bluesoft:"#19274c",amber:"#f38b00",amberink:"#ffc07e",ambersoft:"#41260c",red:"#fe5550",redink:"#ff9e98",redsoft:"#471e1c",green:"#00ba7a",greenink:"#7fe3b3",greensoft:"#12362a",gray:"#6b6e78",me:"#19274c",meink:"#f1f2ed"},av:["#b84d86","#007f9a","#a76341","#00736d","#1c6aa8","#6e48c1","#a94cbe","#2a8452"],out:"#007c87"},
+  "More": {light:{bg:"#fbfbf8",surface:"#ffffff",surface2:"#f2f2ec",surface3:"#e7e7df",line:"#e4e4dc",line2:"#bebeb4",ink:"#13151a",ink2:"#42454e",ink3:"#62656f",ink4:"#a9abb3",gold:"#f9c421",golddeep:"#7d5b00",goldsoft:"#fff3c3",blue:"#1d6aff",blueink:"#0041dd",bluesoft:"#e6edff",amber:"#cf6800",amberink:"#9b4a00",ambersoft:"#ffedd9",red:"#ed0018",redink:"#b30006",redsoft:"#ffe7e5",green:"#009b5c",greenink:"#006c40",greensoft:"#dcf6e7",gray:"#888b94",me:"#e6edff",meink:"#13151a"},dark:{bg:"#0e0f11",surface:"#191b20",surface2:"#20232a",surface3:"#2b2e37",line:"#2a2d35",line2:"#4a4e59",ink:"#f4f5f0",ink2:"#c1c3cb",ink3:"#8d909a",ink4:"#5f626c",gold:"#f9c421",golddeep:"#fbcd35",goldsoft:"#3d2f00",blue:"#5f91ff",blueink:"#a9c1ff",bluesoft:"#172751",amber:"#f38b00",amberink:"#ffc07e",ambersoft:"#442405",red:"#ff4040",redink:"#ff9e98",redsoft:"#4a1b19",green:"#00ba7a",greenink:"#71e6af",greensoft:"#0a372a",gray:"#6b6e78",me:"#172751",meink:"#f4f5f0"},av:["#be4587","#007f9a","#af5e33","#00736d","#006aaf","#7041cc","#ae43c6","#15864e"],out:"#007c87"},
+  "Vivid": {light:{bg:"#fbfbf8",surface:"#ffffff",surface2:"#f2f2ec",surface3:"#e7e7df",line:"#e4e4dc",line2:"#b8b8ae",ink:"#121419",ink2:"#3f424b",ink3:"#5f626c",ink4:"#a9abb3",gold:"#fbc300",golddeep:"#7d5b00",goldsoft:"#fff3c3",blue:"#1d6aff",blueink:"#0040de",bluesoft:"#e6edff",amber:"#c86501",amberink:"#9b4a00",ambersoft:"#ffedd9",red:"#ed0018",redink:"#b30006",redsoft:"#ffe7e5",green:"#009b5c",greenink:"#006c40",greensoft:"#d9f7e6",gray:"#83868f",me:"#e6edff",meink:"#121419"},dark:{bg:"#0c0d10",surface:"#191b20",surface2:"#20232a",surface3:"#2b2e37",line:"#2a2d35",line2:"#50545f",ink:"#f7f8f3",ink2:"#c4c6ce",ink3:"#90939d",ink4:"#5f626c",gold:"#fbc300",golddeep:"#ffcc00",goldsoft:"#3d2f00",blue:"#5f91ff",blueink:"#a9c1ff",bluesoft:"#142557",amber:"#f38b00",amberink:"#ffc07e",ambersoft:"#462300",red:"#ff4040",redink:"#ff9e98",redsoft:"#4e1716",green:"#00ba7a",greenink:"#5ae9ab",greensoft:"#003829",gray:"#6b6e78",me:"#142557",meink:"#f7f8f3"},av:["#c63889","#007f9a","#b9561b","#00736d","#006aaf","#7236d9","#b533d0","#00874c"],out:"#007c87"},
+};
+const STOPS = Object.keys(PAL);
+let stop = "Lift + respace";
+
+/* contrast, the way the tests compute it */
+const lum = h => { const v=[1,3,5].map(i=>{const c=parseInt(h.slice(i,i+2),16)/255;return c<=0.04045?c/12.92:((c+0.055)/1.055)**2.4;}); return v[0]*0.2126+v[1]*0.7152+v[2]*0.0722; };
+const ratio = (a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05);};
+const hue = h => { // OKLCH hue angle, for the wheel
+  const f=c=>c<=0.04045?c/12.92:((c+0.055)/1.055)**2.4;
+  const [r,g,b]=[1,3,5].map(i=>f(parseInt(h.slice(i,i+2),16)/255));
+  const l=Math.cbrt(0.4122214708*r+0.5363325363*g+0.0514459929*b);
+  const m=Math.cbrt(0.2119034982*r+0.6806995451*g+0.1073969566*b);
+  const s=Math.cbrt(0.0883024619*r+0.2817188376*g+0.6299787005*b);
+  const A=1.9779984951*l-2.4285922050*m+0.4505937099*s, B=0.0259040371*l+0.7827717662*m-0.8086757660*s;
+  return ((Math.atan2(B,A)*180/Math.PI)%360+360)%360;
+};
+const TOKENS = ["bg","surface","surface2","surface3","line","line2","ink","ink2","ink3","ink4","gold","golddeep","goldsoft","blue","blueink","bluesoft","amber","amberink","ambersoft","red","redink","redsoft","green","greenink","greensoft","gray","me","meink"];
+const cssName = t => "--"+t.replace(/(ink|soft|deep|2|3|4)$/,"-$1").replace(/^(surface|line)-/,"$1-");
+const label = t => t.replace("golddeep","gold-deep").replace("goldsoft","gold-soft").replace("blueink","blue-ink").replace("bluesoft","blue-soft").replace("amberink","amber-ink").replace("ambersoft","amber-soft").replace("redink","red-ink").replace("redsoft","red-soft").replace("greenink","green-ink").replace("greensoft","green-soft").replace("meink","me-ink").replace(/^(surface|line|ink)([234])$/,"$1-$2");
+
+function vars(el, p, out){
+  for(const t of TOKENS) el.style.setProperty("--p-"+t, p[t]);
+  if(out) el.style.setProperty("--p-out", out);
+}
+function applyAll(){
+  const P = PAL[stop];
+  for(const el of document.querySelectorAll('[data-pal="light"]')) vars(el, P.light, P.out);
+  for(const el of document.querySelectorAll('[data-pal="dark"]'))  vars(el, P.dark,  P.out);
+  paintRows(); paintStatus(); paintAvatars(); paintSwatches(); paintContrast(); paintWheel();
+  for(const b of document.querySelectorAll("[data-stop]")) b.classList.toggle("on", b.dataset.stop===stop);
+}
+
+/* ── figure 1 ─────────────────────────────────────────────────────────── */
+const ICON = {tent:["M12 4L2.5 20h19z","M12 4v16","M8 20l4-7 4 7"],rocket:["M12 3s4.6 3.2 4.6 8.6c0 3-1.6 5-4.6 7.4-3-2.4-4.6-4.4-4.6-7.4C7.4 6.2 12 3 12 3z","M12 11.8a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6z","M7.6 15.4L5 18l1 3 3-1.6M16.4 15.4L19 18l-1 3-3-1.6"]};
+const svg = ps => `<svg viewBox="0 0 24 24" fill="none" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${ps.map(d=>`<path d="${d}"/>`).join("")}</svg>`;
+const SB = `<div class="sb"><span>9:41</span><span class="bars"><i></i><i></i><i style="width:24px"></i></span></div>`;
+const TABS = `<div class="tabbar">
+  <div class="tb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2.5-7h13L21 12v7H3z"/><path d="M3 12h5l1.5 3h5L16 12h5"/></svg>For you</div>
+  <div class="tb on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-5 4v-4h-.5A1.5 1.5 0 0 1 4 14.5z"/></svg>Spaces</div>
+  <div class="tb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Harnesses</div>
+  <div class="tb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4 21c0-4 3.5-6.5 8-6.5s8 2.5 8 6.5"/></svg>You</div></div>`;
+const ROWS = [
+ {t:"Scout",s:"Needs a yes",w:"2m",u:3,wait:true,av:0,shape:"32%",ini:"S"},
+ {t:"Santa Barbara 2026",s:"Flights are booked — Tue the 6th",w:"14m",av:7,shape:"50%",icon:"tent"},
+ {t:"Supplier email",s:"Hermes · drafting the reply",w:"1h",u:1,av:4,shape:"32%",ini:"SE"},
+ {t:"engineering",s:"Deploy went out at 14:02",w:"3h",av:-1,shape:"22%",ini:"#"},
+ {t:"Chips launch",s:"Three left on the list",w:"Tue",av:6,shape:"50%",icon:"rocket"},
+ {t:"Goose",s:"Done — 41 files touched",w:"Yest",av:5,shape:"32%",ini:"G"},
+ {t:"Mum & Dad",s:"See you Sunday",w:"Mon",av:2,shape:"50%",ini:"MD"},
+];
+function paintRows(){
+  const P = PAL[stop];
+  const body = `${SB}<div class="list"><div class="big">Spaces</div>
+    <div class="srch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13z"/><path d="M20 20l-4.3-4.3"/></svg><span>Anything said</span></div>
+    ${ROWS.map(r=>{
+      const ground = r.av<0 ? "var(--p-surface2)" : P.av[r.av];
+      const inner = r.icon ? svg(ICON[r.icon]) : `<span class="ini" style="font-size:22px;${r.av<0?"color:var(--p-ink3)":""}">${r.ini}</span>`;
+      return `<div class="row"><div class="av" style="width:56px;height:56px;border-radius:${r.shape};background:${ground}">${inner}</div>
+        <div class="body"><div class="t1"><span class="nm">${r.t}</span><span class="wh">${r.w}</span></div>
+        <div class="t2 ${r.wait?"wait":""}">${r.wait?'<i class="dt"></i>':""}<span class="ls">${r.s}</span></div></div>
+        ${r.u?`<span class="ct">${r.u}</span>`:""}<span class="chev">›</span></div>`;
+    }).join("")}</div>${TABS}`;
+  document.getElementById("listLight").innerHTML = body;
+  document.getElementById("listDark").innerHTML = body;
+
+  const room = `${SB}<div class="nav"><span class="chev">‹</span><b>Scout</b></div>
+   <div class="thread">
+     <div class="bub"><span class="who">Scout</span>Pulled the supplier thread — 41 files touched, all under adapters/.</div>
+     <div class="pillrow"><span class="pill blue"><i></i>Working</span><span class="pill gold">lane · supplier</span></div>
+     <div class="bar"><i></i></div>
+     <div class="bub me">Ship it once the tests are green.</div>
+     <div class="bub"><span class="who">Hermes</span>Draft is ready for your eye.</div>
+     <div class="pillrow"><span class="pill green"><i></i>Done</span><span class="pill red"><i></i>Blocked</span><span class="pill amber"><i></i>Needs you</span></div>
+     <div class="card"><span class="ch">Send the reply to Acme?</span><span class="cs">Scout · expires in 40 minutes</span>
+       <div class="acts"><span class="act go">Approve</span><span class="act no">Deny</span></div></div>
+   </div>${TABS}`;
+  document.getElementById("roomLight").innerHTML = room;
+  document.getElementById("roomDark").innerHTML = room;
+}
+
+/* ── figure 2 ─────────────────────────────────────────────────────────── */
+const MARKS = ["blue","amber","red","green","gold","gray"];
+const SOFTS = [["blue","Working"],["amber","Needs you"],["red","Blocked"],["green","Done"],["gold","chip gold"]];
+function band(p, name, dim){
+  const dots = MARKS.map(k=>`<span class="dotbig" style="background:${p[k]}"></span>`).join("");
+  const pills = SOFTS.map(([k,w])=>`<span class="pill" style="background:${p[k+"soft"]};color:${p[k==="gold"?"golddeep":k+"ink"]}">${k==="gold"?"":'<i></i>'}${w}</span>`).join("");
+  return `<div class="band ${dim?"dim":""}"><span class="bl">${name}</span>
+    <div class="strip">${dots}</div><div class="pillrow">${pills}</div></div>`;
+}
+function paintStatus(){
+  const P = PAL[stop], T = PAL["Today"];
+  const same = stop === "Today";
+  for(const [el,key] of [[dotsL,"light"],[dotsD,"dark"]]){
+    el.innerHTML = band(T[key], "today", true) + (same ? "" : band(P[key], stop, false));
+  }
+  pillsL.innerHTML = ""; pillsD.innerHTML = "";
+}
+
+/* ── figure 3 ─────────────────────────────────────────────────────────── */
+function paintAvatars(){
+  const P = PAL[stop], T = PAL["Today"];
+  const cells = p => p.av.map((h,i)=>`<span class="a" style="background:${h}">${i+1}</span>`).join("");
+  avL.innerHTML = `<div class="band dim"><span class="bl">today</span><div class="avrow">${cells(T)}</div></div>` +
+    (stop==="Today" ? "" : `<div class="band"><span class="bl">${stop}</span><div class="avrow">${cells(P)}</div></div>`);
+  avD.innerHTML = "";
+  const angles = P.av.map((h,i)=>({i:i+1,a:hue(h)})).sort((x,y)=>x.a-y.a);
+  let min=360, pair="";
+  for(let j=0;j<angles.length;j++){
+    const n=angles[(j+1)%angles.length]; const gap=((n.a-angles[j].a)%360+360)%360;
+    if(gap<min){min=gap;pair=`${angles[j].i} and ${n.i}`;}
+  }
+  avNote.innerHTML = `Closest pair: <strong>avatar-${pair.split(" and ")[0]} and avatar-${pair.split(" and ")[1]}</strong>, <strong>${min.toFixed(1)}°</strong> apart. ` +
+    (min < 20 ? `<span class="bad">Under 20° reads as the same colour.</span>` : `<span class="ok">Every pair is 20° or more apart.</span>`);
+}
+function paintWheel(){
+  const P = PAL[stop], R=92, C=110;
+  const marks = P.av.map((h,i)=>{
+    const a = (hue(h)-90)*Math.PI/180;
+    return `<circle cx="${(C+R*Math.cos(a)).toFixed(1)}" cy="${(C+R*Math.sin(a)).toFixed(1)}" r="15" fill="${h}"/>
+            <text x="${(C+R*Math.cos(a)).toFixed(1)}" y="${(C+R*Math.sin(a)+4).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${i+1}</text>`;
+  }).join("");
+  wheel.innerHTML = `<svg viewBox="0 0 220 220" width="220" height="220">
+    <circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="var(--p-line)" stroke-width="1"/>${marks}</svg>`;
+}
+
+/* ── figure 4 ─────────────────────────────────────────────────────────── */
+function paintSwatches(){
+  const P = PAL[stop], T = PAL["Today"];
+  for(const [el,key] of [[swL,"light"],[swD,"dark"]]){
+    el.innerHTML = TOKENS.map(t=>{
+      const now = P[key][t], was = T[key][t], moved = now!==was;
+      return `<div class="sw ${moved?"moved":""}"><span class="chip" style="background:${now}"></span>
+        <span class="meta"><span class="n">${label(t)}</span>
+        <span class="h">${moved?`<b>${now}</b> was ${was}`:now}</span></span></div>`;
+    }).join("");
+  }
+}
+
+/* ── the numbers ──────────────────────────────────────────────────────── */
+const PAIRS = [["ink","bg",4.5],["ink2","surface",4.5],["ink3","surface",4.5],["ink3","surface2",4.5],
+ ["golddeep","goldsoft",4.5],["blueink","bluesoft",4.5],["amberink","ambersoft",4.5],["redink","redsoft",4.5],
+ ["greenink","greensoft",4.5],["blue","surface",3],["amber","surface",3],["red","surface",3],["green","surface",3],["gray","surface",3]];
+function paintContrast(){
+  const P = PAL[stop], T = PAL["Today"];
+  const cell = (p,key,a,b,need)=>{const r=ratio(p[key][a],p[key][b]);return {r, html:`<span class="${r>=need?"ok":"bad"}">${r.toFixed(2)}</span>`};};
+  document.getElementById("contrast").innerHTML = `<table><thead><tr>
+    <th>pair</th><th>needs</th><th>light · today</th><th>light · ${stop}</th><th>dark · today</th><th>dark · ${stop}</th></tr></thead><tbody>
+    ${PAIRS.map(([a,b,need])=>{
+      const lt=cell(T,"light",a,b,need), ln=cell(P,"light",a,b,need), dt=cell(T,"dark",a,b,need), dn=cell(P,"dark",a,b,need);
+      return `<tr><td>${label(a)} on ${label(b)}</td><td>${need.toFixed(1)}:1</td>
+        <td>${lt.html}</td><td>${ln.html}</td><td>${dt.html}</td><td>${dn.html}</td></tr>`;
+    }).join("")}
+    <tr><td>white on each avatar hue</td><td>4.5:1</td>
+      <td colspan="2">${(()=>{const w=PAL["Today"].av.map(h=>ratio("#ffffff",h));return `<span class="ok">${Math.min(...w).toFixed(2)} lowest</span>`;})()}</td>
+      <td colspan="2">${(()=>{const w=P.av.map(h=>ratio("#ffffff",h));return `<span class="${Math.min(...w)>=4.5?"ok":"bad"}">${Math.min(...w).toFixed(2)} lowest</span>`;})()}</td></tr>
+    <tr><td>white on your own bubble</td><td>4.5:1</td>
+      <td colspan="2"><span class="ok">${ratio("#ffffff",PAL["Today"].out).toFixed(2)}</span></td>
+      <td colspan="2"><span class="${ratio("#ffffff",P.out)>=4.5?"ok":"bad"}">${ratio("#ffffff",P.out).toFixed(2)}</span></td></tr>
+    </tbody></table>`;
+}
+
+document.getElementById("stops").innerHTML = STOPS.map(s=>`<button class="btn" data-stop="${s}">${s}</button>`).join("");
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-stop]");
+  if(b){ stop = b.dataset.stop; applyAll(); }
+});
+applyAll();
+</script>

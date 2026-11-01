@@ -1,0 +1,6 @@
+{
+  "frame": "ack",
+  "idempotency_key": "scout-run-5-step-2",
+  "seq": 42,
+  "duplicate": false
+}

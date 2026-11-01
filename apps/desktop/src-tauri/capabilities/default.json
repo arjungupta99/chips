@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the main window may ask the shell for, and no other window (ADR 0231): find a server, run the Chips it carries, connect a bridge's card, show a notification and a badge, take a chips:// link, hold a page for its frame, keep a room's folder, and say which server runs on this Mac. A page in a frame never reaches these: Tauri's invoke key goes to the main frame alone.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:allow-set-title",
+    "deep-link:default",
+    "allow-can-run-here",
+    "allow-run-here",
+    "allow-connect-here",
+    "allow-cancel-connect",
+    "allow-discover-servers",
+    "allow-ask-about",
+    "allow-set-badge",
+    "allow-tell",
+    "allow-take-links",
+    "allow-hold-page",
+    "allow-project-folder",
+    "allow-server-here",
+    "allow-come-forward"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "message.pinned",
+  "id": "evt_01K4ZQPX0000000000000000D6",
+  "ts": "2026-09-06T12:02:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "idempotency_key": "pin-1",
+  "message_id": "msg_01K4ZQPX000000000000000067"
+}

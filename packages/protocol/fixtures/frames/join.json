@@ -1,0 +1,19 @@
+{
+  "frame": "join",
+  "request": {
+    "request_id": "jrq_01K4ZQPX0000000000000000J1",
+    "kind": "harness",
+    "state": "waiting",
+    "started_by": "requester",
+    "code": "KQ7-M4P",
+    "name": "Tide",
+    "software": "tide 0.4.1",
+    "machine": "vps-fra-1",
+    "from_addr": "100.88.4.12",
+    "wants": ["autonomy", "new_spaces", "restarts"],
+    "capabilities": [],
+    "url": "http://100.64.0.7:4431",
+    "created_at": "2026-10-05T21:04:00.000Z",
+    "expires_at": "2026-10-05T21:14:00.000Z"
+  }
+}

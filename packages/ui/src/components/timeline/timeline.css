@@ -1,0 +1,101 @@
+.ui-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-timeline__item {
+  position: relative;
+  padding: 0 0 10px 22px;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+/* The dot, and the rail down to the next one. */
+.ui-timeline__item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--line-2);
+}
+
+.ui-timeline__item::after {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 16px;
+  bottom: -2px;
+  width: 2px;
+  background: var(--line);
+}
+
+.ui-timeline__item:last-child::after {
+  display: none;
+}
+
+.ui-timeline__item[data-status="done"] {
+  color: var(--ink-2);
+}
+
+.ui-timeline__item[data-status="done"]::before {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.ui-timeline__item[data-status="now"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.ui-timeline__item[data-status="now"]::before {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.ui-timeline__item[data-status="failed"] {
+  color: var(--ink-2);
+}
+
+.ui-timeline__item[data-status="failed"]::before {
+  background: var(--red);
+  border-color: var(--red);
+}
+
+.ui-timeline__note {
+  display: block;
+  font-weight: 400;
+  color: var(--amber-ink);
+  font-size: var(--text-xs);
+}
+
+.ui-timeline__item[data-status="failed"] .ui-timeline__note {
+  color: var(--red-ink);
+}
+
+/* A tick: a moment on the rail, in mono, with a short bar instead of a dot. */
+.ui-timeline__item[data-kind="tick"] {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-3);
+  font-weight: 400;
+  padding-top: 1px;
+  padding-bottom: 8px;
+}
+
+.ui-timeline__item[data-kind="tick"]::before {
+  left: 2px;
+  top: 6px;
+  width: 12px;
+  height: 0;
+  border: 0;
+  border-top: 2px solid var(--ink-3);
+  border-radius: 0;
+  background: transparent;
+}

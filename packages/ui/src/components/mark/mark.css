@@ -1,0 +1,132 @@
+.ui-mark {
+  flex: none;
+  display: inline-block;
+  vertical-align: middle;
+  --mark-body: var(--gold);
+  --mark-top: var(--mark-body);
+  --mark-foot: var(--mark-body);
+}
+
+/* The body lit from above, as an agent's face is (`../avatar/avatar.css`), at half its light: the
+   gold is far lighter than any ground, and the whole light turns its top to cream and its foot to
+   olive. The phone does the same halved sum (`MARK_LIGHT` in `apps/mobile/src/ui/lit.ts`), and
+   the app icons are drawn with it. Every state's colour takes the same light. */
+@supports (color: oklch(from red l c h)) {
+  .ui-mark {
+    --mark-top: oklch(from var(--mark-body) calc(l + 0.0375) calc(c * 1.03) calc(h - 6));
+    --mark-foot: oklch(from var(--mark-body) calc(l - 0.015) calc(c * 1.01) calc(h + 4));
+  }
+}
+
+.ui-mark__body {
+  stroke: none;
+}
+
+.ui-mark__top {
+  stop-color: var(--mark-top);
+}
+
+.ui-mark__foot {
+  stop-color: var(--mark-foot);
+}
+
+.ui-mark__pins {
+  fill: var(--ink);
+  stroke: none;
+}
+
+/* The mark working, and the mark at rest. A pin is lit by opacity alone, so the light running
+   round the circuit is one cheap property and the colour never changes. At rest the pins are a
+   little dim (`--pin-rest`, the outline's `PIN_REST.mark`, ADR 0103), the chip first and its pins
+   behind it, but never dark: with Reduce Motion on, `base.css` takes every animation away, and
+   what is left has to be the mark at rest rather than the mark out. */
+.ui-mark__pin {
+  opacity: var(--pin-rest, 0.55);
+}
+
+.ui-mark[data-state="working"] .ui-mark__pin {
+  animation: ui-mark-pin 1500ms linear infinite;
+}
+
+/* 130ms to light and 260ms to go out, as the phone's does. */
+@keyframes ui-mark-pin {
+  0% {
+    opacity: 0.4;
+  }
+  8.6% {
+    opacity: 1;
+  }
+  26% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+/* Work that is over: the mark is still there, in grey, saying it was this that did it. */
+.ui-mark[data-state="done"] {
+  --mark-body: var(--ink-4);
+}
+
+.ui-mark[data-state="done"] .ui-mark__pin {
+  opacity: 0.55;
+}
+
+/* The connection's two (ADR 0131): a server that cannot be reached is the mark still, in red; the
+   beat after it is reached again is every pin lit on green. Green comes at once (red easing into
+   it passes through brown) and eases back into gold. */
+.ui-mark__top,
+.ui-mark__foot {
+  transition: stop-color 180ms ease-out;
+}
+
+.ui-mark[data-state="failed"] {
+  --mark-body: var(--red);
+}
+
+.ui-mark[data-state="back"] {
+  --mark-body: var(--green);
+}
+
+.ui-mark[data-state="back"] :is(.ui-mark__top, .ui-mark__foot) {
+  transition: none;
+}
+
+.ui-mark[data-state="back"] .ui-mark__pin {
+  opacity: 1;
+}
+
+/* An agent's face with nobody in it yet (`state="blank"`): the quiet ground, its pins in the ink,
+   barely there at rest and lit in turn round the circuit, as the phone's blank faces are
+   (`apps/mobile/src/agents/Arriving.tsx`). Still, for Reduce Motion, they rest a little brighter. */
+.ui-mark[data-state="blank"] {
+  --mark-body: var(--surface-2);
+  /* Flat, as the bars beside it are: lit, the quiet ground read as a puffy blob. */
+  --mark-top: var(--mark-body);
+  --mark-foot: var(--mark-body);
+}
+
+.ui-mark[data-state="blank"] .ui-mark__pins {
+  fill: var(--ink-3);
+}
+
+.ui-mark[data-state="blank"] .ui-mark__pin {
+  opacity: 0.3;
+  animation: ui-mark-blank 1500ms linear infinite backwards;
+}
+
+@keyframes ui-mark-blank {
+  0% {
+    opacity: 0.14;
+  }
+  8.6% {
+    opacity: 0.85;
+  }
+  26% {
+    opacity: 0.14;
+  }
+  100% {
+    opacity: 0.14;
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "type": "project.changed",
+  "id": "evt_01K4ZQPX0000000000000000PC",
+  "ts": "2026-10-23T09:52:04.118Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "agent",
+    "id": "agt_01K4ZQPX0000000000000000W1"
+  },
+  "by": "agt_01K4ZQPX0000000000000000W1",
+  "before": "9f2c1d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e",
+  "after": "4b8e2a1f9c7d6e5b4a3f2e1d0c9b8a7f6e5d4c3b",
+  "commits": 1,
+  "message": "Keep the list when the page reloads",
+  "files": [
+    { "path": "src/store.js", "added": 10, "removed": 3 },
+    { "path": "tests/store.test.js", "added": 16, "removed": 0 }
+  ]
+}

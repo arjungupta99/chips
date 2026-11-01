@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-come-forward"
+description = "Enables the come_forward command without any pre-configured scope."
+commands.allow = ["come_forward"]
+
+[[permission]]
+identifier = "deny-come-forward"
+description = "Denies the come_forward command without any pre-configured scope."
+commands.deny = ["come_forward"]

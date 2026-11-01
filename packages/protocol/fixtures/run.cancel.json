@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "run.cancel",
+  "id": "evt_01K4ZQPX00000000000000007B",
+  "ts": "2026-09-02T14:22:23.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "reason": "The vendor called instead.",
+  "by": "usr_01K4ZQPX000000000000000003"
+}

@@ -1,0 +1,22 @@
+{
+  "v": 1,
+  "type": "task",
+  "id": "evt_01K4ZQPX00000000000000006D",
+  "ts": "2026-09-02T14:22:09.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "task_id": "lane_01K4ZQPX00000000000000000A",
+  "to": "hrn_01K4ZQPX00000000000000000B",
+  "on_behalf_of": "usr_01K4ZQPX000000000000000003",
+  "origin": "msg_01K4ZQPX000000000000000007",
+  "goal": "Are the Northwind quotes in line with last quarter?",
+  "constraints": ["Use the finance warehouse, not the CRM"],
+  "deadline": "2026-09-02T18:00:00.000Z",
+  "autonomy": 1,
+  "link_to": "spc_01K4ZQPX000000000000000002"
+}

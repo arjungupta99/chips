@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "person.removed",
+  "id": "evt_01K4ZQPX0000000000000000F2",
+  "ts": "2026-10-14T10:00:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "participant_id": "usr_01K4ZQPX000000000000000009",
+  "display_name": "Dana",
+  "removed_by": "usr_01K4ZQPX000000000000000003",
+  "spaces": ["spc_01K4ZQPX000000000000000002"],
+  "harnesses": ["hrn_01K4ZQPX000000000000000010"]
+}

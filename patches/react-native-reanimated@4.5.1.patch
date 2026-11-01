@@ -1,0 +1,24 @@
+diff --git a/Common/cpp/reanimated/Fabric/updates/AnimatedPropsRegistry.cpp b/Common/cpp/reanimated/Fabric/updates/AnimatedPropsRegistry.cpp
+index 2db064ce01b7c96533c14fb869af6f4183f4c09a..5db2bc7c88bd8f03aff0533ad441705d6c22b0f3 100644
+--- a/Common/cpp/reanimated/Fabric/updates/AnimatedPropsRegistry.cpp
++++ b/Common/cpp/reanimated/Fabric/updates/AnimatedPropsRegistry.cpp
+@@ -46,7 +46,10 @@ jsi::Value AnimatedPropsRegistry::getUpdatesOlderThanTimestamp(
+     const double timestamp,
+     const double cleanupTimestamp) {
+   react_native_assert(UpdatesRegistryManager::isLockedByCurrentThread());
+-  removeUpdatesOlderThanTimestamp(cleanupTimestamp);
++  // Chips: every settled update is reported before the old ones are dropped. Dropped first, an
++  // update that settled while the JS thread was blocked for over two seconds never reached React,
++  // which kept drawing the values it had heard before: rows left at an entering opacity of 0, a
++  // list's picked look back after picking ended (ADR 0197, ADR 0181; 19 October 2026).
+ 
+   std::vector<std::pair<Tag, std::reference_wrapper<const folly::dynamic>>> updates;
+ 
+@@ -66,6 +69,7 @@ jsi::Value AnimatedPropsRegistry::getUpdatesOlderThanTimestamp(
+     array.setValueAtIndex(rt, i++, item);
+   }
+ 
++  removeUpdatesOlderThanTimestamp(cleanupTimestamp);
+   return jsi::Value(rt, array);
+ }
+ 

@@ -1,0 +1,6 @@
+{
+  "frame": "error",
+  "code": "too_far_behind",
+  "message": "You are more than 1,000 frames behind. Reconnect and resume with `since`.",
+  "idempotency_key": "scout-run-5-step-9"
+}

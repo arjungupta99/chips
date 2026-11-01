@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ask-about"
+description = "Enables the ask_about command without any pre-configured scope."
+commands.allow = ["ask_about"]
+
+[[permission]]
+identifier = "deny-ask-about"
+description = "Denies the ask_about command without any pre-configured scope."
+commands.deny = ["ask_about"]

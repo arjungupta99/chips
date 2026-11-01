@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "space.claimed",
+  "id": "evt_01K4ZQPX0000000000000000E2",
+  "ts": "2026-09-24T09:00:02.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "idempotency_key": "space-spc_01K4ZQPX000000000000000002-claimed",
+  "external_key": "hrn_01K4ZQPX000000000000000004:e0d0f115",
+  "title": "Kitchen remodel"
+}

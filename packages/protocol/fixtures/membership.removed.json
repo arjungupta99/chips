@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "membership.removed",
+  "id": "evt_01K4ZQPX0000000000000000CA",
+  "ts": "2026-09-02T18:00:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "participant_id": "hrn_01K4ZQPX000000000000000004",
+  "removed_by": "usr_01K4ZQPX000000000000000003"
+}

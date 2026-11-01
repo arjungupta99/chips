@@ -1,0 +1,14 @@
+{
+  "v": 1,
+  "type": "agent.updated",
+  "id": "evt_01K4ZQPX0000000000000000G2",
+  "ts": "2026-09-30T09:05:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "agent_id": "agt_01K4ZQPX0000000000000000A1",
+  "name": "Kitchen and bath",
+  "state": "active"
+}

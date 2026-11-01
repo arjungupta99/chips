@@ -1,0 +1,445 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Chips · Who it goes to, in the bar</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;--slow:1;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;--gray:#8C8F98;
+  --gold:#F7C431;--blue:#1D6AFF;--blue-ink:#1556D6;--green:#009B5C;--red:#E62728;
+  --lg-tint:rgba(255,255,255,.55);--lg-rim:rgba(255,255,255,.95);--lg-rim-2:rgba(255,255,255,.35);
+  --lg-shade:rgba(0,0,0,.14);--lg-drop:rgba(20,22,27,.26);--solid-glass:rgba(255,255,255,.82);
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --open:cubic-bezier(.2,.8,.2,1)}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;--gray:#6B6E78;
+  --blue:#5F91FF;--blue-ink:#7FA6FF;--green:#00BA7A;--red:#FE5550;
+  --lg-tint:rgba(44,46,54,.62);--lg-rim:rgba(255,255,255,.5);--lg-rim-2:rgba(255,255,255,.1);
+  --lg-shade:rgba(0,0,0,.35);--lg-drop:rgba(0,0,0,.55);--solid-glass:rgba(40,42,50,.86)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1780px;margin:0 auto;padding:0 24px 110px}
+h1{font-family:var(--font-display);font-size:clamp(28px,4vw,38px);margin:28px 0 6px;letter-spacing:-.02em}
+h2{font-family:var(--font-display);font-size:22px;margin:46px 0 10px;padding-top:20px;border-top:1px solid var(--line)}
+p,ul{color:var(--ink-2);max-width:82ch}
+b,strong{color:var(--ink)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.ctl{position:sticky;top:0;z-index:40;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 4px;padding:10px 0;background:color-mix(in srgb,var(--bg) 92%,transparent)}
+.ctl button{font:inherit;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.opts{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;margin:22px 0 8px}
+.opt{display:grid;gap:10px;width:402px;flex:none}
+.opt h3{font-family:var(--font-display);font-size:18px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{font:11px var(--font-mono);border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.tag.pick{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.tag.bad{background:color-mix(in srgb,var(--red) 14%,transparent);color:var(--red)}
+.why{font-size:13.5px;color:var(--ink-3);line-height:1.55}
+.why b{color:var(--ink-2)}
+.cost{font:12px/1.5 var(--font-mono);color:var(--ink-3);border-top:1px dashed var(--line-2);padding-top:8px}
+
+/* ── the phone: iPhone 17, in points ───────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--bg);
+  border:1px solid var(--line);font-family:var(--font-ios);box-shadow:0 24px 50px -28px rgba(0,0,0,.45)}
+.lines{position:absolute;z-index:2;left:0;right:0;bottom:var(--footH,108px);display:flex;flex-direction:column;padding:0 16px 8px}
+.row{display:flex;gap:8px;align-items:flex-end;margin-top:12px}
+.row.me{justify-content:flex-end}
+.enter{animation:enter calc(var(--slow) * 360ms) var(--open) both}
+@keyframes enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.bub{position:relative;max-width:78%;border-radius:18px;padding:8px 14px;font-size:17px;line-height:22px;background:var(--surface-2);color:var(--ink)}
+.bub .nm{display:block;font-size:13px;line-height:17px;font-weight:700;color:var(--ink-2);margin-bottom:1px}
+.mine{color:#fff;background-image:linear-gradient(#6651A8 0%,#34669E 50%,#0B737D 100%);background-size:100% 874px;background-color:#0B737D}
+.f{width:28px;height:28px;border-radius:9px;flex:none;display:inline-grid;place-items:center;font-size:12px;font-weight:700;color:#fff;font-style:normal;background:var(--g)}
+.f.p{border-radius:50%}
+.f.sm{width:20px;height:20px;border-radius:6.5px;font-size:10px}
+.f.xs{width:18px;height:18px;border-radius:6px;font-size:9.5px}
+.pair{display:inline-flex}
+.pair .f + .f{margin-left:-5px;box-shadow:0 0 0 2px var(--ring,var(--bg))}
+.msg{display:flex;flex-direction:column;align-items:flex-end;margin-top:12px}
+.msg .row{margin-top:0}
+.chain{display:flex;align-items:center;gap:4px;padding:4px 0}
+.ar{font-size:13px;line-height:1;color:var(--ink-4)}
+
+/* the top: back, the room's name */
+.chrome{position:absolute;left:0;right:0}
+.chrome.t{top:0;z-index:8;height:128px;background:linear-gradient(var(--bg) 62%,color-mix(in srgb,var(--bg) 0%,transparent))}
+.status{display:flex;justify-content:space-between;padding:18px 32px 0 42px;font-size:16px;font-weight:600}
+.navrow{display:flex;align-items:center;gap:8px;padding:10px 16px 8px}
+.cap{position:relative;border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none}
+.cap.sq{width:44px;height:44px;font-size:22px;color:var(--ink)}
+.spread{flex:1;display:flex;justify-content:center}
+.namecap{padding:6px 18px 7px;text-align:center;line-height:1.2;display:grid}
+.namecap b{font-size:16px;font-weight:600}.namecap small{font-size:12px;color:var(--ink-3)}
+.lg{position:relative;background:var(--lg-tint);-webkit-backdrop-filter:blur(8px) saturate(170%);backdrop-filter:blur(8px) saturate(170%);
+  box-shadow:0 10px 26px -14px var(--lg-drop),0 1px 2px var(--lg-shade)}
+.lg::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;
+  background:linear-gradient(140deg,var(--lg-rim) 0%,var(--lg-rim-2) 26%,transparent 48%,transparent 58%,var(--lg-rim-2) 78%,var(--lg-rim) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+:root:not([data-theme="dark"]) .lg{border:.5px solid rgba(0,0,0,.06)}
+
+/* the foot */
+.chrome.b{bottom:0;z-index:5;padding:0 12px 34px;display:grid;gap:8px;
+  background:linear-gradient(color-mix(in srgb,var(--bg) 0%,transparent),var(--bg) 26%)}
+.bar{display:flex;gap:8px;align-items:flex-end;padding-top:12px}
+.plus{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-size:27px;font-weight:300;color:var(--ink-2)}
+.field{position:relative;flex:1;min-height:50px;border-radius:25px;display:flex;align-items:center;gap:8px;padding:9px 9px 9px 18px}
+.words{flex:1;font-size:17px;line-height:23px;min-height:23px;color:var(--ink);white-space:nowrap;overflow:hidden}
+.ph{font-size:17px;line-height:23px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.typing .ph{display:none}
+.phone:not(.typing) .words{display:none}
+.send{width:32px;height:32px;border-radius:50%;background:var(--gray);opacity:.5;display:grid;place-items:center;color:#fff;font-weight:700;flex:none;font-size:17px}
+.typing .send{background:var(--blue);opacity:1}
+.dn{color:var(--ink-3);flex:none}
+.touch{position:absolute;z-index:30;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;pointer-events:none;
+  background:rgba(128,128,128,.28);border:2px solid rgba(255,255,255,.7);opacity:0}
+.touch.on{animation:touch calc(var(--slow) * 460ms) ease-out}
+@keyframes touch{0%{opacity:0;transform:scale(.5)}25%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.15)}}
+.mi{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:14px;font-size:16px;color:var(--ink);white-space:nowrap}
+.mi .ck{margin-left:auto;color:var(--blue);font-weight:700;opacity:0}
+.mi.on .ck{opacity:1}
+.mi.hit{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.mi small{display:block;font-size:12px;color:var(--ink-3);line-height:1.2}
+
+/* Now: the capsule over the field, and a menu of its own over that */
+.tocap{justify-self:start;height:34px;border-radius:999px;display:flex;align-items:center;gap:6px;padding:0 12px 0 13px;font-size:15px;color:var(--ink);white-space:nowrap}
+.tocap .rt{display:flex;align-items:center;gap:4px}
+.menu{position:absolute;left:12px;bottom:148px;z-index:9;width:236px;border-radius:22px;padding:6px;display:grid;
+  -webkit-backdrop-filter:blur(22px) saturate(170%)!important;backdrop-filter:blur(22px) saturate(170%)!important;
+  opacity:0;transform:translateY(8px) scale(.94);transform-origin:12% 100%;pointer-events:none;
+  transition:opacity calc(var(--slow) * 220ms) ease,transform calc(var(--slow) * 500ms) cubic-bezier(.3,1.5,.5,1)}
+.menu.open{opacity:1;transform:none}
+
+/* A: in the field — the faces lead the field, the field says who, and opens into the list */
+.fa{flex:1;border-radius:25px;display:grid;grid-template-rows:0fr auto;transition:grid-template-rows calc(var(--slow) * 190ms) var(--open),border-radius calc(var(--slow) * 190ms) var(--open)}
+.fa.open{grid-template-rows:1fr auto;border-radius:24px}
+.fa .lst{overflow:hidden;min-height:0}
+.fa .lst-in{display:grid;padding:6px 6px 4px;margin:0 0 0;border-bottom:.5px solid transparent;transition:border-color calc(var(--slow) * 190ms)}
+.fa.open .lst-in{border-color:var(--line)}
+.fa .lst .mi{opacity:0;transform:translateY(6px);transition:opacity calc(var(--slow) * 150ms),transform calc(var(--slow) * 190ms) var(--open)}
+.fa.open .lst .mi{opacity:1;transform:none;transition-delay:calc(var(--slow) * 40ms)}
+.fa .inrow{display:flex;align-items:center;gap:8px;min-height:50px;padding:8px 9px 8px 8px}
+.tok{display:flex;align-items:center;gap:4px;height:34px;padding:0 8px 0 7px;border-radius:17px;flex:none;
+  background:color-mix(in srgb,var(--ink) 6%,transparent);transition:background calc(var(--slow) * 150ms)}
+.fa.open .tok{background:color-mix(in srgb,var(--ink) 11%,transparent)}
+.tok .dn{transition:transform calc(var(--slow) * 190ms) var(--open)}
+.fa.open .tok .dn{transform:rotate(180deg)}
+.face-swap{animation:swapf calc(var(--slow) * 200ms) var(--open)}
+@keyframes swapf{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+
+/* B: a tab on the field's shoulder, one piece of glass with it, that opens into the list */
+.fb{display:grid;justify-items:start;gap:0}
+.tab{position:relative;z-index:1;margin-left:76px;border-radius:17px 17px 0 0;background:var(--solid-glass);
+  -webkit-backdrop-filter:blur(8px) saturate(170%);backdrop-filter:blur(8px) saturate(170%);
+  display:grid;grid-template-rows:0fr auto;width:var(--w,150px);
+  transition:grid-template-rows calc(var(--slow) * 190ms) var(--open),width calc(var(--slow) * 190ms) var(--open),border-radius calc(var(--slow) * 190ms) var(--open)}
+.tab.open{grid-template-rows:1fr auto;border-radius:22px 22px 0 0}
+.tab::after,.tab::before{content:"";position:absolute;bottom:0;width:14px;height:14px}
+.tab::after{right:-14px;background:radial-gradient(circle at 100% 0,transparent 13.5px,var(--solid-glass) 14px)}
+.tab::before{left:-14px;background:radial-gradient(circle at 0 0,transparent 13.5px,var(--solid-glass) 14px)}
+.tab .lst{overflow:hidden;min-height:0}
+.tab .lst-in{display:grid;padding:6px 6px 0}
+.tab .lst .mi{opacity:0;transition:opacity calc(var(--slow) * 150ms)}
+.tab.open .lst .mi{opacity:1;transition-delay:calc(var(--slow) * 40ms)}
+.tab .lab{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px 0 12px;font-size:14px;color:var(--ink-2);white-space:nowrap}
+.fb .bar{padding-top:0;align-items:flex-end;justify-self:stretch}
+.fb .field{background:var(--solid-glass);-webkit-backdrop-filter:blur(8px) saturate(170%);backdrop-filter:blur(8px) saturate(170%);border-top-left-radius:25px}
+.fb .field.joined{border-top-left-radius:25px}
+.fbwrap{filter:drop-shadow(0 6px 14px var(--lg-drop))}
+
+/* C: no menu — a strip of who, one tap each, on the field's glass */
+.fc{flex:1;border-radius:24px;display:grid}
+.strip{position:relative;display:flex;gap:2px;padding:5px 5px 0}
+.seg{position:relative;z-index:1;flex:1;display:flex;align-items:center;justify-content:center;gap:5px;height:32px;border-radius:16px;font-size:14px;color:var(--ink-2);white-space:nowrap}
+.seg.on{color:var(--ink);font-weight:600}
+.thumb{position:absolute;z-index:0;top:5px;height:32px;border-radius:16px;background:color-mix(in srgb,var(--ink) 9%,transparent);
+  transition:left calc(var(--slow) * 200ms) var(--open),width calc(var(--slow) * 200ms) var(--open)}
+.fc .inrow{display:flex;align-items:center;gap:8px;min-height:48px;padding:6px 9px 8px 16px}
+</style>
+
+<div class="wrap">
+<h1>Who it goes to, in the bar</h1>
+<p>Today the capsule floats as its own pill over the field, and its menu floats as a third piece of glass above that. Nothing about them says they belong to the bar. Each option below makes who-it-goes-to part of the bar itself, and the list, where there is one, grows out of the bar rather than appearing beside it. The motion is the same short ease-out everywhere, with no bounce: 190 ms to open, 150 ms to close.</p>
+<p>Each phone loops the same few seconds in a room with you, Kay and Lee: pick Kay, type, send. The keyboard is left out so the room stays readable; the bar stands on it in the app.</p>
+
+<div class="ctl">
+  <button id="t-theme" aria-pressed="false">Dark</button>
+  <button id="t-slow" aria-pressed="false">Slow motion ×3</button>
+  <button id="t-run" aria-pressed="true">Playing</button>
+</div>
+
+<div class="opts">
+  <div class="opt">
+    <h3>Now <span class="tag bad">three pieces</span></h3>
+    <div class="phone" id="p-now"></div>
+    <div class="why">The capsule, the +, the field and the menu are four separate pieces of glass. The menu springs out and swings past its size before it settles, which is the bounce you saw.</div>
+    <div class="cost">Cost: nothing. This is on your phone.</div>
+  </div>
+  <div class="opt">
+    <h3>A · In the field <span class="tag pick">recommended</span></h3>
+    <div class="phone" id="p-a"></div>
+    <div class="why"><b>The faces lead the field, and the field says who: "Message Everyone".</b> The bar is one line again, and the room gets 42 points back. A tap on the faces opens the field itself upward into the list, so the list and the field are one piece of glass. A pick closes it back into the field. While you type, the faces stay at the front of the field. The desktop's field already says "Message …"; it would lead with the faces too.</div>
+    <div class="cost">Cost: phone ≈150 lines (the faces in the field, the field opening into the list on the room's own layout transition, the send's flight starting from the faces); the capsule and its menu go (−270). Desktop ≈90 for the same shape.</div>
+  </div>
+  <div class="opt">
+    <h3>B · A tab on the field</h3>
+    <div class="phone" id="p-b"></div>
+    <div class="why"><b>The capsule becomes a tab joined to the field's top edge</b>, one piece of glass with it, so the name stays visible above what you type. A tap grows the tab upward and wider into the list. On iOS 26 the join is UIKit's own: two pieces of glass that touch in one container flow together.</div>
+    <div class="cost">Cost: phone ≈120 lines. The join on the phone is UIKit's (GlassContainer), so the exact neck is its, not this drawing; the painted look below iOS 26 needs its own tab shape. Desktop ≈80.</div>
+  </div>
+  <div class="opt">
+    <h3>C · A strip, no menu</h3>
+    <div class="phone" id="p-c"></div>
+    <div class="why"><b>Everyone and each agent sit in a strip on top of the field's glass</b>, and one tap picks: there is no menu to open or close. It is always there in a room with two or more agents, and it scrolls sideways past three or four.</div>
+    <div class="cost">Cost: phone ≈110 lines; the capsule and menu go (−270). Desktop ≈70. It costs the room the same height as the capsule does today.</div>
+  </div>
+</div>
+
+<h2>What stays the same</h2>
+<ul>
+  <li>What the pick means (ADR 0081): an @ in the draft wins and the faces say "by @"; your last pick sticks; Everyone before your first message.</li>
+  <li>On a send, the faces fly up with your words to become the route over the bubble, where the address changed.</li>
+  <li>The keys stay up while you pick (fixed in this round: the menu no longer opens a window of its own), and the list's glass forms rather than fading in bare.</li>
+</ul>
+</div>
+
+<script>
+const PEOPLE = {
+  me: { face: "A", ground: "#3B7EA1", person: true },
+  kay: { name: "Kay", face: "K", ground: "#0F7B6C" },
+  lee: { name: "Lee", face: "L", ground: "#2A6FB0" },
+};
+const CHOICES = [
+  { id: "kay", ids: ["kay"], name: "Kay" },
+  { id: "lee", ids: ["lee"], name: "Lee" },
+  { id: "all", ids: ["kay", "lee"], name: "Everyone", under: "Both answer" },
+];
+const face = (id, size = "") => {
+  const p = PEOPLE[id];
+  return `<i class="f ${size} ${p.person ? "p" : ""}" style="--g:${p.ground}">${p.face}</i>`;
+};
+const faces = (ids, size = "xs") =>
+  ids.length === 1 ? face(ids[0], size) : `<span class="pair">${ids.map((id) => face(id, size)).join("")}</span>`;
+const chevron = `<svg class="dn" viewBox="0 0 12 12" width="11" height="11"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const words = (choice) => choice.name;
+const rowsHtml = (on) =>
+  CHOICES.map(
+    (c) =>
+      `<div class="mi ${c.id === on ? "on" : ""}" data-c="${c.id}">${faces(c.ids)}<span>${c.name}${c.under ? `<small>${c.under}</small>` : ""}</span><span class="ck">✓</span></div>`,
+  ).join("");
+const slow = () => Number(getComputedStyle(document.documentElement).getPropertyValue("--slow")) || 1;
+
+const ROOM = `
+  <div class="chrome t"><div class="status"><span>9:41</span><span>●●● ▮</span></div>
+    <div class="navrow"><div class="cap sq lg">‹</div><div class="spread"><div class="cap namecap lg"><b>You, Kay, Lee</b><small>2 agents</small></div></div><div class="cap sq" style="visibility:hidden"></div></div></div>
+  <div class="lines">
+    <div class="msg"><div class="chain">${face("me", "sm")}<span class="ar">→</span>${faces(["kay", "lee"], "sm")}</div>
+      <div class="row me"><div class="bub mine">Morning! Can you two split the PO work?</div></div></div>
+    <div class="row">${face("kay")}<div class="bub"><span class="nm">Kay</span>I'll take the Northwind PO.</div></div>
+    <div class="row">${face("lee")}<div class="bub"><span class="nm">Lee</span>And I'll update the tracker.</div></div>
+  </div>`;
+
+class Phone {
+  constructor(el, kind) {
+    this.el = el;
+    this.kind = kind;
+    this.pick = "all";
+    el.innerHTML = ROOM + this.foot() + `<div class="touch"></div>`;
+    el.style.setProperty("--ring", "var(--surface-2)");
+    this.lines = el.querySelector(".lines");
+  }
+  choice() {
+    return CHOICES.find((c) => c.id === this.pick);
+  }
+  foot() {
+    const c = this.choice();
+    const plus = `<div class="plus lg">+</div>`;
+    const send = `<div class="send">↑</div>`;
+    if (this.kind === "now")
+      return `<div class="chrome b"><div class="tocap lg"><span class="rt"><span class="ar">→</span><span class="who">${faces(c.ids)}</span></span><span class="nm">${words(c)}</span>${chevron}</div>
+        <div class="bar">${plus}<div class="field lg"><span class="ph">Message, or /command</span><span class="words"></span>${send}</div></div></div>
+        <div class="menu lg">${rowsHtml(this.pick)}</div>`;
+    if (this.kind === "a")
+      return `<div class="chrome b"><div class="bar">${plus}<div class="fa lg"><div class="lst"><div class="lst-in">${rowsHtml(this.pick)}</div></div>
+        <div class="inrow"><div class="tok"><span class="who">${faces(c.ids)}</span>${chevron}</div><span class="ph">Message ${words(c)}</span><span class="words"></span>${send}</div></div></div></div>`;
+    if (this.kind === "b")
+      return `<div class="chrome b"><div class="fbwrap"><div class="fb"><div class="tab"><div class="lst"><div class="lst-in">${rowsHtml(this.pick)}</div></div>
+        <div class="lab"><span class="ar">→</span><span class="who">${faces(c.ids)}</span><span class="nm">${words(c)}</span>${chevron}</div></div>
+        <div class="bar">${plus}<div class="field"><span class="ph">Message, or /command</span><span class="words"></span>${send}</div></div></div></div></div>`;
+    const strip = [CHOICES[2], CHOICES[0], CHOICES[1]];
+    return `<div class="chrome b"><div class="bar">${plus}<div class="fc lg"><div class="strip"><div class="thumb"></div>${strip
+      .map((x) => `<div class="seg ${x.id === this.pick ? "on" : ""}" data-c="${x.id}">${faces(x.ids)}<span>${x.name}</span></div>`)
+      .join("")}</div><div class="inrow"><span class="ph">Message ${words(c)}</span><span class="words"></span>${send}</div></div></div></div>`;
+  }
+  $(sel) {
+    return this.el.querySelector(sel);
+  }
+  touch(target) {
+    const t = this.$(".touch");
+    const r = target.getBoundingClientRect();
+    const p = this.el.getBoundingClientRect();
+    t.style.left = `${r.left - p.left + Math.min(r.width / 2, 34)}px`;
+    t.style.top = `${r.top - p.top + r.height / 2}px`;
+    t.classList.remove("on");
+    void t.offsetWidth;
+    t.classList.add("on");
+  }
+  control() {
+    return { now: ".tocap", a: ".tok", b: ".tab .lab", c: `.seg[data-c="${this.pick}"]` }[this.kind];
+  }
+  setOpen(open) {
+    if (this.kind === "now") this.$(".menu").classList.toggle("open", open);
+    if (this.kind === "a") this.$(".fa").classList.toggle("open", open);
+    if (this.kind === "b") {
+      const tab = this.$(".tab");
+      tab.classList.toggle("open", open);
+      tab.style.setProperty("--w", open ? "236px" : `${this.labWidth()}px`);
+    }
+  }
+  labWidth() {
+    const lab = this.$(".tab .lab");
+    const was = lab.style.width;
+    lab.style.width = "max-content";
+    const w = Math.ceil(lab.scrollWidth);
+    lab.style.width = was;
+    return w;
+  }
+  choose(id) {
+    this.pick = id;
+    const c = this.choice();
+    for (const mi of this.el.querySelectorAll(".mi")) mi.classList.toggle("on", mi.dataset.c === id);
+    for (const w of this.el.querySelectorAll(".who")) {
+      w.innerHTML = faces(c.ids);
+      w.classList.remove("face-swap");
+      void w.offsetWidth;
+      w.classList.add("face-swap");
+    }
+    for (const n of this.el.querySelectorAll(".nm")) if (n.closest(".chrome.b")) n.textContent = words(c);
+    const ph = this.$(".ph");
+    if (this.kind === "a" || this.kind === "c") ph.textContent = `Message ${words(c)}`;
+    if (this.kind === "c") {
+      for (const s of this.el.querySelectorAll(".seg")) s.classList.toggle("on", s.dataset.c === id);
+      this.thumb();
+    }
+    if (this.kind === "b" && !this.$(".tab").classList.contains("open"))
+      this.$(".tab").style.setProperty("--w", `${this.labWidth()}px`);
+  }
+  thumb() {
+    const on = this.$(".seg.on");
+    const th = this.$(".thumb");
+    th.style.left = `${on.offsetLeft}px`;
+    th.style.width = `${on.offsetWidth}px`;
+  }
+  type(text, done) {
+    this.el.classList.add("typing");
+    const w = this.$(".words");
+    let i = 0;
+    const step = () => {
+      w.textContent = text.slice(0, ++i);
+      if (i < text.length) this.timer(step, 55);
+      else done();
+    };
+    step();
+  }
+  send(text) {
+    const c = this.choice();
+    this.el.classList.remove("typing");
+    this.$(".words").textContent = "";
+    const m = document.createElement("div");
+    m.className = "msg enter";
+    m.dataset.sent = "1";
+    m.innerHTML = `<div class="chain">${face("me", "sm")}<span class="ar">→</span>${faces(c.ids, "sm")}</div><div class="row me"><div class="bub mine">${text}</div></div>`;
+    this.lines.appendChild(m);
+  }
+  reset() {
+    for (const m of this.el.querySelectorAll("[data-sent]")) m.remove();
+    this.setOpen(false);
+    this.choose("all");
+  }
+  timer(fn, ms) {
+    this.timers.push(setTimeout(fn, ms * slow()));
+  }
+  play() {
+    this.timers = [];
+    this.reset();
+    const tap = (sel, then) => {
+      const t = this.$(sel);
+      t.classList.add("hit");
+      this.touch(t);
+      this.timer(() => {
+        t.classList.remove("hit");
+        then();
+      }, 140);
+    };
+    const text = "is the PO booked?";
+    if (this.kind === "c") {
+      this.timer(() => tap('.seg[data-c="kay"]', () => this.choose("kay")), 900);
+      this.timer(() => this.type(text, () => this.timer(() => this.send(text), 400)), 1900);
+    } else {
+      this.timer(() => tap(this.control(), () => this.setOpen(true)), 900);
+      this.timer(() => tap('.mi[data-c="kay"]', () => {
+        this.choose("kay");
+        this.setOpen(false);
+      }), 2300);
+      this.timer(() => this.type(text, () => this.timer(() => this.send(text), 400)), 3100);
+    }
+    this.timer(() => this.play(), 7600);
+  }
+  stop() {
+    for (const t of this.timers ?? []) clearTimeout(t);
+  }
+}
+
+const phones = ["now", "a", "b", "c"].map((k) => new Phone(document.getElementById(`p-${k}`), k));
+// The room stands on the bar: when the bar grows, the room rises with it, as it does for a field
+// that grows a line. Now's menu stands over the room instead, so its room stays where it is.
+for (const p of phones) {
+  const foot = p.$(".chrome.b");
+  new ResizeObserver(() => p.el.style.setProperty("--footH", `${foot.offsetHeight + 4}px`)).observe(foot);
+}
+for (const p of phones) {
+  if (p.kind === "c") p.thumb();
+  if (p.kind === "b") p.$(".tab").style.setProperty("--w", `${p.labWidth()}px`);
+}
+let playing = true;
+const playAll = () => phones.forEach((p) => p.play());
+const stopAll = () => phones.forEach((p) => p.stop());
+playAll();
+const toggle = (id, fn) => {
+  const b = document.getElementById(id);
+  b.addEventListener("click", () => {
+    const on = b.getAttribute("aria-pressed") !== "true";
+    b.setAttribute("aria-pressed", String(on));
+    fn(on);
+  });
+};
+toggle("t-theme", (on) => (document.documentElement.dataset.theme = on ? "dark" : "light"));
+toggle("t-slow", (on) => {
+  document.documentElement.style.setProperty("--slow", on ? "3" : "1");
+  stopAll();
+  playAll();
+});
+toggle("t-run", (on) => {
+  playing = on;
+  document.getElementById("t-run").textContent = on ? "Playing" : "Paused";
+  if (on) playAll();
+  else stopAll();
+});
+if (new URLSearchParams(location.search).has("still")) {
+  stopAll();
+  const at = new URLSearchParams(location.search).get("still");
+  for (const p of phones) {
+    p.reset();
+    if (at === "open") {
+      if (p.kind === "c") p.choose("kay");
+      else p.setOpen(true);
+    }
+  }
+}
+</script>

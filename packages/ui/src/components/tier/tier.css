@@ -1,0 +1,23 @@
+.ui-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.ui-tier[data-tone="amber"] {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+
+.ui-tier[data-tone="blue"] {
+  background: var(--blue-soft);
+  color: var(--blue-ink);
+}

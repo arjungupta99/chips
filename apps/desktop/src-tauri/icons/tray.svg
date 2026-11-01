@@ -1,0 +1,26 @@
+<!--
+  The menu bar's icon: the mark in one colour, as a template image (`icon_as_template` in
+  `src/lib.rs`), so macOS paints it the menu bar's own ink, light or dark. Only its shape
+  counts: the body and pins are one silhouette with the bite out of it, so its pins stay solid.
+  Since ADR 0096 the mark is the outline an agent wears
+  (`packages/ui/src/components/face/outline.ts`): the body and the ten pins below are its `bittenPath` and `pinsOf` for the
+  square each `data-outline` and `data-pins` names (left, top, side), and
+  `tools/guardrails/icons-wear-the-outline.test.ts` fails when they drift apart.
+  `tray@2x.png` is this file at 44 square, on nothing; macOS draws it 18 points tall.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22">
+  <title>Chips</title>
+  <g fill="#000000" data-pins="4 4 14">
+    <rect x="6.63" y="2.18" width="1.75" height="2.38" rx="0.88"/>
+    <rect x="10.13" y="2.18" width="1.75" height="2.38" rx="0.88"/>
+    <rect x="17.44" y="10.13" width="2.38" height="1.75" rx="0.88"/>
+    <rect x="17.44" y="13.63" width="2.38" height="1.75" rx="0.88"/>
+    <rect x="13.63" y="17.44" width="1.75" height="2.38" rx="0.88"/>
+    <rect x="10.13" y="17.44" width="1.75" height="2.38" rx="0.88"/>
+    <rect x="6.63" y="17.44" width="1.75" height="2.38" rx="0.88"/>
+    <rect x="2.18" y="13.63" width="2.38" height="1.75" rx="0.88"/>
+    <rect x="2.18" y="10.13" width="2.38" height="1.75" rx="0.88"/>
+    <rect x="2.18" y="6.63" width="2.38" height="1.75" rx="0.88"/>
+  </g>
+  <path fill="#000000" data-outline="4 4 14" d="M7.5 4H13.29A3.94 3.94 0 0 0 18 8.71V14.5A3.5 3.5 0 0 1 14.5 18H7.5A3.5 3.5 0 0 1 4 14.5V7.5A3.5 3.5 0 0 1 7.5 4Z"/>
+</svg>

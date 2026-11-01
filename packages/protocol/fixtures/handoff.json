@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "type": "handoff",
+  "id": "evt_01K4ZQPX00000000000000006C",
+  "ts": "2026-09-02T14:22:08.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "to": "usr_01K4ZQPX000000000000000003",
+  "context_summary": "Northwind has not replied in 48 hours. The PO is confirmed on our side; the tracker is updated.",
+  "open_items": [
+    "Chase Dana for an acknowledgement",
+    "Confirm the pallet count with the warehouse"
+  ],
+  "reason": "Waiting on a person outside the workspace."
+}

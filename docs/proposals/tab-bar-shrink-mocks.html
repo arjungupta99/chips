@@ -1,0 +1,494 @@
+<title>Bar Shrinks on Scroll</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=JetBrains+Mono:wght@400..700&amp;display=swap">
+<style>
+/* Layout: four iPhone 17 Pro frames (402 × 874 pt) side by side, all scrolling the same Spaces list at once, the tab bar and the + drawn four ways; caption and cost under each. */
+*,*::before,*::after{box-sizing:border-box}
+:root{--k:.76;
+  --page:#EFEFE9;--bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#626670;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--accent:#A06306;--blue:#1D6AFF;--blue-ink:#1048CE;
+  --lg-tint:rgba(255,255,255,.72);--lg-rim:rgba(255,255,255,.95);--lg-rim-2:rgba(255,255,255,.35);
+  --lg-shade:rgba(0,0,0,.12);--lg-drop:rgba(20,22,27,.24);--lg-border:rgba(0,0,0,.06);
+  --pill:rgba(20,22,27,.075);--tab-ink:#14161B;--band:rgba(251,251,248,.86);--island:#000;
+  --plus-bg:#F7C431;--plus-shadow:0 5px 8px rgba(0,0,0,.28);--plus-ink:#231a00;--plus-rim:0;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--accent:#F38B00;--blue:#5F91FF;--blue-ink:#A9C1FF;
+  --lg-tint:rgba(30,32,38,.8);--lg-rim:rgba(255,255,255,.42);--lg-rim-2:rgba(255,255,255,.08);
+  --lg-shade:rgba(0,0,0,.4);--lg-drop:rgba(0,0,0,.6);--lg-border:transparent;
+  --pill:rgba(255,255,255,.13);--tab-ink:#F1F2ED;--band:rgba(15,16,19,.84);--island:#000;
+  --plus-bg:rgba(247,196,49,.72);--plus-shadow:0 10px 24px -12px rgba(0,0,0,.7);--plus-ink:#231a00;--plus-rim:1}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--accent:#F38B00;--blue:#5F91FF;--blue-ink:#A9C1FF;
+  --lg-tint:rgba(30,32,38,.8);--lg-rim:rgba(255,255,255,.42);--lg-rim-2:rgba(255,255,255,.08);
+  --lg-shade:rgba(0,0,0,.4);--lg-drop:rgba(0,0,0,.6);--lg-border:transparent;
+  --pill:rgba(255,255,255,.13);--tab-ink:#F1F2ED;--band:rgba(15,16,19,.84);--island:#000;
+  --plus-bg:rgba(247,196,49,.72);--plus-shadow:0 10px 24px -12px rgba(0,0,0,.7);--plus-ink:#231a00;--plus-rim:1}
+
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px}
+.wrap{max-width:1330px;margin:0 auto}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(27px,4vw,38px);line-height:1.12;letter-spacing:-.02em;margin:34px 0 0;text-wrap:balance;max-width:24ch}
+h2{font-family:var(--font-display);font-weight:650;font-size:22px;line-height:1.2;margin:0;text-wrap:balance}
+p{margin:0;max-width:68ch;color:var(--ink-2)}
+b,strong{color:var(--ink);font-weight:650}
+header{display:grid;gap:16px}
+.tools{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font:12px var(--font-mono);color:var(--ink-3);margin-right:2px}
+button.tg{font:600 14px var(--font-body);color:var(--ink);background:var(--surface);border:1px solid var(--line-2);border-radius:999px;padding:7px 15px;cursor:pointer}
+button.tg[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.tg:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.figs{display:flex;flex-wrap:wrap;gap:48px 28px;margin-top:30px;align-items:flex-start}
+.fig{width:calc(402px * var(--k));display:grid;gap:14px;margin:0;min-width:0}
+.pw{width:calc(402px * var(--k));height:calc(874px * var(--k));position:relative}
+.pw>.phone{position:absolute;left:0;top:0;transform:scale(var(--k));transform-origin:0 0}
+figcaption{display:grid;gap:9px;min-width:0}
+figcaption p{font-size:14.5px}
+.tag{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag .o{font:700 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 7px}
+.tag .rec{font:600 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--gold);color:#1A1400;border-radius:6px;padding:5px 7px}
+.tag h3{font-family:var(--font-display);font-size:18px;margin:0;font-weight:650}
+.try{font-size:13.5px;color:var(--blue-ink);font-weight:600}
+.cost{font-size:13.5px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:9px}
+.cost b{color:var(--ink-2)}
+.nums{font:12px/1.5 var(--font-mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+section{margin-top:72px;display:grid;gap:14px;max-width:820px}
+section ul{margin:0;padding-left:20px;display:grid;gap:8px;color:var(--ink-2);max-width:72ch}
+@media (max-width:1239px){:root{--k:.86}}
+@media (max-width:820px){:root{--k:.8}}
+@media (max-width:460px){:root{--k:.84}}
+@media (max-width:400px){:root{--k:.78}}
+
+/* ── the phone ───────────────────────────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:55px;overflow:hidden;background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);font-family:var(--font-ios);line-height:normal;isolation:isolate;
+  box-shadow:0 30px 60px -32px rgba(0,0,0,.5);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.list{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;z-index:1;outline:none;touch-action:pan-y}
+.list::-webkit-scrollbar{display:none}
+.list:focus-visible{box-shadow:inset 0 0 0 2px var(--blue)}
+.list-in{padding:123px 0 140px}
+.row{display:flex;align-items:center;gap:12px;height:80px;padding-left:16px;position:relative}
+.row::after{content:"";position:absolute;left:84px;right:0;bottom:0;border-bottom:.5px solid var(--line)}
+.row:last-child::after{display:none}
+.face{width:56px;height:56px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:27px;line-height:1;
+  background:radial-gradient(circle at 50% 35%,color-mix(in srgb,var(--g) 78%,#fff) 0%,var(--g) 62%,color-mix(in srgb,var(--g) 72%,#000) 100%)}
+.rt{flex:1;min-width:0;display:grid;gap:2px;padding-right:8px}
+.rt .l1{display:flex;align-items:baseline;gap:8px}
+.rt b{font-size:17.5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rt time{font-size:15px;color:var(--ink-3)}
+.rt span{font-size:15.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chev{width:20px;color:var(--ink-4);flex:none;margin-right:12px}
+
+.band{position:absolute;left:0;right:0;top:0;height:132px;z-index:3;pointer-events:none;opacity:0;
+  background:linear-gradient(var(--band) 66%,transparent);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);
+  -webkit-mask-image:linear-gradient(#000 72%,transparent);mask-image:linear-gradient(#000 72%,transparent)}
+.top{position:absolute;left:0;right:0;top:0;z-index:4;pointer-events:none}
+.status{display:flex;justify-content:space-between;align-items:center;padding:21px 36px 0 52px;font-size:17px;font-weight:600;height:54px}
+.island{position:absolute;left:139px;top:14px;width:125px;height:36px;border-radius:20px;background:var(--island)}
+.sbr{display:flex;gap:7px;align-items:center}
+.sbr svg{width:18px;height:13px}
+.sbi{display:block;width:26px;height:12.5px;border-radius:4px;border:1.5px solid currentColor;position:relative;opacity:.9}
+.sbi::after{content:"";position:absolute;inset:1.5px 4px 1.5px 1.5px;background:currentColor;border-radius:1.5px}
+.title{display:flex;align-items:center;gap:6px;padding:14px 17px 0 17px}
+.title h4{margin:0;font-size:34px;line-height:41px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+.demo{font-size:13px;font-weight:600;color:var(--gold-deep);background:var(--gold-soft);border-radius:999px;padding:2px 9px}
+.title .dn{width:20px;height:20px;color:var(--ink-3)}
+.select{margin-left:auto;position:relative;border-radius:999px;padding:7px 15px;font-size:16px;font-weight:500;pointer-events:auto;flex:none}
+
+.lg{background:var(--lg-tint);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);
+  border:.5px solid var(--lg-border);box-shadow:0 10px 26px -14px var(--lg-drop),0 1px 2px var(--lg-shade)}
+.lg::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;
+  background:linear-gradient(140deg,var(--lg-rim) 0%,var(--lg-rim-2) 26%,transparent 48%,transparent 58%,var(--lg-rim-2) 78%,var(--lg-rim) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+
+/* the dock: the bar and the +, placed by the script in the phone's points */
+.dock{position:absolute;inset:0;z-index:6;pointer-events:none;transform-origin:201.5px 853px}
+.bar{position:absolute;border-radius:999px;overflow:hidden;pointer-events:auto;cursor:pointer}
+.pill{position:absolute;border-radius:999px;background:var(--pill)}
+.tab{position:absolute;inset:0;pointer-events:none}
+.ic{position:absolute;width:28px;height:28px;color:var(--tab-ink);transition:color .2s}
+.ic svg{width:100%;height:100%;display:block}
+.lb{position:absolute;width:70px;height:14px;text-align:center;font-size:10.5px;line-height:14px;font-weight:600;color:var(--tab-ink);transition:color .2s;white-space:nowrap}
+.tab.on .ic,.tab.on .lb{color:var(--accent)}
+.plus{position:absolute;border-radius:50%;pointer-events:auto;cursor:pointer}
+.pin{position:absolute;inset:0;border-radius:50%;display:grid;place-items:center;background:var(--plus-bg);box-shadow:var(--plus-shadow);transition:transform .32s cubic-bezier(.3,1.5,.5,1)}
+.pin.lg{background:var(--plus-bg)}
+.pin svg{width:45%;height:45%;display:block}
+.plus:active .pin{transform:scale(1.08);transition-duration:.12s}
+.pin.lg::before{opacity:var(--plus-rim)}
+</style>
+
+
+<div class="wrap">
+<header>
+  <h1>The bar and the + shrink while you read</h1>
+  <p>As you push a list up to read further, the tab bar and the + get a little smaller and the tab names go. Pull the list back down and they return. Today iOS does something else: it folds the bar down to one tab. All four phones scroll the same Spaces list at the same moment, so you can watch them side by side.</p>
+  <div class="tools">
+    <div class="seg" role="group" aria-label="Drive"><span>DRIVE</span>
+      <button class="tg" type="button" data-drive="spring" aria-pressed="true">Sprung</button>
+      <button class="tg" type="button" data-drive="follow" aria-pressed="false">Follows the finger</button>
+    </div>
+    <div class="seg" role="group" aria-label="Speed"><span>SPEED</span>
+      <button class="tg" type="button" data-slow="1" aria-pressed="true">1×</button>
+      <button class="tg" type="button" data-slow="4" aria-pressed="false">¼×</button>
+    </div>
+    <div class="seg" role="group" aria-label="Play"><span>LIST</span>
+      <button class="tg" type="button" id="play" aria-pressed="false">Scroll it yourself</button>
+    </div>
+    <div class="seg" role="group" aria-label="Theme"><span>THEME</span>
+      <button class="tg" type="button" data-set-theme="light" aria-pressed="false">Light</button>
+      <button class="tg" type="button" data-set-theme="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<div class="figs">
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-shape="now"><div class="list" tabindex="0" aria-label="Spaces list, scrolls"><div class="list-in"><div class="row"><div class="face" style="--g:#C98A12">☀️</div><div class="rt"><div class="l1"><b>Morning brief</b><time>now</time></div><span>What's on tomorrow?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#C2468E">🎂</div><div class="rt"><div class="l1"><b>Birthday dinner</b><time>now</time></div><span>Sorry, I missed that. Osteria Verde's private room seats twelve.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#2F7D3A">🌿</div><div class="rt"><div class="l1"><b>Garden website</b><time>1m</time></div><span>The gallery page is up. Have a look?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#1F6FB8">🧾</div><div class="rt"><div class="l1"><b>Tax receipts</b><time>1d</time></div><span>Thanks, that's all of them.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#B85A26">🔨</div><div class="rt"><div class="l1"><b>Kitchen remodel</b><time>2d</time></div><span>Two quartz quotes by Friday.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#2C7FA8">✈️</div><div class="rt"><div class="l1"><b>Lisbon trip</b><time>2d</time></div><span>Flights on the 14th are the cheapest.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#6C4FB5">📚</div><div class="rt"><div class="l1"><b>Reading list</b><time>3d</time></div><span>Added the Le Guin you mentioned.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#5F626C">♟️</div><div class="rt"><div class="l1"><b>Chess with Rook</b><time>3d</time></div><span>Your move. Knight to f3?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#3F7F1F">🛒</div><div class="rt"><div class="l1"><b>Weekly groceries</b><time>4d</time></div><span>Oat milk is back in stock.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#C4466C">🏃</div><div class="rt"><div class="l1"><b>Half marathon</b><time>5d</time></div><span>Easy 6 km today, then rest.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#8C5A1E">🎙️</div><div class="rt"><div class="l1"><b>Podcast notes</b><time>6d</time></div><span>Episode 12 notes are in the folder.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#1F7F95">🖥️</div><div class="rt"><div class="l1"><b>Home server</b><time>Mon</time></div><span>Backups ran at 3:00 with no errors.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#B0408A">💐</div><div class="rt"><div class="l1"><b>Wedding gifts</b><time>Sun</time></div><span>The registry closes on the 30th.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#9B3B3B">🚗</div><div class="rt"><div class="l1"><b>Car service</b><time>Sat</time></div><span>Booked for Thursday at 9.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#A3761A">🍝</div><div class="rt"><div class="l1"><b>Pasta night</b><time>Fri</time></div><span>The recipe for six is in the page.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#5A5FC8">💼</div><div class="rt"><div class="l1"><b>Job search</b><time>Thu</time></div><span>The cover letter draft is ready.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div></div></div><div class="band" style="opacity: 0;"></div><div class="top"><div class="island"></div><div class="status"><span>9:41</span><span class="sbr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 17h2M6.5 14v3M11 11v6M15.5 8v9M20 5v12"></path></svg><span class="sbi"></span></span></div><div class="title"><h4>Chips demo</h4><span class="demo">Demo</span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="select lg">Select</span></div></div><div class="dock"><div class="bar lg" role="tablist" aria-label="Tabs" style="left: 22px; top: 791px; width: 288px; height: 62px;"><div class="pill" style="left: 3px; top: 4px; width: 72px; height: 54px; opacity: 1;"></div><div class="tab on" data-i="0"><div class="ic" style="left: 25px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 7.2a3.2 3.2 0 0 1 3.2-3.2h6.6a3.2 3.2 0 0 1 3.2 3.2v3.6a3.2 3.2 0 0 1-3.2 3.2H9.2l-3.6 2.9v-3A3.2 3.2 0 0 1 3.2 10.8z"></path><path d="M16.2 7.9h1.4a3.1 3.1 0 0 1 3.1 3.1v3.3a3.1 3.1 0 0 1-2 2.9v2.7l-3.2-2.5h-2.4a3.1 3.1 0 0 1-2.8-1.8"></path></svg></div><div class="lb" style="left: 4px; top: 38px; opacity: 1; transform: scale(1);">Spaces</div></div><div class="tab" data-i="1"><div class="ic" style="left: 95px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2"></rect><rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect><path d="M9.5 3.5v3M12 3.5v3M14.5 3.5v3M9.5 17.5v3M12 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 12h3M3.5 14.5h3M17.5 9.5h3M17.5 12h3M17.5 14.5h3"></path></svg></div><div class="lb" style="left: 74px; top: 38px; opacity: 1; transform: scale(1);">Agents</div></div><div class="tab" data-i="2"><div class="ic" style="left: 165px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"></circle><path d="M15.2 15.2l5 5"></path></svg></div><div class="lb" style="left: 144px; top: 38px; opacity: 1; transform: scale(1);">Search</div></div><div class="tab" data-i="3"><div class="ic" style="left: 235px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"></circle><circle cx="12" cy="10" r="3.2"></circle><path d="M6.3 18.2a7.2 7.2 0 0 1 11.4 0"></path></svg></div><div class="lb" style="left: 214px; top: 38px; opacity: 1; transform: scale(1);">You</div></div></div><div class="plus" role="button" aria-label="Create new space" style="left: 319px; top: 791px; width: 62px; height: 62px;"><div class="pin lg"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15" stroke="var(--plus-ink)" stroke-width="2.6" stroke-linecap="round"></path></svg></div></div></div></div></div>
+    <figcaption>
+      <div class="tag"><span class="o">NOW</span><h3>iOS folds the bar</h3></div>
+      <p>The bar is iOS's own. As the list goes up it folds down to the tab you're on, and the + stays full size over the round slot iOS keeps for it.</p>
+      <p class="try">Scroll or drag the list. Tap the folded bar.</p>
+      <p class="cost">Drawn from iOS 26's fold (<code>minimizeBehavior="onScrollDown"</code>). Not filmed on your phone for this page.</p>
+    </figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-shape="fold"><div class="list" tabindex="0" aria-label="Spaces list, scrolls"><div class="list-in"><div class="row"><div class="face" style="--g:#C98A12">☀️</div><div class="rt"><div class="l1"><b>Morning brief</b><time>now</time></div><span>What's on tomorrow?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#C2468E">🎂</div><div class="rt"><div class="l1"><b>Birthday dinner</b><time>now</time></div><span>Sorry, I missed that. Osteria Verde's private room seats twelve.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#2F7D3A">🌿</div><div class="rt"><div class="l1"><b>Garden website</b><time>1m</time></div><span>The gallery page is up. Have a look?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#1F6FB8">🧾</div><div class="rt"><div class="l1"><b>Tax receipts</b><time>1d</time></div><span>Thanks, that's all of them.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#B85A26">🔨</div><div class="rt"><div class="l1"><b>Kitchen remodel</b><time>2d</time></div><span>Two quartz quotes by Friday.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#2C7FA8">✈️</div><div class="rt"><div class="l1"><b>Lisbon trip</b><time>2d</time></div><span>Flights on the 14th are the cheapest.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#6C4FB5">📚</div><div class="rt"><div class="l1"><b>Reading list</b><time>3d</time></div><span>Added the Le Guin you mentioned.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#5F626C">♟️</div><div class="rt"><div class="l1"><b>Chess with Rook</b><time>3d</time></div><span>Your move. Knight to f3?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#3F7F1F">🛒</div><div class="rt"><div class="l1"><b>Weekly groceries</b><time>4d</time></div><span>Oat milk is back in stock.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#C4466C">🏃</div><div class="rt"><div class="l1"><b>Half marathon</b><time>5d</time></div><span>Easy 6 km today, then rest.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#8C5A1E">🎙️</div><div class="rt"><div class="l1"><b>Podcast notes</b><time>6d</time></div><span>Episode 12 notes are in the folder.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#1F7F95">🖥️</div><div class="rt"><div class="l1"><b>Home server</b><time>Mon</time></div><span>Backups ran at 3:00 with no errors.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#B0408A">💐</div><div class="rt"><div class="l1"><b>Wedding gifts</b><time>Sun</time></div><span>The registry closes on the 30th.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#9B3B3B">🚗</div><div class="rt"><div class="l1"><b>Car service</b><time>Sat</time></div><span>Booked for Thursday at 9.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#A3761A">🍝</div><div class="rt"><div class="l1"><b>Pasta night</b><time>Fri</time></div><span>The recipe for six is in the page.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#5A5FC8">💼</div><div class="rt"><div class="l1"><b>Job search</b><time>Thu</time></div><span>The cover letter draft is ready.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div></div></div><div class="band" style="opacity: 0;"></div><div class="top"><div class="island"></div><div class="status"><span>9:41</span><span class="sbr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 17h2M6.5 14v3M11 11v6M15.5 8v9M20 5v12"></path></svg><span class="sbi"></span></span></div><div class="title"><h4>Chips demo</h4><span class="demo">Demo</span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="select lg">Select</span></div></div><div class="dock"><div class="bar lg" role="tablist" aria-label="Tabs" style="left: 22px; top: 791px; width: 288px; height: 62px;"><div class="pill" style="left: 3px; top: 4px; width: 72px; height: 54px; opacity: 1;"></div><div class="tab on" data-i="0"><div class="ic" style="left: 25px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 7.2a3.2 3.2 0 0 1 3.2-3.2h6.6a3.2 3.2 0 0 1 3.2 3.2v3.6a3.2 3.2 0 0 1-3.2 3.2H9.2l-3.6 2.9v-3A3.2 3.2 0 0 1 3.2 10.8z"></path><path d="M16.2 7.9h1.4a3.1 3.1 0 0 1 3.1 3.1v3.3a3.1 3.1 0 0 1-2 2.9v2.7l-3.2-2.5h-2.4a3.1 3.1 0 0 1-2.8-1.8"></path></svg></div><div class="lb" style="left: 4px; top: 38px; opacity: 1; transform: scale(1);">Spaces</div></div><div class="tab" data-i="1"><div class="ic" style="left: 95px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2"></rect><rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect><path d="M9.5 3.5v3M12 3.5v3M14.5 3.5v3M9.5 17.5v3M12 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 12h3M3.5 14.5h3M17.5 9.5h3M17.5 12h3M17.5 14.5h3"></path></svg></div><div class="lb" style="left: 74px; top: 38px; opacity: 1; transform: scale(1);">Agents</div></div><div class="tab" data-i="2"><div class="ic" style="left: 165px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"></circle><path d="M15.2 15.2l5 5"></path></svg></div><div class="lb" style="left: 144px; top: 38px; opacity: 1; transform: scale(1);">Search</div></div><div class="tab" data-i="3"><div class="ic" style="left: 235px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"></circle><circle cx="12" cy="10" r="3.2"></circle><path d="M6.3 18.2a7.2 7.2 0 0 1 11.4 0"></path></svg></div><div class="lb" style="left: 214px; top: 38px; opacity: 1; transform: scale(1);">You</div></div></div><div class="plus" role="button" aria-label="Create new space" style="left: 319px; top: 791px; width: 62px; height: 62px;"><div class="pin lg"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15" stroke="var(--plus-ink)" stroke-width="2.6" stroke-linecap="round"></path></svg></div></div></div></div></div>
+    <figcaption>
+      <div class="tag"><span class="o">A</span><h3>The + folds with it</h3></div>
+      <p>Keep iOS's fold and shrink the + with it, 62 pt to 48. The two get smaller together. The names go, but so do the other three tabs, so this is iOS's design rather than the one you asked for.</p>
+      <p class="nums">bar 288×62 → 56×48 · + 62 → 48</p>
+      <p class="cost"><b>Cheapest, about half a day.</b> UIKit sends no event when it folds the bar, so a small native watch on the bar's size tells the + when to shrink. iOS runs the fold, so it can't follow the finger: DRIVE does nothing here.</p>
+    </figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-shape="slim"><div class="list" tabindex="0" aria-label="Spaces list, scrolls"><div class="list-in"><div class="row"><div class="face" style="--g:#C98A12">☀️</div><div class="rt"><div class="l1"><b>Morning brief</b><time>now</time></div><span>What's on tomorrow?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#C2468E">🎂</div><div class="rt"><div class="l1"><b>Birthday dinner</b><time>now</time></div><span>Sorry, I missed that. Osteria Verde's private room seats twelve.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#2F7D3A">🌿</div><div class="rt"><div class="l1"><b>Garden website</b><time>1m</time></div><span>The gallery page is up. Have a look?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#1F6FB8">🧾</div><div class="rt"><div class="l1"><b>Tax receipts</b><time>1d</time></div><span>Thanks, that's all of them.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#B85A26">🔨</div><div class="rt"><div class="l1"><b>Kitchen remodel</b><time>2d</time></div><span>Two quartz quotes by Friday.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#2C7FA8">✈️</div><div class="rt"><div class="l1"><b>Lisbon trip</b><time>2d</time></div><span>Flights on the 14th are the cheapest.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#6C4FB5">📚</div><div class="rt"><div class="l1"><b>Reading list</b><time>3d</time></div><span>Added the Le Guin you mentioned.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#5F626C">♟️</div><div class="rt"><div class="l1"><b>Chess with Rook</b><time>3d</time></div><span>Your move. Knight to f3?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#3F7F1F">🛒</div><div class="rt"><div class="l1"><b>Weekly groceries</b><time>4d</time></div><span>Oat milk is back in stock.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#C4466C">🏃</div><div class="rt"><div class="l1"><b>Half marathon</b><time>5d</time></div><span>Easy 6 km today, then rest.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#8C5A1E">🎙️</div><div class="rt"><div class="l1"><b>Podcast notes</b><time>6d</time></div><span>Episode 12 notes are in the folder.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#1F7F95">🖥️</div><div class="rt"><div class="l1"><b>Home server</b><time>Mon</time></div><span>Backups ran at 3:00 with no errors.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#B0408A">💐</div><div class="rt"><div class="l1"><b>Wedding gifts</b><time>Sun</time></div><span>The registry closes on the 30th.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#9B3B3B">🚗</div><div class="rt"><div class="l1"><b>Car service</b><time>Sat</time></div><span>Booked for Thursday at 9.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#A3761A">🍝</div><div class="rt"><div class="l1"><b>Pasta night</b><time>Fri</time></div><span>The recipe for six is in the page.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#5A5FC8">💼</div><div class="rt"><div class="l1"><b>Job search</b><time>Thu</time></div><span>The cover letter draft is ready.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div></div></div><div class="band" style="opacity: 0;"></div><div class="top"><div class="island"></div><div class="status"><span>9:41</span><span class="sbr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 17h2M6.5 14v3M11 11v6M15.5 8v9M20 5v12"></path></svg><span class="sbi"></span></span></div><div class="title"><h4>Chips demo</h4><span class="demo">Demo</span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="select lg">Select</span></div></div><div class="dock"><div class="bar lg" role="tablist" aria-label="Tabs" style="left: 22px; top: 791px; width: 288px; height: 62px;"><div class="pill" style="left: 3px; top: 4px; width: 72px; height: 54px; opacity: 1;"></div><div class="tab on" data-i="0"><div class="ic" style="left: 25px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 7.2a3.2 3.2 0 0 1 3.2-3.2h6.6a3.2 3.2 0 0 1 3.2 3.2v3.6a3.2 3.2 0 0 1-3.2 3.2H9.2l-3.6 2.9v-3A3.2 3.2 0 0 1 3.2 10.8z"></path><path d="M16.2 7.9h1.4a3.1 3.1 0 0 1 3.1 3.1v3.3a3.1 3.1 0 0 1-2 2.9v2.7l-3.2-2.5h-2.4a3.1 3.1 0 0 1-2.8-1.8"></path></svg></div><div class="lb" style="left: 4px; top: 38px; opacity: 1; transform: scale(1);">Spaces</div></div><div class="tab" data-i="1"><div class="ic" style="left: 95px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2"></rect><rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect><path d="M9.5 3.5v3M12 3.5v3M14.5 3.5v3M9.5 17.5v3M12 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 12h3M3.5 14.5h3M17.5 9.5h3M17.5 12h3M17.5 14.5h3"></path></svg></div><div class="lb" style="left: 74px; top: 38px; opacity: 1; transform: scale(1);">Agents</div></div><div class="tab" data-i="2"><div class="ic" style="left: 165px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"></circle><path d="M15.2 15.2l5 5"></path></svg></div><div class="lb" style="left: 144px; top: 38px; opacity: 1; transform: scale(1);">Search</div></div><div class="tab" data-i="3"><div class="ic" style="left: 235px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"></circle><circle cx="12" cy="10" r="3.2"></circle><path d="M6.3 18.2a7.2 7.2 0 0 1 11.4 0"></path></svg></div><div class="lb" style="left: 214px; top: 38px; opacity: 1; transform: scale(1);">You</div></div></div><div class="plus" role="button" aria-label="Create new space" style="left: 319px; top: 791px; width: 62px; height: 62px;"><div class="pin lg"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15" stroke="var(--plus-ink)" stroke-width="2.6" stroke-linecap="round"></path></svg></div></div></div></div></div>
+    <figcaption>
+      <div class="tag"><span class="o">B</span><span class="rec">PICK</span><h3>Slim</h3></div>
+      <p>Every tab stays where your thumb knows it. The bar loses 14 pt of height, the names fade first and the marks settle into the middle. The + shrinks to the same height. Pull back a little and it all returns, names last.</p>
+      <p class="nums">bar 288×62 → 288×48 · + 62 → 48 · marks 28 → 25</p>
+      <p class="cost"><b>About two days.</b> iOS has no slightly smaller bar, so we draw the bar on the phone's own glass (what the + and composer already wear) and hide iOS's. We lose the system's press lens that slides between tabs and redo it on our own spring. iPad keeps iOS's bar at the top; Android, web and Mac don't change.</p>
+    </figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-shape="step"><div class="list" tabindex="0" aria-label="Spaces list, scrolls"><div class="list-in"><div class="row"><div class="face" style="--g:#C98A12">☀️</div><div class="rt"><div class="l1"><b>Morning brief</b><time>now</time></div><span>What's on tomorrow?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#C2468E">🎂</div><div class="rt"><div class="l1"><b>Birthday dinner</b><time>now</time></div><span>Sorry, I missed that. Osteria Verde's private room seats twelve.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#2F7D3A">🌿</div><div class="rt"><div class="l1"><b>Garden website</b><time>1m</time></div><span>The gallery page is up. Have a look?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#1F6FB8">🧾</div><div class="rt"><div class="l1"><b>Tax receipts</b><time>1d</time></div><span>Thanks, that's all of them.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#B85A26">🔨</div><div class="rt"><div class="l1"><b>Kitchen remodel</b><time>2d</time></div><span>Two quartz quotes by Friday.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#2C7FA8">✈️</div><div class="rt"><div class="l1"><b>Lisbon trip</b><time>2d</time></div><span>Flights on the 14th are the cheapest.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#6C4FB5">📚</div><div class="rt"><div class="l1"><b>Reading list</b><time>3d</time></div><span>Added the Le Guin you mentioned.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#5F626C">♟️</div><div class="rt"><div class="l1"><b>Chess with Rook</b><time>3d</time></div><span>Your move. Knight to f3?</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#3F7F1F">🛒</div><div class="rt"><div class="l1"><b>Weekly groceries</b><time>4d</time></div><span>Oat milk is back in stock.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#C4466C">🏃</div><div class="rt"><div class="l1"><b>Half marathon</b><time>5d</time></div><span>Easy 6 km today, then rest.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#8C5A1E">🎙️</div><div class="rt"><div class="l1"><b>Podcast notes</b><time>6d</time></div><span>Episode 12 notes are in the folder.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#1F7F95">🖥️</div><div class="rt"><div class="l1"><b>Home server</b><time>Mon</time></div><span>Backups ran at 3:00 with no errors.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#B0408A">💐</div><div class="rt"><div class="l1"><b>Wedding gifts</b><time>Sun</time></div><span>The registry closes on the 30th.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#9B3B3B">🚗</div><div class="rt"><div class="l1"><b>Car service</b><time>Sat</time></div><span>Booked for Thursday at 9.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#A3761A">🍝</div><div class="rt"><div class="l1"><b>Pasta night</b><time>Fri</time></div><span>The recipe for six is in the page.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div><div class="row"><div class="face" style="--g:#5A5FC8">💼</div><div class="rt"><div class="l1"><b>Job search</b><time>Thu</time></div><span>The cover letter draft is ready.</span></div><div class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5.5l6.5 6.5L9 18.5"></path></svg></div></div></div></div><div class="band" style="opacity: 0;"></div><div class="top"><div class="island"></div><div class="status"><span>9:41</span><span class="sbr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 17h2M6.5 14v3M11 11v6M15.5 8v9M20 5v12"></path></svg><span class="sbi"></span></span></div><div class="title"><h4>Chips demo</h4><span class="demo">Demo</span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span><span class="select lg">Select</span></div></div><div class="dock"><div class="bar lg" role="tablist" aria-label="Tabs" style="left: 22px; top: 791px; width: 288px; height: 62px;"><div class="pill" style="left: 3px; top: 4px; width: 72px; height: 54px; opacity: 1;"></div><div class="tab on" data-i="0"><div class="ic" style="left: 25px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 7.2a3.2 3.2 0 0 1 3.2-3.2h6.6a3.2 3.2 0 0 1 3.2 3.2v3.6a3.2 3.2 0 0 1-3.2 3.2H9.2l-3.6 2.9v-3A3.2 3.2 0 0 1 3.2 10.8z"></path><path d="M16.2 7.9h1.4a3.1 3.1 0 0 1 3.1 3.1v3.3a3.1 3.1 0 0 1-2 2.9v2.7l-3.2-2.5h-2.4a3.1 3.1 0 0 1-2.8-1.8"></path></svg></div><div class="lb" style="left: 4px; top: 38px; opacity: 1; transform: scale(1);">Spaces</div></div><div class="tab" data-i="1"><div class="ic" style="left: 95px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2"></rect><rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect><path d="M9.5 3.5v3M12 3.5v3M14.5 3.5v3M9.5 17.5v3M12 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 12h3M3.5 14.5h3M17.5 9.5h3M17.5 12h3M17.5 14.5h3"></path></svg></div><div class="lb" style="left: 74px; top: 38px; opacity: 1; transform: scale(1);">Agents</div></div><div class="tab" data-i="2"><div class="ic" style="left: 165px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"></circle><path d="M15.2 15.2l5 5"></path></svg></div><div class="lb" style="left: 144px; top: 38px; opacity: 1; transform: scale(1);">Search</div></div><div class="tab" data-i="3"><div class="ic" style="left: 235px; top: 10px; opacity: 1; transform: scale(1);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.8"></circle><circle cx="12" cy="10" r="3.2"></circle><path d="M6.3 18.2a7.2 7.2 0 0 1 11.4 0"></path></svg></div><div class="lb" style="left: 214px; top: 38px; opacity: 1; transform: scale(1);">You</div></div></div><div class="plus" role="button" aria-label="Create new space" style="left: 319px; top: 791px; width: 62px; height: 62px;"><div class="pin lg"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15" stroke="var(--plus-ink)" stroke-width="2.6" stroke-linecap="round"></path></svg></div></div></div></div></div>
+    <figcaption>
+      <div class="tag"><span class="o">C</span><h3>Step back</h3></div>
+      <p>The bar and the + shrink as one piece to 84%, toward the middle of the screen, and the names go. It moves the most, and the marks get smaller too.</p>
+      <p class="nums">bar 288×62 → 242×52 · + 62 → 52 · marks 28 → 24</p>
+      <p class="cost"><b>Same build as B.</b> Cheaper to animate, since it is one scale with nothing laid out again. Tabs are narrower targets when small: 59 pt wide instead of 70.</p>
+    </figcaption>
+  </figure>
+</div>
+
+<section>
+  <h2>When it shrinks and when it comes back</h2>
+  <ul>
+    <li>It shrinks once the list has moved 24 pt toward later rows and you're past the first row.</li>
+    <li>It comes back when you pull the list 16 pt the other way, reach the top, or switch tab.</li>
+    <li>While small, a tab still switches on the first tap and the + still opens a new space.</li>
+    <li>The same on Spaces, Agents, Search and You. A room has no tab bar, so nothing changes there.</li>
+    <li>With Reduce Motion on, the names fade and the size changes without a spring.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Sprung or following the finger</h2>
+  <p><b>Sprung</b> is how iOS's own fold behaves: once the list has clearly moved, one spring of about 0.4 s takes the bar all the way. <b>Follows the finger</b> ties the size to the scroll over 52 pt, so it tracks the list exactly, then settles to whichever end is nearer when you let go. Safari's toolbar works this way. I'd pick Sprung: in a list you flick, a bar that tracks every point wobbles on small scrolls. Try both with the DRIVE buttons; they apply to B and C.</p>
+</section>
+
+<section>
+  <h2>What's built</h2>
+  <p>Nothing yet. This page is the mock. Nothing has been walked on the simulator or your phone.</p>
+</section>
+</div>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let SLOW = 1, DRIVE = 'spring', PLAY = !REDUCE, FROZEN = false;
+
+/* ── build (skipped when the page was baked with the phones already drawn) ── */
+const sv = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON = {
+  spaces: sv('<path d="M3.2 7.2a3.2 3.2 0 0 1 3.2-3.2h6.6a3.2 3.2 0 0 1 3.2 3.2v3.6a3.2 3.2 0 0 1-3.2 3.2H9.2l-3.6 2.9v-3A3.2 3.2 0 0 1 3.2 10.8z"/><path d="M16.2 7.9h1.4a3.1 3.1 0 0 1 3.1 3.1v3.3a3.1 3.1 0 0 1-2 2.9v2.7l-3.2-2.5h-2.4a3.1 3.1 0 0 1-2.8-1.8"/>'),
+  agents: sv('<rect x="6.5" y="6.5" width="11" height="11" rx="2.2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9.5 3.5v3M12 3.5v3M14.5 3.5v3M9.5 17.5v3M12 17.5v3M14.5 17.5v3M3.5 9.5h3M3.5 12h3M3.5 14.5h3M17.5 9.5h3M17.5 12h3M17.5 14.5h3"/>'),
+  search: sv('<circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.2 15.2l5 5"/>', 2),
+  you: sv('<circle cx="12" cy="12" r="8.8"/><circle cx="12" cy="10" r="3.2"/><path d="M6.3 18.2a7.2 7.2 0 0 1 11.4 0"/>'),
+};
+const TABS = [['spaces', 'Spaces'], ['agents', 'Agents'], ['search', 'Search'], ['you', 'You']];
+const SPACES = [
+  ['☀️', '#C98A12', 'Morning brief', "What's on tomorrow?", 'now'],
+  ['🎂', '#C2468E', 'Birthday dinner', "Sorry, I missed that. Osteria Verde's private room seats twelve.", 'now'],
+  ['🌿', '#2F7D3A', 'Garden website', 'The gallery page is up. Have a look?', '1m'],
+  ['🧾', '#1F6FB8', 'Tax receipts', "Thanks, that's all of them.", '1d'],
+  ['🔨', '#B85A26', 'Kitchen remodel', 'Two quartz quotes by Friday.', '2d'],
+  ['✈️', '#2C7FA8', 'Lisbon trip', 'Flights on the 14th are the cheapest.', '2d'],
+  ['📚', '#6C4FB5', 'Reading list', 'Added the Le Guin you mentioned.', '3d'],
+  ['♟️', '#5F626C', 'Chess with Rook', 'Your move. Knight to f3?', '3d'],
+  ['🛒', '#3F7F1F', 'Weekly groceries', 'Oat milk is back in stock.', '4d'],
+  ['🏃', '#C4466C', 'Half marathon', 'Easy 6 km today, then rest.', '5d'],
+  ['🎙️', '#8C5A1E', 'Podcast notes', 'Episode 12 notes are in the folder.', '6d'],
+  ['🖥️', '#1F7F95', 'Home server', 'Backups ran at 3:00 with no errors.', 'Mon'],
+  ['💐', '#B0408A', 'Wedding gifts', 'The registry closes on the 30th.', 'Sun'],
+  ['🚗', '#9B3B3B', 'Car service', 'Booked for Thursday at 9.', 'Sat'],
+  ['🍝', '#A3761A', 'Pasta night', 'The recipe for six is in the page.', 'Fri'],
+  ['💼', '#5A5FC8', 'Job search', 'The cover letter draft is ready.', 'Thu'],
+];
+const CHEV = sv('<path d="M9 5.5l6.5 6.5L9 18.5"/>', 2.2);
+const PLUS = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4.5v15M4.5 12h15" stroke="var(--plus-ink)" stroke-width="2.6" stroke-linecap="round"/></svg>`;
+
+function build(ph) {
+  const rows = SPACES.map(([e, g, n, s, t]) =>
+    `<div class="row"><div class="face" style="--g:${g}">${e}</div><div class="rt"><div class="l1"><b>${n}</b><time>${t}</time></div><span>${s}</span></div><div class="chev">${CHEV}</div></div>`).join('');
+  const tabs = TABS.map(([k, n], i) =>
+    `<div class="tab${i === 0 ? ' on' : ''}" data-i="${i}"><div class="ic">${ICON[k]}</div><div class="lb">${n}</div></div>`).join('');
+  ph.innerHTML =
+    `<div class="list" tabindex="0" aria-label="Spaces list, scrolls"><div class="list-in">${rows}</div></div>` +
+    `<div class="band"></div>` +
+    `<div class="top"><div class="island"></div><div class="status"><span>9:41</span><span class="sbr">${sv('<path d="M2 17h2M6.5 14v3M11 11v6M15.5 8v9M20 5v12"/>', 2.4)}<span class="sbi"></span></span></div>` +
+    `<div class="title"><h4>Chips demo</h4><span class="demo">Demo</span><span class="dn">${sv('<path d="M6 9l6 6 6-6"/>', 2.2)}</span><span class="select lg">Select</span></div></div>` +
+    `<div class="dock"><div class="bar lg" role="tablist" aria-label="Tabs"><div class="pill"></div>${tabs}</div>` +
+    `<div class="plus" role="button" aria-label="Create new space"><div class="pin lg">${PLUS}</div></div></div>`;
+}
+
+/* ── geometry, in the phone's points; p is 0 at rest and 1 shrunk ── */
+const TAB_X = [61, 131, 201, 271];
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const mix = (a, b, t) => a + (b - a) * t;
+const smooth = t => { t = clamp(t); return t * t * (3 - 2 * t); };
+
+function geom(shape, p, sx) {
+  const words = smooth(p / 0.45);               // the names leave first and come back last
+  const g = { group: 1, tabs: [] };
+  if (shape === 'now' || shape === 'fold') {
+    const w = mix(288, 56, p), h = mix(62, 48, p), cy = 822;
+    g.bar = { x: 22, y: cy - h / 2, w, h };
+    g.pill = { x: mix((TAB_X[0] - 22) + sx * 70 - 36, 4, p), y: 4, w: mix(72, 48, p), h: h - 8, o: 1 - smooth(p / 0.7) };
+    TABS.forEach((_, i) => {
+      const chosen = i === Math.round(sx);
+      const rest = TAB_X[i] - 22;
+      g.tabs.push({
+        cx: chosen ? mix(rest, 28, p) : rest - 26 * p,
+        cy: 24, s: chosen ? mix(1, .92, p) : mix(1, .7, smooth(p / .5)),
+        o: chosen ? 1 : 1 - smooth(p / .32),
+        ly: h - 17 + 3 * words, lo: 1 - words, ls: mix(1, .85, words),
+      });
+    });
+    const d = shape === 'fold' ? mix(62, 48, p) : 62;
+    g.plus = { cx: 350, cy, d };
+  } else if (shape === 'slim') {
+    const h = mix(62, 48, p), cy = mix(822, 826, p);
+    g.bar = { x: 22, y: cy - h / 2, w: 288, h };
+    const pw = mix(72, 62, p);
+    g.pill = { x: (TAB_X[0] - 22) + sx * 70 - pw / 2, y: 4, w: pw, h: h - 8, o: 1 };
+    TABS.forEach((_, i) => g.tabs.push({
+      cx: TAB_X[i] - 22, cy: mix(24, h / 2, p), s: mix(1, .9, p), o: 1,
+      ly: h - 17 + 3 * words, lo: 1 - words, ls: mix(1, .85, words),
+    }));
+    g.plus = { cx: 350, cy, d: mix(62, 48, p) };
+  } else {                                       // step: one piece, scaled toward the middle
+    g.group = mix(1, .84, p);
+    g.bar = { x: 22, y: 791, w: 288, h: 62 };
+    g.pill = { x: (TAB_X[0] - 22) + sx * 70 - 36, y: 4, w: 72, h: 54, o: 1 };
+    TABS.forEach((_, i) => g.tabs.push({
+      cx: TAB_X[i] - 22, cy: mix(24, 31, p), s: 1, o: 1,
+      ly: 62 - 17 + 3 * words, lo: 1 - words, ls: mix(1, .85, words),
+    }));
+    g.plus = { cx: 350, cy: 822, d: 62 };
+  }
+  return g;
+}
+
+const px = v => `${Math.round(v * 100) / 100}px`;
+function render(st) {
+  st.dp = st.p; st.dsx = st.sx;
+  const g = geom(st.shape, st.p, st.sx);
+  const { bar, pill, plus, dock, tabs } = st.el;
+  dock.style.transform = g.group === 1 ? '' : `scale(${g.group.toFixed(4)})`;
+  Object.assign(bar.style, { left: px(g.bar.x), top: px(g.bar.y), width: px(g.bar.w), height: px(g.bar.h) });
+  Object.assign(pill.style, { left: px(g.pill.x), top: px(g.pill.y), width: px(g.pill.w), height: px(g.pill.h), opacity: g.pill.o.toFixed(3) });
+  g.tabs.forEach((t, i) => {
+    const { ic, lb } = tabs[i];
+    Object.assign(ic.style, { left: px(t.cx - 14), top: px(t.cy - 14), opacity: clamp(t.o).toFixed(3), transform: `scale(${t.s.toFixed(4)})` });
+    Object.assign(lb.style, { left: px(t.cx - 35), top: px(t.ly - 7), opacity: clamp(t.lo * t.o).toFixed(3), transform: `scale(${t.ls.toFixed(4)})` });
+  });
+  Object.assign(plus.style, { left: px(g.plus.cx - g.plus.d / 2), top: px(g.plus.cy - g.plus.d / 2), width: px(g.plus.d), height: px(g.plus.d) });
+}
+
+/* ── behaviour ── */
+const OWN = s => s === 'slim' || s === 'step';
+const K = 300, Z = 0.8, RANGE = 52;
+const phones = $$('.phone').map(ph => {
+  if (!ph.querySelector('.row')) build(ph);
+  const st = {
+    shape: ph.dataset.shape, p: 0, v: 0, target: 0, mode: 'spring', acc: 0, last: 0, at: 0,
+    sel: 0, sx: 0, sv: 0, drag: null, fling: 0,
+    el: {
+      list: $('.list', ph), band: $('.band', ph), dock: $('.dock', ph), bar: $('.bar', ph), pill: $('.pill', ph), plus: $('.plus', ph),
+      tabs: $$('.tab', ph).map(t => ({ t, ic: $('.ic', t), lb: $('.lb', t) })),
+    },
+  };
+  const { list } = st.el;
+  list.addEventListener('scroll', () => onScroll(st), { passive: true });
+  const userish = () => { if (PLAY) setPlay(false); };
+  list.addEventListener('wheel', userish, { passive: true });
+  list.addEventListener('touchstart', userish, { passive: true });
+  list.addEventListener('keydown', userish);
+  list.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    userish();
+    const k = ph.getBoundingClientRect().width / 402;
+    st.drag = { y: e.clientY, top: list.scrollTop, k, ly: e.clientY, lt: performance.now(), v: 0 };
+    cancelAnimationFrame(st.fling);
+    list.setPointerCapture(e.pointerId);
+  });
+  list.addEventListener('pointermove', e => {
+    const d = st.drag; if (!d) return;
+    list.scrollTop = d.top - (e.clientY - d.y) / d.k;
+    const now = performance.now(), dt = Math.max(1, now - d.lt);
+    d.v = mix(d.v, -(e.clientY - d.ly) / d.k / dt, .5); d.ly = e.clientY; d.lt = now;
+  });
+  const up = () => {
+    const d = st.drag; if (!d) return; st.drag = null;
+    let v = d.v * 16;
+    const step = () => { if (Math.abs(v) < .3) return; list.scrollTop += v; v *= .95; st.fling = requestAnimationFrame(step); };
+    step();
+  };
+  list.addEventListener('pointerup', up);
+  list.addEventListener('pointercancel', up);
+  st.el.bar.addEventListener('click', e => {
+    const r = st.el.bar.getBoundingClientRect();
+    if (!OWN(st.shape) && st.p > .5) { st.target = 0; st.mode = 'spring'; return; }
+    const i = clamp(Math.floor((e.clientX - r.left) / r.width * 4), 0, 3);
+    st.sel = i; st.target = 0; st.mode = 'spring';
+    st.el.tabs.forEach((t, j) => t.t.classList.toggle('on', j === i));
+  });
+  render(st);
+  return st;
+});
+
+function onScroll(st) {
+  const top = st.el.list.scrollTop, dy = top - st.last;
+  st.last = top;
+  st.el.band.style.opacity = clamp(top / 40).toFixed(3);
+  if (FROZEN) return;
+  if (DRIVE === 'follow' && OWN(st.shape)) {
+    st.at = performance.now();
+    if (top < 8) { st.mode = 'spring'; st.target = 0; return; }
+    st.mode = 'follow'; st.v = 0;
+    st.p = clamp(st.p + dy / RANGE);
+    return;
+  }
+  if (Math.sign(dy) !== Math.sign(st.acc)) st.acc = 0;
+  st.acc += dy;
+  if (top < 24) st.target = 0;
+  else if (st.acc > 24 && top > 40) st.target = 1;
+  else if (st.acc < -16) st.target = 0;
+}
+
+function spring(x, v, to, dt, k) {
+  const c = 2 * Z * Math.sqrt(k);
+  const n = Math.ceil(dt / (1 / 240)), h = dt / n;
+  for (let i = 0; i < n; i++) { v += (-k * (x - to) - c * v) * h; x += v * h; }
+  return [x, v];
+}
+
+let prev = performance.now();
+function frame(now) {
+  const dt = Math.min(1 / 30, (now - prev) / 1000); prev = now;
+  if (PLAY) tickPlay(now);
+  const k = K / (SLOW * SLOW);
+  for (const st of phones) {
+    if (FROZEN) continue;
+    if (st.mode === 'follow' && !st.drag && now - st.at > 140) { st.mode = 'spring'; st.target = st.p > .5 ? 1 : 0; }
+    if (st.mode === 'spring') {
+      if (REDUCE) { st.p = st.target; st.v = 0; }
+      else [st.p, st.v] = spring(st.p, st.v, st.target, dt, k);
+    }
+    if (REDUCE) st.sx = st.sel; else [st.sx, st.sv] = spring(st.sx, st.sv, st.sel, dt, k * 1.4);
+    if (Math.abs(st.p - st.dp) > 1e-5 || Math.abs(st.sx - st.dsx) > 1e-5) render(st);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ── the list scrolling by itself: the same moves on all four phones ── */
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const inOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const MOVES = [
+  [900, 0], [1300, 380, easeOut], [1500, 380], [900, 470, inOut], [700, 470],
+  [650, 405, easeOut], [1500, 405], [1000, 640, easeOut], [1300, 640], [1400, 0, inOut], [1600, 0],
+];
+let t0 = null;
+function tickPlay(now) {
+  if (t0 === null) t0 = now;
+  const total = MOVES.reduce((s, m) => s + m[0], 0) * SLOW;
+  let t = (now - t0) % total, from = 0, top = 0;
+  for (const [d, to, ease] of MOVES) {
+    const span = d * SLOW;
+    if (t <= span) { top = ease ? mix(from, to, ease(t / span)) : to; break; }
+    t -= span; from = to;
+  }
+  for (const st of phones) st.el.list.scrollTop = top;
+}
+function setPlay(on) {
+  PLAY = on; t0 = null;
+  const b = $('#play'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? 'Scrolling by itself' : 'Scroll it yourself';
+  if (on) for (const st of phones) { st.acc = 0; }
+}
+$('#play').addEventListener('click', () => setPlay(!PLAY));
+setPlay(PLAY);
+
+$$('[data-drive]').forEach(b => b.addEventListener('click', () => {
+  DRIVE = b.dataset.drive;
+  $$('[data-drive]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  for (const st of phones) { st.mode = 'spring'; st.acc = 0; }
+}));
+$$('[data-slow]').forEach(b => b.addEventListener('click', () => {
+  SLOW = Number(b.dataset.slow); t0 = null;
+  $$('[data-slow]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+}));
+$$('[data-set-theme]').forEach(b => b.addEventListener('click', () => {
+  document.documentElement.dataset.theme = b.dataset.setTheme;
+  $$('[data-set-theme]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+}));
+
+/* phone size: four across when there's room, else two, else one */
+function fit() {
+  const w = $('.figs').clientWidth, gap = 28;
+  const n = w >= 1240 ? 4 : w >= 640 ? 2 : 1;
+  const k = Math.min(1, (w - gap * (n - 1)) / n / 402);
+  document.documentElement.style.setProperty('--k', k.toFixed(4));
+}
+addEventListener('resize', fit); fit();
+
+/* for stills: hold every phone at one point of the shrink */
+window.__mock = {
+  hold(p, top = 300) {
+    setPlay(false); FROZEN = true;
+    for (const st of phones) { st.el.list.scrollTop = top; st.el.band.style.opacity = clamp(top / 40); st.p = p; render(st); }
+  },
+  release() { FROZEN = false; },
+  state: () => phones.map(s => Math.round(s.p * 100) / 100),
+};
+})();
+</script>

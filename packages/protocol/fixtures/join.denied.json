@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "type": "join.denied",
+  "id": "evt_01K4ZQPX0000000000000000J3",
+  "ts": "2026-10-05T21:06:40.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "request_id": "jrq_01K4ZQPX0000000000000000J4",
+  "kind": "device",
+  "started_by": "requester",
+  "name": "Pixel 9",
+  "from_addr": "192.168.1.41",
+  "by": "usr_01K4ZQPX000000000000000003"
+}

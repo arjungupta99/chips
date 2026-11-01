@@ -1,0 +1,2641 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Chips · Space faces, redrawn</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--green-ink:#006C40;--green-soft:#DEF5E8;--red:#E62728;
+  --teal:#007c87;--cell:var(--surface-2);--phone:#FFFFFF;--bubble-in:#EDEDE7;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold-deep:#F7CE54;--gold-soft:#3C3005;--green-ink:#7FE3B3;--green-soft:#12362A;--red:#FE5550;
+  --phone:#000000;--cell:#1C1E23;--bubble-in:#26282E}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold-deep:#F7CE54;--gold-soft:#3C3005;--green-ink:#7FE3B3;--green-soft:#12362A;--red:#FE5550;
+  --phone:#000000;--cell:#1C1E23;--bubble-in:#26282E}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.fc{display:block;flex:none}
+
+/* the bar */
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:12px 18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:19px;letter-spacing:-.03em;margin-right:auto}
+.brand small{font:500 13px var(--font-body);color:var(--ink-3);letter-spacing:0}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:999px;padding:3px;gap:2px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{all:unset;cursor:pointer;font:600 13px var(--font-body);padding:5px 12px;border-radius:999px;color:var(--ink-2);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg button:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+.seg.small button{font-size:12px;padding:4px 10px}
+
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px 120px}
+h1{font-family:var(--font-display);font-size:clamp(30px,4.4vw,44px);line-height:1.08;margin:34px 0 12px;letter-spacing:-.025em;max-width:22ch}
+.lede{color:var(--ink-2);max-width:68ch;margin:0 0 10px;font-size:17px}
+h2{font-family:var(--font-display);font-size:24px;letter-spacing:-.015em;margin:60px 0 6px;padding-top:26px;border-top:1px solid var(--line)}
+h2 + p,.sub{color:var(--ink-2);max-width:70ch;margin:0 0 18px}
+p{color:var(--ink-2);max-width:70ch}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.kicker{font:600 11.5px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--gold-deep)}
+.rec{display:flex;gap:14px;align-items:flex-start;background:var(--gold-soft);border-radius:16px;padding:14px 18px;max-width:880px;margin:18px 0 0}
+.rec b{color:var(--ink)}
+.rec p{margin:0;color:var(--ink-2)}
+
+/* the five-way table */
+.ways{display:grid;gap:10px;margin-top:10px}
+.way{display:grid;grid-template-columns:200px 1fr auto;align-items:center;gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px 18px;cursor:pointer;transition:border-color .2s,box-shadow .2s}
+.way:hover{border-color:var(--line-2)}
+.way.on{border-color:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 28%,transparent)}
+.way h3{font-family:var(--font-display);font-size:18px;margin:0;line-height:1.2}
+.way .d{font-size:13px;color:var(--ink-3);line-height:1.45;margin-top:3px}
+.way .faces{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.way .faces .gap{width:14px}
+.way .cost{font:600 11.5px var(--font-mono);color:var(--gold-deep);background:var(--gold-soft);border-radius:999px;padding:3px 10px;white-space:nowrap;justify-self:end}
+.way .tag{font:600 10.5px var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-4)}
+.sizes{display:flex;gap:6px;font:11px var(--font-mono);color:var(--ink-4);margin:0 0 0 218px}
+@media (max-width:860px){.way{grid-template-columns:1fr}.way .cost{justify-self:start}.sizes{margin-left:0}}
+
+/* phones */
+.phones{display:flex;flex-wrap:wrap;gap:28px;justify-content:center;margin:26px 0 8px;align-items:flex-start}
+.phone-col{display:grid;gap:10px;justify-items:center;max-width:372px}
+.phone-col .cap{font-size:13.5px;color:var(--ink-3);line-height:1.5;text-align:left;max-width:360px}
+.phone-col .cap b{color:var(--ink)}
+.phone{width:360px;height:700px;border-radius:44px;background:var(--phone);border:1px solid var(--line-2);box-shadow:0 30px 60px -34px rgba(0,0,0,.45),inset 0 0 0 6px var(--phone),inset 0 0 0 7px var(--line);position:relative;overflow:hidden;font-family:var(--font-ios);color:var(--ink)}
+@media (max-width:400px){.phone{width:calc(100vw - 32px)}}
+.status{height:46px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 6px;font:600 15px var(--font-ios);color:var(--ink)}
+.status i{display:inline-block;width:24px;height:11px;border-radius:3px;border:1.5px solid var(--ink);position:relative;vertical-align:-1px}
+.status i::after{content:"";position:absolute;inset:1.5px;right:5px;background:var(--ink);border-radius:1px}
+.island{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:96px;height:28px;border-radius:20px;background:#000}
+
+/* the spaces list */
+.large{font:700 32px var(--font-ios);letter-spacing:-.02em;padding:6px 18px 8px}
+.search{margin:0 16px 8px;height:36px;border-radius:10px;background:var(--surface-2);display:flex;align-items:center;gap:6px;padding:0 10px;color:var(--ink-4);font-size:16px}
+.search svg{width:16px;height:16px;stroke:var(--ink-4);fill:none;stroke-width:2;stroke-linecap:round}
+.list{position:relative}
+.srow{display:flex;align-items:center;gap:12px;height:76px;padding:0 16px;position:relative;cursor:pointer}
+.srow:active,.srow.pressed{background:var(--surface-2)}
+.srow::after{content:"";position:absolute;left:84px;right:0;bottom:0;border-bottom:.5px solid var(--line)}
+.srow .w{flex:1;min-width:0}
+.srow .t{display:flex;align-items:baseline;gap:8px}
+.srow .t b{font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+.srow .t span{font-size:14px;color:var(--ink-3);white-space:nowrap}
+.srow .sn{font-size:15px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .chev{color:var(--ink-4);font-size:18px;margin-left:2px}
+.srow.mine .fc{filter:drop-shadow(0 0 0 transparent)}
+.hint{position:absolute;left:0;right:0;bottom:22px;text-align:center;font-size:12.5px;color:var(--ink-4)}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:78px;border-top:.5px solid var(--line);background:color-mix(in srgb,var(--phone) 88%,transparent);display:flex;justify-content:space-around;padding-top:8px}
+.tabbar div{display:grid;justify-items:center;gap:2px;font-size:10px;color:var(--ink-4);font-weight:500}
+.tabbar div.on{color:var(--teal)}
+.tabbar svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+
+/* the icon sheet */
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.28)}
+.sheet{position:absolute;left:0;right:0;bottom:0;height:calc(75% + 20px);background:var(--bg);border-radius:22px 22px 0 0;box-shadow:0 -10px 30px -12px rgba(0,0,0,.3);display:flex;flex-direction:column}
+:root[data-theme="dark"] .sheet{background:#1A1C21}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sheet{background:#1A1C21}}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--line-2);margin:8px auto 4px;flex:none}
+.shd{display:flex;align-items:center;gap:12px;padding:6px 16px 12px;flex:none}
+.shd .who{flex:1;min-width:0}
+.shd .who b{display:block;font-size:17px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shd .who small{display:block;font-size:13px;color:var(--ink-3)}
+.shd .done{font-size:17px;color:var(--teal);font-weight:600}
+.strip{display:flex;gap:8px;padding:0 16px 12px;flex:none;overflow-x:auto;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.hue{all:unset;cursor:pointer;width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;position:relative}
+.hue.on::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--ink-2)}
+.hue:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.shbody{flex:1;overflow-y:auto;padding-bottom:18px;scrollbar-width:thin}
+.gsec{font:700 11px var(--font-ios);letter-spacing:.6px;text-transform:uppercase;color:var(--ink-4);padding:10px 16px 7px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:0 16px 4px}
+.cellb{all:unset;cursor:pointer;aspect-ratio:1;border-radius:12px;display:grid;place-items:center;position:relative}
+.cellb .fc{width:100%;height:100%}
+.cellb:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.cellb.on::after{content:"";position:absolute;inset:-3px;border-radius:14px;border:2px solid var(--ink-2)}
+.reset{margin:14px 16px 0;height:44px;border-radius:12px;background:var(--surface-2);display:grid;place-items:center;font-size:16px;color:var(--ink-2);font-weight:500}
+
+/* the room */
+.nav{position:absolute;top:0;left:0;right:0;z-index:3;padding-bottom:8px;background:color-mix(in srgb,var(--phone) 72%,transparent);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:.5px solid var(--line)}
+.navrow{display:flex;align-items:center;gap:8px;padding:6px 12px 0}
+.navrow .back{font-size:28px;line-height:1;color:var(--teal);width:28px}
+.navrow .ttl{flex:1;text-align:center;font-weight:600;font-size:17px;display:flex;align-items:center;justify-content:center;gap:7px;min-width:0}
+.navrow .ttl span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.navrow .conn{width:28px;display:grid;place-items:center}
+.navrow .conn i{width:9px;height:9px;border-radius:50%;background:#2a8452;box-shadow:0 0 0 3px color-mix(in srgb,#2a8452 25%,transparent)}
+.room{position:absolute;inset:0;padding:112px 12px 96px;display:flex;flex-direction:column;justify-content:flex-end;gap:4px}
+.day{text-align:center;font-size:12px;color:var(--ink-4);margin:0 0 10px;font-weight:500}
+.msg{display:flex;align-items:flex-end;gap:7px;max-width:100%}
+.msg.me{justify-content:flex-end}
+.bub{max-width:78%;padding:8px 13px;border-radius:18px;font-size:16px;line-height:1.35}
+.me .bub{background:var(--teal);color:#fff;border-bottom-right-radius:5px}
+.them .bub{background:var(--bubble-in);color:var(--ink);border-bottom-left-radius:5px}
+.them .spacer{width:28px;flex:none}
+.route{display:flex;align-items:center;margin:8px 0 6px}
+.route .rw{flex:1;display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 12px;border-radius:14px;min-width:0}
+.route .rw svg.ri{width:17px;height:17px;fill:none;stroke:var(--ink-3);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.route .nm{font-size:13px;font-weight:600;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.route .chv{font-size:12px;color:var(--ink-3)}
+.route .inf{width:44px;height:44px;display:grid;place-items:center}
+.route .inf svg{width:20px;height:20px;fill:none;stroke:var(--ink-3);stroke-width:1.75;stroke-linecap:round}
+.dots{display:inline-flex;gap:4px;align-items:center}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--ink-3);animation:bl 1.2s infinite ease-in-out}
+.dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
+@keyframes bl{0%,70%,100%{opacity:.25;transform:translateY(0)}35%{opacity:1;transform:translateY(-2px)}}
+.caption{display:flex;justify-content:flex-end;align-items:center;gap:4px;padding:4px 2px 4px}
+.caption .ar{font-size:13px;color:var(--ink-4);margin:0 1px}
+.composer{position:absolute;left:0;right:0;bottom:0;height:86px;padding:8px 12px 30px;display:flex;align-items:center;gap:8px}
+.composer .plus{width:36px;height:36px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;color:var(--ink-3);font-size:22px}
+.composer .field{flex:1;height:38px;border-radius:19px;border:1px solid var(--line-2);display:flex;align-items:center;padding:0 14px;color:var(--ink-4);font-size:16px}
+.step{opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s cubic-bezier(.2,.8,.2,1)}
+.step.in{opacity:1;transform:none}
+.hl{position:relative}
+.hl::before{content:"";position:absolute;inset:-4px -2px;border-radius:16px;border:1.5px dashed color-mix(in srgb,var(--gold) 80%,transparent);pointer-events:none;opacity:0;transition:opacity .3s}
+.showhl .hl::before{opacity:1}
+
+/* up close */
+.gallery{display:grid;grid-template-columns:repeat(7,1fr);gap:18px 10px;margin-top:12px}
+@media (max-width:900px){.gallery{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}}
+.gi{display:grid;justify-items:center;gap:6px;font:500 12px var(--font-mono);color:var(--ink-3)}
+.fam{margin-top:26px}
+.fam h3{font-family:var(--font-display);font-size:18px;margin:0 0 4px;display:flex;align-items:baseline;gap:10px}
+.fam h3 span{font:500 12px var(--font-mono);color:var(--ink-4)}
+.gi .pair{display:flex;align-items:flex-end;gap:8px}
+.gi .nm{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.gi .nm b{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--gold)}
+i.new{font-style:normal;font:600 10px var(--font-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--gold-deep);background:var(--gold-soft);border-radius:999px;padding:1px 6px}
+.gi.todo{color:var(--ink-4)}
+.gi .hole{width:64px;height:64px;border-radius:20px;border:1.5px dashed var(--line-2)}
+.explode{display:flex;flex-wrap:wrap;gap:22px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:22px;margin-top:22px}
+.explode .layers{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.explode .lay{display:grid;justify-items:center;gap:6px;font:11px var(--font-mono);color:var(--ink-3);text-align:center}
+.explode .lay b{display:block;font:600 12px var(--font-body);color:var(--ink)}
+.explode .eq{font:300 30px var(--font-display);color:var(--ink-4)}
+.cycler{display:grid;gap:8px;justify-items:center}
+.cycler .fc{transition:opacity .5s}
+.row-faces{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:14px}
+.chatsizes{display:flex;gap:26px;flex-wrap:wrap;margin-top:16px}
+.chatsizes > div{display:grid;gap:8px}
+.chatsizes .lbl{font:600 11px var(--font-mono);color:var(--ink-4);letter-spacing:.05em;text-transform:uppercase}
+.mini{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 14px 8px 12px;font-family:var(--font-ios);min-width:280px}
+.mini svg.ri{width:17px;height:17px;fill:none;stroke:var(--ink-3);stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.mini b{font-size:13px;font-weight:600}
+.mini .ar{font-size:13px;color:var(--ink-4)}
+
+/* costs */
+table{border-collapse:collapse;width:100%;max-width:1000px;margin-top:14px;font-size:14.5px}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:600 11.5px var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-4)}
+td{color:var(--ink-2)}
+td b{color:var(--ink)}
+td.n{font-family:var(--font-mono);font-size:13px;white-space:nowrap;color:var(--ink)}
+tr.pick td{background:color-mix(in srgb,var(--gold-soft) 70%,transparent)}
+ul{color:var(--ink-2);max-width:72ch;padding-left:20px}
+li{margin:4px 0}
+.toggle{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-2);cursor:pointer;user-select:none;margin-top:4px}
+.toggle input{width:18px;height:18px;accent-color:var(--teal)}
+@media (max-width:640px){table{display:block;overflow-x:auto}.top-in{padding:8px 16px}.wrap{padding:0 16px 100px}}
+@media (prefers-reduced-motion:reduce){.step{transition:none}.dots i{animation:none;opacity:.6}}
+</style>
+
+<header class="top"><div class="top-in">
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" fill="#F7C431"/><path d="M8 9h8v6H8z" fill="none" stroke="#14161B" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    Space faces <small>mocks · 22 Sep 2026</small>
+  </div>
+  <div class="seg" id="styleSeg" role="group" aria-label="Style">
+    <button data-s="today">Today</button><button data-s="lit">A · Lit</button><button data-s="solid">B · Solid</button><button data-s="folded">C · Folded</button><button data-s="shapes">D · + Shapes</button>
+  </div>
+  <div class="seg small" id="themeSeg" role="group" aria-label="Theme">
+    <button data-t="auto">Auto</button><button data-t="light">Light</button><button data-t="dark">Dark</button>
+  </div>
+</div></header>
+
+<main class="wrap">
+  <h1>Space faces, redrawn, and carried into the chat</h1>
+  <p class="lede">Today's 84 marks are thin white outlines on flat colour. That is the same look as most off-the-shelf icon sets, so a room's face does not look like it belongs to Chips. At 28 points the lines also get very thin. That is the size the chat would draw them at, and the chat does not draw them at all today: the routing row shows initials. Below are four ways to redraw them, and the routing rows with the face you picked.</p>
+  <p class="lede" style="font-size:15px">Every face on this page is one of your own rooms. The six marks you have picked (the live <code>space_icons</code> rows) are drawn on the grounds you picked them on. The switcher at the top redraws every phone.</p>
+  <div class="rec"><div style="font-size:22px;line-height:1">★</div><p><b>Chosen, 22 September: C · Folded, with the library doubled to 168.</b> Each mark is drawn as folded paper, lit from the upper left. The lit side is white, the shaded side is tinted with the ground, and details are cut through to the ground. It uses six fixed paints and one light direction, so all 168 marks look like one set, and it holds up at 28 points. It is also the most work of the four: every mark gets redrawn. B is the same drawings without the tints, so choosing C gets you B's drawings too. D adds a <i>Shapes</i> family on top of any option.</p></div>
+
+  <h2>Five ways to draw your six rooms</h2>
+  <p>Each row shows the same six rooms at list size (56) and chat size (28). Tap a row to switch every phone below to it.</p>
+  <div class="ways" id="ways"></div>
+
+  <h2>On the phone</h2>
+  <p>The Spaces tab, and the sheet a long press opens. The sheet works: tap a mark or a colour and <b>the game of life</b> changes in the list, in the chat below, and in the table above. Under C and D the grid holds the whole doubled library. Under Today and A it holds only today's 84, since the new marks exist only in the paper styles.</p>
+  <div class="phones">
+    <div class="phone-col"><div class="phone" id="listPhone"></div><div class="cap"><b>The list.</b> Six of these rooms wear the marks you picked. <i>algorithmic beauty</i> and <i>physics show</i> have no pick, so they show initials, except under D, where each gets a composition of its own.</div></div>
+    <div class="phone-col"><div class="phone" id="sheetPhone"></div><div class="cap"><b>The icon sheet.</b> Unpicked cells draw the mark in ink tones on the cell. The picked cell draws it on its ground. Under C the cells use tones too, so the grid already shows the fold before you pick.</div></div>
+  </div>
+
+  <h2>In the chat: <span style="font-weight:400">J → the game of life</span></h2>
+  <p>This is the second part of what you asked for. When J hands work to a Space, J's room shows a routing row, and the Space's room shows a caption over your message. Both draw faces with initials today and ignore the face you picked. With this change, each face is the room it stands for: the rocket for <i>the game of life</i> and the wafer for <i>J</i>. The dashed outline marks what changes.</p>
+  <label class="toggle"><input type="checkbox" id="agentToo"> The room's own agent wears the face on its messages too (not asked for: your call)</label>
+  <div class="phones showhl" id="chatPhones">
+    <div class="phone-col"><div class="phone" id="leadPhone"></div><div class="cap"><b>J's room.</b> The routing row shows the face of the room the work went to, and the name is tinted with that room's colour. Tapping the row still crosses to that room.</div></div>
+    <div class="phone-col"><div class="phone" id="specPhone"></div><div class="cap"><b>The game of life's room.</b> The caption over your message shows who handed the work on, from J's room to this one. Each hop that is a room shows that room's face.</div></div>
+  </div>
+  <div class="chatsizes" id="beforeAfter"></div>
+
+  <h2>C · Folded, up close</h2>
+  <p>How a mark is built. Everything is one of six paints, and each is computed from the ground, so a mark never has a colour of its own and works on all twelve grounds and in both themes.</p>
+  <div class="explode" id="explode"></div>
+
+  <h2>The library: 189 marks, People included</h2>
+  <p>Nine families of 21. The 84 names the phone had keep their faces, redrawn; the other 105, People among them, are new and marked with a gold dot. Each mark is shown at list size and at chat size. <b id="libCount"></b></p>
+  <div id="gallery"></div>
+
+  <h2>D · Shapes: a family with no pictures</h2>
+  <p>Twelve compositions made from the same six paints and cropped by the tile. Some rooms have no obvious picture, like <i>Value Strategy</i> or <i>Board Drill</i>, and a rocket is a guess. A composition just tells two rooms apart, and it looks good while doing it. They could be a ninth family in the sheet. <b>Your call:</b> they could also be the default for rooms with no pick, chosen from the room's id. Every room would then get a distinct face on day one instead of two letters.</p>
+  <div class="row-faces" id="shapesRow"></div>
+  <p class="sub" style="margin-top:22px">The same idea as a default: your rooms that have no pick, as they would look without anyone choosing:</p>
+  <div class="row-faces" id="shapesAuto"></div>
+
+  <h2>What each costs</h2>
+  <p>Nothing on the wire changes in any option. The server stores a mark's <i>name</i> and a ground's <i>index</i>, so your six saved faces redraw in the new style without anyone picking again.</p>
+  <table>
+    <thead><tr><th>Option</th><th>What changes</th><th>Work</th></tr></thead>
+    <tbody>
+      <tr><td><b>A · Lit</b></td><td>The same 84 drawings. Adds a light-to-deep gradient on the ground, a faint fill inside closed shapes, and a heavier line below 36 points. <code>react-native-svg</code>'s <code>LinearGradient</code> on the phone, a <code>linearGradient</code> in <code>@chipschat/ui</code>. Nicer, but not <i>more unique</i>: the drawings do not change.</td><td class="n">~½ day</td></tr>
+      <tr><td><b>B · Solid</b></td><td>Every mark redrawn as a filled shape with cut-outs. Each library entry changes from a list of strokes to a list of <code>[paint, path]</code>, in both copies (<code>LIBRARY_ICONS</code>, <code>LIBRARY_PATHS</code>), and the drift test keeps comparing them.</td><td class="n">~2 days</td></tr>
+      <tr class="pick"><td><b>C · Folded</b> ★</td><td>B's drawings plus the fold and the other paints, for the doubled library of 168: today's 84 redrawn and 84 new. The drawing is done on this page. What remains is the port: both copies of the library in the new shape, a paper renderer on the phone and on the desktop, the picker's cells, and the drift test.</td><td class="n">~2 days to port</td></tr>
+      <tr><td><b>D · Shapes</b></td><td>A ninth family of 12 compositions, on top of any of the above. Using it as the default for rooms with no pick adds one hash and a decision from you.</td><td class="n">+~1 day</td></tr>
+      <tr><td><b>The chat</b></td><td>Needed with any option. <code>LaneChain</code>'s routing row takes <code>spaceIcons.get(lane.homeSpaceId)</code>. The caption's first and last hops take their rooms' faces (<code>linkedSpaceIds[0]</code> and the room itself). The desktop's route card does the same. No server change.</td><td class="n">~½ day</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:18px">Two questions for you: <b>which style</b>, and whether the agent's messages in its own room should wear the face too (the checkbox above). If you choose C, I would do the chat change first, since it is small and works with the marks you have today. Then I would redraw the library in family order and send you each family as a sheet like this one.</p>
+</main>
+
+<script>/* Space faces: four ways to draw a room's chosen mark. Shared by the contact sheet and the mock. */
+(function (root) {
+  "use strict";
+
+  // ── the twelve grounds, as ICON_GROUNDS has them on the phone ─────────────────────────────
+  const GROUNDS = ["#b84d86","#007f9a","#a76341","#00736d","#1c6aa8","#6e48c1","#a94cbe","#2a8452","#007c87","#9c6a00","#317243","#7f3965"];
+  const AVATAR_HUES = GROUNDS.slice(0, 8);
+
+  // ── geometry helpers, rounded to two places like icons.ts ────────────────────────────────
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const C = (x, y, r) => `M${r2(x - r)} ${r2(y)}a${r} ${r} 0 1 0 ${r2(2 * r)} 0a${r} ${r} 0 1 0 ${r2(-2 * r)} 0z`;
+  const E = (x, y, rx, ry) => `M${r2(x - rx)} ${r2(y)}a${rx} ${ry} 0 1 0 ${r2(2 * rx)} 0a${rx} ${ry} 0 1 0 ${r2(-2 * rx)} 0z`;
+  const RR = (x, y, w, h, r) =>
+    `M${r2(x + r)} ${r2(y)}h${r2(w - 2 * r)}a${r} ${r} 0 0 1 ${r} ${r}v${r2(h - 2 * r)}a${r} ${r} 0 0 1 -${r} ${r}h${r2(-(w - 2 * r))}a${r} ${r} 0 0 1 -${r} -${r}v${r2(-(h - 2 * r))}a${r} ${r} 0 0 1 ${r} -${r}z`;
+  /** A four-point sparkle with drawn-in sides. */
+  const SP = (x, y, R) => {
+    const k = R * 0.16;
+    return `M${r2(x)} ${r2(y - R)}Q${r2(x + k)} ${r2(y - k)} ${r2(x + R)} ${r2(y)}Q${r2(x + k)} ${r2(y + k)} ${r2(x)} ${r2(y + R)}Q${r2(x - k)} ${r2(y + k)} ${r2(x - R)} ${r2(y)}Q${r2(x - k)} ${r2(y - k)} ${r2(x)} ${r2(y - R)}z`;
+  };
+  /** A gear: n teeth between two radii, the valleys drawn along the root circle. */
+  const GEAR = (cx, cy, ro, ri, n) => {
+    const step = (2 * Math.PI) / n;
+    const wo = step * 0.2;
+    const wr = step * 0.3;
+    const pt = (r, a) => `${r2(cx + r * Math.sin(a))} ${r2(cy - r * Math.cos(a))}`;
+    let d = "";
+    for (let i = 0; i < n; i++) {
+      const a = i * step;
+      d += `${i === 0 ? "M" : "A" + ri + " " + ri + " 0 0 1 "}${pt(ri, a - wr)}L${pt(ro, a - wo)}L${pt(ro, a + wo)}L${pt(ri, a + wr)}`;
+    }
+    return `${d}A${ri} ${ri} 0 0 1 ${pt(ri, -wr)}z`;
+  };
+
+  /** A ruffled oval: an ellipse whose radius rises and falls `waves` times round the edge. */
+  const RUFFLE = (cx, cy, rx, ry, waves, depth, turn) => {
+    const pts = [];
+    const t0 = (turn * Math.PI) / 180;
+    for (let i = 0; i < 72; i++) {
+      const a = (i / 72) * 2 * Math.PI;
+      const k = 1 + depth * Math.sin(waves * a);
+      const x = rx * k * Math.cos(a), y = ry * k * Math.sin(a);
+      pts.push(`${r2(cx + x * Math.cos(t0) - y * Math.sin(t0))} ${r2(cy + x * Math.sin(t0) + y * Math.cos(t0))}`);
+    }
+    return `M${pts.join("L")}z`;
+  };
+
+  // ── today's marks, transcribed from apps/mobile/src/ui/icons.ts (atom is new: the library has none) ─
+  const TODAY = {"chip":["M6 6h12v12H6z","M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"],"crisp":["M4.6 13.4c.3-4.7 4-8.5 8.4-8.5 3.7 0 6.6 2.4 6.6 5.5 0 3.7-3 5-5.8 6.7-2.7 1.6-4.5 3-6.5 1.9-1.9-1-2.9-3.1-2.7-5.6z","M6.2 10.9q1.5-1.6 3 0t3 0","M14.2 8.7a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M12.4 13.3a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"cup":["M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z","M16 9.5h1.5a2.5 2.5 0 0 1 0 5H16","M8 3v2M11.5 3v2"],"bowl":["M3.5 11h17a8.5 8.5 0 0 1-17 0z","M9 8c0-1.5 1.5-1.5 1.5-3S9 2.5 9 2.5","M14 8c0-1.5 1.5-1.5 1.5-3S14 2.5 14 2.5"],"cookie":["M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 1 0 0-17z","M9 8.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M14.5 9.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M11 13.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M15.5 13.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"donut":["M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 1 0 0-17z","M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z","M6.5 7.5l1.5 1.5M16 6.5l1 1.5M17.5 15.5l1.5 1"],"pizza":["M12 3.5l8.8 15.8a19 19 0 0 1-17.6 0z","M5.6 14.5h12.8","M10 9.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M14 11.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M9 15.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"cone":["M6.8 10.2c0-3.3 2.3-5.7 5.2-5.7s5.2 2.4 5.2 5.7z","M6.8 10.2h10.4L12 21.2z","M9.2 14.6l4.6-2.7M10.6 17.8l3.4-2"],"bottle":["M10 3h4v3l1.4 2.4a3 3 0 0 1 .6 1.8V19a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-8.8a3 3 0 0 1 .6-1.8L10 6z","M8 13.5h8"],"wafer":["M4 4h16v16H4z","M9 9h6v6H9z"],"circuit":["M5 17.2a1.8 1.8 0 1 0 0 3.6a1.8 1.8 0 1 0 0-3.6z","M19 3.2a1.8 1.8 0 1 0 0 3.6a1.8 1.8 0 1 0 0-3.6z","M5 17.2V9a2 2 0 0 1 2-2h5","M19 6.8V15a2 2 0 0 1-2 2h-5","M12 6.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M12 16.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"antenna":["M12 11v10","M9 12.5a4 4 0 0 1 0-6M15 6.5a4 4 0 0 1 0 6","M6 14.5a8 8 0 0 1 0-10M18 4.5a8 8 0 0 1 0 10","M12 8.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"signal":["M2.8 10.6a13 13 0 0 1 18.4 0","M5.9 13.7a8.6 8.6 0 0 1 12.2 0","M9 16.8a4.2 4.2 0 0 1 6 0","M12 19.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"radar":["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z","M12 7.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9z","M12 12l6.4-6.4","M12 11.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"terminal":["M4 5h16v14H4z","M8 10l2.5 2.5L8 15","M13 15.2h4"],"cloud":["M7.5 19a4.5 4.5 0 0 1-.3-9 6 6 0 0 1 11.4 1.5A3.8 3.8 0 0 1 17.5 19z"],"bolt":["M13 2L4 14h7l-1 8 9-12h-7z"],"plug":["M9 3v5M15 3v5","M6 8h12v3a6 6 0 0 1-12 0z","M12 17v4"],"battery":["M3 8h14v8H3z","M19.5 10.5v3","M10 9.5L8 12.5h3.2L9.5 15.5"],"cube":["M12 3l8 4.5v9L12 21l-8-4.5v-9z","M12 12l8-4.5M12 12v9M12 12L4 7.5"],"rocket":["M12 3s4.6 3.2 4.6 8.6c0 3-1.6 5-4.6 7.4-3-2.4-4.6-4.4-4.6-7.4C7.4 6.2 12 3 12 3z","M12 8.2a1.8 1.8 0 1 0 0 3.6a1.8 1.8 0 1 0 0-3.6z","M7.6 15.4L5 18l1 3 3-1.6M16.4 15.4L19 18l-1 3-3-1.6"],"target":["M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 1 0 0-17z","M12 7.5a4.5 4.5 0 1 0 0 9a4.5 4.5 0 1 0 0-9z","M12 11.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"flask":["M9 3h6","M10 3v6.6L4.7 18.8A2 2 0 0 0 6.4 21.8h11.2a2 2 0 0 0 1.7-3L14 9.6V3","M7.4 15h9.2"],"wrench":["M14.5 3.5a5.5 5.5 0 0 0-4.6 8.4l-6.4 6.4 2.2 2.2 6.4-6.4A5.5 5.5 0 0 0 20.5 9.5L17 13l-3-1-1-3z"],"gear":["M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z","M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"],"compass":["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z","M15.8 8.2l-2.1 5.5-5.5 2.1 2.1-5.5z"],"clipboard":["M9 3.5h6v3.2H9z","M9 5.2H6.5A1.5 1.5 0 0 0 5 6.7v12.8A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V6.7a1.5 1.5 0 0 0-1.5-1.5H15","M8.5 11.5h7M8.5 15.5h4"],"ruler":["M3.5 16.5L16.5 3.5l4 4-13 13z","M7.5 8.5l2 2M10.5 5.5l2 2M4.5 11.5l2 2"],"briefcase":["M3 8h18v11H3z","M9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8","M3 13h18"],"ladder":["M7 3v18M17 3v18M7 7h10M7 12h10M7 17h10"],"leaf":["M4.5 19.5C4.5 10 10 4.5 19.5 4.5c0 9.5-5.5 15-15 15z","M4.5 19.5L14.5 9.5"],"tree":["M12 3L6.5 11.5h3.5L6 18h12l-4-6.5h3.5z","M12 18v3.5"],"mountain":["M2.5 19L9 8l3.6 5.6L15 10l6.5 9z","M9 8l3.6 5.6"],"wave":["M3 10q3-3.2 6 0t6 0 6 0","M3 16q3-3.2 6 0t6 0 6 0"],"sun":["M12 7.4a4.6 4.6 0 1 0 0 9.2a4.6 4.6 0 1 0 0-9.2z","M12 2.2v2.4M12 19.4v2.4M21.8 12h-2.4M4.6 12H2.2M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7M19.1 19.1l-1.7-1.7M6.6 6.6L4.9 4.9"],"moon":["M20 14.6A8.6 8.6 0 0 1 9.4 4 8.6 8.6 0 1 0 20 14.6z"],"star":["M12 3.4l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.4l-5.4 2.9 1-6.1L3.2 9.9l6.1-.9z"],"flame":["M12 3s5 4.6 5 9.1a5 5 0 0 1-10 0c0-1.7.8-3.2 1.7-4.3.3 1.3 1.1 2 2 2 1.3 0 1.8-1.3 1.3-3-.3-1.1-.5-2.4 0-3.8z"],"snow":["M12 2.5v19M3.8 7.2l16.4 9.6M20.2 7.2L3.8 16.8","M9.5 4.6L12 7l2.5-2.4M9.5 19.4L12 17l2.5 2.4"],"drop":["M12 3.4c3.6 4.1 6 7.2 6 10A6 6 0 0 1 6 13.4c0-2.8 2.4-5.9 6-10z"],"sprout":["M12 21.2v-8.4","M12.2 12.8c0-3.4-2.8-6.2-6.2-6.2 0 3.4 2.8 6.2 6.2 6.2z","M11.8 12.8c0-3.4 2.8-6.2 6.2-6.2 0 3.4-2.8 6.2-6.2 6.2z"],"plane":["M21 3L3 10.6l7 3 3 7z","M10 13.6L21 3"],"boat":["M3.5 17.5h17L18 21.5H6z","M12 3L6 15h6zM13.5 7l4.5 8h-4.5"],"car":["M3.5 15.2v-3.6l2-4.6h13l2 4.6v3.6z","M5.4 11.4h13.2","M7.4 14.8a2.2 2.2 0 1 0 0 4.4a2.2 2.2 0 1 0 0-4.4z","M16.6 14.8a2.2 2.2 0 1 0 0 4.4a2.2 2.2 0 1 0 0-4.4z"],"tent":["M12 4L2.5 20h19z","M12 4v16","M8 20l4-7 4 7"],"pin":["M12 21s7-6.6 7-11.5a7 7 0 1 0-14 0C5 14.4 12 21 12 21z","M12 6.9a2.6 2.6 0 1 0 0 5.2a2.6 2.6 0 1 0 0-5.2z"],"globe":["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z","M3 12h18","M12 3a13.5 13.5 0 0 1 0 18 13.5 13.5 0 0 1 0-18z"],"key":["M6.8 8.4a3.6 3.6 0 1 0 0 7.2a3.6 3.6 0 1 0 0-7.2z","M10.4 12h10.8","M17.4 12v3.6M20.6 12v2.6"],"house":["M3 11L12 3.5 21 11","M5.5 9.5V20h13V9.5","M10 20v-5h4v5"],"door":["M6 3h12v18H6z","M4.5 21h15","M14.5 11.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"coin":["M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 1 0 0-17z","M12 7v10","M14.5 9.5a2.5 2.5 0 0 0-5 0c0 3 5 1.5 5 4.5a2.5 2.5 0 0 1-5 0"],"bank":["M3 10L12 4l9 6","M5.5 10.5v8M9.5 10.5v8M14.5 10.5v8M18.5 10.5v8","M3 21h18"],"chart":["M4 4v16h16","M7.5 15l3.4-4 3 2.6L20 7","M20 10.6V7h-3.6"],"pie":["M12 3.5a8.5 8.5 0 1 0 0 17a8.5 8.5 0 1 0 0-17z","M12 3.5v8.5h8.5"],"tag":["M11 3L21 13l-8 8L3 11V3z","M7 6.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"cart":["M3 4h2.6l2.5 11h9.3l2.6-8H7.2","M9.6 17.3a1.7 1.7 0 1 0 0 3.4a1.7 1.7 0 1 0 0-3.4z","M16.6 17.3a1.7 1.7 0 1 0 0 3.4a1.7 1.7 0 1 0 0-3.4z"],"receipt":["M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5z","M9 8h6M9 12h6M9 16h3"],"palette":["M12 3a9 9 0 0 0 0 18c1.2 0 1.9-.8 1.9-1.8 0-1.6 1-2.2 2.4-2.2H18a3 3 0 0 0 3-3C21 7.6 17 3 12 3z","M8 8.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M12 6.3a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M16 8.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"brush":["M20.5 3.5L10.5 13.5M14.5 7.5L16.5 9.5","M8.7 15.3c-1.5-1.5-4-.5-4.5 1.5-.3 1.2-.8 2-1.7 2.6 1.6 1.5 4.7 1.5 6.2-.6 1-1.3.8-2.5 0-3.5z"],"music":["M9 18V5l11-2v13","M6.4 15.4a2.6 2.6 0 1 0 0 5.2a2.6 2.6 0 1 0 0-5.2z","M17.4 13.4a2.6 2.6 0 1 0 0 5.2a2.6 2.6 0 1 0 0-5.2z"],"film":["M3 5h18v14H3z","M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4M7 5v14M17 5v14"],"book":["M4 4.5h6a2.5 2.5 0 0 1 2 2.5V20a2.4 2.4 0 0 0-2-1.4H4z","M20 4.5h-6a2.5 2.5 0 0 0-2 2.5V20a2.4 2.4 0 0 1 2-1.4h6z"],"scissors":["M6.8 15.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z","M17.2 15.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z","M8.6 16.2L18 3.8M15.4 16.2L6 3.8"],"sparkle":["M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z","M18.4 15.4l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"],"frame":["M4 4h16v16H4z","M4 16l5-5 4 4 3-3 4 4","M9 8.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"shield":["M12 3l8 3v6c0 5-3.5 8.2-8 9-4.5-.8-8-4-8-9V6z"],"lock":["M5.5 10.5h13V21h-13z","M8.5 10.5v-3a3.5 3.5 0 0 1 7 0v3","M12 14.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"eye":["M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z","M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z"],"flag":["M5 3v18","M5 4.5h13l-2.6 4 2.6 4H5z"],"bell":["M6 17v-6a6 6 0 0 1 12 0v6l2 2.5H4z","M10 20.5a2.2 2.2 0 0 0 4 0"],"bookmark":["M6 3.5h12V21l-6-4.5L6 21z"],"heart":["M12 20.5S3.5 15 3.5 9.2A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.5 2.9c0 5.8-8.5 11.3-8.5 11.3z"],"check":["M5 12.5l4.5 4.5L19 7"],"question":["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z","M9.3 9.6a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.3-2.7 4","M12 16.3a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"alert":["M12 3.4L21.6 20H2.4z","M12 9.6v5","M12 16.3a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"infinity":["M8.4 8.5a3.5 3.5 0 1 0 0 7c3.6 0 3.6-7 7.2-7a3.5 3.5 0 1 1 0 7c-3.6 0-3.6-7-7.2-7z"],"anchor":["M12 2.6a2 2 0 1 0 0 4a2 2 0 1 0 0-4z","M12 6.6V21","M6 12H3c0 5 4 9 9 9s9-4 9-9h-3","M8.5 10h7"],"crown":["M3 8l3.6 3L12 4.5 17.4 11 21 8v10.5H3z","M3 21h18"],"bug":["M8 8.5a4 4 0 0 1 8 0v3.5a4 4 0 0 1-8 0z","M4 10h4M16 10h4M4 16h4.4M15.6 16H20M8.4 5.6L6.4 3.4M15.6 5.6l2-2.2M12 19.8V22"],"dice":["M4 4h16v16H4z","M8.5 7.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M12 11.1a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z","M15.5 14.6a.9.9 0 1 0 0 1.8a.9.9 0 1 0 0-1.8z"],"hourglass":["M6 3h12M6 21h12","M7.5 3v3.2L12 12l-4.5 5.8V21M16.5 3v3.2L12 12l4.5 5.8V21"],"magnet":["M6 3v9a6 6 0 0 0 12 0V3h-4v9a2 2 0 0 1-4 0V3z","M6 7.5h4M14 7.5h4"],"gem":["M7 4h10l4 5-9 11L3 9z","M3.2 9h17.6M7 4l2.2 5L12 20l2.8-11L17 4M9.2 9h5.6"],"waveform":["M4 10v4M8 6.5v11M12 3.5v17M16 7v10M20 10v4"]};
+  TODAY.atom = [
+    "M12 12m-9 0a9 3.6 0 1 0 18 0a9 3.6 0 1 0 -18 0",
+    "M12 12m-9 0a9 3.6 0 1 0 18 0a9 3.6 0 1 0 -18 0",
+    "M12 12m-9 0a9 3.6 0 1 0 18 0a9 3.6 0 1 0 -18 0",
+    C(12, 12, 1.3),
+  ];
+  const TODAY_TF = { atom: [undefined, "rotate(60 12 12)", "rotate(-60 12 12)", undefined] };
+
+  /*
+   * Folded: every mark is paper lit from the upper left. Six paints, and nothing else:
+   *   f  face     white
+   *   m  shade    the ground mixed 26% into white — the side turned away from the light
+   *   d  deep     the ground mixed 55% into white — detail laid on a white face
+   *   s  far      white at 45% — things behind (stars, steam, a far peak)
+   *   a  air      white at 16% — a halo, drawn first
+   *   k  cut      the ground itself — a hole through the paper
+   * [tier, path, opts]; opts: sw (a stroke, not a fill), tf (transform), clip (["x", X] keeps x > X;
+   * ["d", D] keeps x + y > D — the fold), round (soften a fill's corners by a stroke this wide).
+   */
+  const FOLDED = {
+    rocket: [
+      ["s", C(4.6, 6.4, 0.75)], ["s", C(19.4, 4.4, 0.6)], ["s", C(20.2, 9.4, 0.45)],
+      ["s", "M10 18.2h4c0 2-.9 3.4-2 4.3-1.1-.9-2-2.3-2-4.3z"],
+      ["m", "M7.7 11.8L4.5 15.6v3.6l4.5-1.5z", { round: 0.7 }],
+      ["m", "M16.3 11.8l3.2 3.8v3.6L15 17.7z", { round: 0.7 }],
+      ["f", "M12 2.2c3.3 2.3 5 5.8 5 9.8 0 2.4-.6 4.4-1.6 6.4H8.6c-1-2-1.6-4-1.6-6.4 0-4 1.7-7.5 5-9.8z"],
+      ["m", "M12 2.2c3.3 2.3 5 5.8 5 9.8 0 2.4-.6 4.4-1.6 6.4H12z"],
+      ["k", C(12, 9.9, 2.4)], ["d", C(12, 9.9, 1.45)], ["f", C(11.4, 9.3, 0.5)],
+    ],
+    wafer: [
+      ["m", "M9 2.4v2.8M12 2.4v2.8M15 2.4v2.8M9 18.8v2.8M12 18.8v2.8M15 18.8v2.8M2.4 9h2.8M2.4 12h2.8M2.4 15h2.8M18.8 9h2.8M18.8 12h2.8M18.8 15h2.8", { sw: 1.7 }],
+      ["f", RR(5.1, 5.1, 13.8, 13.8, 2)],
+      ["m", RR(5.1, 5.1, 13.8, 13.8, 2), { clip: ["d", 24] }],
+      ["k", RR(8.6, 8.6, 6.8, 6.8, 1.1)],
+      ["f", RR(10.3, 10.3, 3.4, 3.4, 0.6)],
+      ["k", C(7.4, 7.4, 0.65)],
+    ],
+    gear: [
+      ["f", GEAR(12, 12, 9.8, 7.3, 8), { round: 0.9 }],
+      ["m", GEAR(12, 12, 9.8, 7.3, 8), { round: 0.9, clip: ["d", 24] }],
+      ["k", C(12, 12, 3.6)],
+      ["s", C(12, 12, 1.7)],
+    ],
+    cup: [
+      ["m", RR(3.4, 18.8, 15.6, 2.2, 1.1)],
+      ["s", "M8.8 7.4q-1.1-1.1 0-2.2t0-2.2M12.6 7.4q-1.1-1.1 0-2.2t0-2.2", { sw: 1.5 }],
+      ["m", "M16.3 10.6h1.3a2.4 2.4 0 0 1 0 4.8h-1.8", { sw: 2 }],
+      ["f", "M4.6 9h12v5.1a4.6 4.6 0 0 1-4.6 4.6H9.2A4.6 4.6 0 0 1 4.6 14.1z"],
+      ["m", "M4.6 9h12v5.1a4.6 4.6 0 0 1-4.6 4.6H9.2A4.6 4.6 0 0 1 4.6 14.1z", { clip: ["x", 10.6] }],
+      ["d", "M4.6 9h12v1.7h-12z"],
+    ],
+    bolt: [
+      ["a", C(12, 12, 9.8)],
+      ["f", "M13.8 2.4L5.2 13.6h5.9l-1.4 8 9.1-11.6h-6.1z", { round: 0.9 }],
+      ["m", "M11.1 13.6l-1.4 8 9.1-11.6h-6.1z", { round: 0.9 }],
+    ],
+    pizza: [
+      ["f", "M3.4 6.4Q12 1.9 20.6 6.4l-1 2Q12 4.3 4.4 8.4z", { round: 0.9 }],
+      ["m", "M3.4 6.4Q12 1.9 20.6 6.4l-1 2Q12 4.3 4.4 8.4z", { round: 0.9, clip: ["x", 12] }],
+      ["f", "M4.9 9.4Q12 5.8 19.1 9.4L12 21.4z", { round: 0.9 }],
+      ["m", "M4.9 9.4Q12 5.8 19.1 9.4L12 21.4z", { round: 0.9, clip: ["x", 12] }],
+      ["k", C(9.7, 11.3, 1.45)], ["k", C(14.4, 12.3, 1.3)], ["k", C(11.9, 16.3, 1.15)],
+    ],
+    crisp: [
+      ["s", RUFFLE(13.6, 9.6, 7.4, 5.2, 7, 0.045, 14)],
+      ["f", RUFFLE(11.4, 13.6, 8.4, 6.1, 7, 0.045, -18), { round: 0.6 }],
+      ["m", RUFFLE(11.4, 13.6, 8.4, 6.1, 7, 0.045, -18), { round: 0.6, clip: ["p", "M-20 40V15.4Q2.6 9.4 8.4 14.2T24 13.2V40z"] }],
+      ["d", C(8.2, 12.6, 0.55)], ["d", C(12.8, 11.4, 0.5)], ["d", C(15.4, 15.6, 0.5)], ["d", C(10.6, 17.2, 0.45)],
+    ],
+    mountain: [
+      ["s", C(17.6, 6.2, 2.4)],
+      ["s", "M10.2 19.6l5.6-9.4 6 9.4z", { round: 0.8 }],
+      ["f", "M2.2 19.6L9.6 6.6l7.4 13z", { round: 0.8 }],
+      ["m", "M9.6 6.6l7.4 13h-5.2z", { round: 0.8 }],
+    ],
+    leaf: [
+      ["f", "M4.6 19.4C4.2 10.4 9.8 4.4 19.6 4.4c.2 9.8-5.8 15.4-15 15z"],
+      ["m", "M4.6 19.4L19.6 4.4c.2 9.8-5.8 15.4-15 15z"],
+      ["k", "M4.8 19.2L16.2 7.8", { sw: 1.1 }],
+      ["k", "M8.9 15.1l-.3-3.4M11.7 12.3l-.2-3.2M14.3 9.7l-.1-2.4M8.9 15.1l3.4.3M11.7 12.3l3.2.2M14.3 9.7l2.4.1", { sw: 0.9 }],
+      ["f", "M4.8 19.2l-2 2", { sw: 1.8 }],
+    ],
+    moon: [
+      ["a", C(12, 12, 10)],
+      ["s", SP(18.2, 5.2, 2)], ["s", C(20.6, 9.8, 0.55)],
+      ["f", "M19.6 14.8A8.2 8.2 0 0 1 9.2 4.4a8.2 8.2 0 1 0 10.4 10.4z"],
+      ["d", C(8.2, 14.4, 1.4)], ["d", C(12.2, 17.5, 0.9)], ["d", C(6.4, 10.2, 0.75)],
+    ],
+    flame: [
+      ["s", C(17.8, 4.8, 0.7)], ["s", C(6.4, 5, 0.5)],
+      ["m", "M12.4 2.2c.6 3.2 6.6 6.4 6.6 12a7 7 0 0 1-14 0c0-2.6 1.3-4.7 2.8-6.1.3 1.8 1.3 3 2.6 3 1.6 0 2.4-1.5 2-3.6-.4-2-.7-3.6 0-5.3z"],
+      ["f", "M12 11c2.1 1.9 3.6 3.6 3.6 5.8a3.6 3.6 0 0 1-7.2 0c0-2.2 1.5-3.9 3.6-5.8z"],
+    ],
+    wave: [
+      ["s", C(16.4, 8.2, 3.4)],
+      ["m", "M2.4 13.2q2.4-2.3 4.8 0t4.8 0 4.8 0 4.8 0V19a2.2 2.2 0 0 1-2.2 2.2H4.6A2.2 2.2 0 0 1 2.4 19z"],
+      ["f", "M2.4 16.6q2.4-2.3 4.8 0t4.8 0 4.8 0 4.8 0V19a2.2 2.2 0 0 1-2.2 2.2H4.6A2.2 2.2 0 0 1 2.4 19z"],
+    ],
+    globe: [
+      ["f", C(12, 12, 9)],
+      ["m", C(12, 12, 9), { clip: ["d", 24] }],
+      ["k", "M12 3c-2.8 2.4-4.1 5.5-4.1 9s1.3 6.6 4.1 9M12 3c2.8 2.4 4.1 5.5 4.1 9s-1.3 6.6-4.1 9M3 12h18M4.6 7.6h14.8M4.6 16.4h14.8", { sw: 1.1 }],
+    ],
+    book: [
+      ["f", "M2.8 5.6c3.3-.7 6.4-.1 8.6 1.6v13.2c-2.2-1.5-5.3-2-8.6-1.4z", { round: 0.6 }],
+      ["m", "M21.2 5.6c-3.3-.7-6.4-.1-8.6 1.6v13.2c2.2-1.5 5.3-2 8.6-1.4z", { round: 0.6 }],
+      ["k", "M5 9.4c1.5-.2 3 0 4.3.6M5 12.2c1.5-.2 3 0 4.3.6M5 15c1.5-.2 3 0 4.3.6", { sw: 0.95 }],
+      ["k", "M19 9.4c-1.5-.2-3 0-4.3.6M19 12.2c-1.5-.2-3 0-4.3.6", { sw: 0.95 }],
+    ],
+    music: [
+      ["a", C(12, 12, 10)],
+      ["m", "M19.6 15.4V4.2", { sw: 1.9 }],
+      ["m", E(17.2, 15.6, 2.75, 2.1), { tf: "rotate(-22 17.2 15.6)" }],
+      ["f", "M8.6 17.6V6.6", { sw: 1.9 }],
+      ["f", "M7.65 6.3l12.9-2.9v3.1L7.65 9.4z", { round: 0.6 }],
+      ["f", E(6.2, 17.8, 2.75, 2.1), { tf: "rotate(-22 6.2 17.8)" }],
+    ],
+    palette: [
+      ["f", "M12 3a9 9 0 0 0 0 18c1.2 0 1.9-.8 1.9-1.8 0-1.6 1-2.2 2.4-2.2H18a3 3 0 0 0 3-3C21 7.6 17 3 12 3z"],
+      ["m", "M12 3a9 9 0 0 0 0 18c1.2 0 1.9-.8 1.9-1.8 0-1.6 1-2.2 2.4-2.2H18a3 3 0 0 0 3-3C21 7.6 17 3 12 3z", { clip: ["d", 24] }],
+      ["k", C(7.5, 11.4, 1.6)], ["d", C(9.2, 7.3, 1.55)], ["k", C(14, 6.5, 1.55)], ["d", C(17.3, 10, 1.4)],
+    ],
+    flask: [
+      ["m", "M10.1 3.6h3.8v5.2l5.3 9.6a2 2 0 0 1-1.8 3H6.6a2 2 0 0 1-1.8-3l5.3-9.6z", { round: 0.6 }],
+      ["f", "M7.3 14.2h9.4l2.5 4.2a2 2 0 0 1-1.8 3H6.6a2 2 0 0 1-1.8-3z", { round: 0.6 }],
+      ["f", RR(8.8, 2.3, 6.4, 1.9, 0.95)],
+      ["k", C(10.2, 17.8, 1)], ["k", C(13.8, 18.8, 0.65)], ["k", C(12.9, 16.2, 0.55)],
+      ["f", C(12.6, 11.6, 0.65)], ["f", C(11.3, 9.8, 0.45)],
+    ],
+    chart: [
+      ["s", RR(3.4, 13.2, 4.6, 7.8, 1.3)],
+      ["m", RR(9.7, 8.6, 4.6, 12.4, 1.3)],
+      ["f", RR(16, 3.4, 4.6, 17.6, 1.3)],
+    ],
+    heart: [
+      ["a", "M12 20.6S3.3 15.2 3.3 9.1A4.8 4.8 0 0 1 12 6.4a4.8 4.8 0 0 1 8.7 2.7c0 6.1-8.7 11.5-8.7 11.5z", { tf: "translate(12 12.6) scale(1.24) translate(-12 -12.6)" }],
+      ["f", "M12 20.6S3.3 15.2 3.3 9.1A4.8 4.8 0 0 1 12 6.4a4.8 4.8 0 0 1 8.7 2.7c0 6.1-8.7 11.5-8.7 11.5z"],
+      ["m", "M12 20.6S3.3 15.2 3.3 9.1A4.8 4.8 0 0 1 12 6.4a4.8 4.8 0 0 1 8.7 2.7c0 6.1-8.7 11.5-8.7 11.5z", { clip: ["x", 12] }],
+    ],
+    shield: [
+      ["f", "M12 2.6l8 3v6.2c0 5.1-3.5 8.6-8 9.6-4.5-1-8-4.5-8-9.6V5.6z", { round: 0.8 }],
+      ["m", "M12 2.6l8 3v6.2c0 5.1-3.5 8.6-8 9.6-4.5-1-8-4.5-8-9.6V5.6z", { round: 0.8, clip: ["x", 12] }],
+      ["k", "M8.5 12.1l2.5 2.5 4.6-4.9", { sw: 1.9 }],
+    ],
+    atom: [
+      ["a", C(12, 12, 4.6)],
+      ["m", E(12, 12, 9.2, 3.6), { sw: 1.35 }],
+      ["m", E(12, 12, 9.2, 3.6), { sw: 1.35, tf: "rotate(60 12 12)" }],
+      ["m", E(12, 12, 9.2, 3.6), { sw: 1.35, tf: "rotate(-60 12 12)" }],
+      ["f", C(12, 12, 2.4)],
+      ["f", C(21.2, 12, 1)], ["f", C(7.4, 4.03, 1)], ["f", C(7.4, 19.97, 1)],
+    ],
+    house: [
+      ["m", "M15.8 4.4h2.4v4.6L15.8 7z"],
+      ["m", "M5.6 10.6h12.8v9.4a1 1 0 0 1-1 1H6.6a1 1 0 0 1-1-1z"],
+      ["f", "M12 2.8l9.3 7.6a.9.9 0 0 1-.6 1.6H3.3a.9.9 0 0 1-.6-1.6z", { round: 0.7 }],
+      ["k", "M10.2 21v-4.3a1.8 1.8 0 0 1 3.6 0V21z"],
+      ["k", RR(14.8, 13.8, 2.3, 2.3, 0.5)],
+    ],
+    terminal: [
+      ["f", RR(2.8, 4.4, 18.4, 15.2, 2.3)],
+      ["m", RR(2.8, 4.4, 18.4, 15.2, 2.3), { clip: ["d", 27] }],
+      ["d", "M2.8 6.7a2.3 2.3 0 0 1 2.3-2.3h13.8a2.3 2.3 0 0 1 2.3 2.3v1.6H2.8z"],
+      ["f", C(5.2, 6.35, 0.55)], ["f", C(7, 6.35, 0.55)], ["f", C(8.8, 6.35, 0.55)],
+      ["k", "M6.6 11.6l2.6 2.4-2.6 2.4", { sw: 1.7 }],
+      ["k", "M11.6 16.4h5", { sw: 1.7 }],
+    ],
+    sparkle: [
+      ["s", C(18.8, 5, 1)],
+      ["f", SP(10.2, 10.6, 8)],
+      ["m", SP(10.2, 10.6, 8), { clip: ["d", 20.8] }],
+      ["m", SP(18.2, 18.2, 3.6)],
+    ],
+  };
+
+  /*
+   * Shapes: no picture at all — a composition, cropped by the tile, from the same six paints.
+   * Drawn in the tile's own 24 box, full bleed.
+   */
+  const SHAPES = {
+    arches: [["s", C(12, 25, 12.6)], ["m", C(12, 25, 8.3)], ["f", C(12, 25, 4.1)]],
+    quarters: [["f", "M0 0H13A13 13 0 0 1 0 13z"], ["m", "M24 24H11A13 13 0 0 1 24 11z"], ["s", C(18, 6, 3)]],
+    venn: [["s", C(8.8, 12, 6.6)], ["s", C(15.2, 12, 6.6)], ["f", C(12, 12, 1.7)]],
+    stripes: [["s", "M-2 9L9 -2", { sw: 3.4 }], ["m", "M-2 17L17 -2", { sw: 3.4 }], ["f", "M-2 25L25 -2", { sw: 3.4 }], ["m", "M7 26L26 7", { sw: 3.4 }], ["s", "M15 26L26 15", { sw: 3.4 }]],
+    tiles: [["f", "M0 0h12v12H0z"], ["s", "M12 12h12v12H12z"], ["m", C(18, 6, 4.2)], ["m", C(6, 18, 4.2)]],
+    petals: [["s", C(12, 7.4, 4.9)], ["s", C(16.6, 12, 4.9)], ["s", C(12, 16.6, 4.9)], ["s", C(7.4, 12, 4.9)], ["f", C(12, 12, 2.3)]],
+    pill: [["m", "M12 12L18.5 5.5", { sw: 7.4 }], ["f", "M5.5 18.5L12 12", { sw: 7.4 }], ["s", C(18.6, 18.6, 2.3)]],
+    ripple: [["s", C(0, 24, 19.5), { sw: 2.6 }], ["m", C(0, 24, 13), { sw: 2.6 }], ["f", C(0, 24, 6.2)]],
+    half: [["s", "M0 0h12v24H0z"], ["f", C(12, 12, 6.6)], ["k", C(12, 12, 2.1)]],
+    dots: [
+      ["f", C(6, 6, 2.2)], ["s", C(12, 6, 2.2)], ["m", C(18, 6, 2.2)],
+      ["s", C(6, 12, 2.2)], ["m", C(12, 12, 2.2)], ["f", C(18, 12, 2.2)],
+      ["m", C(6, 18, 2.2)], ["f", C(12, 18, 2.2)], ["s", C(18, 18, 2.2)],
+    ],
+    wedge: [["m", "M0 24L24 0V24z"], ["f", C(8.2, 8.2, 4.4)]],
+    horizon: [["f", C(12, 12.6, 6.2)], ["m", "M0 14h24v10H0z"], ["s", "M0 18.4h24v5.6H0z"]],
+  };
+  const SHAPE_NAMES = Object.keys(SHAPES);
+
+  // ── colour: sRGB ↔ OKLCH, for the lit ground ─────────────────────────────────────────────
+  const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const lin = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const gam = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
+  function toOklch(hex) {
+    const [r, g, b] = hex2rgb(hex).map(lin);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    const L = 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+    const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s;
+    const B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+    return [L, Math.hypot(A, B), ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360];
+  }
+  function fromOklch(L, Cc, H) {
+    for (let c = Cc; c >= 0; c -= 0.004) {
+      const A = c * Math.cos((H * Math.PI) / 180);
+      const B = c * Math.sin((H * Math.PI) / 180);
+      const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
+      const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
+      const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+      const rgb = [
+        4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+      ];
+      if (rgb.every((v) => v >= -0.0005 && v <= 1.0005))
+        return "#" + rgb.map((v) => Math.round(Math.min(1, Math.max(0, gam(Math.max(0, v)))) * 255).toString(16).padStart(2, "0")).join("");
+    }
+    return "#000000";
+  }
+  const litCache = {};
+  /** The ground, lit: a little lighter and cooler at the top, a little deeper at the foot. */
+  function lit(hex) {
+    if (litCache[hex]) return litCache[hex];
+    const [L, Cc, H] = toOklch(hex);
+    return (litCache[hex] = { top: fromOklch(L + 0.075, Cc * 1.06, H - 12), bottom: fromOklch(L - 0.03, Cc * 1.02, H + 8) });
+  }
+  function mix(a, b, t) {
+    const x = hex2rgb(a), y = hex2rgb(b);
+    return "#" + x.map((v, i) => Math.round((v + (y[i] - v) * t) * 255).toString(16).padStart(2, "0")).join("");
+  }
+
+  // ── names ────────────────────────────────────────────────────────────────────────────────
+  function hueIndex(name) {
+    let hash = 0;
+    for (const ch of name) hash = (hash * 31 + (ch.codePointAt(0) || 0)) % 1000003;
+    return hash % 8;
+  }
+  function initials(name) {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+    return (words.slice(0, 2).map((w) => [...w][0] || "").join("").toUpperCase()) || "?";
+  }
+  /** A stable pick of composition and turn for a room nobody has chosen a face for. */
+  function shapeFor(name) {
+    let h = 7;
+    for (const ch of name) h = (h * 131 + (ch.codePointAt(0) || 0)) % 2147483647;
+    const shape = SHAPE_NAMES[h % SHAPE_NAMES.length];
+    // A scene (arches, a horizon) stands one way up; the rest may turn.
+    const turn = shape === "arches" || shape === "horizon" ? 0 : (Math.floor(h / 12) % 4) * 90;
+    return { shape, turn };
+  }
+
+  // ── painting ─────────────────────────────────────────────────────────────────────────────
+  let uid = 0;
+  const CORNER = { person: 0.5, harness: 0.32, channel: 0.22 };
+  const SCALE = { today: 0.58, lit: 0.6, solid: 0.64, folded: 0.66 };
+
+  /** One tier's paint, on a coloured ground. */
+  function groundPaint(tier, ground, grad, style) {
+    if (style === "solid") {
+      if (tier === "a") return null;
+      if (tier === "k") return { c: `url(#${grad})` };
+      if (tier === "d") return { c: mix("#ffffff", ground, 0.55) };
+      return { c: "#ffffff" };
+    }
+    switch (tier) {
+      case "f": return { c: "#ffffff" };
+      case "m": return { c: mix("#ffffff", ground, 0.26) };
+      case "d": return { c: mix("#ffffff", ground, 0.55) };
+      case "s": return { c: "#ffffff", o: 0.45 };
+      case "a": return { c: "#ffffff", o: 0.16 };
+      case "k": return { c: `url(#${grad})` };
+    }
+    return null;
+  }
+  /** One tier's paint on a neutral picker cell: the ink stands in for white, the cell for the ground. */
+  function cellPaint(tier, style) {
+    const ink = "var(--ink-2)", cell = "var(--cell)";
+    if (style === "solid") {
+      if (tier === "a") return null;
+      if (tier === "k") return { css: cell };
+      if (tier === "d") return { css: `color-mix(in srgb, ${ink} 55%, ${cell})` };
+      return { css: ink };
+    }
+    switch (tier) {
+      case "f": return { css: ink };
+      case "m": return { css: `color-mix(in srgb, ${ink} 62%, ${cell})` };
+      case "d": return { css: `color-mix(in srgb, ${ink} 40%, ${cell})` };
+      case "s": return { css: ink, o: 0.4 };
+      case "a": return { css: ink, o: 0.1 };
+      case "k": return { css: cell };
+    }
+    return null;
+  }
+
+  function clipDef(id, clip) {
+    if (clip[0] === "p") return `<clipPath id="${id}"><path d="${clip[1]}"/></clipPath>`;
+    if (clip[0] === "x") return `<clipPath id="${id}"><rect x="${clip[1]}" y="-20" width="60" height="70"/></clipPath>`;
+    const D = clip[1];
+    return `<clipPath id="${id}"><polygon points="${D + 20},-20 60,-20 60,60 -20,60 -20,${D + 20}"/></clipPath>`;
+  }
+
+  function paintItems(items, paintOf, small, defs) {
+    let out = "";
+    for (const [tier, d, opts = {}] of items) {
+      if (small && (tier === "a" || (opts.sw !== undefined && opts.sw < 1.05))) continue;
+      const p = paintOf(tier);
+      if (!p) continue;
+      const colour = p.css ? `style="${opts.sw ? "stroke" : "fill"}:${p.css}${opts.round ? ";stroke:" + p.css : ""}"` : "";
+      const attr = p.css ? "" : opts.sw ? `stroke="${p.c}"` : `fill="${p.c}"${opts.round ? ` stroke="${p.c}"` : ""}`;
+      const op = p.o ? ` opacity="${p.o}"` : "";
+      const tf = opts.tf ? ` transform="${opts.tf}"` : "";
+      let clip = "";
+      if (opts.clip) {
+        const id = `c${++uid}`;
+        defs.push(clipDef(id, opts.clip));
+        clip = ` clip-path="url(#${id})"`;
+      }
+      const stroke = opts.sw
+        ? ` fill="none" stroke-width="${opts.sw}" stroke-linecap="round" stroke-linejoin="round"`
+        : opts.round ? ` stroke-width="${opts.round}" stroke-linejoin="round"` : "";
+      const body = `<path d="${d}" ${attr}${colour}${stroke}${op}${tf}/>`;
+      out += clip ? `<g${clip}>${body}</g>` : body;
+    }
+    return out;
+  }
+
+  /**
+   * A composition runs to the tile's edge, and a white shape there melts into a white page. A thin
+   * frame in the ground's own paint keeps the tile's outline wherever it is drawn.
+   */
+  const frame = (rx, paint) =>
+    `<rect x=".4" y=".4" width="23.2" height="23.2" rx="${r2(rx - 0.4)}" fill="none" stroke="${paint}" stroke-width=".8"/>`;
+
+  /**
+   * A face. `mark` is a name from the library or undefined (initials); `ground` an index or
+   * undefined (the name's own hue). Styles: today · lit · solid · folded · shapes.
+   */
+  function face({ name = "", mark, ground, size = 56, kind = "harness", style = "folded", cell = false, cls = "" }) {
+    const id = ++uid;
+    const gHex = ground === undefined ? AVATAR_HUES[hueIndex(name)] : GROUNDS[ground];
+    const rx = 24 * CORNER[kind];
+    const small = size < 36;
+    const defs = [];
+    const flat = style === "today";
+    let tile;
+    if (cell) {
+      tile = `<rect width="24" height="24" rx="${rx}" style="fill:var(--cell)"/>`;
+    } else if (flat) {
+      tile = `<rect width="24" height="24" rx="${rx}" fill="${gHex}"/>`;
+    } else {
+      const L = lit(gHex);
+      defs.push(`<linearGradient id="gt${id}" x1="0" y1="0" x2="0" y2="24" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${L.top}"/><stop offset="1" stop-color="${L.bottom}"/></linearGradient>`);
+      defs.push(`<radialGradient id="gh${id}" cx="6" cy="2" r="18" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>`);
+      tile = `<rect width="24" height="24" rx="${rx}" fill="url(#gt${id})"/><rect width="24" height="24" rx="${rx}" fill="url(#gh${id})"/>`;
+    }
+    let inner = "";
+    const markStyle = style === "shapes" ? "folded" : style;
+
+    if (style === "shapes" && !cell && mark === undefined) {
+      // A room with no chosen face gets a composition of its own, from its name.
+      const pick = shapeFor(name);
+      defs.push(`<clipPath id="ct${id}"><rect width="24" height="24" rx="${rx}"/></clipPath>`);
+      const paint = (t) => groundPaint(t, gHex, `gt${id}`, "folded");
+      inner = `<g clip-path="url(#ct${id})"><g transform="rotate(${pick.turn} 12 12)">${paintItems(SHAPES[pick.shape], paint, false, defs)}</g></g>${frame(rx, `url(#gt${id})`)}`;
+    } else if (mark && SHAPES[mark] && !TODAY[mark] && !FOLDED[mark]) {
+      defs.push(`<clipPath id="ct${id}"><rect width="24" height="24" rx="${rx}"/></clipPath>`);
+      const paint = cell ? (t) => cellPaint(t, "folded") : (t) => groundPaint(t, gHex, `gt${id}`, "folded");
+      inner = `<g clip-path="url(#ct${id})">${paintItems(SHAPES[mark], paint, false, defs)}</g>${cell ? "" : frame(rx, `url(#gt${id})`)}`;
+    } else if (mark === undefined) {
+      inner = `<text x="12" y="12" dy=".36em" text-anchor="middle" font-size="9.6" font-weight="700" fill="#fff" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif">${initials(name)}</text>`;
+    } else if (markStyle === "today" || markStyle === "lit") {
+      const s = SCALE[markStyle];
+      const o = 12 - 12 * s;
+      const sw = markStyle === "lit" && small ? 2.15 : 1.75;
+      const ink = cell ? "var(--ink-2)" : "#ffffff";
+      const paths = TODAY[mark] || [];
+      const tfs = TODAY_TF[mark] || [];
+      let body = "";
+      paths.forEach((d, i) => {
+        const tf = tfs[i] ? ` transform="${tfs[i]}"` : "";
+        if (markStyle === "lit" && /z\s*$/i.test(d))
+          body += `<path d="${d}" style="fill:${ink}" opacity=".24" stroke="none"${tf}/>`;
+        body += `<path d="${d}" fill="none" style="stroke:${ink}"${tf}/>`;
+      });
+      inner = `<g transform="translate(${r2(o)} ${r2(o)}) scale(${s})" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
+    } else {
+      const s = SCALE[markStyle];
+      const o = 12 - 12 * s;
+      // The cut paint inside the mark's own box: the tile's gradient, mapped into it.
+      if (!cell && !flat)
+        defs.push(`<linearGradient id="gm${id}" x1="0" y1="${r2(-o / s)}" x2="0" y2="${r2((24 - o) / s)}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${lit(gHex).top}"/><stop offset="1" stop-color="${lit(gHex).bottom}"/></linearGradient>`);
+      const paint = cell ? (t) => cellPaint(t, markStyle) : (t) => groundPaint(t, gHex, `gm${id}`, markStyle);
+      inner = `<g transform="translate(${r2(o)} ${r2(o)}) scale(${s})">${paintItems(FOLDED[mark] || [], paint, small, defs)}</g>`;
+    }
+    return `<svg class="fc ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true"><defs>${defs.join("")}</defs>${tile}${inner}</svg>`;
+  }
+
+  /** A family file adds its drawings here; the helpers are the ones the marks above are built with. */
+  const h = { C, E, RR, SP, GEAR, RUFFLE, r2 };
+  const addFolded = (marks) => Object.assign(FOLDED, marks);
+
+  root.Faces = { h, addFolded, face, GROUNDS, AVATAR_HUES, FOLDED, SHAPES, SHAPE_NAMES, TODAY, lit, initials, hueIndex, shapeFor };
+})(typeof window !== "undefined" ? window : globalThis);
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+
+  const BOWL = "M2.8 11.2h18.4c0 4.9-3.9 8.4-9.2 8.4s-9.2-3.5-9.2-8.4z";
+  const COOKIE = "M20.27 9.18A8.8 8.8 0 1 1 12.79 3.44A2.7 2.7 0 0 0 16.53 6.07A2.9 2.9 0 0 0 20.27 9.18z";
+  const CONE = "M6.8 11.2h10.4L12 21.8z";
+  const SCOOP = "M5.4 10.4a6.6 6.6 0 0 1 13.2 0c0 1-.6 1.4-1.3 1.4-.8 0-1.1.8-1.9.8s-1-.8-1.8-.8-1.1 2.4-1.9 2.4-1.1-2.4-1.9-2.4-1 .8-1.8.8-1.1-.8-1.9-.8c-.7 0-1.3-.4-1.3-1.4z";
+  const BOTTLE = "M10.2 5h3.6v2.2c0 1 .5 1.8 1.4 2.6 1.2 1 1.8 2.2 1.8 3.8v6.6a1.8 1.8 0 0 1-1.8 1.8H8.8A1.8 1.8 0 0 1 7 20.2v-6.6c0-1.6.6-2.8 1.8-3.8.9-.8 1.4-1.6 1.4-2.6z";
+  const BUN = "M3.2 10.2C3.2 6 7.2 3.4 12 3.4s8.8 2.6 8.8 6.8c0 .6-.4 1-1 1H4.2c-.6 0-1-.4-1-1z";
+  const BASE = "M3.6 16.8h16.8v1.2a2.4 2.4 0 0 1-2.4 2.4H6a2.4 2.4 0 0 1-2.4-2.4z";
+  const TACOFILL = "M1.99 17.86L2.08 17.36L2.4 16.87L2.77 16.41L2.99 15.97L2.96 15.52L2.71 15.04L2.41 14.51L2.25 13.99L2.37 13.52L2.75 13.13L3.27 12.83L3.74 12.53L4 12.17L4.04 11.68L3.95 11.1L3.9 10.51L4.06 10.03L4.45 9.72L5.02 9.58L5.61 9.5L6.08 9.35L6.38 9.02L6.54 8.51L6.68 7.92L6.91 7.41L7.31 7.14L7.85 7.11L8.44 7.24L8.99 7.36L9.43 7.3L9.8 6.99L10.13 6.51L10.51 6.05L10.95 5.78L11.44 5.81L11.95 6.09L12.43 6.44L12.88 6.67L13.32 6.66L13.79 6.41L14.3 6.08L14.82 5.87L15.3 5.92L15.71 6.26L16.05 6.76L16.36 7.23L16.73 7.51L17.19 7.55L17.76 7.44L18.35 7.36L18.86 7.45L19.21 7.8L19.4 8.34L19.5 8.94L19.66 9.43L19.98 9.73L20.47 9.88L21.07 9.99L21.6 10.19L21.93 10.55L22.01 11.07L21.91 11.66L21.81 12.22L21.86 12.69L19.78 13.57A7.56 7.56 0 0 0 5.31 17.45z";
+  const SHELL = "M4.26 18.82A8.86 8.86 0 0 1 21.37 14.23z";
+  const SHELLR = "M10.52 7.97A8.86 8.86 0 0 1 21.37 14.23L12.82 16.53z";
+  const SHELLARC = "M3.99 17.3A8.86 8.86 0 0 1 20.84 12.78";
+  const PUFFS = C(7.4, 9.4, 2.7) + C(10.6, 6.6, 3) + C(14.6, 6.8, 2.8) + C(17, 9.6, 2.4) + C(12.4, 9.4, 2.4);
+  const BUCKET = "M4.6 11.2h14.8l-1.9 9.8a1 1 0 0 1-1 .8H7.5a1 1 0 0 1-1-.8z";
+  const CROISSANT = "M6.74 20.03Q2.27 16.08 4.41 13.47Q3.86 9.58 7.7 8.77Q10.21 5.22 14.1 7.18Q17.86 6.09 19.2 9.78Q22.32 11.08 20.23 16.67A10.22 10.22 -14 0 0 6.74 20.03z";
+  const EGGW = "M11.2 3.2c2.4-.4 4.4.8 5.6 2.4 1 1.4 2.8 1.6 3.8 3.2 1.2 2 .8 4.6-.6 6.4-1.2 1.6-1.4 3.4-3.4 4.6-2.2 1.4-5 1.6-7.4.6-2.2-.8-3.2-2.6-4.4-4-1.4-1.6-2.4-3.8-1.8-6 .6-2.4 2.6-3.2 3.8-4.8 1.2-1.4 2.4-2.2 4.4-2.4z";
+  const PRETZEL = "M7.2 16.6C9.2 14.8 11.6 12.8 13.4 10.6C14.8 8.8 14.8 5.6 17.2 5.2C19.6 4.8 21.4 6.8 21.4 9.6C21.4 15 17.2 19.8 12 19.8C6.8 19.8 2.6 15 2.6 9.6C2.6 6.8 4.4 4.8 6.8 5.2C9.2 5.6 9.2 8.8 10.6 10.6C12.4 12.8 14.8 14.8 16.8 16.6";
+  const ROLL = "M3.4 12.4v4.4c0 2.1 2.8 3.8 6.2 3.8s6.2-1.7 6.2-3.8v-4.4z";
+  const ROLLB = "M8.2 8v4.4c0 2.1 2.8 3.8 6.2 3.8s6.2-1.7 6.2-3.8V8z";
+  const APPLE = "M12 7.4c-1.4-1-2.8-1.4-4.2-1.2C5 6.6 3.4 9 3.4 12.2c0 4.8 3.2 9.4 6.2 9.4 1 0 1.6-.5 2.4-.5s1.4.5 2.4.5c3 0 6.2-4.6 6.2-9.4 0-3.2-1.6-5.6-4.4-6-1.4-.2-2.8.2-4.2 1.2z";
+  const PEAR = "M12 2.6c2.6 0 3.6 2.2 4.2 4.6.6 2.2 2.4 3.4 2.4 7a6.6 6.6 0 0 1-13.2 0c0-3.6 1.8-4.8 2.4-7 .6-2.4 1.6-4.6 4.2-4.6z";
+
+  Faces.addFolded({
+    chip: [
+      ["m", "M5.6 4.8v3M8.8 4.8v3M12 4.8v3M15.2 4.8v3M18.4 4.8v3M5.6 16.2v3M8.8 16.2v3M12 16.2v3M15.2 16.2v3M18.4 16.2v3", { sw: 1.7 }],
+      ["m", RR(2.6, 7.4, 18.8, 9.2, 1.6)],
+      ["f", RR(2.6, 7.4, 18.8, 6.8, 1.6)],
+      ["k", "M2.6 9.3a1.5 1.5 0 0 1 0 3z"],
+      ["k", C(5.9, 12, 0.65)],
+    ],
+    bowl: [
+      ["s", "M8.2 8.4q-1.1-1.2 0-2.4t0-2.4M12 8q-1.1-1.2 0-2.4t0-2.4M15.8 8.4q-1.1-1.2 0-2.4t0-2.4", { sw: 1.5 }],
+      ["m", RR(8.4, 18.6, 7.2, 2.4, 1.2)],
+      ["f", BOWL, { round: 0.6 }],
+      ["m", BOWL, { round: 0.6, clip: ["x", 12] }],
+      ["d", E(12, 11.2, 9.2, 1.9)],
+    ],
+    cookie: [
+      ["s", C(19.8, 3.6, 0.8)], ["s", C(21.4, 6.2, 0.55)],
+      ["f", COOKIE],
+      ["m", COOKIE, { clip: ["d", 24.2] }],
+      ["k", "M7.2 8.6l1.9-.5.3 1.7-1.6.6z", { round: 0.8 }],
+      ["k", "M12.2 10.6l1.6.3-.2 1.6-1.7-.3z", { round: 0.8 }],
+      ["k", "M6.6 14.6l1.5.4-.5 1.5-1.4-.6z", { round: 0.8 }],
+      ["k", "M11.2 16.8l1.8-.2.1 1.5-1.7.3z", { round: 0.8 }],
+      ["k", "M16.2 13.4l1.4.6-.7 1.4-1.2-.8z", { round: 0.8 }],
+    ],
+    donut: [
+      ["f", C(12, 12, 9)],
+      ["m", C(12, 12, 9), { clip: ["d", 24] }],
+      ["d", RUFFLE(12, 12, 7.2, 7.2, 7, 0.07, 10)],
+      ["k", C(12, 12, 2.8)],
+      ["f", "M7.6 9.6l1.3-.7M12.4 6.6l1.4.3M16 9.4l.5 1.3M15.4 15.4l-1.2.8M8.4 14.8l.9 1.1M10.2 7.8l-.4 1.2", { sw: 1.2 }],
+    ],
+    cone: [
+      ["f", CONE, { round: 0.8 }],
+      ["m", CONE, { round: 0.8, clip: ["x", 12] }],
+      ["k", "M1 8L17 24M4.2 8L20.2 24M7.4 8L23.4 24M10.6 8L26.6 24M23 8L7 24M19.8 8L3.8 24M16.6 8L.6 24M13.4 8L-2.6 24", { sw: 1, clip: ["p", CONE] }],
+      ["k", SCOOP, { sw: 1.4, clip: ["p", CONE] }],
+      ["f", SCOOP],
+      ["m", SCOOP, { clip: ["x", 12] }],
+    ],
+    bottle: [
+      ["m", RR(9.6, 2.4, 4.8, 2.8, 0.8)],
+      ["f", BOTTLE],
+      ["m", BOTTLE, { clip: ["x", 12] }],
+      ["d", "M7 14h10v4.2H7z"],
+      ["k", C(10.9, 12, 0.7)], ["k", C(12.9, 10.5, 0.55)], ["k", C(11.7, 8.4, 0.45)],
+    ],
+    burger: [
+      ["m", "M2.8 12h18.4v.6q-1.15 1.4-2.3 0t-2.3 0-2.3 0-2.3 0-2.3 0-2.3 0-2.3 0-2.3 0z"],
+      ["m", RR(3.4, 12.8, 17.2, 3.2, 1.6)],
+      ["f", BUN],
+      ["m", BUN, { clip: ["x", 12] }],
+      ["d", E(8.6, 7, 0.8, 0.45), { tf: "rotate(-25 8.6 7)" }],
+      ["d", E(12.2, 5.4, 0.8, 0.45), { tf: "rotate(10 12.2 5.4)" }],
+      ["d", E(15.6, 7.8, 0.8, 0.45), { tf: "rotate(30 15.6 7.8)" }],
+      ["f", BASE],
+      ["m", BASE, { clip: ["x", 12] }],
+    ],
+    taco: [
+      ["m", TACOFILL],
+      ["k", SHELLARC, { sw: 1.3 }],
+      ["f", SHELL],
+      ["m", SHELLR],
+      ["d", C(7.71, 14.99, 0.65)], ["d", C(9.64, 11.34, 0.54)], ["d", C(15.57, 11.76, 0.59)],
+    ],
+    sushi: [
+      ["s", ROLLB], ["s", E(14.4, 8, 6.2, 3.6)],
+      ["m", ROLL],
+      ["f", E(9.6, 12.4, 6.2, 3.6)],
+      ["d", E(9.6, 12.4, 6.2, 3.6), { sw: 1.2 }],
+      ["k", "M8 11.9c.6-1.1 2.5-1.3 3.3-.3.6.8-.2 1.9-1.6 1.9-1.4 0-2.2-.6-1.7-1.6z"],
+    ],
+    croissant: [
+      ["f", CROISSANT],
+      ["m", CROISSANT, { clip: ["d", 25.6] }],
+      ["k", "M3.84 13.3Q6.95 15.32 8.74 18.57M7.35 8.29Q10.13 12.2 11.28 16.87M14.18 6.58Q13.56 11.35 14.73 16.01M19.63 9.36Q17.83 12.61 17.78 16.32", { sw: 1.2, clip: ["p", CROISSANT] }],
+    ],
+    cake: [
+      ["f", "M2.8 11.8L14.4 5.8L21.2 9.2z", { round: 0.8 }],
+      ["m", "M2.8 11.8L21.2 9.2V17L2.8 19.6z", { round: 0.8 }],
+      ["f", "M2.8 14.8L21.2 12.2V13.8L2.8 16.4z"],
+      ["f", C(15.4, 5.2, 2)],
+      ["m", C(15.4, 5.2, 2), { clip: ["d", 20.6] }],
+    ],
+    popcorn: [
+      ["f", PUFFS],
+      ["m", PUFFS, { clip: ["d", 21] }],
+      ["f", BUCKET],
+      ["m", BUCKET, { clip: ["x", 12] }],
+      ["k", "M8.3 12.6h1.8l.3 9.2H8.9zM13.9 12.6h1.8l-.6 9.2h-1.5z"],
+      ["m", RR(4, 10.4, 16, 2.2, 1.1)],
+    ],
+    pretzel: [
+      ["f", PRETZEL, { sw: 2.7 }],
+      ["m", PRETZEL, { sw: 2.7, clip: ["d", 25] }],
+      ["k", "M11.06 11.14L13 13.16", { sw: 4.1 }],
+      ["f", "M10.6 10.6L11.06 11.14L12 12.17L13 13.16L14.02 14.11", { sw: 2.7 }],
+      ["m", "M10.6 10.6L11.06 11.14L12 12.17L13 13.16L14.02 14.11", { sw: 2.7, clip: ["d", 25] }],
+      ["d", RR(3.9, 9.8, 0.9, 0.7, 0.3)], ["d", RR(17.4, 4.9, 0.9, 0.7, 0.3)], ["d", RR(9.2, 19.4, 0.9, 0.7, 0.3)],
+    ],
+    cherry: [
+      ["m", "M7.6 13C8.4 8.8 10.8 5.6 14 3.8M15.8 14C15.6 10.2 15 6.8 14 3.8", { sw: 1.3 }],
+      ["f", "M14 3.8c1.8-1.6 4.4-1.8 6.4-.8-1.4 1.8-4 2.4-6.4.8z", { round: 0.5 }],
+      ["m", "M14 3.8c2.2.4 4.4.1 6.4-.8-1.4 1.8-4 2.4-6.4.8z", { round: 0.5 }],
+      ["f", C(7.4, 16.4, 4.2)],
+      ["m", C(7.4, 16.4, 4.2), { clip: ["d", 23.8] }],
+      ["f", C(15.8, 17.4, 4)],
+      ["m", C(15.8, 17.4, 4), { clip: ["d", 33.2] }],
+    ],
+    apple: [
+      ["m", "M12 7.4c0-1.8.4-3.2 1.4-4.4", { sw: 1.5 }],
+      ["f", "M13 5.8c.8-2.2 3-3.4 5.6-3-.6 2.4-2.8 3.6-5.6 3z", { round: 0.5 }],
+      ["m", "M13 5.8l5.6-3c-.6 2.4-2.8 3.6-5.6 3z", { round: 0.5 }],
+      ["f", APPLE],
+      ["m", APPLE, { clip: ["x", 12] }],
+      ["k", "M6.4 11.4c.2-1.4 1-2.4 2.2-2.8", { sw: 1.2 }],
+    ],
+    avocado: [
+      ["m", PEAR, { tf: "translate(.9 .8) rotate(30 12 12)" }],
+      ["m", PEAR, { sw: 1.5, tf: "rotate(30 12 12)" }],
+      ["f", PEAR, { tf: "rotate(30 12 12)" }],
+      ["d", C(12, 14.4, 3.2), { tf: "rotate(30 12 12)" }],
+      ["f", "M10.1 13.9a2 2 0 0 1 1.3-1.4", { sw: 1, tf: "rotate(30 12 12)" }],
+    ],
+    egg: [
+      ["m", EGGW, { tf: "translate(.8 .9)" }],
+      ["f", EGGW],
+      ["d", C(10.8, 11.2, 3.9)],
+      ["f", "M8.7 10.6a2.3 2.3 0 0 1 1.5-1.6", { sw: 1 }],
+    ],
+    lollipop: [
+      ["m", "M10.4 14.2L4.4 21", { sw: 2 }],
+      ["f", C(13.6, 9.6, 7.4)],
+      ["m", C(13.6, 9.6, 7.4), { clip: ["d", 23.2] }],
+      ["k", "M13.4 9.6a1.4 1.4 0 0 1 2.8 0a2.8 2.8 0 0 1 -5.6 0a4.2 4.2 0 0 1 8.4 0a5.6 5.6 0 0 1 -11.2 0", { sw: 1.3 }],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+  const SAT = "rotate(45 12 12)";
+  const PH = "rotate(-12 12 12)";
+  const CLOUD = "M7.2 18.6A3.4 3.4 0 0 1 7.1 11.8A5.2 5.2 0 0 1 17.37 10.2A4.2 4.2 0 0 1 17.2 18.6z";
+  Faces.addFolded({
+    circuit: [
+      ["f", "M5 15.2V10.2L8.4 6.8H12.4", { sw: 2.3 }],
+      ["m", "M19 8.8V13.8L15.6 17.2H11.6", { sw: 2.3 }],
+      ["f", C(12.8, 6.8, 1.9)],
+      ["m", C(11.2, 17.2, 1.9)],
+      ["f", C(5, 18.2, 3)], ["k", C(5, 18.2, 1.15)],
+      ["m", C(19, 5.8, 3)], ["k", C(19, 5.8, 1.15)],
+    ],
+    antenna: [
+      ["s", "M6.18 3.51A7.6 7.6 0 0 0 6.18 13.29", { sw: 1.6 }],
+      ["s", "M17.82 3.51A7.6 7.6 0 0 1 17.82 13.29", { sw: 1.6 }],
+      ["f", "M8.94 5.83A4 4 0 0 0 8.94 10.97", { sw: 1.6 }],
+      ["m", "M15.06 5.83A4 4 0 0 1 15.06 10.97", { sw: 1.6 }],
+      ["f", "M12 9.8L15.6 21.4H8.4z", { round: 0.8 }],
+      ["m", "M12 9.8L15.6 21.4H8.4z", { round: 0.8, clip: ["x", 12] }],
+      ["k", "M12 14.6l1.5 4.6h-3z", { round: 0.5 }],
+      ["f", C(12, 8.4, 1.9)],
+    ],
+    signal: [
+      ["f", "M3.8 9.2A11.6 11.6 0 0 1 20.2 9.2", { sw: 2.3 }],
+      ["m", "M3.8 9.2A11.6 11.6 0 0 1 20.2 9.2", { sw: 2.3, clip: ["x", 12] }],
+      ["f", "M6.48 11.88A7.8 7.8 0 0 1 17.52 11.88", { sw: 2.3 }],
+      ["m", "M6.48 11.88A7.8 7.8 0 0 1 17.52 11.88", { sw: 2.3, clip: ["x", 12] }],
+      ["f", "M9.17 14.57A4 4 0 0 1 14.83 14.57", { sw: 2.3 }],
+      ["m", "M9.17 14.57A4 4 0 0 1 14.83 14.57", { sw: 2.3, clip: ["x", 12] }],
+      ["f", C(12, 17.4, 2)],
+      ["m", C(12, 17.4, 2), { clip: ["x", 12] }],
+    ],
+    radar: [
+      ["f", C(12, 12, 9)],
+      ["m", C(12, 12, 9), { clip: ["d", 24] }],
+      ["d", "M12 12L18.36 5.64A9 9 0 0 0 12 3z"],
+      ["k", C(12, 12, 5.2), { sw: 1.1 }],
+      ["k", "M12 12L18.2 5.8", { sw: 1.6 }],
+      ["k", C(12, 12, 1.4)],
+      ["k", C(8.1, 15.4, 1)],
+    ],
+    cloud: [
+      ["s", CLOUD, { tf: "translate(10.6 1.4) scale(.5)" }],
+      ["f", CLOUD, { tf: "translate(-.6 1)" }],
+      ["m", CLOUD, { tf: "translate(-.6 1)", clip: ["d", 25.5] }],
+    ],
+    plug: [
+      ["f", RR(8.3, 2.4, 2.2, 6.2, 1.1)],
+      ["m", RR(13.5, 2.4, 2.2, 6.2, 1.1)],
+      ["m", "M12 17.4c0 2.4 1.2 3.6 3.2 3.6s2.8-1 2.8-2.6", { sw: 1.8 }],
+      ["f", "M5.6 7.8h12.8v3.4a6.4 6.4 0 0 1-12.8 0z", { round: 0.7 }],
+      ["m", "M5.6 7.8h12.8v3.4a6.4 6.4 0 0 1-12.8 0z", { round: 0.7, clip: ["x", 12] }],
+      ["d", "M5.6 7.8h12.8v2H5.6z"],
+    ],
+    battery: [
+      ["m", RR(18.4, 9.4, 3.2, 5.2, 1.2)],
+      ["f", RR(2.4, 6.4, 17.2, 11.2, 2.4)],
+      ["m", RR(2.4, 6.4, 17.2, 11.2, 2.4), { clip: ["d", 24.6] }],
+      ["k", "M12.4 7.8L8.2 12.7h3l-1.2 3.7 4.3-5h-3z", { round: 0.5 }],
+    ],
+    cube: [
+      ["f", "M12 2.6l8.14 4.7v9.4L12 21.4l-8.14-4.7V7.3z", { round: 0.8 }],
+      ["m", "M12 12l8.14-4.7v9.4L12 21.4z", { round: 0.8 }],
+      ["k", "M3.86 7.3L12 12l8.14-4.7", { sw: 1.1 }],
+    ],
+    robot: [
+      ["f", "M12 7.4V4.8", { sw: 1.5 }],
+      ["f", C(12, 3.9, 1.7)],
+      ["m", RR(2.5, 11.2, 2.8, 5.4, 1.2)],
+      ["m", RR(18.7, 11.2, 2.8, 5.4, 1.2)],
+      ["f", RR(4.6, 7.2, 14.8, 12.8, 3.6)],
+      ["m", RR(4.6, 7.2, 14.8, 12.8, 3.6), { clip: ["x", 12] }],
+      ["k", RR(6.8, 9.8, 10.4, 5.8, 2.4)],
+      ["f", C(9.7, 12.7, 1.3)], ["f", C(14.3, 12.7, 1.3)],
+      ["k", "M10.2 17.4q1.8 1.2 3.6 0", { sw: 1.2 }],
+    ],
+    satellite: [
+      ["m", "M5 12h14", { sw: 1.4, tf: SAT }],
+      ["m", "M12 15.6v1.2", { sw: 1.5, tf: SAT }],
+      ["f", "M8.6 20a3.4 3.4 0 0 1 6.8 0z", { tf: SAT, round: 0.6 }],
+      ["f", RR(1.2, 8.9, 6.6, 6.2, 1), { tf: SAT }],
+      ["m", RR(16.2, 8.9, 6.6, 6.2, 1), { tf: SAT }],
+      ["k", "M4.5 8.9v6.2M19.5 8.9v6.2", { sw: 1.15, tf: SAT }],
+      ["f", RR(9, 8, 6, 8, 1.5), { tf: SAT }],
+      ["m", RR(9, 8, 6, 8, 1.5), { tf: SAT, clip: ["d", 24] }],
+    ],
+    server: [
+      ["f", RR(3.6, 3, 16.8, 5.2, 1.5)],
+      ["f", RR(3.6, 9.4, 16.8, 5.2, 1.5)],
+      ["f", RR(3.6, 15.8, 16.8, 5.2, 1.5)],
+      ["m", RR(3.6, 3, 16.8, 5.2, 1.5), { clip: ["d", 25] }],
+      ["m", RR(3.6, 9.4, 16.8, 5.2, 1.5), { clip: ["d", 25] }],
+      ["m", RR(3.6, 15.8, 16.8, 5.2, 1.5), { clip: ["d", 25] }],
+      ["k", "M6.4 5.6h4.6M6.4 12h4.6M6.4 18.4h4.6", { sw: 1.3 }],
+      ["k", C(16.8, 5.6, 1)], ["k", C(16.8, 12, 1)], ["k", C(16.8, 18.4, 1)],
+    ],
+    database: [
+      ["f", "M4.6 5.6a7.4 2.8 0 0 1 14.8 0V18.4a7.4 2.8 0 0 1-14.8 0z"],
+      ["m", "M12 8.4a7.4 2.8 0 0 0 7.4-2.8V18.4a7.4 2.8 0 0 1-7.4 2.8z"],
+      ["k", "M4.6 5.6a7.4 2.8 0 0 0 14.8 0M4.6 9.9a7.4 2.8 0 0 0 14.8 0M4.6 14.2a7.4 2.8 0 0 0 14.8 0", { sw: 1.2 }],
+    ],
+    braces: [
+      ["f", "M9.6 3.6h-1a2.2 2.2 0 0 0-2.2 2.2v3.4c0 1.6-1 2.8-2.6 2.8 1.6 0 2.6 1.2 2.6 2.8v3.4a2.2 2.2 0 0 0 2.2 2.2h1", { sw: 2.2 }],
+      ["m", "M14.4 3.6h1a2.2 2.2 0 0 1 2.2 2.2v3.4c0 1.6 1 2.8 2.6 2.8-1.6 0-2.6 1.2-2.6 2.8v3.4a2.2 2.2 0 0 1-2.2 2.2h-1", { sw: 2.2 }],
+      ["f", C(9.5, 12, 1.1)], ["f", C(12, 12, 1.1)], ["m", C(14.5, 12, 1.1)],
+    ],
+    cursor: [
+      ["m", "M8.4 3.4V2.3M7.2 3.8l-.8-.8M6.8 5H5.7", { sw: 1.3 }],
+      ["f", "M8.4 5V19.82l3.61-3.32 2.47 5.5 2.47-1.13-2.47-5.42h4.94z", { round: 0.8 }],
+      ["m", "M8.4 5V19.82l3.61-3.32 2.47 5.5 2.47-1.13-2.47-5.42h4.94z", { round: 0.8, clip: ["p", "M4.02 -4.84L19.35 29.6H40V-4.84z"] }],
+    ],
+    laptop: [
+      ["f", RR(4.4, 4.2, 15.2, 11, 1.6)],
+      ["m", RR(4.4, 4.2, 15.2, 11, 1.6), { clip: ["d", 27] }],
+      ["k", RR(6.2, 6, 11.6, 7.6, 0.6)],
+      ["s", "M7.4 13.6l4.4-7.6h2.4l-4.4 7.6z"], ["s", "M11.4 13.6l4.4-7.6h1l-4.4 7.6z"],
+      ["m", "M2.2 16.2h19.6l-.8 2.2a1.8 1.8 0 0 1-1.7 1.2H4.7a1.8 1.8 0 0 1-1.7-1.2z", { round: 0.4 }],
+      ["k", RR(10, 16.2, 4, 1.1, 0.55)],
+    ],
+    phone: [
+      ["f", RR(6.2, 2.4, 11.6, 19.2, 2.8), { tf: PH }],
+      ["m", RR(6.2, 2.4, 11.6, 19.2, 2.8), { tf: PH, clip: ["d", 24] }],
+      ["k", RR(7.7, 5, 8.6, 14, 1.1), { tf: PH }],
+      ["f", "M10.4 7.4h3.6a1.5 1.5 0 0 1 1.5 1.5v1.4a1.5 1.5 0 0 1-1.5 1.5h-2.9l-1.8 1.3v-1.4a1.5 1.5 0 0 1-.4-1.4V8.9a1.5 1.5 0 0 1 1.5-1.5z", { tf: PH }],
+    ],
+    headset: [
+      ["f", "M5.3 13.4V12a6.7 6.7 0 0 1 13.4 0v1.4", { sw: 2.2 }],
+      ["m", "M5.3 13.4V12a6.7 6.7 0 0 1 13.4 0v1.4", { sw: 2.2, clip: ["x", 12] }],
+      ["f", "M5.4 18.6c0 1.8 1.2 2.6 3.2 2.6h1.4", { sw: 1.4 }],
+      ["f", RR(9.6, 20, 3.4, 2.4, 1.2)],
+      ["f", RR(3, 12, 4.8, 7.8, 2.2)],
+      ["m", RR(16.2, 12, 4.8, 7.8, 2.2)],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+  const TA = "rotate(-45 10.4 13.6)";
+  const TW = "translate(-.4 .4) rotate(-45 12 12)";
+  const TR = "rotate(-45 12 12)";
+  const TH = "translate(-.8 .4) rotate(-45 12 12)";
+  const TP = "translate(-.4 .4) rotate(-45 12 12)";
+  const TM = "rotate(-14 12 12)";
+  const TU = "rotate(-30 11 8.4)";
+  const rh = (y) => `M12 ${y - 4.8}L21.4 ${y}L12 ${y + 4.8}L2.6 ${y}z`;
+  const PZ = "M3.6 7.6H8.5A2.3 2.3 0 1 1 11.5 7.6H16.4V12.5A2.3 2.3 0 1 1 16.4 15.5V20.4H11.5A2.3 2.3 0 1 0 8.5 20.4H3.6V15.5A2.3 2.3 0 1 0 3.6 12.5z";
+  const BULB = "M12 3a6.4 6.4 0 0 1 4.1 11.3c-.8.7-1.2 1.5-1.2 2.5H9.1c0-1-.4-1.8-1.2-2.5A6.4 6.4 0 0 1 12 3z";
+  const HEAD = "M14.2 10C14.2 7.4 13 5.2 10.6 3.8 15.6 4.2 20.6 5.8 20.6 10V17.2a.9.9 0 0 1-.9.9H15.1a.9.9 0 0 1-.9-.9z";
+  Faces.addFolded({
+    target: [
+      ["f", C(10.4, 13.6, 8.2)],
+      ["m", C(10.4, 13.6, 8.2), { clip: ["d", 24] }],
+      ["k", C(10.4, 13.6, 5.9)],
+      ["f", C(10.4, 13.6, 3.9)],
+      ["m", C(10.4, 13.6, 3.9), { clip: ["d", 24] }],
+      ["k", C(10.4, 13.6, 1.7)],
+      ["k", "M12.6 13.6H21", { sw: 3.2, tf: TA }],
+      ["f", "M10.6 13.6H21.4", { sw: 1.5, tf: TA }],
+      ["f", "M19 13.6L20.6 11.4H23.4L22 13.6z", { round: 0.5, tf: TA }],
+      ["m", "M19 13.6L20.6 15.8H23.4L22 13.6z", { round: 0.5, tf: TA }],
+    ],
+    wrench: [
+      ["f", C(4.6, 12, 3.6), { tf: TW }],
+      ["f", RR(5, 10.3, 14, 3.4, 1.7), { tf: TW }],
+      ["f", C(19.2, 12, 4.4), { tf: TW }],
+      ["m", C(4.6, 12, 3.6), { tf: TW, clip: ["d", 24] }],
+      ["m", RR(5, 10.3, 14, 3.4, 1.7), { tf: TW, clip: ["d", 24] }],
+      ["m", C(19.2, 12, 4.4), { tf: TW, clip: ["d", 24] }],
+      ["k", "M25 10.6H19.6a1.4 1.4 0 0 0 0 2.8H25z", { tf: TW + " rotate(15 19.2 12)" }],
+      ["k", C(4.6, 12, 1.6), { tf: TW }],
+    ],
+    compass: [
+      ["f", C(12, 12, 9)],
+      ["m", C(12, 12, 9), { clip: ["d", 24] }],
+      ["k", C(12, 12, 7.2), { sw: 1 }],
+      ["k", "M12 3.6l1.4 2.6h-2.8z", { round: 0.4 }],
+      ["k", "M12 5.6L14.5 12H9.5z", { tf: "rotate(24 12 12)" }],
+      ["d", "M9.5 12H14.5L12 18.4z", { tf: "rotate(24 12 12)" }],
+      ["f", C(12, 12, 0.85)],
+    ],
+    clipboard: [
+      ["m", RR(4, 4.2, 16, 18, 2.4)],
+      ["f", "M6.2 7.2h11.6v9.6l-3.8 3.6H6.2z", { round: 0.5 }],
+      ["d", "M17.8 16.8H14v3.6z", { round: 0.5 }],
+      ["k", RR(7.6, 1.6, 8.8, 5.6, 1.8)],
+      ["f", RR(8.6, 2.4, 6.8, 3.8, 1.2)],
+      ["k", "M8.6 11.2h6.8M8.6 14.2h6.8M8.6 17.2h3.4", { sw: 1.2 }],
+    ],
+    ruler: [
+      ["f", RR(1.6, 8.8, 20.8, 6.4, 1.2), { tf: TR }],
+      ["m", RR(1.6, 8.8, 20.8, 6.4, 1.2), { tf: TR, clip: ["d", 24] }],
+      ["k", "M7 8v3.4M9.5 8v1.9M12 8v3.4M14.5 8v1.9M17 8v3.4M19.5 8v1.9", { sw: 1.1, tf: TR }],
+      ["k", C(4, 12, 1.1), { tf: TR }],
+    ],
+    briefcase: [
+      ["m", "M9 8V5.8a1.6 1.6 0 0 1 1.6-1.6h2.8A1.6 1.6 0 0 1 15 5.8V8", { sw: 1.8 }],
+      ["f", RR(2.8, 7.4, 18.4, 13.4, 2.2)],
+      ["m", RR(2.8, 7.4, 18.4, 13.4, 2.2), { clip: ["x", 12] }],
+      ["k", "M2.8 12.6H21.2", { sw: 1.3 }],
+      ["k", RR(9.9, 11, 4.2, 3.2, 0.9)],
+      ["f", RR(10.6, 11.5, 2.8, 2.2, 0.6)],
+    ],
+    ladder: [
+      ["f", "M7.9 5.8h8.2M7.29 10h9.42M6.68 14.2h10.64M6.07 18.4h11.86", { sw: 2 }],
+      ["f", "M5.6 21.6L8.4 2.4", { sw: 2.5 }],
+      ["m", "M18.4 21.6L15.6 2.4", { sw: 2.5 }],
+    ],
+    calendar: [
+      ["f", RR(3.2, 4.8, 17.6, 16.6, 2.4)],
+      ["m", RR(3.2, 4.8, 17.6, 16.6, 2.4), { clip: ["d", 28] }],
+      ["d", "M3.2 7.2a2.4 2.4 0 0 1 2.4-2.4h12.8a2.4 2.4 0 0 1 2.4 2.4v2.4H3.2z"],
+      ["f", RR(7.2, 2.4, 1.8, 4.4, 0.9)],
+      ["f", RR(15, 2.4, 1.8, 4.4, 0.9)],
+      ["d", RR(6, 12, 2.6, 2.4, 0.6)], ["d", RR(10.7, 12, 2.6, 2.4, 0.6)], ["d", RR(15.4, 12, 2.6, 2.4, 0.6)],
+      ["d", RR(6, 16.2, 2.6, 2.4, 0.6)], ["k", RR(10.7, 16.2, 2.6, 2.4, 0.6)],
+    ],
+    clock: [
+      ["f", C(12, 12, 9)],
+      ["m", C(12, 12, 9), { clip: ["d", 24] }],
+      ["k", "M19.4 12h-1.6M12 19.4v-1.6M4.6 12h1.6", { sw: 1.3 }],
+      ["k", "M12 12V5.6M12 12l3.5 2", { sw: 1.8 }],
+      ["f", C(12, 12, 0.8)],
+    ],
+    hammer: [
+      ["m", RR(1.8, 10.6, 14, 2.8, 1.4), { tf: TH }],
+      ["f", HEAD, { tf: TH }],
+      ["m", HEAD, { tf: TH, clip: ["d", 23.6] }],
+      ["d", "M14.2 16.2h6.4v1a.9.9 0 0 1-.9.9H15.1a.9.9 0 0 1-.9-.9z", { tf: TH }],
+    ],
+    pencil: [
+      ["m", "M5.6 9.4L1.4 12 5.6 14.6z", { round: 0.6, tf: TP }],
+      ["k", "M1.4 12L3.2 10.89V13.11z", { round: 0.4, tf: TP }],
+      ["f", "M5.6 9.4H16.6V14.6H5.6z", { tf: TP }],
+      ["m", "M5.6 9.4H16.6V14.6H5.6z", { tf: TP, clip: ["d", 24] }],
+      ["d", "M16.6 9.4H18.6V14.6H16.6z", { tf: TP }],
+      ["f", "M18.6 9.4H20.2a1.2 1.2 0 0 1 1.2 1.2V13.4a1.2 1.2 0 0 1-1.2 1.2H18.6z", { tf: TP }],
+      ["m", "M18.6 9.4H20.2a1.2 1.2 0 0 1 1.2 1.2V13.4a1.2 1.2 0 0 1-1.2 1.2H18.6z", { tf: TP, clip: ["d", 24] }],
+    ],
+    bulb: [
+      ["a", C(12, 9.4, 9.4)],
+      ["m", "M9.1 17.2h5.8v2.2a1.4 1.4 0 0 1-1.4 1.4h-3a1.4 1.4 0 0 1-1.4-1.4z"],
+      ["m", "M10.8 20.4h2.4v.4a1.2 1.2 0 0 1-2.4 0z"],
+      ["f", BULB],
+      ["m", BULB, { clip: ["x", 12] }],
+      ["k", "M9.1 18.9h5.8", { sw: 0.9 }],
+      ["k", SP(12, 9.6, 3)],
+    ],
+    puzzle: [
+      ["f", PZ, { round: 0.8 }],
+      ["m", PZ, { round: 0.8, clip: ["d", 24] }],
+    ],
+    megaphone: [
+      ["s", "M18.4 9.2a4 4 0 0 1 0 5.6M20.6 7.4a6.6 6.6 0 0 1 0 9.2", { sw: 1.4, tf: TM }],
+      ["m", "M7.8 13.6L7 18.2a1 1 0 0 0 1 1.2h1.2a1 1 0 0 0 1-.9l.6-4.2z", { round: 0.6, tf: TM }],
+      ["f", "M2.6 10.4h2.2L14.8 5.4V18.6L4.8 13.6H2.6z", { round: 0.9, tf: TM }],
+      ["m", "M2.6 10.4h2.2L14.8 5.4V18.6L4.8 13.6H2.6z", { round: 0.9, tf: TM, clip: ["p", "M-10 17.48L34 6.52V40H-10z"] }],
+      ["d", E(14.8, 12, 1.5, 6.6), { tf: TM }],
+    ],
+    trophy: [
+      ["m", "M6.6 5.4H5.2a2 2 0 0 0-2 2.1c.1 2.3 1.8 4.1 4.3 4.5M17.4 5.4h1.4a2 2 0 0 1 2 2.1c-.1 2.3-1.8 4.1-4.3 4.5", { sw: 1.7 }],
+      ["f", "M6.2 3.4h11.6v4.8a5.8 5.8 0 0 1-11.6 0z"],
+      ["f", "M10.8 13.4h2.4l.5 4h-3.4z"],
+      ["f", RR(7.6, 17.2, 8.8, 4, 1)],
+      ["m", "M6.2 3.4h11.6v4.8a5.8 5.8 0 0 1-11.6 0z", { clip: ["x", 12] }],
+      ["m", "M10.8 13.4h2.4l.5 4h-3.4z", { clip: ["x", 12] }],
+      ["m", RR(7.6, 17.2, 8.8, 4, 1), { clip: ["x", 12] }],
+      ["k", "M12.0 5.4L12.76 7.45L14.95 7.54L13.24 8.9L13.82 11.01L12.0 9.8L10.18 11.01L10.76 8.9L9.05 7.54L11.24 7.45z", { round: 0.5 }],
+    ],
+    scales: [
+      ["m", "M18.6 5.6L15.8 13.8M18.6 5.6L21.4 13.8", { sw: 1.1 }],
+      ["f", "M5.4 7.2L2.6 15.4M5.4 7.2L8.2 15.4", { sw: 1.1 }],
+      ["f", RR(11.1, 5, 1.8, 15, 0.9)],
+      ["f", "M8.2 21.4L9.6 19H14.4L15.8 21.4z", { round: 0.6 }],
+      ["m", "M8.2 21.4L9.6 19H14.4L15.8 21.4z", { round: 0.6, clip: ["x", 12] }],
+      ["f", "M5.4 7.2L18.6 5.6", { sw: 1.7 }],
+      ["f", C(12, 4.4, 1.3)],
+      ["f", "M2.2 15.4h6.4a3.2 2.8 0 0 1-6.4 0z"],
+      ["m", "M15.4 13.8h6.4a3.2 2.8 0 0 1-6.4 0z"],
+    ],
+    microscope: [
+      ["m", "M15.4 19.2c3-3.2 3-9-1.6-12", { sw: 2.8 }],
+      ["f", RR(5.8, 14.6, 10.6, 1.9, 0.95)],
+      ["f", RR(9, 3.8, 4, 9.6, 1.2), { tf: TU }],
+      ["m", "M11 3.8h.8a1.2 1.2 0 0 1 1.2 1.2v7.2a1.2 1.2 0 0 1-1.2 1.2H11z", { tf: TU }],
+      ["f", RR(9.9, 13, 2.2, 2, 0.5), { tf: TU }],
+      ["f", RR(8.4, 2, 5.2, 2.4, 1), { tf: TU }],
+      ["f", "M4.4 21.6a2.4 2.4 0 0 1 2.4-2.4h10.4a2.4 2.4 0 0 1 2.4 2.4z"],
+      ["m", "M4.4 21.6a2.4 2.4 0 0 1 2.4-2.4h10.4a2.4 2.4 0 0 1 2.4 2.4z", { clip: ["x", 12] }],
+    ],
+    layers: [
+      ["s", rh(16.8), { round: 0.8 }],
+      ["k", rh(12.4), { sw: 2.2 }],
+      ["m", rh(12.4), { round: 0.8 }],
+      ["k", rh(8), { sw: 2.2 }],
+      ["f", rh(8), { round: 0.8 }],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+  Faces.addFolded({
+    tree: [
+      ["s", "M18.2 6.4l3.6 6h-1.6l2 4.4h-8z", { round: 0.8 }],
+      ["m", RR(9.2, 17.4, 2.8, 4.2, 0.7)],
+      ["f", "M10.6 2.4l4.8 6.2h-2l4.2 5.2h-2.2l3.6 5H3.2l3.6-5H4.6l4.2-5.2h-2z", { round: 0.8 }],
+      ["m", "M10.6 2.4l4.8 6.2h-2l4.2 5.2h-2.2l3.6 5H3.2l3.6-5H4.6l4.2-5.2h-2z", { round: 0.8, clip: ["x", 10.6] }],
+    ],
+    sun: [
+      ["f", "M12 2.2L13.68 5.72L10.32 5.72zM18.08 5.92L17.51 8.56L15.44 6.49zM21.8 12L18.28 13.68L18.28 10.32zM18.08 18.08L15.44 17.51L17.51 15.44zM12 21.8L10.32 18.28L13.68 18.28zM5.92 18.08L6.49 15.44L8.56 17.51zM2.2 12L5.72 10.32L5.72 13.68zM5.92 5.92L8.56 6.49L6.49 8.56z", { round: 0.8 }],
+      ["m", "M12 2.2L13.68 5.72L10.32 5.72zM18.08 5.92L17.51 8.56L15.44 6.49zM21.8 12L18.28 13.68L18.28 10.32zM18.08 18.08L15.44 17.51L17.51 15.44zM12 21.8L10.32 18.28L13.68 18.28zM5.92 18.08L6.49 15.44L8.56 17.51zM2.2 12L5.72 10.32L5.72 13.68zM5.92 5.92L8.56 6.49L6.49 8.56z", { round: 0.8, clip: ["d", 24] }],
+      ["f", C(12, 12, 5.2)],
+      ["m", C(12, 12, 5.2), { clip: ["d", 24] }],
+    ],
+    star: [
+      ["f", "M12 2.6L14.7 9.08L21.7 9.65L16.37 14.22L18 21.05L12 17.4L6 21.05L7.63 14.22L2.3 9.65L9.3 9.08z", { round: 0.9 }],
+      ["m", "M12 12.8L12 2.6L14.7 9.08zM12 12.8L21.7 9.65L16.37 14.22zM12 12.8L18 21.05L16.37 14.22zM12 12.8L6 21.05L12 17.4zM12 12.8L2.3 9.65L7.63 14.22z", { round: 0.9 }],
+    ],
+    snow: [
+      ["f", "M12 12L12 2.6M12 12L20.14 7.3M12 12L20.14 16.7M12 12L12 21.4M12 12L3.86 16.7M12 12L3.86 7.3", { sw: 1.9 }],
+      ["f", "M12 6.6L14.3 4.67M12 6.6L9.7 4.67M16.68 9.3L19.5 10.33M16.68 9.3L17.2 6.35M16.68 14.7L17.2 17.65M16.68 14.7L19.5 13.67M12 17.4L9.7 19.33M12 17.4L14.3 19.33M7.32 14.7L4.5 13.67M7.32 14.7L6.8 17.65M7.32 9.3L6.8 6.35M7.32 9.3L4.5 10.33", { sw: 1.5 }],
+      ["m", "M12 12L12 2.6M12 12L20.14 7.3M12 12L20.14 16.7M12 12L12 21.4M12 12L3.86 16.7M12 12L3.86 7.3", { sw: 1.9, clip: ["d", 24] }],
+      ["m", "M12 6.6L14.3 4.67M12 6.6L9.7 4.67M16.68 9.3L19.5 10.33M16.68 9.3L17.2 6.35M16.68 14.7L17.2 17.65M16.68 14.7L19.5 13.67M12 17.4L9.7 19.33M12 17.4L14.3 19.33M7.32 14.7L4.5 13.67M7.32 14.7L6.8 17.65M7.32 9.3L6.8 6.35M7.32 9.3L4.5 10.33", { sw: 1.5, clip: ["d", 24] }],
+    ],
+    drop: [
+      ["s", "M18.6 3.2c.3 1.2 2 2.6 2 4a2 2 0 0 1-4 0c0-1.4 1.7-2.8 2-4z"],
+      ["f", "M11.6 2.4c.6 2.6 6.6 7.2 6.6 12.6a6.6 6.6 0 0 1-13.2 0c0-5.4 6-10 6.6-12.6z"],
+      ["m", "M11.6 2.4c.6 2.6 6.6 7.2 6.6 12.6a6.6 6.6 0 0 1-13.2 0c0-5.4 6-10 6.6-12.6z", { clip: ["x", 11.6] }],
+      ["k", "M8 14.6a3.8 3.8 0 0 0 2.6 3.8", { sw: 1.4 }],
+    ],
+    sprout: [
+      ["m", "M4.8 21.4c1.6-2.6 4.2-3.8 7.2-3.8s5.6 1.2 7.2 3.8z", { round: 0.8 }],
+      ["f", "M12 18.6V11.6", { sw: 1.8 }],
+      ["f", "M11.6 13.6Q10.65 6.49 3.6 7.8Q4.55 14.91 11.6 13.6z"],
+      ["m", "M11.6 13.6L3.6 7.8Q4.55 14.91 11.6 13.6z"],
+      ["f", "M12.4 11.4Q13.57 4.75 20.2 6Q19.03 12.65 12.4 11.4z"],
+      ["m", "M12.4 11.4L20.2 6Q19.03 12.65 12.4 11.4z"],
+    ],
+    flower: [
+      ["m", "M12 15v6.6", { sw: 1.8 }],
+      ["f", "M11.8 21.2Q11.36 14.85 5 15Q5.44 21.35 11.8 21.2z"],
+      ["m", "M11.8 21.2L5 15Q5.44 21.35 11.8 21.2z"],
+      ["f", "M12 15.8C8.4 15.8 6 13.4 6 9.6c0-2.2.2-4.2.6-6 1.8.6 2.8 1.8 3.2 3.4.6-2 1.2-3.4 2.2-4.6 1 1.2 1.6 2.6 2.2 4.6.4-1.6 1.4-2.8 3.2-3.4.4 1.8.6 3.8.6 6 0 3.8-2.4 6.2-6 6.2z", { round: 0.6 }],
+      ["m", "M12 15.8C8.4 15.8 6 13.4 6 9.6c0-2.2.2-4.2.6-6 1.8.6 2.8 1.8 3.2 3.4.6-2 1.2-3.4 2.2-4.6 1 1.2 1.6 2.6 2.2 4.6.4-1.6 1.4-2.8 3.2-3.4.4 1.8.6 3.8.6 6 0 3.8-2.4 6.2-6 6.2z", { round: 0.6, clip: ["x", 12] }],
+    ],
+    cactus: [
+      ["s", "M2.8 21.6c2.4-2 5.4-2.8 9.2-2.8s6.8.8 9.2 2.8z"],
+      ["f", "M12 14.4H6.6V9.2", { sw: 3.4 }],
+      ["m", "M12 11.8h5.4V6.6", { sw: 3.4 }],
+      ["f", "M9.2 20.8V6a2.8 2.8 0 0 1 5.6 0v14.8z"],
+      ["m", "M9.2 20.8V6a2.8 2.8 0 0 1 5.6 0v14.8z", { clip: ["x", 12] }],
+    ],
+    mushroom: [
+      ["m", "M9.6 14h4.8l.6 5.6a1.6 1.6 0 0 1-1.6 1.8h-2.8a1.6 1.6 0 0 1-1.6-1.8z"],
+      ["f", "M2.8 12.4C2.8 6.8 7 3 12 3s9.2 3.8 9.2 9.4c0 .8-.6 1.4-1.4 1.4H4.2c-.8 0-1.4-.6-1.4-1.4z"],
+      ["m", "M2.8 12.4C2.8 6.8 7 3 12 3s9.2 3.8 9.2 9.4c0 .8-.6 1.4-1.4 1.4H4.2c-.8 0-1.4-.6-1.4-1.4z", { clip: ["d", 21] }],
+      ["k", C(8.2, 7.8, 1.7)], ["k", C(14, 5.6, 0.95)], ["k", C(16.2, 10.4, 1.3)],
+    ],
+    rainbow: [
+      ["s", "M7.6 16.6a4.4 4.4 0 0 1 8.8 0", { sw: 2.2 }],
+      ["m", "M5.2 16.6a6.8 6.8 0 0 1 13.6 0", { sw: 2.2 }],
+      ["f", "M2.8 16.6a9.2 9.2 0 0 1 18.4 0", { sw: 2.2 }],
+      ["f", "M13.2 20.4a2.4 2.4 0 0 1-.2-4.8 3.6 3.6 0 0 1 6.8-1 2.9 2.9 0 0 1 1.4 5.8z", { round: 0.6 }],
+      ["m", "M13.2 20.4a2.4 2.4 0 0 1-.2-4.8 3.6 3.6 0 0 1 6.8-1 2.9 2.9 0 0 1 1.4 5.8z", { round: 0.6, clip: ["d", 34] }],
+    ],
+    planet: [
+      ["s", C(19.6, 4.4, 1.1)],
+      ["m", E(12, 12, 9.6, 3.2), { sw: 1.7, tf: "rotate(-20 12 12)" }],
+      ["f", C(12, 12, 6.8)],
+      ["m", C(12, 12, 6.8), { clip: ["d", 24] }],
+      ["k", "M2.4 12A9.6 3.2 0 0 0 21.6 12", { sw: 3.6, tf: "rotate(-20 12 12)" }],
+      ["f", "M2.4 12A9.6 3.2 0 0 0 21.6 12", { sw: 1.7, tf: "rotate(-20 12 12)" }],
+    ],
+    feather: [
+      ["f", "M7.6 17.6L6.6 21.6", { sw: 1.6 }],
+      ["f", "M7.6 17.8C7.4 17.3 6.8 16.1 6.6 15C6.3 13.9 6.1 12.5 6.2 11.2C6.2 10 6.4 8.6 6.9 7.4C7.4 6.2 8.1 5 9 4.1C9.9 3.2 11.1 2.5 12.1 2.1C13.2 1.6 14.1 1.4 15.2 1.5C16.2 1.5 17.9 2.1 18.4 2.2C18.3 2.6 18.1 4.1 17.9 4.9C17.7 5.7 17.4 6.4 17 7.2C16.6 8 16.1 8.9 15.6 9.6C15.1 10.4 14.5 11.1 13.8 11.8C13.2 12.5 12.4 13.1 11.7 13.8C10.9 14.5 10.1 15.3 9.4 15.9C8.8 16.6 7.9 17.5 7.6 17.8z"],
+      ["m", "M7.6 17.8Q9.8 8.2 18.4 2.2C18.3 2.6 18.1 4.1 17.9 4.9C17.7 5.7 17.4 6.4 17 7.2C16.6 8 16.1 8.9 15.6 9.6C15.1 10.4 14.5 11.1 13.8 11.8C13.2 12.5 12.4 13.1 11.7 13.8C10.9 14.5 10.1 15.3 9.4 15.9C8.8 16.6 7.9 17.5 7.6 17.8z"],
+      ["k", "M9.5 12.4L6.6 7.4L7.2 6.2zM12.5 7.6L16.5 8.7L16.9 7.9z"],
+    ],
+    paw: [
+      ["f", "M12 10.6c2.6 0 4.2 2.4 5.6 4.4 1.2 1.8 1.4 4.6-1.2 5.2-1.6.4-2.8-.6-4.4-.6s-2.8 1-4.4.6c-2.6-.6-2.4-3.4-1.2-5.2 1.4-2 3-4.4 5.6-4.4z"],
+      ["f", E(5.2, 10.6, 1.9, 2.4), { tf: "rotate(-24 5.2 10.6)" }],
+      ["f", E(9.3, 5.6, 2, 2.6), { tf: "rotate(-8 9.3 5.6)" }],
+      ["f", E(14.7, 5.6, 2, 2.6), { tf: "rotate(8 14.7 5.6)" }],
+      ["f", E(18.8, 10.6, 1.9, 2.4), { tf: "rotate(24 18.8 10.6)" }],
+      ["m", "M12 10.6c2.6 0 4.2 2.4 5.6 4.4 1.2 1.8 1.4 4.6-1.2 5.2-1.6.4-2.8-.6-4.4-.6s-2.8 1-4.4.6c-2.6-.6-2.4-3.4-1.2-5.2 1.4-2 3-4.4 5.6-4.4z", { clip: ["d", 27.4] }],
+      ["m", E(14.7, 5.6, 2, 2.6), { tf: "rotate(8 14.7 5.6)", clip: ["d", 20.3] }],
+      ["m", E(18.8, 10.6, 1.9, 2.4), { tf: "rotate(24 18.8 10.6)", clip: ["d", 29.4] }],
+    ],
+    bird: [
+      ["m", "M9.4 18.6v2.4M12.2 18.8v2.2", { sw: 1.2 }],
+      ["m", "M3.4 21.2h17", { sw: 1.4 }],
+      ["m", "M5.2 8.4L2.4 9.6l2.8 1.2z", { round: 0.6 }],
+      ["f", "M5 9.6C5 7 7 5 9.2 5c2.4 0 3.8 1.8 4.2 3.8 1.2 1 3 2.4 4.2 3.2l4-1.6-1.8 4.2c-1.2 3-4.2 4.4-7.2 4.4-4 0-6.8-2.4-7.4-5.8z", { round: 0.7 }],
+      ["m", "M9.4 12.2c2.6-1.6 6.6-1 8.8.4-1.6 3.2-5.4 3.8-8.8-.4z"],
+      ["k", C(8.6, 8.6, 0.85)],
+    ],
+    fish: [
+      ["s", C(3.4, 6, 1.1)], ["s", C(5.6, 3.4, 0.7)],
+      ["m", "M15.4 12l5.8-4.6q-1.2 4.6 0 9.2z", { round: 0.8 }],
+      ["m", "M9.4 7Q12 3.8 15.2 4.8l-.6 3z", { round: 0.6 }],
+      ["f", "M2.8 12C4.8 8.2 8.4 6.2 11.6 6.2S17 8.6 17.8 12c-.8 3.4-3 5.8-6.2 5.8S4.8 15.8 2.8 12z"],
+      ["m", "M2.8 12C4.8 8.2 8.4 6.2 11.6 6.2S17 8.6 17.8 12c-.8 3.4-3 5.8-6.2 5.8S4.8 15.8 2.8 12z", { clip: ["p", "M-4 12.6Q10 14.4 28 11V30H-4z"] }],
+      ["k", C(6.8, 10.8, 0.95)],
+      ["k", "M9.8 8.4q1.6 3.6 0 7.2", { sw: 1.1 }],
+    ],
+    butterfly: [
+      ["f", "M11 10.6C8.4 5.4 4.2 3.4 3 5.8c-1 2.2.2 5.6 8 6.2zM11 12.8c-4.4.4-6.8 3-5.8 5.4 1 2.2 4.2 1.4 5.8-2.6zM13 10.6c2.6-5.2 6.8-7.2 8-4.8 1 2.2-.2 5.6-8 6.2zM13 12.8c4.4.4 6.8 3 5.8 5.4-1 2.2-4.2 1.4-5.8-2.6z", { round: 0.6 }],
+      ["m", "M11 10.6C8.4 5.4 4.2 3.4 3 5.8c-1 2.2.2 5.6 8 6.2zM11 12.8c-4.4.4-6.8 3-5.8 5.4 1 2.2 4.2 1.4 5.8-2.6zM13 10.6c2.6-5.2 6.8-7.2 8-4.8 1 2.2-.2 5.6-8 6.2zM13 12.8c4.4.4 6.8 3 5.8 5.4-1 2.2-4.2 1.4-5.8-2.6z", { round: 0.6, clip: ["x", 12] }],
+      ["f", "M11.6 7.6Q10.8 4.6 9 3.8M12.4 7.6Q13.2 4.6 15 3.8", { sw: 1.1 }],
+      ["f", RR(11.1, 7, 1.8, 11.2, 0.9)],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+  const PLANE = "M12 1.8c.9 0 1.5 1 1.5 2.4v5L21.2 14v2l-7.7-2.6v4.4l2.9 2.2v1.4L12 20.4l-4.4 1v-1.4l2.9-2.2v-4.4L2.8 16v-2l7.7-4.8v-5c0-1.4.6-2.4 1.5-2.4z";
+  const CAR = "M3.8 17.4a1.4 1.4 0 0 1-1.4-1.4v-2.8c0-.9.6-1.6 1.4-1.8L7 10.6l2.4-3.6c.3-.4.8-.6 1.3-.6h4.6c.5 0 1 .2 1.3.6l3 3.8 1.2.3c.7.2 1.2.9 1.2 1.6V16a1.4 1.4 0 0 1-1.4 1.4z";
+  const PIN = "M12 20.6c-4.6-4.2-7-7.8-7-11.2a7 7 0 0 1 14 0c0 3.4-2.4 7-7 11.2z";
+  const KEY = "M10.79 10.6H22.4v5.6h-3v-2.8h-1.6v2h-2v-2h-5.01A4.8 4.8 0 1 1 10.79 10.6z";
+  const KTF = "translate(-0.5 -0.8) rotate(-45 12 12)";
+  const TRAIN = "M5.4 9.2L5 6.2h3.6l-.4 3H13.4V5.8h7.8v10.8H5a2.4 3.7 0 0 1 0-7.4z";
+  const CASTLE = "M2.8 21V5.4h2v1.8h1.8V5.4h2V11h1V9.2h1.6V11h1.6V9.2h1.6V11h1V5.4h2v1.8h1.8V5.4h2V21z";
+  const BALLOON = "M12 2.2c4.2 0 7.4 3.2 7.4 7.2 0 3.6-2.6 6-4.2 7.8H8.8c-1.6-1.8-4.2-4.2-4.2-7.8 0-4 3.2-7.2 7.4-7.2z";
+  const CLOUD = "M3.2 8.2a1.6 1.6 0 0 1 .5-3.1 2.2 2.2 0 0 1 4.2-.4 1.5 1.5 0 0 1 1.3 2.2 1.3 1.3 0 0 1-.4 1.3z";
+  const SUIT = RR(5, 6.4, 14, 13.4, 2.4);
+  Faces.addFolded({
+    plane: [
+      ["s", "M3.2 8.2a1.6 1.6 0 0 1 .5-3.1 2.2 2.2 0 0 1 4.2-.4 1.5 1.5 0 0 1 1.3 2.2 1.3 1.3 0 0 1-.4 1.3z", { tf: "translate(1.2 -0.8) scale(0.8)" }],
+      ["f", PLANE, { round: 0.8, tf: "translate(1 -1) rotate(45 12 12)" }],
+      ["m", PLANE, { round: 0.8, tf: "translate(1 -1) rotate(45 12 12)", clip: ["d", 24] }],
+    ],
+    boat: [
+      ["s", "M2.6 21.4q2.4-1.2 4.8 0t4.8 0 4.8 0 4.8 0", { sw: 1.2 }],
+      ["f", "M11.2 2.4V13.8H3.6C6.8 10.6 9.6 6.7 11.2 2.4z", { round: 0.7 }],
+      ["m", "M12.8 4.6V13.8h6.6C17.6 10.2 15.4 7 12.8 4.6z", { round: 0.7 }],
+      ["f", "M2.6 15.2h18.8l-3 3.8a1 1 0 0 1-.8.4H6.4a1 1 0 0 1-.8-.4z", { round: 0.6 }],
+      ["m", "M2.6 15.2h18.8l-3 3.8a1 1 0 0 1-.8.4H6.4a1 1 0 0 1-.8-.4z", { round: 0.6, clip: ["x", 12] }],
+    ],
+    car: [
+      ["f", CAR],
+      ["m", CAR, { clip: ["p", "M0 14.2h30v20H0z"] }],
+      ["k", "M9.3 10.4l1.6-2.5h2V10.4zM13.9 10.4V7.9h2.2l2 2.5z", { round: 0.4 }],
+      ["k", C(7.2, 17.4, 3) + C(17, 17.4, 3), { clip: ["p", CAR] }],
+      ["f", C(7.2, 17.4, 2.2) + C(17, 17.4, 2.2)],
+      ["k", C(7.2, 17.4, 0.8) + C(17, 17.4, 0.8)],
+    ],
+    tent: [
+      ["s", SP(19.2, 3.6, 1.8)],
+      ["m", "M8.8 4.4L17.2 5.8 21.6 19 15.2 19.8z", { round: 0.8 }],
+      ["f", "M8.8 4.4L15.2 19.8H2.4z", { round: 0.8 }],
+      ["k", "M8.8 10.2L12 19.8H8.8z"],
+      ["d", "M8.8 10.2L8.8 19.8H6.2z"],
+    ],
+    pin: [
+      ["s", E(12, 20.6, 4.6, 1.3)],
+      ["f", PIN],
+      ["m", PIN, { clip: ["x", 12] }],
+      ["k", C(12, 9.4, 2.6)],
+    ],
+    key: [
+      ["f", KEY, { round: 0.6, tf: KTF }],
+      ["m", KEY, { round: 0.6, tf: KTF, clip: ["d", 22.7] }],
+      ["k", C(5.4, 12, 1.8), { tf: KTF }],
+    ],
+    door: [
+      ["s", "M5.4 19.4h9.6l3.4 2.8H2.2z"],
+      ["f", "M5.4 2.8h9.6v16.6H5.4z", { round: 0.6 }],
+      ["m", "M15 2.8L19.6 1.6V21L15 19.4z", { round: 0.6 }],
+      ["k", C(18.2, 11.6, 0.8)],
+    ],
+    bike: [
+      ["f", C(6.4, 15.4, 3.8), { sw: 1.8 }],
+      ["m", C(6.4, 15.4, 3.8), { sw: 1.8, clip: ["d", 21.8] }],
+      ["f", C(17.6, 15.4, 3.8), { sw: 1.8 }],
+      ["m", C(17.6, 15.4, 3.8), { sw: 1.8, clip: ["d", 33] }],
+      ["f", "M6.4 15.4h5.2L9.6 9.2zM9.6 9.2h6.1L11.6 15.4M15.2 7.4l2.4 8", { sw: 1.55 }],
+      ["f", "M8 8.4h3.2M14 7.2h2.4", { sw: 1.7 }],
+    ],
+    train: [
+      ["s", C(8.6, 3.4, 1.6)], ["s", C(11.8, 2.6, 1.1)],
+      ["f", TRAIN, { round: 0.6 }],
+      ["m", TRAIN, { round: 0.6, clip: ["p", "M0 13.6h30v20H0z"] }],
+      ["m", RR(12.6, 4.4, 9.4, 2, 1)],
+      ["k", RR(15.4, 7.8, 3.8, 3.2, 0.6)],
+      ["k", "M9.2 9.6v6.6", { sw: 1.1 }],
+      ["k", C(5.8, 18.9, 2.8) + C(10.6, 18.9, 2.8) + C(17, 18.1, 3.6), { clip: ["p", TRAIN] }],
+      ["m", C(5.8, 18.9, 2) + C(10.6, 18.9, 2) + C(17, 18.1, 2.8)],
+      ["k", C(5.8, 18.9, 0.7) + C(10.6, 18.9, 0.7) + C(17, 18.1, 0.9)],
+    ],
+    lighthouse: [
+      ["s", "M10.2 6.2L2.2 3.2v6z"], ["s", "M13.8 6.2l8-3v6z"],
+      ["m", "M9.6 4.8a2.4 2.4 0 0 1 4.8 0z"],
+      ["f", RR(10.2, 4.8, 3.6, 2.8, 0.3)],
+      ["m", RR(8.4, 7.6, 7.2, 1.6, 0.6)],
+      ["f", "M9.7 9.2h4.6l1.9 11.2H7.8z", { round: 0.6 }],
+      ["m", "M9.7 9.2h4.6l1.9 11.2H7.8z", { round: 0.6, clip: ["x", 12] }],
+      ["d", "M9.32 11.4h5.36l.3 1.8H9.02zM8.64 15.4h6.72l.3 1.8H8.34z"],
+      ["k", "M11 20.4v-2a1 1 0 0 1 2 0v2z"],
+      ["m", RR(4.6, 20, 14.8, 1.8, 0.9)],
+    ],
+    castle: [
+      ["f", "M5.7 5.6V1.6", { sw: 1.1 }],
+      ["m", "M5.7 1.6l3.4 1.2-3.4 1.2z", { round: 0.4 }],
+      ["f", CASTLE, { round: 0.5 }],
+      ["m", CASTLE, { round: 0.5, clip: ["x", 12] }],
+      ["k", "M9.8 21v-3.4a2.2 2.2 0 0 1 4.4 0V21z"],
+      ["k", RR(5, 10.2, 1.4, 3, 0.7)], ["k", RR(17.6, 10.2, 1.4, 3, 0.7)],
+    ],
+    city: [
+      ["s", RR(3.8, 6.2, 5.6, 14.8, 0.4)],
+      ["f", RR(2.6, 10.4, 5.4, 10.6, 0.4)],
+      ["f", RR(8.6, 4.4, 6, 16.6, 0.4)],
+      ["m", RR(8.6, 4.4, 6, 16.6, 0.4), { clip: ["x", 11.6] }],
+      ["f", "M11.6 4.6V1.8", { sw: 1.2 }],
+      ["m", RR(15.2, 8.4, 6.2, 12.6, 0.4)],
+      ["k", "M4.2 12.8h2.2M4.2 15.4h2.2M4.2 18h2.2", { sw: 1.2 }],
+      ["k", "M10.4 7.2v11M12.8 7.2v11", { sw: 1.1 }],
+      ["k", "M17 11h2.6M17 13.6h2.6M17 16.2h2.6", { sw: 1.2 }],
+    ],
+    bridge: [
+      ["s", "M2.2 20.8q2.45-1.6 4.9 0t4.9 0 4.9 0 4.9 0", { sw: 1.3 }],
+      ["f", "M9 9.6v3.4M10.5 10.6v2.4M12 11v2M13.5 10.6v2.4M15 9.6v3.4", { sw: 0.9 }],
+      ["f", "M2 12.6Q4.8 12.2 6.7 5 12 15.4 17.3 5 19.2 12.2 22 12.6", { sw: 1.3 }],
+      ["f", RR(5.6, 4.2, 2.2, 14.8, 0.6)], ["f", RR(16.2, 4.2, 2.2, 14.8, 0.6)],
+      ["f", RR(2, 12.8, 20, 1.6, 0.5)],
+      ["m", RR(2, 14.4, 20, 1.4, 0.4)],
+    ],
+    map: [
+      ["f", "M3 5.6L9 3.4v15L3 20.6z", { round: 0.6 }],
+      ["m", "M9 3.4l6 2.2v15l-6-2.2z", { round: 0.6 }],
+      ["f", "M15 5.6l6-2.2v15l-6 2.2z", { round: 0.6 }],
+      ["k", "M4.8 16.6l1.6-1.2M8.2 14l1.8-.4M11.8 13.8l1.6.8M15.2 13.6l1.2-1.6", { sw: 1.2 }],
+      ["k", C(18, 9, 1.6)],
+    ],
+    suitcase: [
+      ["m", C(7.8, 21, 1.2)], ["m", C(16.2, 21, 1.2)],
+      ["m", "M9.4 6.6V3.4a.8.8 0 0 1 .8-.8h3.6a.8.8 0 0 1 .8.8v3.2", { sw: 1.4 }],
+      ["f", SUIT],
+      ["m", SUIT, { clip: ["d", 25.1] }],
+      ["k", "M9.4 9.2v7.8M14.6 9.2v7.8", { sw: 1.2 }],
+    ],
+    bed: [
+      ["s", "M19.6 7.4a3 3 0 0 1-3.6-3.6 3 3 0 1 0 3.6 3.6z"],
+      ["m", "M2.4 21V6.2a1.2 1.2 0 0 1 2.4 0V13.8h15.6a1.2 1.2 0 0 1 1.2 1.2V21h-2.2v-2.4H4.8V21z"],
+      ["f", "M4.8 15.4V12.2c0-1.4 1-2.4 2.4-2.4h1.6c1.2 0 2 .8 2.2 1.6H19.6a2 2 0 0 1 2 2v2z"],
+      ["d", "M10.4 11.4h1.6v4h-1.6z"],
+    ],
+    ticket: [
+      ["f", "M3.8 6.6h10.5a1.5 1.5 0 0 0 3 0h2.9a1.4 1.4 0 0 1 1.4 1.4v8a1.4 1.4 0 0 1-1.4 1.4h-2.9a1.5 1.5 0 0 0-3 0H3.8a1.4 1.4 0 0 1-1.4-1.4V8a1.4 1.4 0 0 1 1.4-1.4z", { tf: "rotate(-12 12 12)" }],
+      ["m", "M15.8 8.1a1.5 1.5 0 0 0 1.5-1.5h2.9a1.4 1.4 0 0 1 1.4 1.4v8a1.4 1.4 0 0 1-1.4 1.4h-2.9a1.5 1.5 0 0 0-1.5-1.5z", { tf: "rotate(-12 12 12)" }],
+      ["k", "M15.8 9.9v.8M15.8 11.6v.8M15.8 13.3v.8", { sw: 1.1, tf: "rotate(-12 12 12)" }],
+      ["k", SP(9, 12, 3.4), { tf: "rotate(-12 12 12)" }],
+    ],
+    palm: [
+      ["s", C(18.2, 14, 2.8)],
+      ["s", "M3.4 21.2q2.2-1.2 4.4 0t4.4 0 4.4 0 4.4 0", { sw: 1.2 }],
+      ["m", "M4 19.6c1.6-2.8 4.4-3.6 8-3.6s6.4.8 8 3.6z"],
+      ["f", "M10.4 17.8C10.4 13.6 11.4 10.8 13.2 8.4l1.2.7C12.8 11.4 12.4 14 12.6 17.8z"],
+      ["f", "M13.6 8.2C10.6 5.2 6.4 5.4 3.8 8.8 7 7.4 10.2 7.4 13.6 8.2z"],
+      ["f", "M13.6 8.2C12.4 4.6 9.6 3 6.6 3.4c2.8 1.2 5 2.8 7 4.8z"],
+      ["m", "M13.6 8.2c1.4-3.4 4.2-4.8 6.8-4-2.6.6-4.8 2.2-6.8 4z"],
+      ["m", "M13.6 8.2c3.2-1.6 6.8-.6 8 3-2.8-2-5.2-2.4-8-3z"],
+    ],
+    balloon: [
+      ["s", CLOUD, { tf: "translate(0.8 13.6) scale(0.85)" }],
+      ["f", BALLOON],
+      ["m", BALLOON, { clip: ["p", "M12 2.2c2.4 2.2 3.4 4.8 3.4 7.2 0 2.8-1 5.4-1.8 7.8H30V-5H12z"] }],
+      ["k", "M11.6 3.2c-2 2-3 4.3-3 6.4 0 2.8 1 5.4 1.8 7.4", { sw: 1.2 }],
+      ["f", "M9.2 17l.9 2.2M14.8 17l-.9 2.2", { sw: 1.1 }],
+      ["m", RR(9.6, 19.2, 4.8, 2.8, 0.8)],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+  const r2 = (n) => Math.round(n * 100) / 100;
+
+  /** A dollar sign centred on (x, y), s = scale (1 is 7.4 tall with the bar). */
+  const DOLLAR = (x, y, s) => {
+    const p = (a, b) => `${r2(x + a * s)} ${r2(y + b * s)}`;
+    return `M${p(2.05, -1.95)}C${p(1.75, -2.65)} ${p(1, -3)} ${p(0, -3)}C${p(-1.25, -3)} ${p(-2.15, -2.35)} ${p(-2.15, -1.5)}`
+      + `C${p(-2.15, 0.35)} ${p(2.15, -0.35)} ${p(2.15, 1.5)}C${p(2.15, 2.35)} ${p(1.25, 3)} ${p(0, 3)}C${p(-1, 3)} ${p(-1.75, 2.65)} ${p(-2.05, 1.95)}`
+      + `M${p(0, -4.1)}V${r2(y + 4.1 * s)}`;
+  };
+
+  /** A stack of coins seen from the side: side body, top face and the seams between coins. */
+  const STACK = (cx, rx, ry, top, n, h) => {
+    const bot = top + n * h;
+    const body = `M${r2(cx - rx)} ${r2(top)}V${r2(bot)}A${rx} ${ry} 0 0 0 ${r2(cx + rx)} ${r2(bot)}V${r2(top)}z`;
+    let seams = "";
+    for (let i = 0; i < n; i++) seams += `M${r2(cx - rx)} ${r2(top + i * h)}A${rx} ${ry} 0 0 0 ${r2(cx + rx)} ${r2(top + i * h)}`;
+    return { body, face: E(cx, top, rx, ry), seams };
+  };
+  const tall = STACK(9, 6, 2.2, 6, 4, 2.7);
+  const short = STACK(15.4, 5.6, 2.1, 13.6, 2, 2.8);
+
+  const shopBody = RR(4.2, 11.8, 15.6, 9.4, 0.8);
+  const stripe = (i) => `M${r2(2.8 + 4.6 * i)} 3.4h4.6V8.6a2.3 2.3 0 0 1-4.6 0z`;
+
+  const PIE = "M11 13.2V4.8A8.4 8.4 0 1 0 19.4 13.2z";
+  const TAG = "M11.4 3.2L20.8 12.6 12.6 20.8 3.2 11.4V3.2z";
+  const RECEIPT = "M5.4 2.8h13.2v17.8l-2.2-1.4-2.2 1.4-2.2-1.4-2.2 1.4-2.2-1.4-2.2 1.4z";
+  const CARD = RR(2.4, 5, 19.2, 14, 2.2);
+  const NOTE = RR(2.6, 8.6, 18.8, 10.4, 1.6);
+  const TILT = "rotate(-4 12 13.8)";
+  const SAFE = RR(2.8, 3, 18.4, 16.6, 2.4);
+  const CALC = RR(4.2, 2.4, 15.6, 19.2, 2.6);
+  const LABEL = RR(2.4, 4.4, 19.2, 15.2, 2.2);
+  const FLARE = "M9.8 7.8L7.3 4.5a1 1 0 0 1 1-1.5c1.2.4 2.5.6 3.7.6s2.5-.2 3.7-.6a1 1 0 0 1 1 1.5L14.2 7.8z";
+  const SACK = "M9.6 8.6h4.8c3.9 2.1 6.6 5.6 6.6 8.8 0 2.4-1.8 3.8-4.4 3.8H7.4c-2.6 0-4.4-1.4-4.4-3.8 0-3.2 2.7-6.7 6.6-8.8z";
+  const ROOF = "M12 2.6l9 5.2a.8.8 0 0 1-.4 1.5H3.4a.8.8 0 0 1-.4-1.5z";
+  const STEP = RR(2.8, 18.4, 18.4, 2.8, 0.8);
+  const LID = RR(2.8, 8.4, 18.4, 4, 1);
+  const BOX = RR(4.2, 13.2, 15.6, 8, 1);
+
+  // Bars of a barcode: [x, width], cut through a white label.
+  const bars = [[4.8, 1.1], [7, 2], [10.1, 1.1], [12.3, 1.1], [14.5, 2], [17.6, 1.1]];
+  const barPath = bars.map(([x, w], i) => `M${x} 7.2h${w}V${i === 0 || i === bars.length - 1 ? 16.8 : 14.8}h-${w}z`).join("");
+
+  const keys = [];
+  [6.6, 10.7, 14.8].forEach((x, ci) => [10.6, 14.1, 17.6].forEach((y, ri) => {
+    if (ci === 2 && ri > 0) return;
+    keys.push(RR(x, y, 2.6, 2.6, 0.6));
+  }));
+
+  Faces.addFolded({
+    coin: [
+      ["s", SP(19.8, 4.4, 1.8)],
+      ["m", E(13.1, 12, 7.6, 9.2)],
+      ["f", E(10.8, 12, 7.6, 9.2)],
+      ["k", DOLLAR(10.8, 12, 1.05), { sw: 1.65 }],
+    ],
+    bank: [
+      ["f", ROOF, { round: 0.7 }],
+      ["m", ROOF, { round: 0.7, clip: ["x", 12] }],
+      ["k", C(12, 6.6, 1.1)],
+      ["f", RR(4.2, 10.4, 2.6, 7.2, 0.5)], ["f", RR(8.53, 10.4, 2.6, 7.2, 0.5)],
+      ["m", RR(12.87, 10.4, 2.6, 7.2, 0.5)], ["m", RR(17.2, 10.4, 2.6, 7.2, 0.5)],
+      ["f", STEP],
+      ["m", STEP, { clip: ["x", 12] }],
+    ],
+    pie: [
+      ["f", PIE],
+      ["d", "M11 13.2H19.4A8.4 8.4 0 0 1 8.13 21.09z"],
+      ["m", "M12.5 11.7V3.3A8.4 8.4 0 0 1 20.9 11.7z", { round: 0.6 }],
+    ],
+    tag: [
+      ["f", TAG, { round: 1 }],
+      ["m", TAG, { round: 1, clip: ["d", 24] }],
+      ["k", C(7.4, 7.4, 1.5)],
+      ["m", "M7.4 7.4c-1.4-2-2.6-4.4-4.4-4.6-1.2-.1-1.6 1.2-.8 2", { sw: 1.3 }],
+    ],
+    cart: [
+      ["m", "M2.6 4.4h2.2l2.8 11.8h10.2", { sw: 1.8 }],
+      ["f", "M5.6 6.8h15a.9.9 0 0 1 .86 1.16l-1.9 6.2a1.3 1.3 0 0 1-1.24.94H7.8z", { round: 0.6 }],
+      ["m", "M5.6 6.8h15a.9.9 0 0 1 .86 1.16l-1.9 6.2a1.3 1.3 0 0 1-1.24.94H7.8z", { round: 0.6, clip: ["d", 24] }],
+      ["k", "M10.4 8.8v4.4M13.6 8.8v4.4M16.8 8.8v4.4", { sw: 1.2 }],
+      ["f", C(9.2, 19.4, 1.7)],
+      ["m", C(16.6, 19.4, 1.7)],
+    ],
+    receipt: [
+      ["f", RECEIPT, { round: 0.6 }],
+      ["m", RECEIPT, { round: 0.6, clip: ["x", 12] }],
+      ["k", "M8.4 7h7.2M8.4 10.2h4.6M8.4 13.4h7.2", { sw: 1.3 }],
+    ],
+    wallet: [
+      ["m", RR(4.6, 3.6, 12.4, 7, 1), { tf: "rotate(-8 10.8 7.1)" }],
+      ["f", RR(2.8, 7.4, 17.6, 13, 2.6)],
+      ["m", RR(13.2, 11, 8.6, 5.6, 2.8)],
+      ["f", C(16, 13.8, 1.1)],
+    ],
+    card: [
+      ["f", CARD],
+      ["m", CARD, { clip: ["d", 24] }],
+      ["d", "M2.4 8.2h19.2v2.6H2.4z"],
+      ["k", RR(5, 12.8, 3.8, 3, 0.8)],
+      ["k", "M11.4 16h6.2", { sw: 1.2 }],
+    ],
+    piggy: [
+      ["m", RR(6.2, 16.6, 2.6, 4.4, 1.1) + RR(14.2, 16.6, 2.6, 4.4, 1.1)],
+      ["m", "M19.6 12.4c1.3.1 2-1 1.4-1.8-.5-.6-1.4-.1-1 .7", { sw: 1.2 }],
+      ["f", E(12.2, 12.6, 7.6, 6)],
+      ["m", E(12.2, 12.6, 7.6, 6), { clip: ["d", 26] }],
+      ["m", "M6.6 8.2c-.2-1.8.2-3.4 1-4.4 1.4.6 2.8 1.8 3.4 3.2z", { round: 0.6 }],
+      ["m", RR(2.6, 10.4, 3.4, 4.2, 1.4)],
+      ["k", C(8.4, 10.4, 0.8)],
+      ["k", "M12.2 8.4h3.6", { sw: 1.3 }],
+      ["m", E(14.7, 3.9, 1.5, 2.1)],
+      ["f", E(14, 3.9, 1.5, 2.1)],
+    ],
+    cash: [
+      ["s", RR(3.6, 3.8, 17.4, 10, 1.4), { tf: "rotate(-10 12.3 8.8)" }],
+      ["f", NOTE, { tf: TILT }],
+      ["m", NOTE, { tf: TILT, clip: ["d", 25.8] }],
+      ["k", RR(4.4, 10.4, 15.2, 6.8, 0.8), { sw: 1.1, tf: TILT }],
+      ["k", E(12, 13.8, 2.3, 2.8), { tf: TILT }],
+    ],
+    bag: [
+      ["m", "M8.6 10V8.2c0-2.4 1.4-3.8 3.4-3.8s3.4 1.4 3.4 3.8V10", { sw: 1.3 }],
+      ["f", "M5.6 10.4V8.2c0-2.4 1.4-3.8 3.4-3.8s3.4 1.4 3.4 3.8v2.2", { sw: 1.3 }],
+      ["f", "M3.6 8.6h12v12.6H4.6a1 1 0 0 1-1-1z", { round: 0.6 }],
+      ["m", "M15.6 8.6l2.4 2.6 2.4-2.6v11.6a1 1 0 0 1-1 1h-3.8z", { round: 0.6 }],
+    ],
+    gift: [
+      ["f", "M12 8.2C10.8 5.4 8 3.8 6.9 5.2c-1 1.3.9 3 5.1 3z"],
+      ["m", "M12 8.2c1.2-2.8 4-4.4 5.1-3 1 1.3-.9 3-5.1 3z"],
+      ["f", LID], ["m", LID, { clip: ["x", 12] }],
+      ["f", BOX], ["m", BOX, { clip: ["x", 12] }],
+      ["k", "M10.9 8.4h2.2v12.8h-2.2z"],
+    ],
+    safe: [
+      ["m", RR(4.8, 18.8, 3.2, 2.4, 0.8) + RR(16, 18.8, 3.2, 2.4, 0.8)],
+      ["f", SAFE],
+      ["m", SAFE, { clip: ["d", 23.3] }],
+      ["k", RR(5.2, 5.4, 13.6, 11.8, 1.4), { sw: 1.1 }],
+      ["k", C(10.8, 11.3, 3.9)],
+      ["f", C(10.8, 11.3, 2.6)],
+      ["d", "M10.8 8.1v.6M13.06 9.04l-.42.42M14 11.3h-.6M13.06 13.56l-.42-.42M10.8 14.5v-.6M8.54 13.56l.42-.42M7.6 11.3h.6M8.54 9.04l.42.42", { sw: 0.8 }],
+      ["k", C(10.8, 11.3, 0.9)],
+      ["k", "M16.3 9.4v3.8", { sw: 1.6 }],
+    ],
+    calculator: [
+      ["f", CALC],
+      ["m", CALC, { clip: ["x", 12] }],
+      ["d", RR(6.6, 4.8, 10.8, 4, 1)],
+      ["k", keys.join("")],
+      ["d", RR(14.8, 14.1, 2.6, 6.1, 0.6)],
+    ],
+    trend: [
+      ["m", "M3 15.4L8.4 10l4 3.6 6.4-6.4v12.2a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 19.4z"],
+      ["f", "M3 15.4L8.4 10l4 3.6 6-6", { sw: 2.2 }],
+      ["f", "M21.2 4.8v5.4l-5.4-5.4z", { round: 0.8 }],
+    ],
+    percent: [
+      ["f", "M18 4.4L6 19.6", { sw: 2.8 }],
+      ["m", "M18 4.4L6 19.6", { sw: 2.8, clip: ["d", 24] }],
+      ["f", C(6.8, 6.8, 3.7)], ["k", C(6.8, 6.8, 1.55)],
+      ["m", C(17.2, 17.2, 3.7)], ["k", C(17.2, 17.2, 1.55)],
+    ],
+    coins: [
+      ["f", tall.body], ["m", tall.body, { clip: ["x", 9] }], ["f", tall.face],
+      ["k", tall.seams, { sw: 1.1 }],
+      ["f", short.body], ["m", short.body, { clip: ["x", 15.4] }], ["f", short.face],
+      ["k", short.seams, { sw: 1.1 }],
+    ],
+    shop: [
+      ["f", shopBody],
+      ["m", shopBody, { clip: ["x", 12] }],
+      ["k", RR(6.4, 13.8, 4.6, 3.6, 0.6)],
+      ["k", "M13.4 21.2v-6.2a.8.8 0 0 1 .8-.8h2.4a.8.8 0 0 1 .8.8v6.2z"],
+      ["f", stripe(0), { round: 0.6 }], ["m", stripe(1), { round: 0.6 }],
+      ["f", stripe(2), { round: 0.6 }], ["m", stripe(3), { round: 0.6 }],
+    ],
+    barcode: [
+      ["f", LABEL],
+      ["m", LABEL, { clip: ["d", 24] }],
+      ["k", barPath],
+    ],
+    sack: [
+      ["f", FLARE, { round: 0.6 }],
+      ["m", FLARE, { round: 0.6, clip: ["x", 12] }],
+      ["f", SACK],
+      ["m", SACK, { clip: ["x", 12] }],
+      ["d", RR(8.6, 7, 6.8, 2.2, 1.1)],
+      ["k", DOLLAR(12, 15.4, 0.85), { sw: 1.5 }],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+  Faces.addFolded({
+    brush: [
+      ["m", "M3.8 18.6C7.6 17.4 10 20.6 13.6 19.6c2.6-.7 4.4-2.4 7-2-1.6 2.4-3.8 4-7 4.2-3.6.2-6.4-1-9.8-3.2z", { round: 0.6 }],
+      ["f", "M10.5 11.2L11.1 2.4a.9.9 0 0 1 1.8 0l.6 8.8z", { tf: "translate(1 -1) rotate(45 12 12)" }],
+      ["f", RR(9.9, 10.6, 4.2, 3.8, 0.6), { tf: "translate(1 -1) rotate(45 12 12)" }],
+      ["f", "M10 14.2h4c.5 2.4-.3 4.9-2 7.6-1.7-2.7-2.5-5.2-2-7.6z", { tf: "translate(1 -1) rotate(45 12 12)" }],
+      ["m", "M10.5 11.2L11.1 2.4a.9.9 0 0 1 1.8 0l.6 8.8z", { tf: "translate(1 -1) rotate(45 12 12)", clip: ["d", 24] }],
+      ["m", RR(9.9, 10.6, 4.2, 3.8, 0.6), { tf: "translate(1 -1) rotate(45 12 12)", clip: ["d", 24] }],
+      ["m", "M10 14.2h4c.5 2.4-.3 4.9-2 7.6-1.7-2.7-2.5-5.2-2-7.6z", { tf: "translate(1 -1) rotate(45 12 12)", clip: ["d", 24] }],
+      ["d", "M10.2 17.8h3.6c-.4 1.3-1 2.6-1.8 4-.8-1.4-1.4-2.7-1.8-4z", { tf: "translate(1 -1) rotate(45 12 12)" }],
+      ["k", "M9.9 11.6h4.2", { sw: 0.9, tf: "translate(1 -1) rotate(45 12 12)" }],
+    ],
+    film: [
+      ["m", "M8 16.4h13.6l-1 4.2H8z", { round: 0.6 }],
+      ["k", RR(16, 17, 1.2, 1, 0.3)], ["k", RR(18.4, 17, 1.2, 1, 0.3)], ["k", RR(16, 19.1, 1.2, 1, 0.3)], ["k", RR(18.4, 19.1, 1.2, 1, 0.3)],
+      ["f", C(10.2, 10.2, 8)],
+      ["m", C(10.2, 10.2, 8), { clip: ["d", 20.4] }],
+      ["k", C(11.34, 5.95, 1.9)], ["k", C(14.59, 9.97, 1.9)], ["k", C(11.78, 14.31, 1.9)], ["k", C(6.78, 12.97, 1.9)], ["k", C(6.51, 7.8, 1.9)],
+      ["k", C(10.2, 10.2, 0.8)],
+    ],
+    scissors: [
+      ["m", "M6.2 2.6Q7.88 7.8 10.91 12.12L13.09 10.69z", { round: 0.5 }],
+      ["m", "M12 11.4L14.96 15.23", { sw: 2.4 }],
+      ["m", C(16.8, 17.6, 3.3)], ["k", C(16.8, 17.6, 1.6)],
+      ["f", "M17.8 2.6Q16.12 7.8 13.09 12.12L10.91 10.69z", { round: 0.5 }],
+      ["f", "M12 11.4L9.04 15.23", { sw: 2.4 }],
+      ["f", C(7.2, 17.6, 3.3)], ["k", C(7.2, 17.6, 1.6)],
+      ["k", C(12, 11.4, 0.7)],
+    ],
+    frame: [
+      ["m", "M8.4 7.2L12 3.2l3.6 4", { sw: 1.2 }],
+      ["f", RR(3, 6.4, 18, 15, 1.4)],
+      ["m", RR(3, 6.4, 18, 15, 1.4), { clip: ["d", 25.9] }],
+      ["k", RR(5.8, 9.2, 12.4, 9.4, 0.5)],
+      ["m", "M9.6 18.6l4.2-5.2 4.4 5.2z"],
+      ["f", "M5.8 18.6v-1.8l3.4-4.2 4.8 6z"],
+      ["f", C(15.2, 11.6, 1.2)],
+      ["f", C(12, 3.2, 0.9)],
+    ],
+    guitar: [
+      ["f", RR(10.5, 0.6, 3, 3.4, 0.9), { tf: "translate(12 12) scale(1.1) translate(-12 -12) rotate(45 12 12)" }],
+      ["f", RR(11.05, 2.6, 1.9, 5.4, 0.3), { tf: "translate(12 12) scale(1.1) translate(-12 -12) rotate(45 12 12)" }],
+      ["f", "M12 6.6c2.5 0 4 1.2 4 3 0 1.3-.8 1.9-.8 2.9 0 .9 2.2 1.7 2.2 4 0 3-2.4 4.9-5.4 4.9s-5.4-1.9-5.4-4.9c0-2.3 2.2-3.1 2.2-4 0-1-.8-1.6-.8-2.9 0-1.8 1.5-3 4-3z", { tf: "translate(12 12) scale(1.1) translate(-12 -12) rotate(45 12 12)" }],
+      ["m", "M12 6.6c2.5 0 4 1.2 4 3 0 1.3-.8 1.9-.8 2.9 0 .9 2.2 1.7 2.2 4 0 3-2.4 4.9-5.4 4.9s-5.4-1.9-5.4-4.9c0-2.3 2.2-3.1 2.2-4 0-1-.8-1.6-.8-2.9 0-1.8 1.5-3 4-3z", { tf: "translate(12 12) scale(1.1) translate(-12 -12) rotate(45 12 12)", clip: ["d", 24] }],
+      ["m", RR(11.05, 2.6, 1.9, 5.4, 0.3), { tf: "translate(12 12) scale(1.1) translate(-12 -12) rotate(45 12 12)", clip: ["d", 24] }],
+      ["m", RR(10.5, 0.6, 3, 3.4, 0.9), { tf: "translate(12 12) scale(1.1) translate(-12 -12) rotate(45 12 12)", clip: ["d", 24] }],
+      ["k", C(12, 13.4, 1.7), { tf: "translate(12 12) scale(1.1) translate(-12 -12) rotate(45 12 12)" }],
+      ["k", RR(10.3, 17.4, 3.4, 1.1, 0.5), { tf: "translate(12 12) scale(1.1) translate(-12 -12) rotate(45 12 12)" }],
+    ],
+    piano: [
+      ["m", RR(2.6, 5.2, 18.8, 4.4, 1.3)],
+      ["f", "M2.6 8.4h18.8v10.2a1.6 1.6 0 0 1-1.6 1.6H4.2a1.6 1.6 0 0 1-1.6-1.6z"],
+      ["m", "M2.6 8.4h18.8v10.2a1.6 1.6 0 0 1-1.6 1.6H4.2a1.6 1.6 0 0 1-1.6-1.6z", { clip: ["d", 31] }],
+      ["k", "M5.73 8.4v11.8M8.87 8.4v11.8M12 8.4v11.8M15.13 8.4v11.8M18.27 8.4v11.8", { sw: 1.1 }],
+      ["k", RR(4.73, 7.6, 2, 6.8, 0.5)], ["k", RR(7.87, 7.6, 2, 6.8, 0.5)], ["k", RR(14.13, 7.6, 2, 6.8, 0.5)], ["k", RR(17.27, 7.6, 2, 6.8, 0.5)],
+    ],
+    headphones: [
+      ["f", "M5.2 14.4v-2.2a6.8 6.8 0 0 1 13.6 0v2.2", { sw: 2.4 }],
+      ["m", "M5.2 14.4v-2.2a6.8 6.8 0 0 1 13.6 0v2.2", { sw: 2.4, clip: ["x", 12] }],
+      ["f", RR(3, 12.6, 4.8, 8.4, 2)],
+      ["m", RR(16.2, 12.6, 4.8, 8.4, 2)],
+      ["k", "M6.2 14.2v5.2M17.8 14.2v5.2", { sw: 1.1 }],
+    ],
+    vinyl: [
+      ["f", C(10.4, 12.8, 8.2)],
+      ["m", C(10.4, 12.8, 8.2), { clip: ["d", 23.2] }],
+      ["k", "M5.14 10.88A5.6 5.6 0 0 1 8.48 7.54M15.66 14.72A5.6 5.6 0 0 1 12.32 18.06", { sw: 0.9 }],
+      ["d", C(10.4, 12.8, 3.2)],
+      ["k", C(10.4, 12.8, 0.75)],
+      ["k", "M19.8 11.6l-2.6 3.6", { sw: 2.6 }],
+      ["f", "M19.8 4.4v7.6l-2.6 3.4", { sw: 1.25 }],
+      ["f", "M18 14.2l-1 1.4", { sw: 1.9 }],
+      ["f", C(19.8, 4.2, 1.7)],
+    ],
+    clapper: [
+      ["f", RR(3, 5.6, 18, 3, 0.6), { tf: "rotate(-14 3.4 8.6)" }],
+      ["k", "M6 5.6h2l-1.8 3h-2zM10 5.6h2l-1.8 3h-2zM14 5.6h2l-1.8 3h-2zM18 5.6h2l-1.8 3h-2z", { tf: "rotate(-14 3.4 8.6)" }],
+      ["f", RR(3, 9.6, 18, 3, 0.6)],
+      ["k", "M6 9.6h2l-1.8 3h-2zM10 9.6h2l-1.8 3h-2zM14 9.6h2l-1.8 3h-2zM18 9.6h2l-1.8 3h-2z"],
+      ["f", RR(3, 13.4, 18, 7.6, 1.4)],
+      ["m", RR(3, 13.4, 18, 7.6, 1.4), { clip: ["d", 28] }],
+    ],
+    masks: [
+      ["m", "M0-5.6c3.4 0 5 1.2 5 4.2 0 4.4-2.2 7.8-5 7.8s-5-3.4-5-7.8c0-3 1.6-4.2 5-4.2z", { tf: "translate(15.2 9.2) rotate(14)" }],
+      ["k", E(-2.1, -1, 1.3, 0.75), { tf: "translate(15.2 9.2) rotate(14) rotate(-18 -2.1 -1)" }],
+      ["k", E(2.1, -1, 1.3, 0.75), { tf: "translate(15.2 9.2) rotate(14) rotate(18 2.1 -1)" }],
+      ["k", "M-2.8 4.4Q0 1.2 2.8 4.4Q0 3.2-2.8 4.4z", { tf: "translate(15.2 9.2) rotate(14)", round: 0.6 }],
+      ["f", "M0-5.6c3.4 0 5 1.2 5 4.2 0 4.4-2.2 7.8-5 7.8s-5-3.4-5-7.8c0-3 1.6-4.2 5-4.2z", { tf: "translate(9 13.6) rotate(-12)" }],
+      ["k", "M-3.2-.8Q-2.1-2.4-1-.8M1-.8Q2.1-2.4 3.2-.8", { sw: 1.2, tf: "translate(9 13.6) rotate(-12)" }],
+      ["k", "M-3 1.4Q0 2.8 3 1.4 2.4 5 0 5-2.4 5-3 1.4z", { tf: "translate(9 13.6) rotate(-12)" }],
+    ],
+    gamepad: [
+      ["m", "M12 7.4c0-1.6 1.2-2 1.8-2.8s.4-1.8-.4-2.2", { sw: 1.3 }],
+      ["f", "M12 7.4c-1.4 0-2.4-.8-4.6-.8-2.6 0-3.6 1.4-4.1 3.8l-.9 5.2c-.4 2.4.8 4 2.6 4 1.4 0 2.2-1 3-2.2l1-1.6h6l1 1.6c.8 1.2 1.6 2.2 3 2.2 1.8 0 3-1.6 2.6-4l-.9-5.2c-.5-2.4-1.5-3.8-4.1-3.8-2.2 0-3.2.8-4.6.8z"],
+      ["m", "M12 7.4c-1.4 0-2.4-.8-4.6-.8-2.6 0-3.6 1.4-4.1 3.8l-.9 5.2c-.4 2.4.8 4 2.6 4 1.4 0 2.2-1 3-2.2l1-1.6h6l1 1.6c.8 1.2 1.6 2.2 3 2.2 1.8 0 3-1.6 2.6-4l-.9-5.2c-.5-2.4-1.5-3.8-4.1-3.8-2.2 0-3.2.8-4.6.8z", { clip: ["x", 12] }],
+      ["k", "M6.65 9.4h1.5v1.45h1.45v1.5H8.15v1.45h-1.5v-1.45H5.2v-1.5h1.45z"],
+      ["k", C(16.4, 10.6, 1.05)], ["k", C(18.2, 12.6, 1.05)],
+    ],
+    knight: [
+      ["f", "M8 17.8c.2-2.2 1.4-3.4 2.6-4.6L8 13.6c-1.2.2-2.2 0-2.8-.6-.5-.6-.5-1.4-.1-2.1L8.7 5.8l.7-2.6 2 1.7c4.2.4 6.8 3.7 6.8 8.1 0 1.9-.2 3.4-.4 4.8z"],
+      ["m", "M8 17.8c.2-2.2 1.4-3.4 2.6-4.6L8 13.6c-1.2.2-2.2 0-2.8-.6-.5-.6-.5-1.4-.1-2.1L8.7 5.8l.7-2.6 2 1.7c4.2.4 6.8 3.7 6.8 8.1 0 1.9-.2 3.4-.4 4.8z", { clip: ["p", "M11.4 2C14.4 6 14.6 12 13.2 18.4H24V2z"] }],
+      ["k", C(9.5, 8.5, 0.8)],
+      ["f", RR(4.6, 18.6, 14.8, 2.8, 1.2)],
+      ["m", RR(4.6, 18.6, 14.8, 2.8, 1.2), { clip: ["x", 12] }],
+      ["f", RR(6.6, 16.8, 10.8, 2.2, 0.9)],
+      ["m", RR(6.6, 16.8, 10.8, 2.2, 0.9), { clip: ["x", 13.2] }],
+    ],
+    nib: [
+      ["m", RR(8.4, 2.2, 7.2, 4.4, 1.2)],
+      ["f", "M12 21.6l-5.1-8.7c-.6-1-.5-2.3.3-3.1l2-2.2v-2h5.6v2l2 2.2c.8.8.9 2.1.3 3.1z", { round: 0.6 }],
+      ["m", "M12 21.6l-5.1-8.7c-.6-1-.5-2.3.3-3.1l2-2.2v-2h5.6v2l2 2.2c.8.8.9 2.1.3 3.1z", { round: 0.6, clip: ["x", 12] }],
+      ["k", C(12, 12.2, 1.35)],
+      ["k", "M12 13.4v6.6", { sw: 1.1 }],
+    ],
+    yarn: [
+      ["m", "M3.4 21.2L20.4 4.2", { sw: 1.3 }],
+      ["m", C(20.6, 4, 1.3)],
+      ["m", "M16.2 18.4c1.4 1.4 3 2 5.2 1.2", { sw: 1.2 }],
+      ["f", C(11, 12.8, 7.6)],
+      ["m", C(11, 12.8, 7.6), { clip: ["d", 23.8] }],
+      ["k", "M4.6 9.6C8.6 10 12 13.6 13.2 20.2M7.2 6.2c4.2 1 7.8 5 9.2 12M3.6 13.8c3 .8 5.2 3.2 6 6.4", { sw: 1.1 }],
+      ["k", "M18.2 10.4c-3.4.4-6.6 2.6-8.6 6.2", { sw: 1.1 }],
+    ],
+    vase: [
+      ["m", "M9.9 5.4C7.4 4.8 6 6.8 7.2 9.4M14.1 5.4c2.5-.6 3.9 1.4 2.7 4", { sw: 1.2 }],
+      ["f", "M8.4 2.8h7.2c0 1.1-1.4 1.6-1.4 3.4 0 1.4 4.4 3 4.4 7.4 0 3.4-1.8 5.3-3.2 6.3v1.3H8.6v-1.3c-1.4-1-3.2-2.9-3.2-6.3 0-4.4 4.4-6 4.4-7.4 0-1.8-1.4-2.3-1.4-3.4z", { round: 0.6 }],
+      ["m", "M8.4 2.8h7.2c0 1.1-1.4 1.6-1.4 3.4 0 1.4 4.4 3 4.4 7.4 0 3.4-1.8 5.3-3.2 6.3v1.3H8.6v-1.3c-1.4-1-3.2-2.9-3.2-6.3 0-4.4 4.4-6 4.4-7.4 0-1.8-1.4-2.3-1.4-3.4z", { round: 0.6, clip: ["x", 12] }],
+      ["k", "M2 10h20v1.2H2z", { clip: ["p", "M8.4 2.8h7.2c0 1.1-1.4 1.6-1.4 3.4 0 1.4 4.4 3 4.4 7.4 0 3.4-1.8 5.3-3.2 6.3v1.3H8.6v-1.3c-1.4-1-3.2-2.9-3.2-6.3 0-4.4 4.4-6 4.4-7.4 0-1.8-1.4-2.3-1.4-3.4z"] }],
+      ["d", "M4 15.4l1.6-1.6 1.6 1.6 1.6-1.6 1.6 1.6 1.6-1.6 1.6 1.6 1.6-1.6 1.6 1.6 1.6-1.6 1.6 1.6", { sw: 1.1, clip: ["p", "M8.4 2.8h7.2c0 1.1-1.4 1.6-1.4 3.4 0 1.4 4.4 3 4.4 7.4 0 3.4-1.8 5.3-3.2 6.3v1.3H8.6v-1.3c-1.4-1-3.2-2.9-3.2-6.3 0-4.4 4.4-6 4.4-7.4 0-1.8-1.4-2.3-1.4-3.4z"] }],
+    ],
+    letters: [
+      ["f", "M7.4 3.4h2.4l5.1 17H12l-1.1-3.8H6.3l-1.1 3.8H2.3z"],
+      ["m", "M8.6 3.4h1.2l5.1 17H12L8.6 8.6z"],
+      ["k", "M8.6 8.6l1.6 5.6H7z"],
+      ["f", C(17.2, 16.9, 2.35), { sw: 2.2 }],
+      ["f", RR(19.4, 13.4, 2.2, 7, 1.1)],
+    ],
+    polaroid: [
+      ["m", RR(4.6, 3.4, 14, 16.8, 1.1), { tf: "rotate(10 12 12)" }],
+      ["f", RR(4.4, 3.6, 14.4, 17.2, 1.1), { tf: "rotate(-6 12 12)" }],
+      ["d", RR(6.2, 5.4, 10.8, 10.4, 0.5), { tf: "rotate(-6 12 12)" }],
+      ["m", "M6.2 15.8v-2.6q3-2.8 5.6-.4t5.2-.6v3.6z", { tf: "rotate(-6 12 12)" }],
+      ["f", C(14, 8.6, 1.4), { tf: "rotate(-6 12 12)" }],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+  const BELL = "M12 3.4c3.6 0 5.9 2.8 5.9 6.4v4.2l1.8 2.5c.5.7 0 1.6-.8 1.6H5.1c-.8 0-1.3-.9-.8-1.6l1.8-2.5V9.8c0-3.6 2.3-6.4 5.9-6.4z";
+  const EYE = "M2.2 12C4.8 7.4 8.2 5.2 12 5.2s7.2 2.2 9.8 6.8c-2.6 4.6-6 6.8-9.8 6.8S4.8 16.6 2.2 12z";
+  const FLAG = "M6.2 4.8C8.6 3.2 11 3.2 13.2 4.8S17.8 6.4 20.2 4.8V13.4C17.8 15 15.4 15 13.2 13.4S8.6 11.8 6.2 13.4z";
+  const BOOKMARK = "M6.4 2.8h11.2v18.4l-5.6-4.2-5.6 4.2z";
+  const SEAL = RUFFLE(12, 12, 9, 9, 12, 0.05, 0);
+  const BUBBLE = "M12 2.6A8.6 8.6 0 1 1 7.8 18.7L3.6 20.6 4.95 16.1A8.6 8.6 0 0 1 12 2.6z";
+  const TRI = "M10.6 4.3a1.6 1.6 0 0 1 2.8 0l8 13.9a1.6 1.6 0 0 1-1.4 2.4H4a1.6 1.6 0 0 1-1.4-2.4z";
+  const INF = "M12 12C13.5 9.6 15 8.1 16.5 8.1A3.9 3.9 0 0 1 16.5 15.9C15 15.9 13.5 14.4 12 12C10.5 9.6 9 8.1 7.5 8.1A3.9 3.9 0 0 0 7.5 15.9C9 15.9 10.5 14.4 12 12z";
+  const ANCHOR = "M12 6.6V20.2M8.2 9.8h7.6M4.6 13.6c.4 4 3.5 6.6 7.4 6.6s7-2.6 7.4-6.6";
+  const CROWN = "M3.6 8.6l4.4 3.6L12 5.4l4 6.8 4.4-3.6-1.6 9.4H5.2z";
+  const ELYTRA = "M12 9.4c3.4 0 5.6 2.4 5.6 5.6 0 3.4-2.4 5.8-5.6 5.8s-5.6-2.4-5.6-5.8c0-3.2 2.2-5.6 5.6-5.6z";
+  const GLASS = "M6.4 4.8h11.2c0 3.8-2.4 5.6-4.2 7.2 1.8 1.6 4.2 3.4 4.2 7.2H6.4c0-3.8 2.4-5.6 4.2-7.2C8.8 10.4 6.4 8.6 6.4 4.8z";
+  const MAGNET = "M5.2 5h4.6v7.2a2.2 2.2 0 0 0 4.4 0V5h4.6v7.2a6.8 6.8 0 0 1-13.6 0z";
+  const GEM = "M7.2 3.8h9.6l4.8 5.2L12 21.2 2.4 9z";
+  const SPIRAL = "M11.68 14.46C11.37 14.71 10.87 14.83 10.35 14.69C9.83 14.55 9.31 14.15 9.02 13.53C8.73 12.92 8.68 12.11 9 11.35C9.31 10.58 9.99 9.89 10.9 9.55C11.81 9.22 12.94 9.25 13.95 9.74C14.95 10.23 15.81 11.19 16.2 12.4C16.58 13.6 16.48 15.05 15.81 16.29C15.14 17.54 13.91 18.57 12.4 19.01C10.9 19.44 9.14 19.26 7.65 18.41C6.15 17.56 4.95 16.05 4.47 14.25C4 12.45 4.25 10.38 5.28 8.64C6.3 6.91 8.09 5.54 10.18 5.01C12.28 4.48 14.67 4.82 16.65 6.02C17.92 6.79 19.01 7.9 19.78 9.24";
+  const PRINT = "M11.2 11.57A1.25 1.6 0 1 1 11.78 14.38M11.34 17.19A3.8 4.46 0 1 1 15.79 13.19M15.22 15.16A3.8 4.46 0 0 1 12.79 17.16M8.64 19A6.35 7.31 0 1 1 14.98 19.26M4.45 18.19A8.9 10.17 0 1 1 20.46 15.94";
+
+  Faces.addFolded({
+    lock: [
+      ["m", "M8.2 10.6V7.4a3.8 3.8 0 0 1 7.6 0v3.2", { sw: 2.3 }],
+      ["f", RR(4.6, 10, 14.8, 11.4, 2.4)],
+      ["m", RR(4.6, 10, 14.8, 11.4, 2.4), { clip: ["x", 12] }],
+      ["k", "M12 12.9A1.7 1.7 0 0 1 13.2 15.8L13.5 18.4H10.5L10.8 15.8A1.7 1.7 0 0 1 12 12.9z", { round: 0.5 }],
+    ],
+    eye: [
+      ["f", EYE],
+      ["m", EYE, { clip: ["d", 24] }],
+      ["k", C(12, 12, 3.9)],
+      ["f", C(10.7, 10.7, 1.2)],
+    ],
+    flag: [
+      ["f", "M5.4 3.6V21.2", { sw: 1.9 }],
+      ["f", C(5.4, 2.9, 1.3)],
+      ["f", FLAG, { round: 0.7 }],
+      ["m", FLAG, { round: 0.7, clip: ["x", 13.2] }],
+    ],
+    bell: [
+      ["s", "M19.6 4.2c1.2 1 2 2.4 2.2 4M4.4 4.2c-1.2 1-2 2.4-2.2 4", { sw: 1.3 }],
+      ["m", C(12, 19.6, 2)],
+      ["m", C(12, 2.8, 1.2)],
+      ["f", BELL],
+      ["m", BELL, { clip: ["x", 12] }],
+      ["k", "M6.2 14.4h11.6", { sw: 1.1 }],
+    ],
+    bookmark: [
+      ["f", BOOKMARK, { round: 0.8 }],
+      ["m", BOOKMARK, { round: 0.8, clip: ["x", 12] }],
+      ["k", "M12 6.1L12.88 8.39L15.33 8.52L13.43 10.06L14.06 12.43L12 11.1L9.94 12.43L10.57 10.06L8.67 8.52L11.12 8.39z", { round: 0.4 }],
+    ],
+    check: [
+      // A plain round badge: a scalloped seal with a tick in it is the social networks' "verified".
+      ["f", C(12, 12, 9)],
+      ["m", C(12, 12, 9), { clip: ["d", 24] }],
+      ["k", "M7.8 12.3l2.9 2.9 5.6-5.8", { sw: 2.2 }],
+    ],
+    question: [
+      ["f", BUBBLE, { round: 0.6 }],
+      ["m", BUBBLE, { round: 0.6, clip: ["d", 23] }],
+      ["k", "M9.4 8.9a2.7 2.7 0 1 1 3.9 2.4c-.9.5-1.3 1.1-1.3 2.1v.4", { sw: 2.1 }],
+      ["k", C(12, 16.3, 1.25)],
+    ],
+    alert: [
+      ["f", TRI, { round: 0.6 }],
+      ["m", TRI, { round: 0.6, clip: ["x", 12] }],
+      ["k", "M12 9.2v4.8", { sw: 2.2 }],
+      ["k", C(12, 17.1, 1.25)],
+    ],
+    infinity: [
+      ["m", INF, { sw: 3.1 }],
+      ["k", C(12, 12, 2.5)],
+      ["f", "M12 12C10.5 9.6 9 8.1 7.5 8.1A3.9 3.9 0 0 0 7.5 15.9C9 15.9 10.5 14.4 12 12C12.87 10.61 13.74 9.52 14.61 8.85", { sw: 3.1, clip: ["p", "M42.53 37.42L-14.75 -18.43L-42.67 10.21L14.6 66.06z"] }],
+    ],
+    anchor: [
+      ["f", C(12, 4.4, 2), { sw: 2.1 }],
+      ["f", ANCHOR, { sw: 2.4 }],
+      ["f", "M4.6 11.2l-2.3 3.6h4.6z", { round: 0.6 }],
+      ["f", "M19.4 11.2l-2.3 3.6h4.6z", { round: 0.6 }],
+      ["m", C(12, 4.4, 2), { sw: 2.1, clip: ["x", 12] }],
+      ["m", ANCHOR, { sw: 2.4, clip: ["x", 12] }],
+      ["m", "M19.4 11.2l-2.3 3.6h4.6z", { round: 0.6, clip: ["x", 12] }],
+    ],
+    crown: [
+      ["f", C(3.6, 7.6, 1.3)], ["f", C(12, 4.2, 1.4)], ["m", C(12, 4.2, 1.4), { clip: ["x", 12] }], ["m", C(20.4, 7.6, 1.3)],
+      ["f", CROWN, { round: 0.8 }],
+      ["m", CROWN, { round: 0.8, clip: ["x", 12] }],
+      ["f", RR(5, 18.6, 14, 2.6, 1)],
+      ["m", RR(5, 18.6, 14, 2.6, 1), { clip: ["x", 12] }],
+      ["k", C(12, 13.4, 1.4)],
+    ],
+    bug: [
+      ["m", "M7 11.6L3.6 9.8M6.6 14.6H3M7.2 17.8l-2.8 2M17 11.6l3.4-1.8M17.4 14.6H21M16.8 17.8l2.8 2", { sw: 1.35 }],
+      ["m", "M10.8 4.2L9.2 2.4M13.2 4.2l1.6-1.8", { sw: 1.2 }],
+      ["m", C(12, 5.4, 2)],
+      ["f", E(12, 8.2, 3.8, 2.2)],
+      ["m", E(12, 8.2, 3.8, 2.2), { clip: ["x", 12] }],
+      ["f", ELYTRA],
+      ["m", ELYTRA, { clip: ["x", 12] }],
+      ["k", "M12 10v10.4", { sw: 1.1 }],
+    ],
+    dice: [
+      ["f", "M12 2.6l8.2 4.7v9.4L12 21.4l-8.2-4.7V7.3z", { round: 1.2 }],
+      ["m", "M3.8 7.3L12 12v9.4l-8.2-4.7z", { round: 1.2 }],
+      ["d", "M20.2 7.3L12 12v9.4l8.2-4.7z", { round: 1.2 }],
+      ["k", C(0, 0, 1.35), { tf: "matrix(0.87 0.5 -0.87 0.5 12 7.3)" }],
+      ["k", C(0, 0, 1.2), { tf: "matrix(0.87 0.5 0 1 6.1 11.3)" }],
+      ["k", C(0, 0, 1.2), { tf: "matrix(0.87 0.5 0 1 9.7 17.5)" }],
+      ["k", C(0, 0, 1.2), { tf: "matrix(0.87 -0.5 0 1 14.3 17.5)" }],
+      ["k", C(0, 0, 1.2), { tf: "matrix(0.87 -0.5 0 1 16.1 14.2)" }],
+      ["k", C(0, 0, 1.2), { tf: "matrix(0.87 -0.5 0 1 17.9 10.9)" }],
+    ],
+    hourglass: [
+      ["f", GLASS],
+      ["m", GLASS, { clip: ["x", 12] }],
+      ["d", "M8.8 8.2h6.4c-.7 1.3-1.8 2.3-2.8 3.1h-.8c-1-.8-2.1-1.8-2.8-3.1z"],
+      ["d", "M12 11.2v5", { sw: 0.9 }],
+      ["d", "M7.1 19.2c.5-2.4 2.4-3.6 4.9-4 2.5.4 4.4 1.6 4.9 4z"],
+      ["f", RR(4.4, 2.4, 15.2, 2.6, 1.3)],
+      ["f", RR(4.4, 19, 15.2, 2.6, 1.3)],
+      ["m", RR(4.4, 2.4, 15.2, 2.6, 1.3), { clip: ["x", 12] }],
+      ["m", RR(4.4, 19, 15.2, 2.6, 1.3), { clip: ["x", 12] }],
+    ],
+    magnet: [
+      ["s", "M12 3.1V1.5M9 3.6l-.9-1.3M15 3.6l.9-1.3", { sw: 1.3, tf: "rotate(45 12 12)" }],
+      ["f", MAGNET, { round: 0.6, tf: "rotate(45 12 12)" }],
+      ["m", MAGNET, { round: 0.6, tf: "rotate(45 12 12)", clip: ["d", 24] }],
+      ["k", "M5.2 8.6h4.6M14.2 8.6h4.6", { sw: 1.2, tf: "rotate(45 12 12)" }],
+    ],
+    gem: [
+      ["s", SP(20.2, 3.4, 2)],
+      ["f", GEM, { round: 0.9 }],
+      ["m", "M7.2 3.8h9.6l-2 5.2H9.2z", { round: 0.6 }],
+      ["m", "M2.4 9h6.8L12 21.2z", { round: 0.9 }],
+      ["d", "M16.8 3.8l4.8 5.2L12 21.2 14.8 9z", { round: 0.9 }],
+      ["k", "M2.4 9h19.2", { sw: 1.1 }],
+    ],
+    waveform: [
+      ["s", RR(2.1, 9.4, 2.2, 5.2, 1.1)],
+      ["m", RR(5, 6.8, 2.2, 10.4, 1.1)],
+      ["f", RR(7.9, 3.6, 2.2, 16.8, 1.1)],
+      ["f", RR(10.8, 2.3, 2.2, 19.4, 1.1)],
+      ["f", RR(13.7, 5.5, 2.2, 13, 1.1)],
+      ["m", RR(16.6, 7.7, 2.2, 8.6, 1.1)],
+      ["s", RR(19.5, 9.6, 2.2, 4.8, 1.1)],
+    ],
+    spiral: [
+      ["f", SPIRAL, { sw: 2.5 }],
+      ["m", SPIRAL, { sw: 2.5, clip: ["d", 24] }],
+    ],
+    fingerprint: [
+      ["f", PRINT, { sw: 1.3, tf: "rotate(-12 12 12)" }],
+      ["m", PRINT, { sw: 1.3, tf: "rotate(-12 12 12)", clip: ["d", 24.6] }],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE, r2 } = Faces.h;
+  // The one bust every People mark is built from: a head of radius 4.3 over a dome of shoulders,
+  // a hair's gap between them, each folded down the middle.
+  const HEAD = C(12, 8.2, 4.3);
+  const SHOULDERS = "M4.5 21c0-4.4 3.4-7.6 7.5-7.6s7.5 3.2 7.5 7.6z";
+
+  // The same bust at scale s, the foot of its shoulders centred on (x, y). `drop` carries the
+  // shoulders straight down past y, so a figure standing further back still reaches the baseline.
+  const headAt = (x, y, s) => C(x, r2(y - 12.8 * s), r2(4.3 * s));
+  const shouldersAt = (x, y, s, drop = 0) => {
+    const k = (n) => r2(n * s);
+    const foot = r2(y + drop);
+    return `M${r2(x - 7.5 * s)} ${foot}V${r2(y)}c0-${k(4.4)} ${k(3.4)}-${k(7.6)} ${k(7.5)}-${k(7.6)}s${k(7.5)} ${k(3.2)} ${k(7.5)} ${k(7.6)}V${foot}z`;
+  };
+  /** A whole bust, lit in `lit` and folded down its own middle in `shade`. */
+  const bust = (x, y, s, lit = "f", shade = "m", drop = 0) => {
+    const H = headAt(x, y, s), S = shouldersAt(x, y, s, drop);
+    return [
+      [lit, S, { round: r2(0.8 * s) }],
+      [shade, S, { round: r2(0.8 * s), clip: ["x", x] }],
+      [lit, H],
+      [shade, H, { clip: ["x", x] }],
+    ];
+  };
+  /** A bust's outline a little outside its edge: where a figure in front may cut into it. */
+  const behind = (x, y, s, drop = 0) => C(x, r2(y - 12.8 * s), r2(4.75 * s)) + shouldersAt(x, y, r2(1.06 * s), drop);
+
+  // A child's bust: the same two shapes, the head larger against narrower shoulders. At k = 1 it
+  // is the `child` mark's own figure.
+  const kidHead = (x, y, k) => C(x, r2(y - 10.1 * k), r2(3.9 * k));
+  const kidShoulders = (x, y, k) => shouldersAt(x, y, r2(0.72 * k));
+  const kid = (x, y, k) => {
+    const H = kidHead(x, y, k), S = kidShoulders(x, y, k);
+    return [
+      ["f", S, { round: r2(0.6 * k) }],
+      ["m", S, { round: r2(0.6 * k), clip: ["x", x] }],
+      ["f", H],
+      ["m", H, { clip: ["x", x] }],
+    ];
+  };
+
+  /**
+   * The cut that lets the figure in front stand clear of those behind: a band of ground round
+   * its outline, kept only where it crosses a figure behind (on open ground it would show).
+   */
+  const cut = (outline, over, w = 1.9) => ["k", outline, { sw: w, clip: ["p", over] }];
+
+  const BABY = C(12, 10.2, 6.6);
+  const BIB = "M5 21c0-2.6 1.6-4.4 3.8-4.8q3.2 1.6 6.4 0c2.2.4 3.8 2.2 3.8 4.8z";
+  const BALLOON = E(17.6, 6.4, 3.2, 3.8);
+
+  Faces.addFolded({
+    person: [
+      ["f", SHOULDERS, { round: 0.8 }],
+      ["m", SHOULDERS, { round: 0.8, clip: ["x", 12] }],
+      ["f", HEAD],
+      ["m", HEAD, { clip: ["x", 12] }],
+    ],
+    // Two busts: the one behind smaller, set back and in shade.
+    couple: [
+      ...bust(15.6, 19.4, 0.8, "m", "d", 1.6),
+      cut(headAt(9.2, 21, 0.94) + shouldersAt(9.2, 21, 0.94), behind(15.6, 19.4, 0.8, 1.6)),
+      ...bust(9.2, 21, 0.94),
+    ],
+    // One in front, two a row back and a little higher.
+    team: [
+      ...bust(6.9, 18.2, 0.66, "m", "d", 2.8),
+      ...bust(17.1, 18.2, 0.66, "m", "d", 2.8),
+      cut(headAt(12, 21, 0.82) + shouldersAt(12, 21, 0.82), behind(6.9, 18.2, 0.66, 2.8) + behind(17.1, 18.2, 0.66, 2.8)),
+      ...bust(12, 21, 0.82),
+    ],
+    // Two grown-ups behind, a child in front between them.
+    family: [
+      ...bust(7.9, 19.2, 0.78, "m", "d", 1.8),
+      ...bust(16.1, 19.2, 0.78, "m", "d", 1.8),
+      cut(kidHead(12, 21, 0.68) + kidShoulders(12, 21, 0.68), behind(7.9, 19.2, 0.78, 1.8) + behind(16.1, 19.2, 0.78, 1.8)),
+      ...kid(12, 21, 0.68),
+    ],
+    // A round head with one curl, the face low on it, over a bib.
+    baby: [
+      ["f", BABY],
+      ["m", BABY, { clip: ["x", 12] }],
+      ["f", "M11.3 4.4c-.9-1.7-.2-3.3 1.4-3.3 1.1 0 1.8.9 1.5 1.8-.9-.8-2.1-.4-2 .6.1.3.2.6.3.9z", { round: 0.5 }],
+      ["k", C(9.6, 11.2, 0.85)], ["k", C(14.4, 11.2, 0.85)],
+      ["k", "M10 13.8q2 1.6 4 0", { sw: 1.3 }],
+      cut(BIB, BABY, 1.6),
+      ["f", BIB, { round: 0.6 }],
+      ["m", BIB, { round: 0.6, clip: ["x", 12] }],
+    ],
+    // A child's bust, holding a balloon.
+    child: [
+      ["f", "M17.6 11c-.8 2 .8 3.4-2 6.2", { sw: 1.2 }],
+      ["f", BALLOON],
+      ["m", BALLOON, { clip: ["d", 24] }],
+      ["f", "M16.9 10.9l.7-.8.7.8z", { round: 0.5 }],
+      ...kid(9.6, 21, 1),
+    ],
+    // Round glasses, and a cane at the side.
+    elder: [
+      ...bust(9.6, 21, 0.94),
+      ["k", C(7.9, 9.4, 1.35) + C(11.3, 9.4, 1.35), { sw: 1.1 }],
+      ["k", "M9.25 9.3h.7M5.6 9.1h.8M12.8 9.1h.8", { sw: 1.1 }],
+      ["f", "M18.2 21V12.2a1.6 1.6 0 0 1 3.2 0v.8", { sw: 1.7 }],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, r2 } = Faces.h;
+  // The one bust (see people-base.js): a head of radius 4.3 over a dome of shoulders.
+  const HEAD = C(12, 8.2, 4.3);
+  const SHOULDERS = "M4.5 21c0-4.4 3.4-7.6 7.5-7.6s7.5 3.2 7.5 7.6z";
+  /**
+   * The same bust at scale s about the middle of its foot, moved dx across: written out rather than
+   * transformed, so a cut can be clipped to it. bust(1) is HEAD and SHOULDERS exactly.
+   */
+  const bust = (s, dx = 0) => {
+    const x = 12 + dx, w = r2(7.5 * s);
+    return {
+      x,
+      head: C(x, r2(21 - 12.8 * s), r2(4.3 * s)),
+      shoulders: `M${r2(x - 7.5 * s)} 21c0-${r2(4.4 * s)} ${r2(3.4 * s)}-${r2(7.6 * s)} ${w}-${r2(7.6 * s)}s${w} ${r2(3.2 * s)} ${w} ${r2(7.6 * s)}z`,
+    };
+  };
+  const body = (b) => [
+    ["f", b.shoulders, { round: 0.8 }],
+    ["m", b.shoulders, { round: 0.8, clip: ["x", b.x] }],
+  ];
+  const head = (b) => [
+    ["f", b.head],
+    ["m", b.head, { clip: ["x", b.x] }],
+  ];
+  // A hair's gap round a hat or a tool, cut only where it lies over the figure (on the open ground
+  // a cut would show as a dark rim under the tile's light). `under` must wind one way throughout.
+  const gap = (d, under, sw = 1.2, tf) => ["k", d, { sw, clip: ["p", under], ...(tf ? { tf } : {}) }];
+
+  // student: a mortarboard, its tassel hanging off the right-hand corner.
+  const SB = bust(0.88);
+  const BOARD = "M2.8 5.2L12 2.2l9.2 3L12 8.2z";
+  const CAP = "M7.6 5.6v3.2q4.4 1.6 8.8 0V5.6z";
+
+  // chef: three puffs over a pleated crown and a band. Every piece winds the same way, so the
+  // union has no holes.
+  const CB = bust(0.8);
+  const TOQUE = C(8.7, 5.6, 2.3) + C(12, 4.6, 2.6) + C(15.3, 5.6, 2.3) + "M8.4 5.4v2.8h7.2V5.4z";
+  const BAND = RR(7.8, 7.9, 8.4, 2.2, 0.6);
+
+  // doctor: the full bust, a stethoscope round the neck.
+  const DB = bust(1);
+
+  // astronaut: the head is a helmet on a suit collar.
+  const AB = bust(1);
+  const HELMET = C(12, 8.4, 6);
+  const COLLAR = RR(7.4, 13, 9.2, 2.8, 1.4);
+
+  // artist: a beret slouched to the left, a brush held up on the right.
+  const RB = bust(0.86, -1.3);
+  const BERET = E(10.4, 5.5, 5.6, 2.7);
+  const BTF = "rotate(-10 10.4 5.5)";
+  const BRUSH = "M16.2 21.6L19.4 13.4";
+
+  // builder: a hard hat with a ridge down its crown and a brim all round.
+  const HB = bust(0.88);
+  const DOME = "M7.2 8.2C7.2 4.8 9.2 2.6 12 2.6s4.8 2.2 4.8 5.6z";
+  const BRIM = RR(4.2, 7.8, 15.6, 2, 1);
+
+  // detective: a brimmed hat, a turned-up collar, and a magnifying glass to say it is a detective.
+  const TB = bust(0.86, -1);
+  const CROWN = "M7.4 7.8L8 4.2c.2-1 1.6-1.4 3-.9 1.4-.5 2.8-.1 3 .9l.6 3.6z";
+  const HATBRIM = "M3.8 8c2-.5 4.4-.8 7.2-.8s5.2.3 7.2.8c-.6 1.1-3.4 1.8-7.2 1.8S4.4 9.1 3.8 8z";
+  const FLAP_L = "M11 15.4L7.6 12.2 6.6 15.8z";
+  const FLAP_R = "M11 15.4l3.4-3.2 1 3.6z";
+  const LENS = [16.8, 16.8];
+
+  Faces.addFolded({
+    person: [
+      ["f", SHOULDERS, { round: 0.8 }],
+      ["m", SHOULDERS, { round: 0.8, clip: ["x", 12] }],
+      ["f", HEAD],
+      ["m", HEAD, { clip: ["x", 12] }],
+    ],
+    student: [
+      ...body(SB),
+      ...head(SB),
+      gap(CAP, SB.head),
+      ["m", CAP],
+      gap(BOARD, SB.head + CAP),
+      ["f", BOARD, { round: 0.6 }],
+      ["m", BOARD, { round: 0.6, clip: ["x", 12] }],
+      ["k", "M12 5.2l7.6 .6", { sw: 1.1 }],
+      ["f", "M19.8 5.8v4", { sw: 1.1 }],
+      ["f", RR(19, 9.2, 1.6, 3, 0.8)],
+    ],
+    chef: [
+      ...body(CB),
+      ["d", "M10.2 15.1h3.6L12 17.6z", { round: 0.6 }],
+      ...head(CB),
+      ["f", TOQUE],
+      ["m", TOQUE, { clip: ["x", 12] }],
+      ["k", "M10.2 5.2v2.8M13.8 5.2v2.8", { sw: 1.1 }],
+      gap(BAND, CB.head + TOQUE),
+      ["f", BAND],
+      ["m", BAND, { clip: ["x", 12] }],
+    ],
+    doctor: [
+      ...body(DB),
+      ...head(DB),
+      ["k", "M8.6 14.3c0 3.6 1.3 5.3 3.4 5.3 1.8 0 3-1.1 3.5-2.9", { sw: 1.6 }],
+      ["k", C(15.6, 16.6, 2.1)],
+      ["d", C(15.6, 16.6, 1.1)],
+    ],
+    astronaut: [
+      ...body(AB),
+      ["m", COLLAR],
+      ["k", C(12, 8.4, 6.7), { clip: ["p", AB.shoulders + COLLAR] }],
+      ["f", HELMET],
+      ["m", HELMET, { clip: ["x", 12] }],
+      ["k", E(12, 8.9, 4.3, 3.4)],
+      ["f", "M9.4 8.4q.3-1.6 2-2.2", { sw: 1.2 }],
+    ],
+    artist: [
+      ...body(RB),
+      ...head(RB),
+      gap(BERET, RB.head, 1.2, BTF),
+      ["f", BERET, { tf: BTF }],
+      ["m", BERET, { tf: BTF, clip: ["x", RB.x] }],
+      ["m", "M10.9 3q0-1 .9-1.3", { sw: 1.4 }],
+      gap(BRUSH, RB.shoulders, 3.2),
+      ["f", BRUSH, { sw: 1.5 }],
+      ["m", RR(18.6, 11.6, 2, 2.4, 0.4), { tf: "rotate(21 19.6 12.8)" }],
+      ["f", "M19.1 11.6c.2-1.8 1-3.2 1.8-4.2.4 1.4.4 2.9-.3 4.5z", { round: 0.5 }],
+      ["d", "M20.1 9.4c.3-.8.5-1.4.8-2 .3 1 .3 1.8.1 2.6z"],
+    ],
+    builder: [
+      ...body(HB),
+      ...head(HB),
+      gap(DOME + BRIM, HB.head),
+      ["f", DOME],
+      ["m", DOME, { clip: ["x", 12] }],
+      ["k", "M10.5 3.4v4.4M13.5 3.4v4.4", { sw: 1.1 }],
+      ["f", BRIM],
+      ["m", BRIM, { clip: ["x", 12] }],
+    ],
+    detective: [
+      ...body(TB),
+      ...head(TB),
+      gap(FLAP_L + FLAP_R, TB.head),
+      ["f", FLAP_L + FLAP_R, { round: 0.5 }],
+      ["m", FLAP_L + FLAP_R, { round: 0.5, clip: ["x", TB.x] }],
+      gap(CROWN + HATBRIM, TB.head),
+      ["f", CROWN],
+      ["m", CROWN, { clip: ["x", TB.x] }],
+      ["k", "M7.6 6.6h6.8", { sw: 1.1 }],
+      ["f", HATBRIM, { round: 0.5 }],
+      ["m", HATBRIM, { round: 0.5, clip: ["x", TB.x] }],
+      ["k", C(...LENS, 4.2), { clip: ["p", TB.shoulders + FLAP_R] }],
+      gap("M19.2 19.2l1.9 1.9", TB.shoulders, 3.8),
+      ["f", "M19.2 19.2l1.9 1.9", { sw: 2.2 }],
+      ["f", C(...LENS, 3), { sw: 1.5 }],
+      ["d", C(...LENS, 2.25)],
+    ],
+  });
+})();
+
+(function () {
+  const { C, E, RR, SP, GEAR, RUFFLE } = Faces.h;
+  // The one bust every People mark is built from (families/people-base.js).
+  const HEAD = C(12, 8.2, 4.3);
+  const SHOULDERS = "M4.5 21c0-4.4 3.4-7.6 7.5-7.6s7.5 3.2 7.5 7.6z";
+
+  // meditate: knees wider than the shoulders in a lens of crossed legs, the front shin cut in,
+  // a torso slimmer than the bust's, arms bent out to hands on the knees
+  const LEGS = "M3.5 18.4Q12 13.6 20.5 18.4Q12 22.6 3.5 18.4z";
+  const TORSO = "M9.4 10.2c0-1.4 1.1-2.2 2.6-2.2s2.6.8 2.6 2.2l-.7 5.8h-3.8z";
+  // hello: an open hand, tipped as it waves
+  const PALM = "M7.4 12h9.6v4.8c0 2.8-2 4.8-4.8 4.8S7.4 19.6 7.4 16.8z";
+  const HT = "rotate(-12 12 14)";
+  // handshake: sleeves rising at 30 degrees from either corner, cuffs cut in, to a clasp: the lit
+  // hand's four fingers wrapped over as a band with three cuts, the shaded hand's heel showing at its
+  // right end and its thumb laid across the top
+  const ARM_L = "M3.1 14.3L9.9 10.4 12.1 14.2 5.3 18.1z";
+  const ARM_R = "M20.9 14.3L14.1 10.4 11.9 14.2 18.7 18.1z";
+  // presenter: a board on an easel, the bust at .62 in front of it
+  const BOARD = RR(9.8, 2.8, 12, 9.6, 1.2);
+  const BT = "translate(-0.4 7.98) scale(.62)";
+  // the bust's cut is kept only where it crosses the board and the easel
+  const EASEL = BOARD + "M15.8 11L20.6 21.6H11z";
+  // smile
+  const FACE = C(12, 12, 9);
+  const TILT = "rotate(-8 12 12)";
+  // hug: two busts at .82 leaning in, each folded down its own tilted middle (the fold stops at
+  // the floor); the left one in front
+  const HL = "translate(-4.2 -1.2) rotate(10 12 21) translate(12 21) scale(.82) translate(-12 -21)";
+  const HR = "translate(4.2 -1.2) rotate(-10 12 21) translate(12 21) scale(.82) translate(-12 -21)";
+  const FOLD_L = "M12.14 -4.82L7.8 19.8H40V-4.82z";
+  const FOLD_R = "M11.86 -4.82L16.2 19.8H40V-4.82z";
+  const FLOOR = "M0 0h24v19.8H0z";
+  const ARM = "M8.6 17.2 15.6 16.4q2-.2 2.6 1.8";
+  // where the figure behind is: the front figure's cut, and the arm's, are kept only over it
+  const BEHIND = "M10.4 9.5a4 4 0 1 1 8 0a4 4 0 1 1-8 0zM9.7 21L9.6 19.2 10 17.5 10.7 15.9 11.9 14.6 13.4 13.7 15 13.2 16.8 13.1 18.5 13.5 20 14.3 21.3 15.5 22.2 17 22.7 18.6 23.2 21.1 10.1 23.4z";
+  const BACK = "M12 14.5L13.4 13.7 15 13.2 16.8 13.1 18.5 13.5 20 14.3 21.3 15.5 22.2 17 22.7 18.6 23.2 21.1H12z";
+
+  Faces.addFolded({
+    person: [
+      ["f", SHOULDERS, { round: 0.8 }],
+      ["m", SHOULDERS, { round: 0.8, clip: ["x", 12] }],
+      ["f", HEAD],
+      ["m", HEAD, { clip: ["x", 12] }],
+    ],
+    runner: [
+      ["s", "M2.4 7.8h4M2 11.2h3", { sw: 1.3 }],
+      ["m", "M11.2 13.8 9 17.4 5.2 18", { sw: 2.7 }],
+      ["m", "M13.6 9.2 16.4 11.4 19.2 9.6", { sw: 2.5 }],
+      ["f", "M13.8 8.8 11.2 13.8", { sw: 3.4 }],
+      ["f", "M11.2 13.8 15.6 15.6 14.6 20.6h1.9", { sw: 2.7 }],
+      ["f", "M13.6 9.2 10.4 10.8 8.4 12.8", { sw: 2.5 }],
+      ["f", C(15.6, 4.6, 2.6)],
+      ["m", C(15.6, 4.6, 2.6), { clip: ["x", 15.6] }],
+    ],
+    meditate: [
+      ["f", LEGS, { round: 0.8 }],
+      ["m", LEGS, { round: 0.8, clip: ["x", 12] }],
+      ["k", "M12.4 20.2Q10.4 18.4 7.4 18.2", { sw: 1.1 }],
+      ["f", TORSO, { round: 0.8 }],
+      ["m", TORSO, { round: 0.8, clip: ["x", 12] }],
+      ["f", "M9.8 9.4 6.2 12.6 5 17", { sw: 1.8 }],
+      ["m", "M14.2 9.4 17.8 12.6 19 17", { sw: 1.8 }],
+      ["f", C(12, 5, 2.9)],
+      ["m", C(12, 5, 2.9), { clip: ["x", 12] }],
+    ],
+    hello: [
+      ["s", "M4.4 6.6q-1.5 2.1-.9 4.7M20.4 3.8q1.5 2.1.9 4.7", { sw: 1.3 }],
+      ["f", "M8.6 12.4 7.6 5.4M11.1 12 10.9 3.6M13.6 12 14.3 4.4M15.9 12.8 17.6 7.4M8.2 16.4 4.6 12.6", { sw: 2.3, tf: HT }],
+      ["f", PALM, { tf: HT }],
+      ["m", PALM, { tf: HT, clip: ["d", 26.4] }],
+    ],
+    handshake: [
+      ["m", ARM_R, { round: 0.6 }],
+      ["m", RR(14.6, 6.6, 5.6, 6, 2.8)],
+      ["f", ARM_L, { round: 0.6 }],
+      ["f", RR(6.4, 6.6, 11.6, 6, 3)],
+      ["k", "M11.2 9.8v3.6M13.5 9.8v3.6M15.8 9.8v3.6", { sw: 1.2 }],
+      ["m", "M19 8H10.4", { sw: 2.4 }],
+      ["k", "M4 12.7l2.3 4M20 12.7l-2.3 4", { sw: 1.2 }],
+    ],
+    presenter: [
+      ["m", "M15.8 4v17M15.8 12l-3.6 9M15.8 12l3.6 9", { sw: 1.3 }],
+      ["f", BOARD, { round: 0.6 }],
+      ["m", BOARD, { round: 0.6, clip: ["d", 23.4] }],
+      ["k", "M12.4 10l2.6-2.8 2.2 1.6 3-3.6", { sw: 1.3 }],
+      ["k", SHOULDERS, { round: 2.6, tf: BT, clip: ["p", EASEL] }],
+      ["k", HEAD, { round: 2.6, tf: BT, clip: ["p", EASEL] }],
+      ["f", SHOULDERS, { round: 0.8, tf: BT }],
+      ["m", SHOULDERS, { round: 0.8, tf: BT, clip: ["x", 7.04] }],
+      ["f", HEAD, { tf: BT }],
+      ["m", HEAD, { tf: BT, clip: ["x", 7.04] }],
+    ],
+    smile: [
+      ["f", FACE],
+      ["m", FACE, { clip: ["p", "M12.6 2c4.4 3 5.6 6.4 5.6 10s-1.2 7-5.6 10H30V2z"] }],
+      ["d", C(6.4, 13.6, 1.35)], ["d", C(16.6, 12.6, 1.35)],
+      ["k", E(9.2, 10.6, 1.05, 1.4), { tf: TILT }], ["k", E(14.6, 10.6, 1.05, 1.4), { tf: TILT }],
+      ["k", "M9.2 14.7q2.7 2.9 5.6 0", { sw: 1.5, tf: TILT }],
+    ],
+    hug: [
+      ["m", SHOULDERS, { round: 0.8, tf: HR, clip: ["p", FLOOR] }],
+      ["d", SHOULDERS, { round: 0.8, tf: HR, clip: ["p", FOLD_R] }],
+      ["m", HEAD, { tf: HR }],
+      ["d", HEAD, { tf: HR, clip: ["p", FOLD_R] }],
+      ["k", SHOULDERS, { round: 1.8, tf: HL, clip: ["p", BEHIND] }],
+      ["k", HEAD, { round: 1.8, tf: HL, clip: ["p", BEHIND] }],
+      ["f", SHOULDERS, { round: 0.8, tf: HL, clip: ["p", FLOOR] }],
+      ["m", SHOULDERS, { round: 0.8, tf: HL, clip: ["p", FOLD_L] }],
+      ["f", HEAD, { tf: HL }],
+      ["m", HEAD, { tf: HL, clip: ["p", FOLD_L] }],
+      ["k", ARM, { sw: 4.6, tf: HR, clip: ["p", BACK] }],
+      ["f", ARM, { sw: 3, tf: HR }],
+    ],
+
+  });
+})();
+
+</script>
+<script>
+(() => {
+  const { face, GROUNDS, FOLDED, SHAPES, SHAPE_NAMES, lit, initials, hueIndex } = Faces;
+  const $ = (s, el = document) => el.querySelector(s);
+
+  // ── your rooms (the six marks are the live space_icons rows) ──────────────────────────────
+  const ROOMS = [
+    { name: "J", mark: "wafer", ground: 2, sn: "Handed the glider bug to the game of life", t: "now" },
+    { name: "the game of life", mark: "rocket", ground: 0, sn: "The glider hits the block at generation 40", t: "now" },
+    { name: "algorithmic beauty", sn: "Phyllotaxis, the second pass", t: "4m" },
+    { name: "Pomodoro Timer", mark: "pizza", ground: 3, sn: "Break's over, next block starts at 2:30", t: "12m" },
+    { name: "Restaurant Tracking", mark: "cup", ground: 7, sn: "Added three places to the Saturday list", t: "1h" },
+    { name: "physics show foothill college", sn: "Saturday, 7 pm, Smithwick Theatre", t: "2h" },
+    { name: "Car collision insurance claim", mark: "bolt", ground: 5, sn: "Adjuster call moved to Thursday", t: "3h" },
+    { name: "Riaan's development", mark: "gear", ground: 3, sn: "Weekly notes are in", t: "Mon" },
+    { name: "west elm", sn: "Return label attached", t: "Fri" },
+  ];
+  const PICKED = ROOMS.filter((r) => r.mark);
+  const LIFE = ROOMS[1];
+  const J = ROOMS[0];
+
+  const STYLES = {
+    today: { name: "Today", d: "1.75 outline, white, on a flat ground.", cost: "shipped" },
+    lit: { name: "A · Lit", d: "The same drawings: a lit ground, a faint fill, a heavier line when small.", cost: "~½ day" },
+    solid: { name: "B · Solid", d: "Redrawn as filled shapes with cut-outs: bold and simple.", cost: "~2 days" },
+    folded: { name: "C · Folded ★", d: "Paper lit from the upper left, with shaded sides, cut-outs and far things.", cost: "~2½ days" },
+    shapes: { name: "D · + Shapes", d: "C, plus a composition for every room without a pick.", cost: "+~1 day" },
+  };
+  // The library, doubled: the 84 names the phone has today (so every saved pick keeps its face)
+  // and 84 new ones, 21 to a family.
+  const FAMILIES = [
+    ["Snack", "chip crisp cup bowl cookie donut pizza cone bottle burger taco sushi croissant cake popcorn pretzel cherry apple avocado egg lollipop"],
+    ["Silicon", "wafer circuit antenna signal radar terminal cloud bolt plug battery cube atom robot satellite server database braces cursor laptop phone headset"],
+    ["People", "person couple team family baby child elder student chef doctor astronaut artist builder detective runner meditate hello handshake presenter smile hug"],
+    ["Work", "rocket target flask wrench gear compass clipboard ruler briefcase ladder calendar clock hammer pencil bulb puzzle megaphone trophy scales microscope layers"],
+    ["Nature", "leaf tree mountain wave sun moon star flame snow drop sprout flower cactus mushroom rainbow planet feather paw bird fish butterfly"],
+    ["Places", "plane boat car tent pin globe key house door bike train lighthouse castle city bridge map suitcase bed ticket palm balloon"],
+    ["Money", "coin bank chart pie tag cart receipt wallet card piggy cash bag gift safe calculator trend percent coins shop barcode sack"],
+    ["Making", "palette brush music film book scissors sparkle frame guitar piano headphones vinyl clapper masks gamepad knight nib yarn vase letters polaroid"],
+    ["Marks", "shield lock eye flag bell bookmark heart check question alert infinity anchor crown bug dice hourglass magnet gem waveform spiral fingerprint"],
+  ].map(([name, marks]) => [name, marks.split(" ")]);
+  const TODAY_NAMES = new Set(Object.keys(Faces.TODAY).filter((m) => m !== "atom"));
+  /** What a style can draw: the line styles have only today's 84; the paper styles, everything drawn. */
+  const drawable = (m, st) => (st === "today" || st === "lit" ? TODAY_NAMES.has(m) : !!FOLDED[m]);
+  const GROUND_NAMES = ["Rose", "Lagoon", "Clay", "Teal", "Cobalt", "Violet", "Orchid", "Fern", "Tide", "Ochre", "Moss", "Plum"];
+
+  let style = "folded";
+  try { style = localStorage.getItem("faces.style") || "folded"; } catch (e) {}
+  if (!STYLES[style]) style = "folded";
+
+  const dark = () => {
+    const t = document.documentElement.dataset.theme;
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+  const tone = (hex) => {
+    // The name beside a face, tinted with that face's ground: deeper on light, lifted on dark.
+    const m = (a, b, t) => "#" + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, "0")).join("");
+    return dark() ? m(hex, "#ffffff", 0.42) : m(hex, "#000000", 0.12);
+  };
+  const groundOf = (r) => (r.ground === undefined ? GROUNDS[hueIndex(r.name)] : GROUNDS[r.ground]);
+  const F = (r, size, extra = {}) => face({ name: r.name, mark: r.mark, ground: r.ground, size, style, ...extra });
+
+  const icons = {
+    search: '<svg viewBox="0 0 24 24"><path d="M11 17.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM20 20l-4.3-4.3"/></svg>',
+    route: '<svg class="ri" viewBox="0 0 24 24"><path d="M5 4v7a4 4 0 0 0 4 4h10M15 11l4 4-4 4"/></svg>',
+    info: '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v6M12 7.5v.5"/></svg>',
+    inbox: '<svg viewBox="0 0 24 24"><path d="M3 12l2.5-7h13L21 12v7H3z"/><path d="M3 12h5l1.5 3h5L16 12h5"/></svg>',
+    chat: '<svg viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-5 4v-4h-.5A1.5 1.5 0 0 1 4 14.5z"/></svg>',
+    chip: '<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>',
+    user: '<svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/><path d="M4 21c0-4 3.5-6.5 8-6.5s8 2.5 8 6.5"/></svg>',
+  };
+  const chrome = () => `<div class="island"></div><div class="status"><span>9:41</span><span><i></i></span></div>`;
+  const tabbar = () => `<div class="tabbar"><div>${icons.inbox}Needs</div><div class="on">${icons.chat}Spaces</div><div>${icons.chip}Harnesses</div><div>${icons.user}You</div></div>`;
+
+  // ── the five-way table ─────────────────────────────────────────────────────────────────────
+  function drawWays() {
+    const six = PICKED;
+    $("#ways").innerHTML = Object.entries(STYLES).map(([k, s]) => {
+      const big = six.map((r) => face({ name: r.name, mark: r.mark, ground: r.ground, size: 56, style: k })).join("");
+      const small = six.map((r) => face({ name: r.name, mark: r.mark, ground: r.ground, size: 28, style: k })).join("");
+      return `<div class="way ${k === style ? "on" : ""}" data-s="${k}" role="button" tabindex="0" aria-label="Show ${s.name} on the phones">
+        <div><h3>${s.name}</h3><div class="d">${s.d}</div></div>
+        <div class="faces">${big}<span class="gap"></span>${small}</div>
+        <span class="cost">${s.cost}</span></div>`;
+    }).join("");
+  }
+
+  // ── the list ───────────────────────────────────────────────────────────────────────────────
+  function drawList() {
+    $("#listPhone").innerHTML = chrome() + `<div class="large">Spaces</div>
+      <div class="search">${icons.search}Search</div>
+      <div class="list">${ROOMS.map((r, i) => `<div class="srow ${i === 1 ? "pressed" : ""}">${F(r, 56)}<div class="w"><div class="t"><b>${r.name}</b><span>${r.t}</span></div><div class="sn">${r.sn}</div></div><span class="chev">›</span></div>`).join("")}</div>` + tabbar();
+  }
+
+  // ── the sheet ──────────────────────────────────────────────────────────────────────────────
+  function drawSheet() {
+    const r = LIFE;
+    const base = ROOMS.slice(1, 7);
+    const fams = (style === "shapes" ? [...FAMILIES, ["Shapes", SHAPE_NAMES]] : FAMILIES)
+      .map(([fam, marks]) => [fam, fam === "Shapes" ? marks : marks.filter((m) => drawable(m, style))])
+      .filter(([, marks]) => marks.length > 0);
+    const cells = fams.map(([fam, marks]) => `<div class="gsec">${fam} · ${marks.length}</div><div class="grid">${marks.map((m) => {
+      const on = r.mark === m;
+      const drawn = on ? face({ name: r.name, mark: m, ground: r.ground, size: 48, style }) : face({ name: r.name, mark: m, ground: r.ground, size: 48, style, cell: true });
+      return `<button class="cellb ${on ? "on" : ""}" data-m="${m}" aria-label="${m}" aria-pressed="${on}">${drawn}</button>`;
+    }).join("")}</div>`).join("");
+    const strip = GROUNDS.map((g, i) => {
+      const L = lit(g);
+      const bg = style === "today" ? g : `linear-gradient(${L.top},${L.bottom})`;
+      return `<button class="hue ${r.ground === i ? "on" : ""}" style="background:${bg}" data-g="${i}" aria-label="${GROUND_NAMES[i]}" aria-pressed="${r.ground === i}"></button>`;
+    }).join("");
+    const markName = r.mark ? r.mark[0].toUpperCase() + r.mark.slice(1) : "Initials";
+    $("#sheetPhone").innerHTML = chrome() + `<div class="large">Spaces</div>
+      <div class="list">${base.map((x) => `<div class="srow">${F(x, 56)}<div class="w"><div class="t"><b>${x.name}</b><span>${x.t}</span></div><div class="sn">${x.sn}</div></div></div>`).join("")}</div>
+      <div class="dim"></div>
+      <div class="sheet"><div class="grab"></div>
+        <div class="shd">${F(r, 56)}<div class="who"><b>${r.name}</b><small>${markName} on ${GROUND_NAMES[r.ground ?? 0]}</small></div><span class="done">Done</span></div>
+        <div class="strip">${strip}</div>
+        <div class="shbody">${cells}<div class="reset">Use initials</div></div>
+      </div>`;
+  }
+
+  // ── the chat ───────────────────────────────────────────────────────────────────────────────
+  const ASK = "Can the game of life room find out why the glider dies?";
+  function agentFace(r, speaking) {
+    const own = $("#agentToo").checked;
+    // Today the face beside a message is the speaker's name in initials, whatever the room chose.
+    return own ? F(r, 28) : face({ name: speaking, size: 28, style: "today" });
+  }
+  function drawLead() {
+    $("#leadPhone").innerHTML = `<div class="nav">${chrome()}<div class="navrow"><span class="back">‹</span><div class="ttl"><span>J</span></div><span class="conn"><i></i></span></div></div>
+      <div class="room">
+        <div class="day">Today 9:38</div>
+        <div class="msg me"><div class="bub">What's still open from yesterday?</div></div>
+        <div class="msg them" style="margin-top:6px"><span class="${$("#agentToo").checked ? "hl" : ""}">${agentFace(J, "J")}</span><div class="bub">Two things: the adjuster wants a time on Thursday, and the glider in the game of life still dies.</div></div>
+        <div class="msg me" style="margin-top:8px"><div class="bub">${ASK}</div></div>
+        <div class="route step" data-at="1"><div class="rw hl">${icons.route}${F(LIFE, 28)}<span class="nm" style="color:${tone(groundOf(LIFE))}">the game of life</span><span class="dots live"><i></i><i></i><i></i></span><span class="chv">›</span></div><span class="inf">${icons.info}</span></div>
+        <div class="msg them step" data-at="3"><span class="${$("#agentToo").checked ? "hl" : ""}">${agentFace(J, "J")}</span><div class="bub">The glider hits the still block at (12, 7) on generation 40. Moving the block one cell clears it. The trace is in the game of life.</div></div>
+      </div>
+      <div class="composer"><span class="plus">+</span><span class="field">Message J</span></div>`;
+  }
+  function drawSpec() {
+    $("#specPhone").innerHTML = `<div class="nav">${chrome()}<div class="navrow"><span class="back">‹</span><div class="ttl"><span>the game of life</span></div><span class="conn"><i></i></span></div></div>
+      <div class="room">
+        <div class="day">Yesterday</div>
+        <div class="msg them"><span class="${$("#agentToo").checked ? "hl" : ""}">${agentFace(LIFE, "the game of life")}</span><div class="bub">Gosper gun is up. It fires a glider every 30 generations.</div></div>
+        <div class="day" style="margin-top:14px">Today 9:40</div>
+        <div class="caption step" data-at="0"><span class="hl" style="display:inline-flex;align-items:center;gap:4px">${F(J, 28)}<span class="ar">→</span>${F(LIFE, 28)}</span></div>
+        <div class="msg me step" data-at="0"><div class="bub">${ASK}</div></div>
+        <div class="msg them step" data-at="2"><span class="${$("#agentToo").checked ? "hl" : ""}">${agentFace(LIFE, "the game of life")}</span><div class="bub">Running it forward… the glider meets the block at (12, 7) on generation 40 and both burn out. One cell to the left and it sails past.</div></div>
+      </div>
+      <div class="composer"><span class="plus">+</span><span class="field">Message the game of life</span></div>`;
+  }
+  function drawBeforeAfter() {
+    const today = (r, s = 28) => face({ name: r.name, size: s, style: "today" });
+    $("#beforeAfter").innerHTML = `
+      <div><span class="lbl">Routing row · today</span><div class="mini">${icons.route}${today(LIFE)}<b style="color:${tone(GROUNDS[hueIndex(LIFE.name)])}">the game of life</b></div></div>
+      <div><span class="lbl">Routing row · with your face</span><div class="mini">${icons.route}${F(LIFE, 28)}<b style="color:${tone(groundOf(LIFE))}">the game of life</b></div></div>
+      <div><span class="lbl">Caption · today</span><div class="mini">${today(J)}<span class="ar">→</span>${today(LIFE)}</div></div>
+      <div><span class="lbl">Caption · with your faces</span><div class="mini">${F(J, 28)}<span class="ar">→</span>${F(LIFE, 28)}</div></div>`;
+  }
+
+  // The rooms play out: the ask, the lane going, the answer; then again.
+  let timers = [];
+  function play() {
+    timers.forEach(clearTimeout); timers = [];
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const steps = [...document.querySelectorAll("#chatPhones .step")];
+    const show = (at) => steps.filter((s) => +s.dataset.at === at).forEach((s) => s.classList.add("in"));
+    steps.forEach((s) => s.classList.remove("in"));
+    const dots = () => document.querySelectorAll("#chatPhones .dots.live");
+    dots().forEach((d) => (d.style.display = ""));
+    if (reduce) { [0, 1, 2, 3].forEach(show); dots().forEach((d) => (d.style.display = "none")); return; }
+    timers.push(setTimeout(() => show(0), 150));
+    timers.push(setTimeout(() => show(1), 1100));
+    timers.push(setTimeout(() => show(2), 3600));
+    timers.push(setTimeout(() => { dots().forEach((d) => (d.style.display = "none")); show(3); }, 4400));
+    timers.push(setTimeout(play, 9500));
+  }
+
+  // ── up close ───────────────────────────────────────────────────────────────────────────────
+  function drawExplode() {
+    const r = LIFE;
+    const g = r.ground ?? 0;
+    const only = (tiers) => {
+      const keep = FOLDED[r.mark].filter(([t]) => tiers.includes(t));
+      const saved = FOLDED.__tmp; FOLDED.__tmp = keep;
+      const s = face({ name: r.name, mark: "__tmp", ground: g, size: 72, style: "folded" });
+      FOLDED.__tmp = saved; return s;
+    };
+    const lays = [
+      ["a s", "far", "white 45%, halo 16%"],
+      ["m", "shade", "ground 26% into white"],
+      ["f", "face", "white"],
+      ["d k", "cut + deep", "the ground, and 55% of it"],
+    ];
+    $("#explode").innerHTML = `<div class="layers">${lays.map(([t, n, h], i) => `${i ? '<span class="eq">+</span>' : ""}<div class="lay">${only(t.split(" "))}<div><b>${n}</b>${h}</div></div>`).join("")}<span class="eq">=</span><div class="lay">${face({ name: r.name, mark: r.mark, ground: g, size: 96, style: "folded" })}<div><b>${r.mark}</b>on ${GROUND_NAMES[g]}</div></div></div>
+      <div class="cycler" style="margin-left:auto"><div id="cyc"></div><div class="lay" style="font:11px var(--font-mono);color:var(--ink-3)" id="cycl"></div></div>`;
+    let i = 0;
+    const tick = () => {
+      const el = $("#cyc"); if (!el) return;
+      el.innerHTML = face({ name: "x", mark: r.mark, ground: i % 12, size: 96, style: "folded" });
+      $("#cycl").textContent = `the same mark on ${GROUND_NAMES[i % 12]}`;
+      i++;
+    };
+    tick(); clearInterval(drawExplode.t); drawExplode.t = setInterval(tick, 1300);
+  }
+  function drawGallery() {
+    const all = FAMILIES.flatMap(([, marks]) => marks);
+    const drawn = all.filter((m) => FOLDED[m]).length;
+    $("#libCount").textContent = drawn === all.length ? `All ${all.length} drawn.` : `${drawn} of ${all.length} drawn so far.`;
+    let n = 0;
+    $("#gallery").innerHTML = FAMILIES.map(([fam, marks]) => `<div class="fam"><h3>${fam}<span>${marks.filter((m) => FOLDED[m]).length} of ${marks.length}</span></h3><div class="gallery">${marks.map((m) => {
+      const g = (n++ * 5) % 12;
+      const isNew = !TODAY_NAMES.has(m);
+      if (!FOLDED[m]) return `<div class="gi todo"><div class="hole"></div>${m}</div>`;
+      return `<div class="gi"><div class="pair">${face({ name: m, mark: m, ground: g, size: 64, style: "folded" })}${face({ name: m, mark: m, ground: g, size: 28, style: "folded" })}</div><span class="nm">${isNew ? '<b title="new"></b>' : ""}${m}</span></div>`;
+    }).join("")}</div></div>`).join("");
+  }
+  function drawGalleryOld() {
+    const marks = Object.keys(FOLDED).filter((k) => !k.startsWith("__"));
+    $("#gallery").innerHTML = marks.map((m, i) => `<div class="gi">${face({ name: m, mark: m, ground: (i * 5) % 12, size: 72, style: "folded" })}<div style="display:flex;gap:6px;align-items:center">${face({ name: m, mark: m, ground: (i * 5) % 12, size: 28, style: "folded" })}${m}</div></div>`).join("");
+  }
+  function drawShapes() {
+    $("#shapesRow").innerHTML = SHAPE_NAMES.map((s, i) => `<div class="gi">${face({ name: s, mark: s, ground: (i * 7 + 3) % 12, size: 64, style: "shapes" })}${s}</div>`).join("");
+    const names = ["algorithmic beauty", "physics show foothill college", "west elm", "design test space", "Value Strategy", "Board Drill", "Meta $1.4T Trial Research", "Fact-checker", "Analyst", "Researcher"];
+    $("#shapesAuto").innerHTML = names.map((n) => `<div class="gi" style="max-width:96px;text-align:center;font-family:var(--font-body)">${face({ name: n, size: 56, style: "shapes" })}<span style="line-height:1.3">${n}</span></div>`).join("");
+  }
+
+  // ── wiring ─────────────────────────────────────────────────────────────────────────────────
+  function drawAll() {
+    document.querySelectorAll("#styleSeg button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.s === style));
+    drawWays(); drawList(); drawSheet(); drawLead(); drawSpec(); drawBeforeAfter(); play();
+  }
+  function setStyle(s) {
+    style = s; try { localStorage.setItem("faces.style", s); } catch (e) {}
+    drawAll();
+  }
+  document.getElementById("styleSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setStyle(b.dataset.s); });
+  document.getElementById("ways").addEventListener("click", (e) => { const w = e.target.closest(".way"); if (w) setStyle(w.dataset.s); });
+  document.getElementById("ways").addEventListener("keydown", (e) => { const w = e.target.closest(".way"); if (w && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setStyle(w.dataset.s); } });
+  document.getElementById("sheetPhone").addEventListener("click", (e) => {
+    const c = e.target.closest(".cellb"), h = e.target.closest(".hue");
+    if (c) LIFE.mark = c.dataset.m;
+    else if (h) LIFE.ground = +h.dataset.g;
+    else return;
+    const scroll = $("#sheetPhone .shbody")?.scrollTop ?? 0;
+    const sx = $("#sheetPhone .strip")?.scrollLeft ?? 0;
+    drawWays(); drawList(); drawSheet(); drawLead(); drawSpec(); drawBeforeAfter(); drawExplode(); play();
+    $("#sheetPhone .shbody").scrollTop = scroll; $("#sheetPhone .strip").scrollLeft = sx;
+  });
+  document.getElementById("agentToo").addEventListener("change", () => { drawLead(); drawSpec(); play(); });
+  const setTheme = (t) => {
+    if (t === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+    try { localStorage.setItem("faces.theme", t); } catch (e) {}
+    document.querySelectorAll("#themeSeg button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.t === t));
+    drawAll();
+  };
+  document.getElementById("themeSeg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setTheme(b.dataset.t); });
+  let theme = "auto"; try { theme = localStorage.getItem("faces.theme") || "auto"; } catch (e) {}
+  const q = new URLSearchParams(location.search);
+  if (q.get("style") && STYLES[q.get("style")]) style = q.get("style");
+  if (q.get("theme")) theme = q.get("theme");
+  drawExplode(); drawGallery(); drawShapes();
+  setTheme(theme);
+})();
+</script>
+</html>

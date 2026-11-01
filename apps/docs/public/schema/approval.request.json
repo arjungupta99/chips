@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Protocol major version."
+    },
+    "type": {
+      "type": "string",
+      "const": "approval.request"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^evt_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "The event's own id. Stable across a retry of the same event."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "description": "When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced."
+    },
+    "workspace_id": {
+      "type": "string",
+      "pattern": "^ws_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "A workspace identifier: `ws_` followed by a ULID."
+    },
+    "space_id": {
+      "description": "The space, when the event belongs to one.",
+      "type": "string",
+      "pattern": "^spc_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "run_id": {
+      "description": "The run, when the event belongs to one.",
+      "type": "string",
+      "pattern": "^run_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "seq": {
+      "description": "Assigned by the server on append, monotonic per workspace. Absent on the way in.",
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "idempotency_key": {
+      "description": "Required on every client-originated write. Sending the same key twice is a no-op.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "harness",
+            "agent",
+            "system"
+          ],
+          "description": "Whether a person, a harness, one of a harness's agents or Chips itself acted."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The participant id, or `system` for Chips."
+        },
+        "harness_id": {
+          "description": "For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips.",
+          "type": "string",
+          "pattern": "^hrn_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "description": "The participant an event is attributed to."
+    },
+    "approval_id": {
+      "type": "string",
+      "pattern": "^apr_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Minted by the harness, so a retry after a reconnect is the same ask."
+    },
+    "step_id": {
+      "description": "The plan step this ask belongs to.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "maxLength": 120,
+          "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+          "description": "A dotted verb, for example `email.send` or `payment.transfer`. Policy rules glob on it."
+        },
+        "input": {
+          "description": "The arguments, shaped by the tool being called."
+        },
+        "external": {
+          "description": "True when the action leaves the workspace.",
+          "type": "boolean"
+        },
+        "irreversible": {
+          "description": "True when the action cannot be undone.",
+          "type": "boolean"
+        },
+        "money_usd": {
+          "description": "Amount at stake, in US dollars.",
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "description": "An action a harness proposes to take."
+    },
+    "question": {
+      "description": "The question the person answers yes or no, as one sentence in plain words: `Turn off the Robinhood connector?`. The card leads with it. Without it the card is headed by the preview's title, else the action's kind (ADR 0142).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "effect": {
+      "description": "What a yes does, in a sentence or two: `Its 73 tools disappear from every Space.` Drawn under the question.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "lasts": {
+      "description": "How long a yes keeps working: `once` for this action alone, `standing` for a grant that holds until it is taken back, such as a folder an agent may keep working in. The card says which.",
+      "type": "string",
+      "enum": [
+        "once",
+        "standing"
+      ]
+    },
+    "preview": {
+      "description": "What the approver sees. Omit only when the action speaks for itself.",
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": [
+            "markdown",
+            "plain",
+            "diff",
+            "json",
+            "table"
+          ],
+          "description": "How to render the body."
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 200000,
+          "description": "The rendered preview."
+        },
+        "title": {
+          "description": "A heading for the card.",
+          "type": "string",
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "format",
+        "body"
+      ]
+    },
+    "risk": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "external",
+          "external_communication",
+          "irreversible",
+          "destructive",
+          "financial",
+          "credential",
+          "privacy",
+          "legal"
+        ],
+        "description": "A risk class the policy engine can match a rule against."
+      },
+      "description": "Risk classes. The policy engine matches rules against these."
+    },
+    "sources": {
+      "description": "Where the harness got what it is about to act on.",
+      "maxItems": 32,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "external",
+              "internal"
+            ],
+            "description": "Whether the source is outside the workspace."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "What to show in the receipt, for example `vendor website`."
+          },
+          "url": {
+            "description": "Where to look, when there is somewhere to look.",
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "required": [
+          "kind",
+          "label"
+        ],
+        "description": "A source a harness used, shown in the receipt and on approval cards."
+      }
+    },
+    "expires_in": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 604800,
+      "description": "Seconds until the approval expires. Every approval has an expiry and a fallback."
+    },
+    "fallback": {
+      "default": "deny",
+      "description": "What happens on expiry. Denying is the default, and the safe one.",
+      "type": "string",
+      "enum": [
+        "deny",
+        "allow"
+      ]
+    },
+    "approvers": {
+      "description": "Who may answer, as the harness asks it: `owner`, `any` (the room, but its guests), `role:<name>` (a standing in the space or in the workspace), or a person id. `lead` (the lane's lead, when the run is a lane's) is a policy rule's to name, never a harness's, and never for an ask that matters — money, a deletion, an external action reach a person. Chips resolves them — policy's own list when a rule names one — to ids before the event is stored, and only those may decide it; a person may hand it on with `approval.routed`.",
+      "maxItems": 16,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(owner|any|lead|role:[a-z][a-z0-9_]*|usr_[0-9A-HJKMNP-TV-Z]{26}|hrn_[0-9A-HJKMNP-TV-Z]{26})$",
+        "description": "`owner`, `any`, `lead`, `role:<name>`, or a specific person id; a lead harness's id once resolved."
+      }
+    },
+    "editable": {
+      "default": false,
+      "description": "Whether the approver may change the input before allowing.",
+      "type": "boolean"
+    },
+    "resume_token": {
+      "description": "Lets a paused command-line run continue hours later. Approvals outlive processes.",
+      "type": "string",
+      "maxLength": 500
+    }
+  },
+  "required": [
+    "v",
+    "type",
+    "id",
+    "ts",
+    "workspace_id",
+    "actor",
+    "approval_id",
+    "action",
+    "risk",
+    "expires_in"
+  ],
+  "description": "The thing a group chat cannot do: an action, a preview, a risk class, who may answer, and an audit record.",
+  "$id": "https://chipschat.ai/schema/v1/approval.request.json",
+  "title": "ApprovalRequest"
+}

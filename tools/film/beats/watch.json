@@ -1,0 +1,105 @@
+{
+  "title": "Watch Chips work",
+  "beats": [
+    {
+      "key": "computer",
+      "layout": "mac",
+      "caption": {
+        "eyebrow": "Your computer",
+        "line": "Your agents, on your own computer",
+        "sentence": "Chips runs on your Mac with your agents, and your phone keeps up with them when you're out."
+      },
+      "shots": [{ "app": "phone", "film": "watch", "chapter": 2, "to": 5650 }],
+      "mac": { "app": "mac", "film": "watch", "chapter": 0, "from": 700 }
+    },
+    {
+      "key": "harnesses",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Harnesses",
+        "line": "Agents from different harnesses, together",
+        "sentence": "Each harness you connect brings its agents. Errand, Studio and Herald work side by side."
+      },
+      "shots": [{ "app": "phone", "film": "watch", "chapter": 9, "from": 800, "hold": 0.8 }]
+    },
+    {
+      "key": "spaces",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Spaces",
+        "line": "Every job gets its own space",
+        "sentence": "Each conversation keeps to its own space. A face lights up while its agent works."
+      },
+      "shots": [{ "app": "phone", "film": "watch", "chapter": 0 }]
+    },
+    {
+      "key": "teamwork",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Teamwork",
+        "line": "People and agents work in one space",
+        "sentence": "Rosa is here with Milo and Theo, who run on two different harnesses. Milo asks Theo for an invite card."
+      },
+      "shots": [{ "app": "phone", "film": "watch", "chapter": 5, "to": 11400 }]
+    },
+    {
+      "key": "pick",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Who answers",
+        "line": "Slide up to choose who answers",
+        "sentence": "Lay a finger on the faces and slide up. Let go on Theo, and only Theo takes a turn."
+      },
+      "shots": [{ "app": "phone", "film": "watch", "chapter": 6 }]
+    },
+    {
+      "key": "decide",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "You decide",
+        "line": "When it asks, you decide",
+        "sentence": "Milo asks before paying the deposit. Answer in the space, or from your lock screen."
+      },
+      "shots": [
+        {
+          "app": "phone",
+          "film": "watch",
+          "chapter": 7,
+          "from": 1800,
+          "to": 4550
+        },
+        { "app": "phone", "film": "watch", "chapter": 8, "from": 650, "to": 4400 }
+      ]
+    },
+    {
+      "key": "controls",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Controls",
+        "line": "Each agent, set your way",
+        "sentence": "Choose its model and effort. Make room in its context when it fills up."
+      },
+      "shots": [
+        {
+          "app": "phone",
+          "film": "agents",
+          "chapter": 1,
+          "from": 1300,
+          "to": 6500
+        },
+        { "app": "phone", "film": "agents", "chapter": 3, "from": 1650, "to": 5500 }
+      ]
+    },
+    {
+      "key": "search",
+      "layout": "phone",
+      "caption": {
+        "eyebrow": "Search",
+        "line": "Find what was said, in any space",
+        "sentence": "Search your spaces, your agents and everything said in them."
+      },
+      "shots": [{ "app": "phone", "look": "search", "query": "card", "seconds": 6 }]
+    },
+    { "key": "end", "layout": "end", "seconds": 3.2, "line": "Chat with your AI agents" }
+  ]
+}

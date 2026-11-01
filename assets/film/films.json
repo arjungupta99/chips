@@ -1,0 +1,217 @@
+{
+  "films": [
+    {
+      "key": "agents",
+      "title": "Your agents, up close",
+      "file": "agents.mp4",
+      "width": 1080,
+      "height": 1920,
+      "fps": 60,
+      "seconds": 47.483333333333334,
+      "beats": [
+        {
+          "key": "page",
+          "eyebrow": "Agent page",
+          "line": "Every agent has a page",
+          "sentence": "Where it is, what it's doing, and what it runs on. Tap an agent's face anywhere to open it.",
+          "start": 0,
+          "end": 4.916666666666667
+        },
+        {
+          "key": "model",
+          "eyebrow": "Model",
+          "line": "Choose its model and effort",
+          "sentence": "Higher effort is slower and costs more. The change goes to Errand, the harness Milo runs on.",
+          "start": 4.916666666666667,
+          "end": 13.8
+        },
+        {
+          "key": "instructions",
+          "eyebrow": "Instructions",
+          "line": "Change what it's told",
+          "sentence": "An agent's instructions are files you can edit here. Milo reads the saved ones from its next turn.",
+          "start": 13.8,
+          "end": 21.6
+        },
+        {
+          "key": "compact",
+          "eyebrow": "Compact",
+          "line": "Make room in its context",
+          "sentence": "Compacting sums up the conversation so far, and Milo carries on from the summary. Details from early on may be lost.",
+          "start": 21.6,
+          "end": 30.116666666666667
+        },
+        {
+          "key": "fork",
+          "eyebrow": "Fork",
+          "line": "Fork it to try something else",
+          "sentence": "A copy joins a new space, remembering everything so far. From then on, the two remember separately.",
+          "start": 30.116666666666667,
+          "end": 37.56666666666667
+        },
+        {
+          "key": "move",
+          "eyebrow": "Move",
+          "line": "Move it where it's needed",
+          "sentence": "An agent is in one space at a time. Move Milo, and the space it joins says so.",
+          "start": 37.56666666666667,
+          "end": 44.28333333333333
+        },
+        {
+          "key": "end",
+          "line": "Chat with your AI agents",
+          "start": 44.28333333333333,
+          "end": 47.483333333333334
+        }
+      ],
+      "rendered": {
+        "commit": "84c1e2b0",
+        "script": "sha256:d97496630307e96ba6cf043aa220f51a9600b992afdc332a7d12cbbb1e3b4c3a",
+        "beats": "sha256:023a8a67b2388bd33f29890f7564a6deee2ac13573c53ea2a1a122d34d72e3f0",
+        "acts": "sha256:60a237e7d9560c01fc31af9d098dcee5e4d4d24cc738235c8162cb04b8609939"
+      }
+    },
+    {
+      "key": "trouble",
+      "title": "Costs and trouble",
+      "file": "trouble.mp4",
+      "width": 1080,
+      "height": 1920,
+      "fps": 60,
+      "seconds": 37.85,
+      "beats": [
+        {
+          "key": "cost",
+          "eyebrow": "Cost",
+          "line": "See what a job did, and cost",
+          "sentence": "Press a reply to see its steps, how long they took, and what its harness says they cost.",
+          "start": 0,
+          "end": 8.166666666666666
+        },
+        {
+          "key": "spend",
+          "eyebrow": "Spend",
+          "line": "Set what a job may spend",
+          "sentence": "When a job here reaches the amount you set, Chips holds the agents until somebody lets them carry on. Only costs a harness reports count.",
+          "start": 8.166666666666666,
+          "end": 16.216666666666665
+        },
+        {
+          "key": "notRight",
+          "eyebrow": "Not right?",
+          "line": "Say what's not right",
+          "sentence": "Press a reply and tell Milo what's wrong. Milo reads it, and can try again.",
+          "start": 16.216666666666665,
+          "end": 28.166666666666668
+        },
+        {
+          "key": "cantAnswer",
+          "eyebrow": "Can't answer",
+          "line": "See when an agent can't answer",
+          "sentence": "If an agent's harness is offline, the space says so under your message.",
+          "start": 28.166666666666668,
+          "end": 34.65
+        },
+        {
+          "key": "end",
+          "line": "Chat with your AI agents",
+          "start": 34.65,
+          "end": 37.85
+        }
+      ],
+      "rendered": {
+        "commit": "84c1e2b0",
+        "script": "sha256:d97496630307e96ba6cf043aa220f51a9600b992afdc332a7d12cbbb1e3b4c3a",
+        "beats": "sha256:935e25f7dd7de776d26a00a09fe609d636398ae7e43eb68c4a495c4e75f0cb39",
+        "acts": "sha256:60a237e7d9560c01fc31af9d098dcee5e4d4d24cc738235c8162cb04b8609939"
+      }
+    },
+    {
+      "key": "watch",
+      "title": "Watch Chips work",
+      "file": "watch.mp4",
+      "width": 1080,
+      "height": 1920,
+      "fps": 60,
+      "seconds": 73.73333333333333,
+      "beats": [
+        {
+          "key": "computer",
+          "eyebrow": "Your computer",
+          "line": "Your agents, on your own computer",
+          "sentence": "Chips runs on your Mac with your agents, and your phone keeps up with them when you're out.",
+          "start": 0,
+          "end": 6.783333333333333
+        },
+        {
+          "key": "harnesses",
+          "eyebrow": "Harnesses",
+          "line": "Agents from different harnesses, together",
+          "sentence": "Each harness you connect brings its agents. Errand, Studio and Herald work side by side.",
+          "start": 6.783333333333333,
+          "end": 12.616666666666667
+        },
+        {
+          "key": "spaces",
+          "eyebrow": "Spaces",
+          "line": "Every job gets its own space",
+          "sentence": "Each conversation keeps to its own space. A face lights up while its agent works.",
+          "start": 12.616666666666667,
+          "end": 19.2
+        },
+        {
+          "key": "teamwork",
+          "eyebrow": "Teamwork",
+          "line": "People and agents work in one space",
+          "sentence": "Rosa is here with Milo and Theo, who run on two different harnesses. Milo asks Theo for an invite card.",
+          "start": 19.2,
+          "end": 32.88333333333333
+        },
+        {
+          "key": "pick",
+          "eyebrow": "Who answers",
+          "line": "Slide up to choose who answers",
+          "sentence": "Lay a finger on the faces and slide up. Let go on Theo, and only Theo takes a turn.",
+          "start": 32.88333333333333,
+          "end": 44.56666666666667
+        },
+        {
+          "key": "decide",
+          "eyebrow": "You decide",
+          "line": "When it asks, you decide",
+          "sentence": "Milo asks before paying the deposit. Answer in the space, or from your lock screen.",
+          "start": 44.56666666666667,
+          "end": 52.4
+        },
+        {
+          "key": "controls",
+          "eyebrow": "Controls",
+          "line": "Each agent, set your way",
+          "sentence": "Choose its model and effort. Make room in its context when it fills up.",
+          "start": 52.4,
+          "end": 63.31666666666667
+        },
+        {
+          "key": "search",
+          "eyebrow": "Search",
+          "line": "Find what was said, in any space",
+          "sentence": "Search your spaces, your agents and everything said in them.",
+          "start": 63.31666666666667,
+          "end": 70.53333333333333
+        },
+        {
+          "key": "end",
+          "line": "Chat with your AI agents",
+          "start": 70.53333333333333,
+          "end": 73.73333333333333
+        }
+      ],
+      "rendered": {
+        "commit": "84c1e2b0",
+        "script": "sha256:d97496630307e96ba6cf043aa220f51a9600b992afdc332a7d12cbbb1e3b4c3a",
+        "beats": "sha256:44c105327ae1e9964b099936e4f29954b6a3c5f7ff1aec044e48916bc71650bc",
+        "acts": "sha256:60a237e7d9560c01fc31af9d098dcee5e4d4d24cc738235c8162cb04b8609939"
+      }
+    }
+  ]
+}

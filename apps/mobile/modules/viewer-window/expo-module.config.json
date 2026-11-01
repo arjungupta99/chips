@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["chat.chips.viewerwindow.ViewerWindowModule"]
+  }
+}

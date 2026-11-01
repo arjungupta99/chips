@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "type": "run.steer",
+  "id": "evt_01K4ZQPX000000000000000078",
+  "ts": "2026-09-02T14:22:20.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "mode": "steer",
+  "text": "Mention the pallet count in the email as well.",
+  "from": {
+    "participant_id": "usr_01K4ZQPX000000000000000003",
+    "kind": "person",
+    "display_name": "Arjun",
+    "role": "owner"
+  }
+}

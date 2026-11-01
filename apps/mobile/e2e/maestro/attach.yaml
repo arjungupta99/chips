@@ -1,0 +1,47 @@
+# Attach a photo from the library and send it — the picker and the share sheet are the
+# platform's, which the web target stands in for with a file input; on a device they are the
+# real sheets, and this is the honest way to know they open and come back.
+appId: ${APP_ID}
+# Maestro reads `${…}` as JavaScript, so the defaults are here, and `-e` still overrides them.
+env:
+  APP_ID: chat.chips.app
+  SPACE: PO-4471
+---
+- launchApp:
+    clearState: false
+
+# Into the room.
+- tapOn: "Spaces"
+- tapOn:
+    text: ${SPACE}
+- assertVisible:
+    id: "composer"
+
+# The + opens the sheet; the library is the first choice. The system picker takes over from
+# here: pick the first photo and confirm, which on iOS is "Add".
+- tapOn:
+    id: "composer-attach"
+- tapOn: "Photo library"
+- tapOn:
+    index: 0
+    text: "Photo.*"
+    optional: true
+- tapOn:
+    text: "Add"
+    optional: true
+
+# A chip above the field, uploading and then sized; Send goes with no words at all.
+- assertVisible:
+    id: "staged"
+- assertNotVisible: "uploading…"
+- tapOn:
+    id: "composer-send"
+- assertNotVisible:
+    id: "staged"
+
+# The thumbnail lands under the newest bubble, and opens full size on a tap.
+- tapOn:
+    id: "photo-.*"
+    index: 0
+- assertVisible: "Share"
+- tapOn: "Close"

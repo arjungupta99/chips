@@ -1,0 +1,166 @@
+#cloud-config
+#
+# The hosted relay's box, from nothing: Debian 12 or 13 on a small VM
+# (docs/proposals/hosted-relay-plan.md, packaging/relay/README.md). Paste this as the server's
+# cloud-init "user data" when creating it.
+#
+# It makes the relay's user, installs Caddy from Caddy's own apt repository, puts the unit, the
+# Caddyfile, the env file and the seven-day journal in place, and closes everything but SSH, 80 and
+# 443. It does not install Chips: nothing is public, so the release is copied over by hand and the
+# relay started after (the README's steps 4 to 6). The unit waits for /opt/chips/bin/chips, and the
+# env file's placeholder keeps the relay from starting until it names a server.
+#
+# The files below are the ones beside this one, copied in; relay/src/box.test.ts fails when they
+# drift apart.
+
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - debian-archive-keyring
+  - debian-keyring
+  - gnupg
+  - ufw
+  - unattended-upgrades
+
+ssh_pwauth: false
+
+users:
+  - default
+  - name: chips-relay
+    system: true
+    shell: /usr/sbin/nologin
+    no_create_home: true
+
+write_files:
+  - path: /etc/systemd/system/chips-relay.service
+    owner: root:root
+    permissions: "0644"
+    content: |
+      # chips relay as a system service: one process, started at boot, started again if it stops.
+      #
+      # It runs the release unpacked under /opt/chips (`CHIPS_PREFIX=/opt/chips sh install.sh --from …`)
+      # as its own user, listens on loopback only, and reaches the internet through Caddy. The servers it
+      # serves are named in /etc/chips-relay.env; it will not start until that file names at least one.
+      # Each day's counts, how many and never which, go to /var/lib/chips-relay/counts.jsonl (ADR 0208).
+      #
+      #   sudo cp chips-relay.service /etc/systemd/system/
+      #   sudo systemctl daemon-reload && sudo systemctl enable --now chips-relay
+      #   journalctl -u chips-relay -f
+
+      [Unit]
+      Description=Chips relay
+      Documentation=https://chipschat.ai/operate/relay/
+      After=network-online.target
+      Wants=network-online.target
+      ConditionPathExists=/opt/chips/bin/chips
+
+      [Service]
+      Type=simple
+      User=chips-relay
+      Group=chips-relay
+      ExecStart=/opt/chips/bin/chips relay
+      Environment=CHIPS_RELAY_HOST=127.0.0.1
+      Environment=CHIPS_RELAY_PORT=4440
+      Environment=CHIPS_LOG_LEVEL=info
+      Environment=CHIPS_LOG_PRETTY=false
+      Environment=CHIPS_RELAY_COUNTS_FILE=/var/lib/chips-relay/counts.jsonl
+      EnvironmentFile=/etc/chips-relay.env
+      Restart=always
+      RestartSec=2
+      # One socket per phone and one per server.
+      LimitNOFILE=65536
+
+      # Nothing to write but the day's counts, and nothing to reach but the network.
+      StateDirectory=chips-relay
+      StateDirectoryMode=0750
+      NoNewPrivileges=yes
+      ProtectSystem=strict
+      ProtectHome=yes
+      PrivateTmp=yes
+      PrivateDevices=yes
+      ProtectKernelTunables=yes
+      ProtectKernelModules=yes
+      ProtectKernelLogs=yes
+      ProtectControlGroups=yes
+      ProtectClock=yes
+      ProtectHostname=yes
+      RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+      RestrictNamespaces=yes
+      RestrictRealtime=yes
+      RestrictSUIDSGID=yes
+      LockPersonality=yes
+      CapabilityBoundingSet=
+      SystemCallArchitectures=native
+
+      [Install]
+      WantedBy=multi-user.target
+  - path: /etc/chips-relay.env
+    owner: root:root
+    permissions: "0600"
+    content: |
+      # The servers this relay serves, by the key each one is known by at a relay: what a server's
+      # `GET /v1/health` says as `relay.key` on its own machine, and what its log names when this relay
+      # turns it away.
+      # Comma-separated, 43 characters each. Restart after a change:
+      #
+      #   sudo systemctl restart chips-relay
+      #
+      # The placeholder below is not a key, so the relay refuses to start until it is replaced. Leaving
+      # the line out, or empty, would serve any server that proves its key.
+      CHIPS_RELAY_ALLOW_KEYS=replace-with-your-servers-relay-keys
+      #
+      # The push door (ADR 0246): with the Chips app's Expo access token, the relay sends pushes for
+      # servers that have none, at POST /v1/push. Without it, there is no push door. This file is
+      # readable by root alone, which is why the token goes here.
+      # CHIPS_PUSH_ACCESS_TOKEN=
+  - path: /etc/chips-relay/Caddyfile
+    owner: root:root
+    permissions: "0644"
+    content: |
+      # The hosted relay's front door: TLS from Let's Encrypt, and every request handed to the relay on
+      # loopback. Caddy passes the WebSocket upgrade through and sets X-Forwarded-For to the address it
+      # saw, which the relay believes only because this proxy is on the same machine.
+      #
+      # No access log: Caddy keeps none unless a `log` directive asks, and this file does not.
+
+      relay.chipschat.ai {
+      	reverse_proxy 127.0.0.1:4440
+      }
+  - path: /etc/systemd/journald.conf.d/chips-relay.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      # What the relay logs, and Caddy, is kept seven days and then deleted (the relay's terms say so).
+      # Installed as /etc/systemd/journald.conf.d/chips-relay.conf. It is the whole journal's rule, which
+      # on a box that runs nothing but the relay is the same thing.
+      [Journal]
+      MaxRetentionSec=7day
+      SystemMaxUse=1G
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root:root
+    permissions: "0644"
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+runcmd:
+  # Caddy, as its own install page says for Debian: its key, its repository, the package.
+  - curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  - curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt -o /etc/apt/sources.list.d/caddy-stable.list
+  - apt-get update
+  - DEBIAN_FRONTEND=noninteractive apt-get install -y caddy
+  # Copied in after the package, which brings a Caddyfile of its own.
+  - cp /etc/chips-relay/Caddyfile /etc/caddy/Caddyfile
+  - systemctl reload caddy
+  - systemctl restart systemd-journald
+  # From outside: SSH, and the web for Caddy. The relay itself listens on loopback.
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp
+  - ufw allow 80/tcp
+  - ufw allow 443/tcp
+  - ufw --force enable
+  - systemctl daemon-reload
+  - systemctl enable chips-relay

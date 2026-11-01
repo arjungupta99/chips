@@ -1,0 +1,30 @@
+{
+  "v": 1,
+  "type": "policy.updated",
+  "id": "evt_01K4ZQPX00000000000000007C",
+  "ts": "2026-09-02T14:22:24.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "harness_id": "hrn_01K4ZQPX000000000000000004",
+  "policy": {
+    "autonomy": 2,
+    "rules": [
+      {
+        "match": "email.send",
+        "when": {
+          "external": true
+        },
+        "decision": "ask",
+        "approvers": ["owner"]
+      }
+    ]
+  },
+  "workspace_max_autonomy": 2,
+  "budget_usd": 25,
+  "changed_by": "system",
+  "reason": "Six approvals in a row with no edits."
+}

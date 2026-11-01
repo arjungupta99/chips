@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "type": "usage",
+  "id": "evt_01K4ZQPX00000000000000006E",
+  "ts": "2026-09-02T14:22:10.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "scope": "run",
+  "model": "opus-5",
+  "input_tokens": 82140,
+  "output_tokens": 3402,
+  "cost": {
+    "usd": 1.47,
+    "estimated": true
+  }
+}

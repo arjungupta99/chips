@@ -1,0 +1,26 @@
+{
+  "v": 1,
+  "type": "step.log",
+  "id": "evt_01K4ZQPX000000000000000066",
+  "ts": "2026-09-02T14:22:02.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "step_id": "read-po",
+  "status": "done",
+  "title": "Read PO #4471",
+  "tool": "drive.read",
+  "summary": "120 units, delivery 19 September, signed by Arjun.",
+  "sources": [
+    {
+      "kind": "internal",
+      "label": "Drive",
+      "url": "https://drive.example/po-4471"
+    }
+  ],
+  "duration_ms": 1840
+}

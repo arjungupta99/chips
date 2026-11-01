@@ -1,0 +1,61 @@
+{
+  "v": 1,
+  "type": "hello",
+  "id": "evt_01K4ZQPX000000000000000073",
+  "ts": "2026-09-02T14:22:15.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "protocol": {
+    "min": 1,
+    "max": 1
+  },
+  "server": {
+    "name": "chipsd",
+    "version": "0.0.0"
+  },
+  "harnesses": [
+    {
+      "harness_id": "hrn_01K4ZQPX000000000000000004",
+      "display_name": "Scout",
+      "owner_id": "usr_01K4ZQPX000000000000000003",
+      "capabilities": ["drive.read", "crm.read", "email.send"],
+      "ephemeral": false
+    }
+  ],
+  "autonomy": 2,
+  "spaces": ["spc_01K4ZQPX000000000000000002"],
+  "policy": {
+    "autonomy": 2,
+    "rules": [
+      {
+        "match": "email.send",
+        "when": {
+          "external": true
+        },
+        "decision": "ask",
+        "approvers": ["owner"],
+        "reason": "External mail always asks."
+      },
+      {
+        "match": "payment.*",
+        "when": {
+          "money_usd_over": 500
+        },
+        "decision": "ask",
+        "approvers": ["role:finance"]
+      },
+      {
+        "match": "drive.read",
+        "decision": "allow"
+      }
+    ]
+  },
+  "budget": {
+    "limit_usd": 25,
+    "spent_usd": 1.47
+  }
+}

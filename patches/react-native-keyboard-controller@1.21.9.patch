@@ -1,0 +1,15 @@
+diff --git a/android/src/main/java/com/reactnativekeyboardcontroller/listeners/FocusedInputObserver.kt b/android/src/main/java/com/reactnativekeyboardcontroller/listeners/FocusedInputObserver.kt
+index 4de762dae05587ab8e6562fd583e8ec35d8aafda..bc070e90a10b6adc42808f586bdb90337bd6dacb 100644
+--- a/android/src/main/java/com/reactnativekeyboardcontroller/listeners/FocusedInputObserver.kt
++++ b/android/src/main/java/com/reactnativekeyboardcontroller/listeners/FocusedInputObserver.kt
+@@ -43,7 +43,9 @@ class FocusedInputObserver(
+   private val context: ThemedReactContext?,
+ ) {
+   // constructor variables
+-  private val surfaceId = UIManagerHelper.getSurfaceId(view)
++  // Chips: the surface of the view its events are sent to, as 1.22.3 has it. A Modal's window is no
++  // React view, and asking for its surface logged a SoftException each time one opened (AN-30).
++  private val surfaceId = UIManagerHelper.getSurfaceId(eventPropagationView)
+ 
+   // state variables
+   private var lastFocusedInput: EditText? = null

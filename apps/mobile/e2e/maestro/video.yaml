@@ -1,0 +1,149 @@
+# A video in a room, played in both orientations (testing/scenarios/media/video-in-a-room.md): it
+# plays from its tile to its end, its bars going by themselves and coming back with Play; mute, ten
+# seconds back and the track answer; a tap takes the bars away and brings them back; it turns onto
+# its side and plays to its end there; the system player opens and hands it back on its side; and a
+# drag closes it into the room.
+#
+# The room needs a measured video of ten to twenty seconds whose name is VIDEO, which a harness can
+# send (`e2e/viewer.spec.ts` shows how; the scenario has the clips and a seed script). The
+# screenshots are what the scenario's pass marks are read from: where the bars stand on a phone on
+# its side is not something Maestro can assert.
+#
+# **It asserts only on bars that stay.** While a film plays, each Maestro step here took four to
+# twelve seconds to read the screen (14 October 2026), and the bars hide three seconds into playing,
+# so a step meant to catch them up catches nothing. A paused video's bars stay, and a video that
+# plays to its end brings them back: the flow plays the clip through and works on it paused, and
+# takes the bars going by themselves, and coming back at the end, as its proof that it played.
+#
+# No pinch, and no Picture in Picture: the simulator has neither. If the app stops turning while
+# the simulator says it turned, Maestro's orientation has stuck: reboot the simulator
+# (`testing/recipes.md`).
+appId: ${APP_ID}
+# Maestro reads `${…}` as JavaScript, so the defaults are here, and `-e` still overrides them.
+env:
+  APP_ID: chat.chips.app
+  SPACE: PO-4471
+  VIDEO: portrait.mp4
+---
+- launchApp:
+    clearState: false
+- setOrientation: PORTRAIT
+
+# Into the room, and onto the video's tile.
+- tapOn: "Spaces"
+- tapOn:
+    text: ${SPACE}
+- assertVisible:
+    id: "composer"
+- scrollUntilVisible:
+    element:
+      text: "Play ${VIDEO}"
+    direction: UP
+    timeout: 120000
+    centerElement: true
+- tapOn:
+    text: "Play ${VIDEO}"
+
+# It plays once it is on the player: the bars go by themselves, and at its end they come back with
+# Play to go again.
+- assertVisible:
+    id: "viewer-counter"
+- extendedWaitUntil:
+    notVisible:
+      id: "viewer-controls"
+    timeout: 30000
+- takeScreenshot: video-01-playing-upright
+- extendedWaitUntil:
+    visible: "Play"
+    timeout: 60000
+- assertVisible:
+    id: "viewer-controls"
+- takeScreenshot: video-02-ended-upright
+
+# Mute says what it would do next.
+- tapOn:
+    id: "viewer-mute"
+- assertVisible: "Unmute"
+- tapOn:
+    id: "viewer-mute"
+- assertVisible: "Mute"
+
+# Ten seconds back moves the clock; so does a thumb on the track.
+- copyTextFrom:
+    id: "viewer-time"
+- evalScript: ${output.before = maestro.copiedText}
+- tapOn:
+    id: "viewer-back"
+- assertNotVisible:
+    text: ${output.before}
+- copyTextFrom:
+    id: "viewer-time"
+- evalScript: ${output.before = maestro.copiedText}
+- swipe:
+    from:
+      id: "viewer-scrubber"
+    direction: LEFT
+    duration: 600
+- assertNotVisible:
+    text: ${output.before}
+
+# A tap on the stage takes the bars away, and another brings them back.
+- tapOn:
+    point: 50%, 50%
+- assertNotVisible:
+    id: "viewer-controls"
+- tapOn:
+    point: 50%, 50%
+- assertVisible:
+    id: "viewer-controls"
+
+# On its side, paused: the stage re-fits, the bars stand clear of the island and the corners.
+- setOrientation: LANDSCAPE_LEFT
+- assertVisible:
+    id: "viewer-controls"
+- assertVisible: "Play"
+- takeScreenshot: video-03-paused-on-its-side
+
+# And it plays there, to its end: the bars go, and come back with Play.
+- tapOn:
+    id: "viewer-play"
+- extendedWaitUntil:
+    notVisible:
+      id: "viewer-controls"
+    timeout: 30000
+- takeScreenshot: video-04-playing-on-its-side
+- extendedWaitUntil:
+    visible: "Play"
+    timeout: 60000
+- takeScreenshot: video-05-ended-on-its-side
+
+# Upright again, still in the viewer, the bars still up.
+- setOrientation: PORTRAIT
+- assertVisible:
+    id: "viewer-controls"
+- assertVisible: "Play"
+
+# The system player, from the menu, on its side, and Done hands it back.
+- tapOn:
+    id: "viewer-more"
+- tapOn: "System player"
+- assertVisible:
+    id: "viewer-system-close"
+- setOrientation: LANDSCAPE_RIGHT
+- takeScreenshot: video-06-system-player-on-its-side
+- tapOn:
+    id: "viewer-system-close"
+- assertVisible:
+    id: "viewer-controls"
+- takeScreenshot: video-07-back-from-the-system-player
+
+# Upright, and a drag down past the line takes it away, into its tile.
+- setOrientation: PORTRAIT
+- swipe:
+    start: 50%, 45%
+    end: 50%, 85%
+    duration: 400
+- assertNotVisible:
+    id: "viewer-counter"
+- assertVisible:
+    id: "composer"

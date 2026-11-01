@@ -1,0 +1,402 @@
+/*
+ * The design tokens. Copied once from the `<style>` block of `docs/chips-blueprint.html` and
+ * the only definition from here on (ADR 0009): a colour that is not one of these is a bug.
+ *
+ * Three ways to be dark. `prefers-color-scheme` alone makes the page follow the system;
+ * `data-theme="dark"` or `"light"` on `<html>` is an explicit choice that wins over the system;
+ * and because the attribute selectors are not pinned to `:root`, the same attribute on any
+ * element themes just that subtree — which is how the kitchen sink shows both at once. The
+ * light and dark blocks are each written twice, on purpose, and `tokens.test.ts` checks the
+ * copies agree.
+ *
+ * Values differ from the blueprint, for WCAG AA (technical-plan 4.5: axe passes on every
+ * screen). Light `--ink-3` is #666973 rather than the blueprint's #7B7E88, which was 4.05:1 on
+ * white — under the 4.5:1 that 13px text needs. And `--ink-4`, at 2.3:1 light and 2.8:1 dark,
+ * is not a text colour at all: it draws chevrons, rails and placeholders' icons, and
+ * `tokens.test.ts` fails any stylesheet in this package that puts it on text.
+ *
+ * The palette was lifted on 21 September 2026 (Arjun: more contrast, more vibrancy, a minor
+ * lift; ADR 0009's addendum). Every coloured token kept its OKLCH hue angle and gained chroma —
+ * the status colours most, the brand gold least, because the gold is the brand and should not
+ * wobble. Light `--ink-2` and `--ink-3` deepened a step and dark `--ink` brightened one; dark
+ * `--bg` dropped to #0f1013 while the surfaces stayed, so a card reads as raised rather than as
+ * the same grey. It fixed two marks that were under the 3:1 a non-text mark needs — light
+ * `--amber` at 2.92:1 and `--gray` at 2.71:1, now 3.48 and 3.23. And it respaced two of the
+ * eight avatar hues: `--avatar-7` was 1.1 degrees from `--avatar-1` (the same pink twice) and
+ * `--avatar-4` had a chroma of 0.022, which is a grey. The hash that picks a hue by name is
+ * untouched, so a name keeps its slot and only the slot's paint changed.
+ *
+ * Light mode was measured screen by screen on 17 October 2026 (Arjun: "the contrast is poor, the
+ * icon colors look off"; ADR 0192), and three light values moved a step: `--them` to #e5e5de and
+ * `--line` to #dfdfd7, because every surface sat within 1.04 to 1.14:1 of the page, and `--ink-3`
+ * to #626670, so the time inside the deeper bubble still clears 4.5:1. `--accent` came then too:
+ * the chosen tab and every tap had worn the status amber, 3.36:1 on the page and 34 degrees off
+ * the gold. Dark mode did not move.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* paper and ink */
+  --bg: #fbfbf8;
+  --surface: #ffffff;
+  --surface-2: #f2f2ec;
+  --surface-3: #e7e7df;
+  --line: #dfdfd7;
+  --line-2: #c4c4ba;
+  --ink: #14161b;
+  --ink-2: #454851;
+  --ink-3: #626670;
+  --ink-4: #a9abb3;
+
+  /* chip gold: the brand, and never a status */
+  --gold: #f7c431;
+  --gold-deep: #7d5b00;
+  --gold-soft: #fff3c3;
+
+  /* the accent: what a tap lands on — the chosen tab, Cancel, a tick, a sheet's action. Not a
+     status, so it is not --amber, though dark keeps the amber it wore before (ADR 0192) */
+  --accent: #a06306;
+
+  /* status: working, needs you, blocked, done, idle — always with a word beside them */
+  --blue: #1d6aff;
+  --blue-ink: #1048ce;
+  --blue-soft: #e6edff;
+  --amber: #d76c00;
+  --amber-ink: #9b4a00;
+  --amber-soft: #ffedd9;
+  --red: #e62728;
+  --red-ink: #af1512;
+  --red-soft: #ffe7e5;
+  --green: #009b5c;
+  --green-ink: #006c40;
+  --green-soft: #def5e8;
+  /* who else reads a room: the shared tag's, and nothing else's (ADR 0234). Not a status,
+     so it has no dot of its own */
+  --violet-ink: #6a3fc9;
+  --violet-soft: #efe8ff;
+  --gray: #8c8f98;
+
+  /* everyone else's: under --surface-2, which sat 1.08:1 on the page and lost its edge (Arjun,
+     14 October 2026), and a step deeper again on 17 October, to the 1.22:1 iMessage's grey bubble
+     has on white (ADR 0192); dark keeps --surface-2's value */
+  --them: #e5e5de;
+
+  /* what an agent's pins rest on: in light a neutral metal, the face's colour only where the light
+     runs, and --pin-dim takes the colour out between flashes; dark has no metal and rests them in
+     the face's colour, dim, as it always did (ADR 0192) */
+  --pin-metal: #bbbcb4;
+  --pin-dim: 0;
+
+  /* the grouped ground, a sheet's and a screen of inset groups', and what stands up off it: in light
+     a step under the paper with white cards on it, the way iOS groups a list (the sheets had drawn
+     grey cards on white and You white cards on paper, 1.08 and 1.04:1); in dark the page and
+     --surface-2, as they were; --sunk is a track set into it, a segmented control's (ADR 0192's
+     addendum) */
+  --grouped: #f2f2ec;
+  --raised: #ffffff;
+  --raised-press: #f2f2ec;
+  --sunk: #e7e7df;
+
+  --shell: #0b0b0d;
+  --shadow-1: 0 1px 2px rgba(22, 24, 29, 0.06), 0 6px 20px rgba(22, 24, 29, 0.07);
+  --shadow-2: 0 2px 6px rgba(22, 24, 29, 0.08), 0 28px 70px rgba(22, 24, 29, 0.16);
+
+  /* type: a little character for names and headings, a quiet body, mono for the receipts */
+  --font-display:
+    "Bricolage Grotesque Variable", "Bricolage Grotesque", "Avenir Next",
+    "Segoe UI Variable Display", system-ui, sans-serif;
+  --font-body:
+    "Instrument Sans Variable", "Instrument Sans", -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  /* the sizes the mockups use; 13 to 14px on desktop, 16px on mobile */
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-md: 13.5px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --text-2xl: 21px;
+  --text-3xl: 26px;
+  --leading: 1.45;
+
+  /* shapes: circles are people, squircles are harnesses, twelve-pixel radii everywhere else */
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 16px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* motion only when it means something; `base.css` turns it all off under reduced motion */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
+  --motion-pulse: 1.6s;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* the eight hues an avatar may wear, chosen by name; white initials pass 4.5:1 on each */
+  --avatar-1: #b84d86;
+  --avatar-2: #007f9a;
+  --avatar-3: #a76341;
+  --avatar-4: #00736d;
+  --avatar-5: #1c6aa8;
+  --avatar-6: #6e48c1;
+  --avatar-7: #a94cbe;
+  --avatar-8: #2a8452;
+  --on-avatar: #ffffff;
+
+  /* your own messages, the phone's and the desktop's alike (Arjun, 11 September and 14 October
+     2026): one field of colour over the room's list, violet at its top, blue in its middle, teal
+     at its foot, so a bubble wears the colour of the place it stands and changes as the room
+     scrolls. `--mine` is the teal it is flat where the field can't move. One for both themes;
+     white clears 4.5:1 on all of it. */
+  --mine-top: #6651a8;
+  --mine-middle: #34669e;
+  --mine-foot: #0b737d;
+  --mine: #007c87;
+  --mine-ink: #ffffff;
+
+  /* nineteen more grounds a space's chosen mark may sit on, beside the eight above. The first
+     four are the phone's own teal, an ochre, a moss and a plum; the fifteen after them (26
+     September 2026) are a red, an orange, an olive, three greys and a deep shade of every hue.
+     White clears 4.5:1 on each, as it does on the eight. The wire stores the index, so a new
+     ground only ever goes on the end. */
+  --icon-ground-1: #007c87;
+  --icon-ground-2: #9c6a00;
+  --icon-ground-3: #317243;
+  --icon-ground-4: #7f3965;
+  --icon-ground-5: #d4302e;
+  --icon-ground-6: #c05502;
+  --icon-ground-7: #5b6b7d;
+  --icon-ground-8: #a43427;
+  --icon-ground-9: #706d00;
+  --icon-ground-10: #494d54;
+  --icon-ground-11: #6e2026;
+  --icon-ground-12: #5c3824;
+  --icon-ground-13: #594414;
+  --icon-ground-14: #0c4c2f;
+  --icon-ground-15: #00494f;
+  --icon-ground-16: #183773;
+  --icon-ground-17: #4b2a6a;
+  --icon-ground-18: #661e40;
+  --icon-ground-19: #32353c;
+
+  /* the ring around a harness's avatar; set by status, transparent when idle */
+  --ring: transparent;
+  --focus: var(--gold);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1013;
+  --surface: #191b20;
+  --surface-2: #20232a;
+  --surface-3: #2b2e37;
+  --line: #2a2d35;
+  --line-2: #454953;
+  --ink: #f1f2ed;
+  --ink-2: #bdbfc7;
+  --ink-3: #8a8d97;
+  --ink-4: #5f626c;
+  --gold: #f7c431;
+  --gold-deep: #f7ce54;
+  --gold-soft: #3c3005;
+  --accent: #f38b00;
+  --blue: #5f91ff;
+  --blue-ink: #a9c1ff;
+  --blue-soft: #19274c;
+  --amber: #f38b00;
+  --amber-ink: #ffc07e;
+  --amber-soft: #41260c;
+  --red: #fe5550;
+  --red-ink: #ff9e98;
+  --red-soft: #471e1c;
+  --green: #00ba7a;
+  --green-ink: #7fe3b3;
+  --green-soft: #12362a;
+  --violet-ink: #c6b0ff;
+  --violet-soft: #2a2044;
+  --gray: #6b6e78;
+  --them: #20232a;
+  --pin-metal: transparent;
+  --pin-dim: 1;
+  --grouped: #0f1013;
+  --raised: #20232a;
+  --raised-press: #2b2e37;
+  --sunk: #20232a;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.5), 0 28px 70px rgba(0, 0, 0, 0.55);
+}
+
+/* An explicit light, so a light panel inside a dark page — or a dark system — is light. */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #fbfbf8;
+  --surface: #ffffff;
+  --surface-2: #f2f2ec;
+  --surface-3: #e7e7df;
+  --line: #dfdfd7;
+  --line-2: #c4c4ba;
+  --ink: #14161b;
+  --ink-2: #454851;
+  --ink-3: #626670;
+  --ink-4: #a9abb3;
+  --gold: #f7c431;
+  --gold-deep: #7d5b00;
+  --gold-soft: #fff3c3;
+  --accent: #a06306;
+  --blue: #1d6aff;
+  --blue-ink: #1048ce;
+  --blue-soft: #e6edff;
+  --amber: #d76c00;
+  --amber-ink: #9b4a00;
+  --amber-soft: #ffedd9;
+  --red: #e62728;
+  --red-ink: #af1512;
+  --red-soft: #ffe7e5;
+  --green: #009b5c;
+  --green-ink: #006c40;
+  --green-soft: #def5e8;
+  --violet-ink: #6a3fc9;
+  --violet-soft: #efe8ff;
+  --gray: #8c8f98;
+  --them: #e5e5de;
+  --pin-metal: #bbbcb4;
+  --pin-dim: 0;
+  --grouped: #f2f2ec;
+  --raised: #ffffff;
+  --raised-press: #f2f2ec;
+  --sunk: #e7e7df;
+  --shadow-1: 0 1px 2px rgba(22, 24, 29, 0.06), 0 6px 20px rgba(22, 24, 29, 0.07);
+  --shadow-2: 0 2px 6px rgba(22, 24, 29, 0.08), 0 28px 70px rgba(22, 24, 29, 0.16);
+}
+
+/*
+ * The colours the faces wear (ADR 0176), chosen in You and kept by this computer: `data-faces` on
+ * the root, or on any element for what is inside it. Bright swaps every ground for its lighter,
+ * livelier sister by the same index and turns the letters dark; Soothing says today's grounds
+ * again, for a preview held in Soothing inside a page that is Bright. Only the faces read these,
+ * so nothing else moves. The phone keeps the same tables (`ICON_GROUNDS`, `ICON_GROUNDS_BRIGHT`,
+ * `FACE_INK`) and its `tokens.vitest.ts` checks both blocks against them.
+ */
+[data-faces="soothing"] {
+  --avatar-1: #b84d86;
+  --avatar-2: #007f9a;
+  --avatar-3: #a76341;
+  --avatar-4: #00736d;
+  --avatar-5: #1c6aa8;
+  --avatar-6: #6e48c1;
+  --avatar-7: #a94cbe;
+  --avatar-8: #2a8452;
+  --icon-ground-1: #007c87;
+  --icon-ground-2: #9c6a00;
+  --icon-ground-3: #317243;
+  --icon-ground-4: #7f3965;
+  --icon-ground-5: #d4302e;
+  --icon-ground-6: #c05502;
+  --icon-ground-7: #5b6b7d;
+  --icon-ground-8: #a43427;
+  --icon-ground-9: #706d00;
+  --icon-ground-10: #494d54;
+  --icon-ground-11: #6e2026;
+  --icon-ground-12: #5c3824;
+  --icon-ground-13: #594414;
+  --icon-ground-14: #0c4c2f;
+  --icon-ground-15: #00494f;
+  --icon-ground-16: #183773;
+  --icon-ground-17: #4b2a6a;
+  --icon-ground-18: #661e40;
+  --icon-ground-19: #32353c;
+  --on-avatar: #ffffff;
+}
+
+[data-faces="bright"] {
+  --avatar-1: #f76ab5;
+  --avatar-2: #14b3d7;
+  --avatar-3: #e58859;
+  --avatar-4: #0cb2a9;
+  --avatar-5: #3fa2f5;
+  --avatar-6: #a382fe;
+  --avatar-7: #e267fe;
+  --avatar-8: #45ba78;
+  --icon-ground-1: #11b3c3;
+  --icon-ground-2: #e8a52e;
+  --icon-ground-3: #57b16f;
+  --icon-ground-4: #cf6faa;
+  --icon-ground-5: #fe7165;
+  --icon-ground-6: #fe771b;
+  --icon-ground-7: #88a0bb;
+  --icon-ground-8: #f7624e;
+  --icon-ground-9: #b3b034;
+  --icon-ground-10: #8b919c;
+  --icon-ground-11: #d16467;
+  --icon-ground-12: #ca713d;
+  --icon-ground-13: #cda036;
+  --icon-ground-14: #31a26c;
+  --icon-ground-15: #119da9;
+  --icon-ground-16: #5986db;
+  --icon-ground-17: #9e72cb;
+  --icon-ground-18: #c8638e;
+  --icon-ground-19: #818691;
+  --on-avatar: #16171b;
+}
+
+/*
+ * Dark, designed rather than inverted, when the system prefers it and the root has not said
+ * otherwise. Last, because its selector is the most specific and Biome asks that the order
+ * agree with the specificity.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1013;
+    --surface: #191b20;
+    --surface-2: #20232a;
+    --surface-3: #2b2e37;
+    --line: #2a2d35;
+    --line-2: #454953;
+    --ink: #f1f2ed;
+    --ink-2: #bdbfc7;
+    --ink-3: #8a8d97;
+    --ink-4: #5f626c;
+    --gold: #f7c431;
+    --gold-deep: #f7ce54;
+    --gold-soft: #3c3005;
+    --accent: #f38b00;
+    --blue: #5f91ff;
+    --blue-ink: #a9c1ff;
+    --blue-soft: #19274c;
+    --amber: #f38b00;
+    --amber-ink: #ffc07e;
+    --amber-soft: #41260c;
+    --red: #fe5550;
+    --red-ink: #ff9e98;
+    --red-soft: #471e1c;
+    --green: #00ba7a;
+    --green-ink: #7fe3b3;
+    --green-soft: #12362a;
+    --violet-ink: #c6b0ff;
+    --violet-soft: #2a2044;
+    --gray: #6b6e78;
+    --them: #20232a;
+    --pin-metal: transparent;
+    --pin-dim: 1;
+    --grouped: #0f1013;
+    --raised: #20232a;
+    --raised-press: #2b2e37;
+    --sunk: #20232a;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.35);
+    --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.5), 0 28px 70px rgba(0, 0, 0, 0.55);
+  }
+}

@@ -1,0 +1,41 @@
+# The composer rides the keyboard (WP2). Nothing under Node or under Chromium can say whether
+# the field slides with the keys or jumps after them, because neither has a keyboard that
+# animates: this is the flow that asks a device. What it can assert is that the field is on
+# screen and reachable at every point — before the keys, with them up, and after a drag down
+# the room has taken them away — which is what the jump broke.
+appId: ${APP_ID}
+# Maestro reads `${…}` as JavaScript, so the defaults are here, and `-e` still overrides them.
+env:
+  APP_ID: chat.chips.app
+  SPACE: PO-4471
+---
+- launchApp:
+    clearState: false
+
+- tapOn: "Spaces"
+- tapOn:
+    text: "${SPACE}"
+- assertVisible:
+    id: "composer"
+
+# The keys come up, and the field is still there rather than behind them. Typing into a field
+# the keyboard covers is what the offset gets wrong when it gets it wrong, so type.
+- tapOn:
+    id: "composer"
+- inputText: "riding the keyboard"
+- assertVisible: "riding the keyboard"
+- assertVisible:
+    id: "composer-send"
+
+# A drag down the room takes the keyboard with it, and the field comes down with the keyboard
+# rather than after it. What was typed stays: dismissing is not discarding.
+- swipe:
+    from:
+      id: "space-lines"
+    direction: DOWN
+- assertVisible: "riding the keyboard"
+- assertVisible:
+    id: "composer"
+
+# And the room is left as it was found.
+- eraseText

@@ -1,0 +1,96 @@
+{
+  "v": 1,
+  "type": "message.new",
+  "id": "evt_01K4ZQPX000000000000000074",
+  "ts": "2026-09-02T14:22:16.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "message_id": "msg_01K4ZQPX000000000000000007",
+  "from": {
+    "participant_id": "usr_01K4ZQPX000000000000000003",
+    "kind": "person",
+    "display_name": "Arjun",
+    "role": "owner"
+  },
+  "text": "Here's the signed PO. Get it confirmed with Northwind and update the tracker.",
+  "attachments": [
+    {
+      "attachment_id": "att_01K4ZQPX000000000000000008",
+      "filename": "PO-4471.pdf",
+      "mime_type": "application/pdf",
+      "byte_size": 184302,
+      "sha256": "92efa547f5840a2e7257bab9e3529a0410cce0d865fdbc40ebb2895e76de010a",
+      "url": "https://chips.local/v1/attachments/att_01K4ZQPX000000000000000008?sig=9f2c7d0184a05c3b",
+      "url_expires_at": "2026-09-02T14:32:31.004Z"
+    }
+  ],
+  "addressed_to": ["hrn_01K4ZQPX000000000000000005"],
+  "context": {
+    "lines": [
+      {
+        "seq": 61,
+        "at": "2026-09-02T14:19:40.004Z",
+        "kind": "joined",
+        "from": {
+          "id": "usr_01K4ZQPX00000000000000000A",
+          "kind": "person",
+          "name": "Priya"
+        }
+      },
+      {
+        "seq": 62,
+        "at": "2026-09-02T14:20:02.004Z",
+        "kind": "said",
+        "from": {
+          "id": "usr_01K4ZQPX00000000000000000A",
+          "kind": "person",
+          "name": "Priya"
+        },
+        "message_id": "msg_01K4ZQPX00000000000000000B",
+        "text": "Northwind want the PO before they hold the delivery slot.",
+        "addressed_to": ["hrn_01K4ZQPX000000000000000004"]
+      },
+      {
+        "seq": 64,
+        "at": "2026-09-02T14:20:31.004Z",
+        "kind": "said",
+        "from": {
+          "id": "hrn_01K4ZQPX000000000000000004",
+          "kind": "harness",
+          "name": "Ledger"
+        },
+        "message_id": "msg_01K4ZQPX00000000000000000C",
+        "text": "Their slot holds until Friday. PO-4471 is still unsigned in the tracker.",
+        "addressed_to": []
+      },
+      {
+        "seq": 65,
+        "at": "2026-09-02T14:21:12.004Z",
+        "kind": "said",
+        "from": {
+          "id": "usr_01K4ZQPX000000000000000003",
+          "kind": "person",
+          "name": "Arjun"
+        },
+        "message_id": "msg_01K4ZQPX00000000000000000D",
+        "text": "",
+        "transcript": "I'm signing it now, give me a minute.",
+        "files": ["voice-note.m4a"],
+        "addressed_to": ["hrn_01K4ZQPX000000000000000004"]
+      }
+    ],
+    "since_seq": 58,
+    "truncated": false,
+    "before": 61,
+    "spend": {
+      "ceiling_usd": 3,
+      "spent_usd": 0.42,
+      "since_seq": 62,
+      "uncounted_runs": 0
+    }
+  }
+}

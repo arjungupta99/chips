@@ -1,0 +1,9 @@
+/*
+ * Everything a page needs, in the order it needs it: the faces, the tokens, the base. A
+ * component's own stylesheet is imported by the component, so importing a component brings
+ * its styles and nothing else's.
+ */
+
+@import "./fonts.css";
+@import "./tokens.css";
+@import "./base.css";

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  chipsd on a Mac mini: started when you log in, started again if it stops.
+
+  Four placeholders, filled by the one line on https://chipschat.ai/operate/mac-mini/ :
+    CHIPS_CHECKOUT   where the repository is (a release fills this with its install directory)
+    CHIPS_PNPM       the pnpm binary, `command -v pnpm`
+    CHIPS_NODE_DIR   the directory node is in, because launchd's PATH does not have it
+    CHIPS_HOME       your home directory, for the log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>chat.chips.serve</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>CHIPS_PNPM</string>
+    <string>chips</string>
+    <string>serve</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>CHIPS_CHECKOUT</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>CHIPS_NODE_DIR:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <!-- Reachable by the desktop app and a phone on this network. Loopback is the default. -->
+    <key>CHIPS_HOST</key>
+    <string>0.0.0.0</string>
+    <key>CHIPS_LOG_PRETTY</key>
+    <string>true</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>CHIPS_HOME/Library/Logs/chips.serve.log</string>
+  <key>StandardErrorPath</key>
+  <string>CHIPS_HOME/Library/Logs/chips.serve.log</string>
+</dict>
+</plist>

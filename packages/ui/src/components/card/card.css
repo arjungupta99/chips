@@ -1,0 +1,42 @@
+/* Positioned, so words kept for screen readers (`.ui-visually-hidden`, absolute) are placed
+   inside the card. Without it they were placed against the page, and a tall approval card low in
+   a long room stretched the whole document and scrolled it under the app. */
+.ui-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  color: var(--ink);
+}
+
+.ui-card[data-padding="sm"] {
+  padding: 10px 12px;
+}
+
+.ui-card[data-padding="md"] {
+  padding: 14px 16px;
+}
+
+.ui-card[data-padding="lg"] {
+  padding: 20px;
+}
+
+.ui-card[data-elevated="true"] {
+  box-shadow: var(--shadow-1);
+}
+
+/* A decision: the one warm colour on the screen. */
+.ui-card[data-tone="ask"] {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 4px var(--amber-soft);
+}
+
+.ui-card[data-tone="approved"] {
+  border-color: var(--green);
+  box-shadow: 0 0 0 4px var(--green-soft);
+}
+
+.ui-card[data-tone="denied"] {
+  border-color: var(--red);
+  box-shadow: 0 0 0 4px var(--red-soft);
+}

@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Protocol major version."
+    },
+    "type": {
+      "type": "string",
+      "const": "task"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^evt_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "The event's own id. Stable across a retry of the same event."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "description": "When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced."
+    },
+    "workspace_id": {
+      "type": "string",
+      "pattern": "^ws_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "A workspace identifier: `ws_` followed by a ULID."
+    },
+    "space_id": {
+      "description": "The space, when the event belongs to one.",
+      "type": "string",
+      "pattern": "^spc_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "run_id": {
+      "description": "The run, when the event belongs to one.",
+      "type": "string",
+      "pattern": "^run_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "seq": {
+      "description": "Assigned by the server on append, monotonic per workspace. Absent on the way in.",
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "idempotency_key": {
+      "description": "Required on every client-originated write. Sending the same key twice is a no-op.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "harness",
+            "agent",
+            "system"
+          ],
+          "description": "Whether a person, a harness, one of a harness's agents or Chips itself acted."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The participant id, or `system` for Chips."
+        },
+        "harness_id": {
+          "description": "For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips.",
+          "type": "string",
+          "pattern": "^hrn_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "description": "The participant an event is attributed to."
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^lane_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "The lane this task opens."
+    },
+    "to": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "The specialist's participant id; a label for an ephemeral child; or the lead's own id, for a lane between two of its spaces — a specialist of its own in another of its rooms, a subagent in a worktree — which `home` then names."
+    },
+    "child": {
+      "description": "Names an ephemeral child, which inherits owner, autonomy and budget from the lead.",
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "A name for a transient participant Chips will mint."
+        }
+      },
+      "required": [
+        "label"
+      ]
+    },
+    "on_behalf_of": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "The person the work is ultimately for: the lead's own owner, or a person in the space the task is sent from. A task on behalf of anyone else is kept in the lead's run."
+    },
+    "origin": {
+      "description": "The message that caused this routing.",
+      "type": "string",
+      "pattern": "^msg_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "description": "What the specialist is being asked to do."
+    },
+    "constraints": {
+      "description": "Bounds on how to do it.",
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "deadline": {
+      "description": "When it is needed by.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "autonomy": {
+      "description": "The level for this lane. Never above the lead's own.",
+      "anyOf": [
+        {
+          "type": "number",
+          "const": 0
+        },
+        {
+          "type": "number",
+          "const": 1
+        },
+        {
+          "type": "number",
+          "const": 2
+        },
+        {
+          "type": "number",
+          "const": 3
+        }
+      ]
+    },
+    "attachments": {
+      "description": "Anything the specialist needs.",
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "attachment_id": {
+            "type": "string",
+            "pattern": "^att_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "A attachment identifier: `att_` followed by a ULID."
+          },
+          "filename": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "The name to show. Never trusted for its type."
+          },
+          "mime_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Sniffed from the bytes on upload, not taken from the client."
+          },
+          "byte_size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size in bytes."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Lowercase hex digest. The store is content-addressed."
+          },
+          "width": {
+            "description": "Pixels, for images and video.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Pixels, for images and video.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "duration_ms": {
+            "description": "Milliseconds, for audio and video.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "transcript": {
+            "description": "What was said, for a voice note the server transcribed when it arrived (ADR 0054). Machine-heard: the person's words as best the server could make them out.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          },
+          "replaces": {
+            "description": "The version of the room's file of this name that this one was made from (ADR 0099), from the post's `replaces`. Filled in by Chips; a value the sender writes is replaced.",
+            "type": "string",
+            "pattern": "^att_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          }
+        },
+        "required": [
+          "attachment_id",
+          "filename",
+          "mime_type",
+          "byte_size",
+          "sha256"
+        ],
+        "description": "A file carried by a message."
+      }
+    },
+    "link_to": {
+      "description": "A lead space to link the lane into, besides the one the task is sent from: where the route card appears and the lane's news lands. It must be a space the lead is in; one it is not in is ignored.",
+      "type": "string",
+      "pattern": "^spc_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "home": {
+      "description": "Where the lane lives, when the lead already has the room: one of its own spaces, for a lane between two spaces of one harness. The lead and the specialist must both be in it. Absent, the specialist's direct space with the person, opened if it has none.",
+      "type": "string",
+      "pattern": "^spc_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "label": {
+      "description": "What to call the specialist on this lane when its participant name is not the right one: a Space's name, a subagent's type. Shown on the route card and the task card.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    }
+  },
+  "required": [
+    "v",
+    "type",
+    "id",
+    "ts",
+    "workspace_id",
+    "actor",
+    "task_id",
+    "to",
+    "on_behalf_of",
+    "goal"
+  ],
+  "description": "Route work to another harness. From a lead this becomes a lane: one object, two views, never a copy.",
+  "$id": "https://chipschat.ai/schema/v1/task.json",
+  "title": "Task"
+}

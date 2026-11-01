@@ -1,0 +1,57 @@
+/*
+ * The blueprint's design tokens, mapped onto Starlight's.
+ *
+ * The tokens themselves come from `@chipschat/ui/tokens.css` (ADR 0009: the design system is the
+ * only definition), which the Astro config loads before this file. Starlight writes
+ * `data-theme` on `<html>` when a reader picks a theme, and the tokens follow the same
+ * attribute, so `--ink` is already the right ink for the theme by the time it is read here.
+ */
+
+:root {
+  --sl-font: var(--font-body);
+  --sl-font-mono: var(--font-mono);
+
+  /* Starlight's accent is the gold. It is the product's one loud colour, used sparingly. */
+  --sl-color-accent: var(--gold-deep);
+  --sl-color-accent-low: var(--gold-soft);
+  --sl-color-accent-high: var(--gold-deep);
+
+  /* Starlight's "white" is its text and its "black" its page, whichever theme is on. */
+  --sl-color-white: var(--ink);
+  --sl-color-gray-1: var(--ink-2);
+  --sl-color-gray-2: var(--ink-3);
+  --sl-color-gray-3: var(--ink-3);
+  --sl-color-gray-5: var(--line-2);
+  --sl-color-gray-6: var(--surface-2);
+  --sl-color-gray-7: var(--surface-3);
+  --sl-color-black: var(--bg);
+}
+
+.site-title,
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* The three tiers of attention, used on Supervise pages so the words match the app. */
+.tier {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.tier-decide {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+.tier-review {
+  background: var(--blue-soft);
+  color: var(--blue-ink);
+}
+.tier-fyi {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}

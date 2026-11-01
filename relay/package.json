@@ -1,0 +1,35 @@
+{
+  "name": "@chipschat/relay",
+  "version": "0.0.0",
+  "private": true,
+  "description": "chips-relay: the switchboard a home server dials out to and a phone dials in to. It forwards ciphertext and understands nothing.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "start": "tsx bin/chips-relay.ts"
+  },
+  "dependencies": {
+    "@chipschat/platform": "workspace:*",
+    "@chipschat/protocol": "workspace:*",
+    "@chipschat/tunnel": "workspace:*",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.1",
+    "tsx": "4.23.13",
+    "vitest": "4.1.11"
+  }
+}

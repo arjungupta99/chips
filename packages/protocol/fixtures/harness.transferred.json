@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "harness.transferred",
+  "id": "evt_01K4ZQPX0000000000000000D3",
+  "ts": "2026-09-06T11:00:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "harness_id": "hrn_01K4ZQPX000000000000000004",
+  "from_owner_id": "usr_01K4ZQPX000000000000000003",
+  "to_owner_id": "usr_01K4ZQPX000000000000000009",
+  "reason": "Dana runs Scout's projects now."
+}

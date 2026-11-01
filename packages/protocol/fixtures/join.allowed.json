@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "type": "join.allowed",
+  "id": "evt_01K4ZQPX0000000000000000J2",
+  "ts": "2026-10-05T21:05:12.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "request_id": "jrq_01K4ZQPX0000000000000000J1",
+  "kind": "harness",
+  "started_by": "requester",
+  "name": "Tide",
+  "software": "tide 0.4.1",
+  "machine": "vps-fra-1",
+  "from_addr": "100.88.4.12",
+  "by": "usr_01K4ZQPX000000000000000003",
+  "capabilities": ["autonomy", "new_spaces"]
+}

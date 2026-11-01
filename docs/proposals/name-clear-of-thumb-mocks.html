@@ -1,0 +1,826 @@
+<title>Name Clear of the Thumb</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=JetBrains+Mono:wght@400..700&amp;display=swap">
+<style>
+/* Layout: a row of iPhone 17 frames (402 × 874 pt), each the column of faces with a thumb drawn over it, the name placed four ways; captions and cost under each. */
+*,*::before,*::after{box-sizing:border-box}
+:root{--slow:1;--k:1;--tw:112px;
+  --page:#EFEFE9;--bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;--gray:#8C8F98;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--blue-ink:#1048CE;
+  --them:#ECECE5;
+  --lg-tint:rgba(255,255,255,.55);--lg-rim:rgba(255,255,255,.95);--lg-rim-2:rgba(255,255,255,.35);
+  --lg-shade:rgba(0,0,0,.14);--lg-drop:rgba(20,22,27,.26);--lg-border:rgba(0,0,0,.06);--lg-solid:rgba(255,255,255,.86);
+  --j-ink:#5A3EA6;--p-ink:#0B7258;--m-ink:#B03A5F;
+  --thumb:#BDB3AD;--nail:#DDD5D0;--thumb-edge:rgba(70,50,40,.2);--thumb-drop:rgba(20,22,27,.28);
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --open:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.3,1.35,.5,1)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;--gray:#6B6E78;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--blue-ink:#A9C1FF;
+  --them:#20232A;
+  --lg-tint:rgba(44,46,54,.62);--lg-rim:rgba(255,255,255,.5);--lg-rim-2:rgba(255,255,255,.1);
+  --lg-shade:rgba(0,0,0,.4);--lg-drop:rgba(0,0,0,.6);--lg-border:transparent;--lg-solid:rgba(40,42,50,.9);
+  --j-ink:#B9A6F5;--p-ink:#5FD3B0;--m-ink:#F08AA8;
+  --thumb:#8E857F;--nail:#B3AAA4;--thumb-edge:rgba(0,0,0,.45);--thumb-drop:rgba(0,0,0,.6)}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;--gray:#6B6E78;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--blue-ink:#A9C1FF;
+  --them:#20232A;
+  --lg-tint:rgba(44,46,54,.62);--lg-rim:rgba(255,255,255,.5);--lg-rim-2:rgba(255,255,255,.1);
+  --lg-shade:rgba(0,0,0,.4);--lg-drop:rgba(0,0,0,.6);--lg-border:transparent;--lg-solid:rgba(40,42,50,.9);
+  --j-ink:#B9A6F5;--p-ink:#5FD3B0;--m-ink:#F08AA8;
+  --thumb:#8E857F;--nail:#B3AAA4;--thumb-edge:rgba(0,0,0,.45);--thumb-drop:rgba(0,0,0,.6)}
+
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px}
+.wrap{max-width:1330px;margin:0 auto}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(27px,4vw,38px);line-height:1.12;letter-spacing:-.02em;margin:34px 0 0;text-wrap:balance;max-width:24ch}
+h2{font-family:var(--font-display);font-weight:650;font-size:22px;line-height:1.2;margin:0;text-wrap:balance}
+p{margin:0;max-width:68ch;color:var(--ink-2)}
+b,strong{color:var(--ink);font-weight:650}
+header{display:grid;gap:16px}
+.tools{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font:12px var(--font-mono);color:var(--ink-3);margin-right:2px}
+button.tg{font:600 14px var(--font-body);color:var(--ink);background:var(--surface);border:1px solid var(--line-2);border-radius:999px;padding:7px 15px;cursor:pointer}
+button.tg[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.tg:focus-visible,.tok:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.figs{display:flex;flex-wrap:wrap;gap:48px 34px;margin-top:30px;align-items:flex-start}
+.fig{width:calc(402px * var(--k));display:grid;gap:14px;margin:0;min-width:0}
+.pw{width:calc(402px * var(--k));height:calc(874px * var(--k));position:relative}
+.pw>.phone{position:absolute;left:0;top:0;transform:scale(var(--k));transform-origin:0 0}
+figcaption{display:grid;gap:9px;min-width:0}
+figcaption p{font-size:14.5px}
+.tag{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag .o{font:700 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 7px}
+.tag .rec{font:600 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--gold);color:#1A1400;border-radius:6px;padding:5px 7px}
+.tag h3{font-family:var(--font-display);font-size:18px;margin:0;font-weight:650}
+.try{font-size:13.5px;color:var(--blue-ink);font-weight:600}
+.cost{font-size:13.5px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:9px}
+.cost b{color:var(--ink-2)}
+section{margin-top:72px;display:grid;gap:14px;max-width:820px}
+section ul{margin:0;padding-left:20px;display:grid;gap:8px;color:var(--ink-2);max-width:72ch}
+
+/* ── the phone ───────────────────────────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--bg);color:var(--ink);
+  border:1px solid var(--line);font-family:var(--font-ios);line-height:normal;isolation:isolate;
+  box-shadow:0 30px 60px -32px rgba(0,0,0,.5);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.notrans,.notrans *{transition:none!important;animation:none!important}
+.lines{position:absolute;z-index:2;left:0;right:0;bottom:114px;display:flex;flex-direction:column;padding:0 14px;
+  transition:transform calc(var(--slow) * 180ms) var(--open)}
+.day{align-self:center;margin:0 0 2px;font-size:12.5px;font-weight:600;color:var(--ink-3)}
+.row{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
+.row.me{justify-content:flex-end}
+.bub{max-width:76%;border-radius:19px;padding:8px 14px 9px;font-size:17px;line-height:22px;background:var(--them);color:var(--ink)}
+.bub .nm{display:block;font-size:13px;line-height:17px;font-weight:700;margin-bottom:1px}
+.mine{color:#fff;background-color:#0B737D;background-image:linear-gradient(#5E58A6 0%,#34669E 55%,#0B737D 100%)}
+.f{width:28px;height:28px;border-radius:9px;flex:none;display:inline-grid;place-items:center;font-size:12px;font-weight:700;color:#fff;font-style:normal;background:var(--g);transform-origin:50% 50%}
+.f.p{border-radius:50%}
+.f.xs{width:20px;height:20px;border-radius:6.5px;font-size:10px}
+.f.nf{width:30px;height:30px;border-radius:10px;font-size:13px}
+.f.p.xs,.f.p.nf{border-radius:50%}
+.pair{display:inline-flex;align-items:center}
+.pair .f+.f{margin-left:-6px;box-shadow:0 0 0 2px var(--ring,var(--surface))}
+.mk{display:inline-flex;align-items:center;gap:5px;transform-origin:50% 50%}
+.mk .sq{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1.5px;width:20px;height:20px;border-radius:6.5px;overflow:hidden;flex:none}
+.mk .sq i{background:var(--g)}
+.mk b{font-size:15px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.mk.nf .sq{width:30px;height:30px;border-radius:10px}
+.mk.nf b{font-size:16px}
+
+/* top: back, the room's name, its members */
+.chrome{position:absolute;left:0;right:0}
+.chrome.t{top:0;z-index:8;height:138px;background:linear-gradient(var(--bg) 74%,color-mix(in srgb,var(--bg) 0%,transparent))}
+.status{display:flex;justify-content:space-between;align-items:center;padding:19px 34px 0 46px;font-size:16.5px;font-weight:600}
+.sbi{display:block;width:25px;height:12px;border-radius:4px;border:1.5px solid currentColor;position:relative;opacity:.9}
+.sbi::after{content:"";position:absolute;inset:1.5px 5px 1.5px 1.5px;background:currentColor;border-radius:1.5px}
+.navrow{display:flex;align-items:center;gap:8px;padding:12px 16px 8px}
+.cap{position:relative;border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none}
+.cap.sq{width:44px;height:44px;color:var(--ink)}
+.cap.sq svg{width:20px;height:20px}
+.spread{flex:1;display:flex;justify-content:center;min-width:0}
+.namecap{padding:6px 18px 7px;text-align:center;line-height:1.2;display:grid;min-width:150px;transition:scale calc(var(--slow) * 160ms) var(--open)}
+.namecap b{font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+.namecap small{font-size:12px;color:var(--ink-3)}
+.namecap small em{font-style:normal;font-weight:600;color:var(--blue-ink)}
+.namecap.pv{scale:1.06}
+.namecap .say{display:grid;animation:say calc(var(--slow) * 140ms) var(--open)}
+@keyframes say{from{opacity:.2;transform:translateY(3px)}to{opacity:1;transform:none}}
+.rf{min-width:44px;justify-content:flex-end}
+.lg{background:var(--lg-tint);-webkit-backdrop-filter:blur(10px) saturate(170%);backdrop-filter:blur(10px) saturate(170%);
+  border:.5px solid var(--lg-border);box-shadow:0 10px 26px -14px var(--lg-drop),0 1px 2px var(--lg-shade)}
+.lg::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.2px;pointer-events:none;
+  background:linear-gradient(140deg,var(--lg-rim) 0%,var(--lg-rim-2) 26%,transparent 48%,transparent 58%,var(--lg-rim-2) 78%,var(--lg-rim) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+
+/* foot: the +, and the field the list opens out of */
+.chrome.b{bottom:0;z-index:5;padding:0 12px 34px;background:linear-gradient(color-mix(in srgb,var(--bg) 0%,transparent),var(--bg) 30%)}
+.bar{display:flex;gap:8px;align-items:flex-end;padding-top:12px}
+.plus{position:relative;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-size:28px;font-weight:300;color:var(--ink-2);flex:none}
+.field{position:relative;flex:1;min-width:0;border-radius:25px;display:grid;grid-template-rows:0fr auto;
+  transition:grid-template-rows calc(var(--slow) * 180ms) var(--open),border-radius calc(var(--slow) * 180ms) var(--open)}
+.open .field{grid-template-rows:1fr auto;border-radius:24px}
+.lst{overflow:hidden;min-height:0}
+.lst-in{padding:6px 6px 4px;border-bottom:.5px solid transparent;transition:border-color calc(var(--slow) * 180ms)}
+.open .lst-in{border-color:var(--line)}
+.rows{overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}
+.rows::-webkit-scrollbar,.cs::-webkit-scrollbar{display:none}
+.rows.above,.cs.above{-webkit-mask-image:linear-gradient(transparent,#000 24px);mask-image:linear-gradient(transparent,#000 24px)}
+.ev{border-top:.5px solid var(--line);margin-top:2px;padding-top:2px}
+.mi{display:flex;align-items:center;gap:10px;min-height:46px;padding:4px 10px;border-radius:14px;cursor:pointer;
+  opacity:0;transform:translateY(6px);
+  transition:opacity 0s calc(var(--slow) * 180ms),transform 0s calc(var(--slow) * 180ms),background-color calc(var(--slow) * 70ms)}
+.open .mi{opacity:1;transform:none;
+  transition:opacity calc(var(--slow) * 150ms) calc(var(--slow) * 40ms),transform calc(var(--slow) * 180ms) var(--open) calc(var(--slow) * 40ms),background-color calc(var(--slow) * 70ms)}
+.mi.hit{background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.mi .pair,.mi .mk{--ring:var(--surface)}
+.mw{flex:1;min-width:0;display:grid}
+.mn{display:flex;align-items:center;gap:8px;font-size:17px;line-height:22px;color:var(--ink);white-space:nowrap}
+.mw small{font-size:12px;line-height:16px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mw small b{color:var(--blue-ink);font-weight:600}
+.lead{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--gold-deep);background:var(--gold-soft);border-radius:999px;padding:2px 8px;line-height:14px;font-style:normal}
+.cc{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--ink-4);display:grid;place-items:center;color:transparent;flex:none;cursor:pointer}
+.cc svg{width:14px;height:14px}
+.cc.on{background:var(--blue);border-color:var(--blue);color:#fff}
+.ck{color:transparent;display:grid;flex:none}
+.ck svg{width:18px;height:18px}
+.ck.on{color:var(--blue-ink)}
+.frow{display:flex;align-items:center;gap:8px;min-height:50px;padding:9px 9px 9px 8px}
+.tok{display:flex;align-items:center;gap:4px;height:32px;padding:0 8px;border-radius:16px;flex:none;cursor:pointer;touch-action:none;
+  background:color-mix(in srgb,var(--ink) 6%,transparent);transition:background-color calc(var(--slow) * 150ms),transform calc(var(--slow) * 120ms)}
+.open .tok,.tok.held{background:color-mix(in srgb,var(--ink) 11%,transparent)}
+.tok .arw{font-size:13px;color:var(--ink-4)}
+.tok .dn{display:grid;color:var(--ink-3);transition:transform calc(var(--slow) * 180ms) var(--open)}
+.tok .dn svg{width:12px;height:12px}
+.open .tok .dn{transform:rotate(180deg)}
+.tf{display:inline-flex}
+.tf .pair,.tf .mk{--ring:var(--surface-2)}
+.tf.swap{animation:swap calc(var(--slow) * 220ms) var(--open)}
+@keyframes swap{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+.ph{flex:1;min-width:0;font-size:17px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color calc(var(--slow) * 100ms)}
+.ph.pv{color:var(--ink)}
+.send{width:32px;height:32px;border-radius:50%;background:var(--gray);opacity:.5;display:grid;place-items:center;color:#fff;flex:none}
+.send svg{width:17px;height:17px}
+
+/* the column of faces rising out of the token */
+.col{position:absolute;z-index:12;width:54px;border-radius:27px;padding:5px 0;display:grid;
+  transform-origin:50% 100%;opacity:0;transform:translateY(14px) scale(.55);pointer-events:none;
+  transition:opacity calc(var(--slow) * 140ms),transform calc(var(--slow) * 380ms) var(--spring)}
+.col.up{opacity:1;transform:none}
+.cs{overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}
+.sl{height:44px;display:grid;place-items:center;position:relative}
+.sl>*{position:relative;z-index:1;transition:transform calc(var(--slow) * 70ms) linear}
+.sl.lit{z-index:1}
+.sl.lit::before{content:"";position:absolute;inset:3px 5px;border-radius:14px;background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.sl-ev{border-top:.5px solid var(--line);margin:2px 8px 0;height:46px}
+.col .mk b{display:none}
+
+/* the tag that names the face under the finger, placed by the phone's option */
+.ntag{position:absolute;z-index:13;left:0;top:0;border-radius:18px;padding:6px 14px 7px;display:grid;line-height:1.25;white-space:nowrap;
+  background:var(--lg-solid);opacity:0;transform:scale(.94);transform-origin:0 50%;pointer-events:none;
+  transition:opacity calc(var(--slow) * 110ms),transform calc(var(--slow) * 160ms) var(--open),top calc(var(--slow) * 80ms) linear}
+.ntag.on{opacity:1;transform:none}
+.ntag b{font-size:17px;font-weight:600;display:flex;align-items:center;gap:7px}
+.ntag small{font-size:12px;color:var(--ink-3)}
+.ntag small em{font-style:normal;font-weight:600;color:var(--blue-ink)}
+.ntag.lift{border-bottom-left-radius:6px;transform-origin:0 100%}
+.ntag.crown{transform-origin:0 100%;transform:translateY(6px) scale(.94);transition:opacity calc(var(--slow) * 110ms),transform calc(var(--slow) * 160ms) var(--open)}
+.ntag.crown.on{transform:none}
+.ntag .say{display:grid;animation:say calc(var(--slow) * 120ms) var(--open)}
+
+/* the finger: a thumb seen from above, or a dot */
+.thumb{position:absolute;left:0;top:0;z-index:40;height:var(--tw);border-radius:calc(var(--tw) / 2);pointer-events:none;
+  transform-origin:0 50%;background:var(--thumb);box-shadow:0 0 0 1px var(--thumb-edge),0 18px 34px -10px var(--thumb-drop);
+  opacity:0;transition:opacity calc(var(--slow) * 160ms)}
+.thumb.on{opacity:1}
+.thumb .nail{position:absolute;left:8px;top:23%;width:50px;height:54%;border-radius:999px 16px 16px 999px;background:var(--nail);box-shadow:inset 0 0 0 1px var(--thumb-edge)}
+.touch{position:absolute;left:0;top:0;z-index:41;width:44px;height:44px;border-radius:50%;pointer-events:none;font-style:normal;
+  background:rgba(128,128,128,.32);border:2px solid rgba(255,255,255,.85);box-shadow:0 2px 10px rgba(0,0,0,.25);opacity:0;
+  transition:opacity calc(var(--slow) * 160ms),scale calc(var(--slow) * 110ms)}
+.touch.on{opacity:1}
+.touch.down{scale:.86;background:rgba(105,105,105,.55)}
+.touch::after{content:"";position:absolute;inset:-3px;border-radius:50%;border:2px solid var(--blue);opacity:0}
+.touch.tk::after{animation:tk calc(var(--slow) * 280ms) ease-out}
+@keyframes tk{0%{opacity:.95;transform:scale(1)}100%{opacity:0;transform:scale(1.7)}}
+
+@media (prefers-reduced-motion:reduce){.col{transition:opacity 120ms}.tf.swap,.ntag .say,.namecap .say{animation:none}}
+@media (max-width:520px){.figs{justify-content:center}}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Keep the name in sight of a right thumb</h1>
+  <p>A right thumb sliding up the column lies across the screen from the right, so it covers the tag beside the face it is on. The faces above the thumb stay in sight, but the name, its @ and its harness are under it. Each phone below plays the slide with a thumb drawn over it, its tag placed a different way. Switch to a left thumb to check that one too, or press the faces and slide yourself. On your phone, try it with your own thumb.</p>
+  <div class="tools">
+    <button class="tg" id="replay" type="button">Play again</button>
+    <button class="tg" id="slow" type="button" aria-pressed="false">Slow motion</button>
+    <div class="seg" role="group" aria-label="Hand"><span>HAND</span>
+      <button class="tg" type="button" data-hand="right" aria-pressed="true">Right thumb</button>
+      <button class="tg" type="button" data-hand="left" aria-pressed="false">Left thumb</button>
+      <button class="tg" type="button" data-hand="off" aria-pressed="false">No thumb</button>
+    </div>
+    <div class="seg" role="group" aria-label="Room size"><span>ROOM</span>
+      <button class="tg" type="button" data-room="small" aria-pressed="true">4 agents</button>
+      <button class="tg" type="button" data-room="big" aria-pressed="false">12 agents</button>
+    </div>
+    <div class="seg" role="group" aria-label="Theme"><span>THEME</span>
+      <button class="tg" type="button" data-set-theme="light">Light</button>
+      <button class="tg" type="button" data-set-theme="dark">Dark</button>
+    </div>
+  </div>
+</header>
+
+<div class="figs">
+  <figure class="fig">
+    <div class="pw"><div class="phone notrans" data-kind="now">
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><span class="say"><b>Kitchen remodel</b><small>Milo, Iris, Rook, Echo, Dana</small></span></div></div><div class="cap rf"><span class="mk nf"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span></div></div></div>
+<div class="lines">
+<div class="day">Today 10:12</div>
+<div class="row"><i class="f p" style="--g:#C4466C">D</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Dana</b>Can someone price oak counters against quartz before Saturday?</div></div>
+<div class="row"><i class="f" style="--g:#6C4FB5">M</i><div class="bub"><b class="nm" style="color:var(--j-ink)">Milo</b>Iris can get the quotes and Rook can draw the layout. I'll keep the budget.</div></div>
+<div class="row me"><div class="bub mine">Iris, two quartz quotes by Friday please</div></div>
+<div class="row"><i class="f" style="--g:#0F8A6C">I</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Iris</b>Two suppliers near you deliver within a week. You'll have both quotes by Thursday.</div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div>
+<div class="field lg"><div class="lst"><div class="lst-in"><div class="rows" role="menu" style="max-height: 323px;"><div class="mi" role="menuitem" data-i="0" data-name="Milo"><span class="pair"><i class="f xs" style="--g:#6C4FB5">M</i></span><span class="mw"><span class="mn">Milo<i class="lead">Main</i></span><small><b>@milo</b> · Jacobian</small></span><span class="cc" data-id="milo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="1" data-name="Iris"><span class="pair"><i class="f xs" style="--g:#0F8A6C">I</i></span><span class="mw"><span class="mn">Iris</span><small><b>@iris</b> · OpenClaw</small></span><span class="cc" data-id="iris"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="2" data-name="Rook"><span class="pair"><i class="f xs" style="--g:#D2632A">R</i></span><span class="mw"><span class="mn">Rook</span><small><b>@rook</b> · Claude Code</small></span><span class="cc" data-id="rook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="3" data-name="Echo"><span class="pair"><i class="f xs" style="--g:#2F6FDB">E</i></span><span class="mw"><span class="mn">Echo</span><small><b>@echo</b> · Codex</small></span><span class="cc" data-id="echo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="4" data-name="Dana"><span class="pair"><i class="f p xs" style="--g:#C4466C">D</i></span><span class="mw"><span class="mn">Dana</span><small><b>@dana</b> · Person</small></span><span class="cc" data-id="dana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div></div><div class="ev"><div class="mi ev-row" role="menuitem" data-i="5" data-name="Everyone"><span class="mk xs"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span><span class="mw"><span class="mn">Everyone</span><small>All agents answer</small></span><span class="ck on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div></div></div></div>
+<div class="frow"><div class="tok held" role="button" tabindex="0" aria-expanded="false" aria-label="To Iris"><span class="arw">→</span><span class="tf swap"><span class="pair"><i class="f xs" style="--g:#0F8A6C">I</i></span></span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div><div class="ph pv">Message Iris</div><div class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></div></div></div>
+</div></div><div class="col lg up" aria-hidden="true" style="left: 94.0234px; bottom: 95px;"><div class="cs" style="max-height: 329px;"><div class="sl" data-i="0" data-name="Milo"><i class="f nf" style="--g: #6C4FB5; transform: scale(1.078);">M</i></div><div class="sl lit" data-i="1" data-name="Iris"><i class="f nf" style="--g: #0F8A6C; transform: scale(1.42);">I</i></div><div class="sl" data-i="2" data-name="Rook"><i class="f nf" style="--g: #D2632A; transform: scale(1.078);">R</i></div><div class="sl" data-i="3" data-name="Echo"><i class="f nf" style="--g: #2F6FDB; transform: scale(1.001);">E</i></div><div class="sl" data-i="4" data-name="Dana"><i class="f p nf" style="--g: #C4466C; transform: scale(1);">D</i></div></div><div class="sl sl-ev" data-i="5" data-name="Everyone"><span class="mk nf" style="transform: scale(1);"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span></div></div><div class="ntag lg now on" aria-hidden="true" style="left: 161.016px; top: 538.5px;"><span class="say"><b>Iris</b><small><em>@iris</em> · OpenClaw</small></span></div><div class="thumb on" style="width: 499.453px; transform: translate(101.367px, 496.899px) rotate(0.606542rad);"><i class="nail"></i></div><i class="touch down" style="translate: 104.016px 548px;"></i></div></div>
+    <figcaption>
+      <div class="tag"><span class="o">NOW</span><h3>Beside the face</h3></div>
+      <p>The tag stands level with the face under the finger, just right of the column. That is where a right thumb lies, so the name is under it. Only the end of the harness shows past the thumb.</p>
+      <p class="try">Press the faces and slide up.</p>
+    </figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="pw"><div class="phone notrans" data-kind="lift">
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><span class="say"><b>Kitchen remodel</b><small>Milo, Iris, Rook, Echo, Dana</small></span></div></div><div class="cap rf"><span class="mk nf"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span></div></div></div>
+<div class="lines">
+<div class="day">Today 10:12</div>
+<div class="row"><i class="f p" style="--g:#C4466C">D</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Dana</b>Can someone price oak counters against quartz before Saturday?</div></div>
+<div class="row"><i class="f" style="--g:#6C4FB5">M</i><div class="bub"><b class="nm" style="color:var(--j-ink)">Milo</b>Iris can get the quotes and Rook can draw the layout. I'll keep the budget.</div></div>
+<div class="row me"><div class="bub mine">Iris, two quartz quotes by Friday please</div></div>
+<div class="row"><i class="f" style="--g:#0F8A6C">I</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Iris</b>Two suppliers near you deliver within a week. You'll have both quotes by Thursday.</div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div>
+<div class="field lg"><div class="lst"><div class="lst-in"><div class="rows" role="menu" style="max-height: 323px;"><div class="mi" role="menuitem" data-i="0" data-name="Milo"><span class="pair"><i class="f xs" style="--g:#6C4FB5">M</i></span><span class="mw"><span class="mn">Milo<i class="lead">Main</i></span><small><b>@milo</b> · Jacobian</small></span><span class="cc" data-id="milo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="1" data-name="Iris"><span class="pair"><i class="f xs" style="--g:#0F8A6C">I</i></span><span class="mw"><span class="mn">Iris</span><small><b>@iris</b> · OpenClaw</small></span><span class="cc" data-id="iris"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="2" data-name="Rook"><span class="pair"><i class="f xs" style="--g:#D2632A">R</i></span><span class="mw"><span class="mn">Rook</span><small><b>@rook</b> · Claude Code</small></span><span class="cc" data-id="rook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="3" data-name="Echo"><span class="pair"><i class="f xs" style="--g:#2F6FDB">E</i></span><span class="mw"><span class="mn">Echo</span><small><b>@echo</b> · Codex</small></span><span class="cc" data-id="echo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="4" data-name="Dana"><span class="pair"><i class="f p xs" style="--g:#C4466C">D</i></span><span class="mw"><span class="mn">Dana</span><small><b>@dana</b> · Person</small></span><span class="cc" data-id="dana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div></div><div class="ev"><div class="mi ev-row" role="menuitem" data-i="5" data-name="Everyone"><span class="mk xs"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span><span class="mw"><span class="mn">Everyone</span><small>All agents answer</small></span><span class="ck on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div></div></div></div>
+<div class="frow"><div class="tok held" role="button" tabindex="0" aria-expanded="false" aria-label="To Iris"><span class="arw">→</span><span class="tf swap"><span class="pair"><i class="f xs" style="--g:#0F8A6C">I</i></span></span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div><div class="ph pv">Message Iris</div><div class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></div></div></div>
+</div></div><div class="col lg up" aria-hidden="true" style="left: 94.0234px; bottom: 95px;"><div class="cs" style="max-height: 329px;"><div class="sl" data-i="0" data-name="Milo"><i class="f nf" style="--g: #6C4FB5; transform: scale(1.078);">M</i></div><div class="sl lit" data-i="1" data-name="Iris"><i class="f nf" style="--g: #0F8A6C; transform: scale(1.42);">I</i></div><div class="sl" data-i="2" data-name="Rook"><i class="f nf" style="--g: #D2632A; transform: scale(1.078);">R</i></div><div class="sl" data-i="3" data-name="Echo"><i class="f nf" style="--g: #2F6FDB; transform: scale(1.001);">E</i></div><div class="sl" data-i="4" data-name="Dana"><i class="f p nf" style="--g: #C4466C; transform: scale(1);">D</i></div></div><div class="sl sl-ev" data-i="5" data-name="Everyone"><span class="mk nf" style="transform: scale(1);"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span></div></div><div class="ntag lg lift on" aria-hidden="true" style="left: 159.016px; top: 455px;"><span class="say"><b>Iris</b><small><em>@iris</em> · OpenClaw</small></span></div><div class="thumb on" style="width: 499.453px; transform: translate(101.367px, 496.899px) rotate(0.606542rad);"><i class="nail"></i></div><i class="touch down" style="translate: 104.016px 548px;"></i></div></div>
+    <figcaption>
+      <div class="tag"><span class="o">A</span><span class="rec">RECOMMENDED</span><h3>Above the thumb</h3></div>
+      <p>The tag stays beside the column and still moves with the finger, but it stands a face and a half higher, its lower corner pointing at the face it names. A right thumb passes under it, and a left thumb never reached it. The eye stays by the column.</p>
+      <p class="try">Press the faces and slide up.</p>
+      <p class="cost"><b>Cost, the smallest.</b> The tag is placed 64 points above the face in place of 6, and may stand above the column's top when the finger is on the top face. Nothing else in the column changes.</p>
+    </figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="pw"><div class="phone notrans" data-kind="crown">
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg"><span class="say"><b>Kitchen remodel</b><small>Milo, Iris, Rook, Echo, Dana</small></span></div></div><div class="cap rf"><span class="mk nf"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span></div></div></div>
+<div class="lines">
+<div class="day">Today 10:12</div>
+<div class="row"><i class="f p" style="--g:#C4466C">D</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Dana</b>Can someone price oak counters against quartz before Saturday?</div></div>
+<div class="row"><i class="f" style="--g:#6C4FB5">M</i><div class="bub"><b class="nm" style="color:var(--j-ink)">Milo</b>Iris can get the quotes and Rook can draw the layout. I'll keep the budget.</div></div>
+<div class="row me"><div class="bub mine">Iris, two quartz quotes by Friday please</div></div>
+<div class="row"><i class="f" style="--g:#0F8A6C">I</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Iris</b>Two suppliers near you deliver within a week. You'll have both quotes by Thursday.</div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div>
+<div class="field lg"><div class="lst"><div class="lst-in"><div class="rows" role="menu" style="max-height: 323px;"><div class="mi" role="menuitem" data-i="0" data-name="Milo"><span class="pair"><i class="f xs" style="--g:#6C4FB5">M</i></span><span class="mw"><span class="mn">Milo<i class="lead">Main</i></span><small><b>@milo</b> · Jacobian</small></span><span class="cc" data-id="milo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="1" data-name="Iris"><span class="pair"><i class="f xs" style="--g:#0F8A6C">I</i></span><span class="mw"><span class="mn">Iris</span><small><b>@iris</b> · OpenClaw</small></span><span class="cc" data-id="iris"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="2" data-name="Rook"><span class="pair"><i class="f xs" style="--g:#D2632A">R</i></span><span class="mw"><span class="mn">Rook</span><small><b>@rook</b> · Claude Code</small></span><span class="cc" data-id="rook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="3" data-name="Echo"><span class="pair"><i class="f xs" style="--g:#2F6FDB">E</i></span><span class="mw"><span class="mn">Echo</span><small><b>@echo</b> · Codex</small></span><span class="cc" data-id="echo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="4" data-name="Dana"><span class="pair"><i class="f p xs" style="--g:#C4466C">D</i></span><span class="mw"><span class="mn">Dana</span><small><b>@dana</b> · Person</small></span><span class="cc" data-id="dana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div></div><div class="ev"><div class="mi ev-row" role="menuitem" data-i="5" data-name="Everyone"><span class="mk xs"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span><span class="mw"><span class="mn">Everyone</span><small>All agents answer</small></span><span class="ck on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div></div></div></div>
+<div class="frow"><div class="tok held" role="button" tabindex="0" aria-expanded="false" aria-label="To Iris"><span class="arw">→</span><span class="tf swap"><span class="pair"><i class="f xs" style="--g:#0F8A6C">I</i></span></span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div><div class="ph pv">Message Iris</div><div class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></div></div></div>
+</div></div><div class="col lg up" aria-hidden="true" style="left: 94.0234px; bottom: 95px;"><div class="cs" style="max-height: 329px;"><div class="sl" data-i="0" data-name="Milo"><i class="f nf" style="--g: #6C4FB5; transform: scale(1.078);">M</i></div><div class="sl lit" data-i="1" data-name="Iris"><i class="f nf" style="--g: #0F8A6C; transform: scale(1.42);">I</i></div><div class="sl" data-i="2" data-name="Rook"><i class="f nf" style="--g: #D2632A; transform: scale(1.078);">R</i></div><div class="sl" data-i="3" data-name="Echo"><i class="f nf" style="--g: #2F6FDB; transform: scale(1.001);">E</i></div><div class="sl" data-i="4" data-name="Dana"><i class="f p nf" style="--g: #C4466C; transform: scale(1);">D</i></div></div><div class="sl sl-ev" data-i="5" data-name="Everyone"><span class="mk nf" style="transform: scale(1);"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span></div></div><div class="ntag lg crown on" aria-hidden="true" style="left: 95.0156px; top: 439px;"><span class="say"><b>Iris</b><small><em>@iris</em> · OpenClaw</small></span></div><div class="thumb on" style="width: 499.453px; transform: translate(101.367px, 496.899px) rotate(0.606542rad);"><i class="nail"></i></div><i class="touch down" style="translate: 104.016px 548px;"></i></div></div>
+    <figcaption>
+      <div class="tag"><span class="o">B</span><h3>On top of the column</h3></div>
+      <p>The name stands in one place, over the column's top, and changes as the finger moves. It never moves, so you learn where to look, and no thumb reaches it. In a room of twelve the column is half the screen tall, so the name is far above the finger.</p>
+      <p class="try">Press the faces and slide up. Try 12 agents.</p>
+      <p class="cost"><b>Cost, small.</b> The tag is placed once, over the column, in place of following the finger.</p>
+    </figcaption>
+  </figure>
+
+  <figure class="fig">
+    <div class="pw"><div class="phone notrans" data-kind="bar">
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></div><div class="spread"><div class="cap namecap lg pv"><span class="say"><b>To Iris</b><small><em>@iris</em> · OpenClaw</small></span></div></div><div class="cap rf"><span class="mk nf"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span></div></div></div>
+<div class="lines">
+<div class="day">Today 10:12</div>
+<div class="row"><i class="f p" style="--g:#C4466C">D</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Dana</b>Can someone price oak counters against quartz before Saturday?</div></div>
+<div class="row"><i class="f" style="--g:#6C4FB5">M</i><div class="bub"><b class="nm" style="color:var(--j-ink)">Milo</b>Iris can get the quotes and Rook can draw the layout. I'll keep the budget.</div></div>
+<div class="row me"><div class="bub mine">Iris, two quartz quotes by Friday please</div></div>
+<div class="row"><i class="f" style="--g:#0F8A6C">I</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Iris</b>Two suppliers near you deliver within a week. You'll have both quotes by Thursday.</div></div></div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div>
+<div class="field lg"><div class="lst"><div class="lst-in"><div class="rows" role="menu" style="max-height: 323px;"><div class="mi" role="menuitem" data-i="0" data-name="Milo"><span class="pair"><i class="f xs" style="--g:#6C4FB5">M</i></span><span class="mw"><span class="mn">Milo<i class="lead">Main</i></span><small><b>@milo</b> · Jacobian</small></span><span class="cc" data-id="milo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="1" data-name="Iris"><span class="pair"><i class="f xs" style="--g:#0F8A6C">I</i></span><span class="mw"><span class="mn">Iris</span><small><b>@iris</b> · OpenClaw</small></span><span class="cc" data-id="iris"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="2" data-name="Rook"><span class="pair"><i class="f xs" style="--g:#D2632A">R</i></span><span class="mw"><span class="mn">Rook</span><small><b>@rook</b> · Claude Code</small></span><span class="cc" data-id="rook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="3" data-name="Echo"><span class="pair"><i class="f xs" style="--g:#2F6FDB">E</i></span><span class="mw"><span class="mn">Echo</span><small><b>@echo</b> · Codex</small></span><span class="cc" data-id="echo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div><div class="mi" role="menuitem" data-i="4" data-name="Dana"><span class="pair"><i class="f p xs" style="--g:#C4466C">D</i></span><span class="mw"><span class="mn">Dana</span><small><b>@dana</b> · Person</small></span><span class="cc" data-id="dana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div></div><div class="ev"><div class="mi ev-row" role="menuitem" data-i="5" data-name="Everyone"><span class="mk xs"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span><span class="mw"><span class="mn">Everyone</span><small>All agents answer</small></span><span class="ck on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span></div></div></div></div>
+<div class="frow"><div class="tok held" role="button" tabindex="0" aria-expanded="false" aria-label="To Iris"><span class="arw">→</span><span class="tf swap"><span class="pair"><i class="f xs" style="--g:#0F8A6C">I</i></span></span><span class="dn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div><div class="ph pv">Message Iris</div><div class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"></path><path d="M6 11l6-6 6 6"></path></svg></div></div></div>
+</div></div><div class="col lg up" aria-hidden="true" style="left: 94.0234px; bottom: 95px;"><div class="cs" style="max-height: 329px;"><div class="sl" data-i="0" data-name="Milo"><i class="f nf" style="--g: #6C4FB5; transform: scale(1.078);">M</i></div><div class="sl lit" data-i="1" data-name="Iris"><i class="f nf" style="--g: #0F8A6C; transform: scale(1.42);">I</i></div><div class="sl" data-i="2" data-name="Rook"><i class="f nf" style="--g: #D2632A; transform: scale(1.078);">R</i></div><div class="sl" data-i="3" data-name="Echo"><i class="f nf" style="--g: #2F6FDB; transform: scale(1.001);">E</i></div><div class="sl" data-i="4" data-name="Dana"><i class="f p nf" style="--g: #C4466C; transform: scale(1);">D</i></div></div><div class="sl sl-ev" data-i="5" data-name="Everyone"><span class="mk nf" style="transform: scale(1);"><span class="sq"><i style="--g:#6C4FB5"></i><i style="--g:#0F8A6C"></i><i style="--g:#D2632A"></i><i style="--g:#2F6FDB"></i></span><b>5</b></span></div></div><div class="thumb on" style="width: 499.453px; transform: translate(101.367px, 496.899px) rotate(0.606542rad);"><i class="nail"></i></div><i class="touch down" style="translate: 104.016px 548px;"></i></div></div>
+    <figcaption>
+      <div class="tag"><span class="o">C</span><h3>In the room's name</h3></div>
+      <p>No tag. While the finger slides, the room's name at the top says who the message would go to, and it goes back when you let go. Nothing stands beside the column, and no hand covers the top of the screen, but you look away from the faces to read it.</p>
+      <p class="try">Press the faces and slide up.</p>
+      <p class="cost"><b>Cost, small to medium.</b> The room's bar takes the column's choice while a slide runs, on the phone and the iPad, and the tag goes.</p>
+    </figcaption>
+  </figure>
+</div>
+
+<section>
+  <h2>The same in all of them</h2>
+  <ul>
+    <li>The face under the finger still grows, and the field's words still say "Message" and the name. The field is under the thumb too, so neither can be the only place the name shows.</li>
+    <li>Letting go on a face picks that agent alone. Letting go off the column changes nothing. A tap still opens the list, with its circles for several.</li>
+    <li>Each face the finger reaches gives a light haptic tick, as now.</li>
+    <li>The thumb drawn here is 112 points wide, about 20 mm on an iPhone 17, its pad 30 points from its tip. Your own may be wider or narrower: try it on your phone.</li>
+  </ul>
+</section>
+</div>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const STOP = Symbol('stop');
+let SLOW = 1;
+let ROOMK = 'small';
+let HAND = 'right';
+// Where a thumb's base sits for each hand, in the phone's points: at the phone's edge, low in the palm.
+const BASE = { right: { x: 446, y: 792 }, left: { x: -44, y: 792 } };
+const TW = 112, TIP = 30;
+// A: how far above the face the tag's foot stands.
+const LIFT = 64;
+
+const sv = (d, w = 2) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const I = {
+  back: sv('<path d="M15 5l-7 7 7 7"/>', 2.2),
+  chev: sv('<path d="M6 9l6 6 6-6"/>', 2.4),
+  up: sv('<path d="M12 19V5"/><path d="M6 11l6-6 6 6"/>', 2.4),
+  check: sv('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 2.6),
+};
+
+const AGENTS = [
+  ['milo', 'Milo', 'Jacobian', '#6C4FB5', true], ['iris', 'Iris', 'OpenClaw', '#0F8A6C'], ['rook', 'Rook', 'Claude Code', '#D2632A'],
+  ['echo', 'Echo', 'Codex', '#2F6FDB'], ['nova', 'Nova', 'Hermes', '#B0408A'], ['atlas', 'Atlas', 'OpenCode', '#3F7F1F'],
+  ['pike', 'Pike', 'OpenClaw', '#8C5A1E'], ['wren', 'Wren', 'Claude Code', '#1F7F95'], ['juno', 'Juno', 'Jacobian', '#9B3B3B'],
+  ['sol', 'Sol', 'Codex', '#5A5FC8'], ['kit', 'Kit', 'OpenClaw', '#A3761A'], ['bea', 'Bea', 'Hermes', '#2E8A5A'],
+].map(([id, n, h, c, lead]) => ({ id, n, h, c, l: n[0], lead: !!lead }));
+const DANA = { id: 'dana', n: 'Dana', l: 'D', c: '#C4466C', person: true };
+const W = {};
+[...AGENTS, DANA].forEach(m => { W[m.id] = m; });
+const ROOMS = {
+  small: { ids: [...AGENTS.slice(0, 4).map(a => a.id), 'dana'], sub: 'Milo, Iris, Rook, Echo, Dana' },
+  big: { ids: [...AGENTS.map(a => a.id), 'dana'], sub: 'Milo, Iris, Rook and 10 more' },
+};
+
+function choicesOf(ids) {
+  const out = ids.map(id => {
+    const m = W[id];
+    return { ids: [id], name: m.n, handle: '@' + id, harness: m.person ? 'Person' : m.h, lead: !!m.lead };
+  });
+  out.push({ ids: [...ids], all: true, name: 'Everyone', under: 'All agents answer' });
+  return out;
+}
+const face = (m, size = '') => `<i class="f${m.person ? ' p' : ''}${size ? ' ' + size : ''}" style="--g:${m.c}">${m.l}</i>`;
+function faces(ids, size = 'xs') {
+  const ms = ids.map(id => W[id]);
+  if (ms.length > 3) return `<span class="mk ${size}"><span class="sq">${ms.slice(0, 4).map(m => `<i style="--g:${m.c}"></i>`).join('')}</span><b>${ms.length}</b></span>`;
+  return `<span class="pair">${ms.map(m => face(m, size)).join('')}</span>`;
+}
+function words(ids) {
+  const ns = ids.map(id => W[id].n);
+  if (ns.length >= 4) return `${ns.length} agents`;
+  if (ns.length === 1) return ns[0];
+  return ns.slice(0, -1).join(', ') + ' and ' + ns.at(-1);
+}
+const rowHTML = (c, i) => c.all
+  ? `<div class="mi ev-row" role="menuitem" data-i="${i}" data-name="Everyone">${faces(c.ids)}<span class="mw"><span class="mn">Everyone</span><small>${c.under}</small></span><span class="ck">${I.check}</span></div>`
+  : `<div class="mi" role="menuitem" data-i="${i}" data-name="${c.name}">${faces(c.ids)}<span class="mw"><span class="mn">${c.name}${c.lead ? '<i class="lead">Main</i>' : ''}</span><small><b>${c.handle}</b> · ${c.harness}</small></span><span class="cc" data-id="${c.ids[0]}">${I.check}</span></div>`;
+const slotHTML = (c, i) => c.all
+  ? `<div class="sl sl-ev" data-i="${i}" data-name="Everyone">${faces(c.ids, 'nf')}</div>`
+  : `<div class="sl" data-i="${i}" data-name="${c.name}">${face(W[c.ids[0]], 'nf')}</div>`;
+const sayHTML = c => c.all
+  ? `<b>Everyone</b><small>${c.under}</small>`
+  : `<b>${c.name}${c.lead ? '<i class="lead">Main</i>' : ''}</b><small><em>${c.handle}</em> · ${c.harness}</small>`;
+
+const LINES = `
+<div class="day">Today 10:12</div>
+<div class="row"><i class="f p" style="--g:#C4466C">D</i><div class="bub"><b class="nm" style="color:var(--m-ink)">Dana</b>Can someone price oak counters against quartz before Saturday?</div></div>
+<div class="row"><i class="f" style="--g:#6C4FB5">M</i><div class="bub"><b class="nm" style="color:var(--j-ink)">Milo</b>Iris can get the quotes and Rook can draw the layout. I'll keep the budget.</div></div>
+<div class="row me"><div class="bub mine">Iris, two quartz quotes by Friday please</div></div>
+<div class="row"><i class="f" style="--g:#0F8A6C">I</i><div class="bub"><b class="nm" style="color:var(--p-ink)">Iris</b>Two suppliers near you deliver within a week. You'll have both quotes by Thursday.</div></div>`;
+
+/* Where things are, in the phone's own points, whatever it is scaled to on the page. */
+function local(p, e) {
+  const r = p.el.getBoundingClientRect(), k = r.width / 402;
+  return { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k };
+}
+function box(p, node) {
+  const r = p.el.getBoundingClientRect(), k = r.width / 402, q = node.getBoundingClientRect();
+  const b = { l: (q.left - r.left) / k, t: (q.top - r.top) / k, r: (q.right - r.left) / k, b: (q.bottom - r.top) / k };
+  b.cx = (b.l + b.r) / 2; b.cy = (b.t + b.b) / 2;
+  return b;
+}
+const ease = t => (t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+/* The thumb: a capsule from its base to its tip, the pad TIP points behind the tip. */
+function thumbAxis(pt) {
+  const b = BASE[HAND], dx = b.x - pt.x, dy = b.y - pt.y, d = Math.hypot(dx, dy);
+  const u = { x: -dx / d, y: -dy / d };
+  return { b, d, u, tip: { x: pt.x + u.x * TIP, y: pt.y + u.y * TIP }, angle: Math.atan2(dy, dx) };
+}
+function underThumb(pt, q) {
+  const a = thumbAxis(pt);
+  const c = { x: a.tip.x - a.u.x * TW / 2, y: a.tip.y - a.u.y * TW / 2 };
+  const vx = a.b.x - c.x, vy = a.b.y - c.y, wx = q.x - c.x, wy = q.y - c.y;
+  const t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / (vx * vx + vy * vy)));
+  return Math.hypot(wx - t * vx, wy - t * vy) <= TW / 2;
+}
+
+class Phone {
+  constructor(el) {
+    this.el = el; this.kind = el.dataset.kind; this.run = 0; this.idle = 0; this.raf = 0; this.fp = null;
+    this.bind();
+  }
+  q(s) { return this.el.querySelector(s); }
+  qa(s) { return [...this.el.querySelectorAll(s)]; }
+
+  build(roomKey) {
+    const room = ROOMS[roomKey];
+    this.ids = room.ids; this.sub = room.sub; this.choices = choicesOf(room.ids); this.all = this.choices.length - 1;
+    this.aim = { all: true }; this.open = false; this.lit = -1; this.slide = null; this.tokKey = '';
+    const rows = this.choices.slice(0, -1).map(rowHTML).join('');
+    const ev = rowHTML(this.choices[this.all], this.all);
+    const tag = this.kind === 'bar' ? '' : `<div class="ntag lg ${this.kind}" aria-hidden="true"></div>`;
+    this.el.classList.remove('open', 'notrans');
+    this.el.innerHTML = `
+<div class="chrome t"><div class="status"><span>9:41</span><span class="sbi"></span></div>
+<div class="navrow"><div class="cap sq lg">${I.back}</div><div class="spread"><div class="cap namecap lg"></div></div><div class="cap rf">${faces(this.ids, 'nf')}</div></div></div>
+<div class="lines">${LINES}</div>
+<div class="chrome b"><div class="bar"><div class="plus lg">+</div>
+<div class="field lg"><div class="lst"><div class="lst-in"><div class="rows" role="menu">${rows}</div><div class="ev">${ev}</div></div></div>
+<div class="frow"><div class="tok" role="button" tabindex="0" aria-expanded="false" aria-label="To Everyone"><span class="arw">→</span><span class="tf"></span><span class="dn">${I.chev}</span></div><div class="ph">Message Everyone</div><div class="send">${I.up}</div></div></div>
+</div></div><div class="col lg" aria-hidden="true"><div class="cs">${this.choices.slice(0, -1).map(slotHTML).join('')}</div>${slotHTML(this.choices[this.all], this.all)}</div>${tag}<div class="thumb"><i class="nail"></i></div><i class="touch"></i>`;
+    // At most half the window, the field's words and Everyone's row included (ADR 0113).
+    this.q('.rows').style.maxHeight = (874 / 2 - 50 - 52 - 12) + 'px';
+    this.q('.cs').style.maxHeight = (874 / 2 - 50 - 46 - 12) + 'px';
+    for (const sc of this.qa('.rows, .cs')) sc.addEventListener('scroll', () => sc.classList.toggle('above', sc.scrollTop > 1), { passive: true });
+    this.roomName(-1);
+    this.renderAim();
+  }
+
+  /* ── who it goes to ── */
+  renderAim(preview) {
+    const c = preview || (this.aim.all ? this.choices[this.all] : { ids: this.aim.ids });
+    const key = c.all ? 'all' : c.ids.join(',');
+    const tf = this.q('.tf'), ph = this.q('.ph');
+    const said = c.all ? 'Everyone' : words(c.ids);
+    if (key !== this.tokKey) {
+      this.tokKey = key; tf.innerHTML = faces(c.ids);
+      tf.classList.remove('swap'); void tf.offsetWidth; tf.classList.add('swap');
+    }
+    ph.textContent = 'Message ' + said;
+    ph.classList.toggle('pv', !!preview);
+    this.q('.tok').setAttribute('aria-label', 'To ' + said);
+    for (const cc of this.qa('.cc')) cc.classList.toggle('on', !this.aim.all && this.aim.ids.includes(cc.dataset.id));
+    const ck = this.q('.ck'); if (ck) ck.classList.toggle('on', !!this.aim.all);
+  }
+  pick(c) { this.aim = c.all ? { all: true } : { ids: [...c.ids] }; this.renderAim(); }
+  add(id) {
+    let ids = this.aim.all ? [id] : this.aim.ids.includes(id) ? this.aim.ids.filter(x => x !== id) : [...this.aim.ids, id];
+    this.aim = ids.length === 0 ? { all: true } : { ids };
+    this.renderAim();
+  }
+  setOpen(v) {
+    this.open = v; this.el.classList.toggle('open', v);
+    this.q('.tok').setAttribute('aria-expanded', String(v));
+    const lines = this.q('.lines');
+    if (v) lines.style.transform = `translateY(${-this.q('.lst-in').offsetHeight}px)`;
+    else {
+      lines.style.transform = '';
+      const rows = this.q('.rows');
+      setTimeout(() => { if (!this.open) { rows.scrollTop = 0; rows.classList.remove('above'); } }, 220 * SLOW);
+    }
+  }
+  setLit(i) {
+    if (i === this.lit) return;
+    this.lit = i;
+    for (const r of this.qa('.sl')) r.classList.toggle('lit', +r.dataset.i === i);
+    if (this.kind === 'bar') this.roomName(i); else this.tagFor(i);
+    if (i >= 0) this.tick();
+    this.renderAim(i >= 0 ? this.choices[i] : null);
+  }
+  /* C: the room's name says who it would go to while a slide runs. */
+  roomName(i) {
+    const cap = this.q('.namecap');
+    const c = i >= 0 ? this.choices[i] : null;
+    cap.innerHTML = c
+      ? `<span class="say"><b>To ${c.name}</b><small>${c.all ? c.under : `<em>${c.handle}</em> · ${c.harness}`}</small></span>`
+      : `<span class="say"><b>Kitchen remodel</b><small>${this.sub}</small></span>`;
+    cap.classList.toggle('pv', !!c);
+  }
+
+  /* ── the press that follows the finger ── */
+  down(pt) {
+    this.slide = { x0: pt.x, y0: pt.y, pt, moved: false, wasOpen: this.open, col: false, armed: false, acc: 0 };
+    this.q('.tok').classList.add('held');
+  }
+  move(pt) {
+    const s = this.slide; if (!s) return;
+    s.pt = pt;
+    if (Math.hypot(pt.x - s.x0, pt.y - s.y0) > 8) s.moved = true;
+    if (!s.col && !s.wasOpen && s.y0 - pt.y > 8) { s.col = true; this.showCol(true); this.edge(); }
+    if (s.col) this.litB(pt);
+  }
+  up(pt) {
+    const s = this.slide; if (!s) return;
+    if (pt) this.move(pt);
+    const lit = this.lit;
+    this.slide = null;
+    this.q('.tok').classList.remove('held');
+    if (s.col) { if (lit >= 0) this.pick(this.choices[lit]); this.showCol(false); }
+    else if (!s.moved) this.setOpen(!s.wasOpen);
+    this.setLit(-1);
+  }
+  cancel() {
+    if (!this.slide) return;
+    this.slide = null;
+    this.q('.tok').classList.remove('held'); this.showCol(false);
+    this.setLit(-1);
+  }
+  showCol(v) {
+    const col = this.q('.col');
+    if (v) {
+      const f = box(this, this.q('.field')), t = box(this, this.q('.tf'));
+      col.style.left = (t.cx - 27) + 'px';
+      col.style.bottom = (874 - f.t + 8) + 'px';
+      const cs = this.q('.cs'); cs.scrollTop = cs.scrollHeight;
+    } else {
+      for (const x of this.qa('.sl > *')) x.style.transform = '';
+    }
+    col.classList.toggle('up', v);
+  }
+  litB(pt) {
+    const cb = box(this, this.q('.col')), sb = box(this, this.q('.cs'));
+    const near = pt.x > cb.l - 40 && pt.x < cb.r + 120 && pt.y > cb.t - 90 && pt.y < cb.b + 30;
+    let lit = -1;
+    for (const sl of this.qa('.sl')) {
+      const q = box(this, sl);
+      const shown = sl.classList.contains('sl-ev') || (q.cy > sb.t && q.cy < sb.b);
+      const dy = q.cy - pt.y;
+      const k = near && shown ? 1 + .42 * Math.exp(-(dy * dy) / (2 * 24 * 24)) : 1;
+      sl.firstElementChild.style.transform = `scale(${k.toFixed(3)})`;
+      if (near && shown && pt.y >= q.t && pt.y < q.b) lit = +sl.dataset.i;
+    }
+    this.setLit(lit);
+    if (lit >= 0) this.placeTag(lit);
+  }
+  tagFor(i) {
+    const tag = this.q('.ntag'); if (!tag) return;
+    if (i < 0) { tag.classList.remove('on'); return; }
+    tag.innerHTML = `<span class="say">${sayHTML(this.choices[i])}</span>`;
+    tag.classList.add('on');
+  }
+  placeTag(i) {
+    const tag = this.q('.ntag'); if (!tag) return;
+    const q = box(this, this.q(`.sl[data-i="${i}"]`)), cb = box(this, this.q('.col'));
+    const h = tag.offsetHeight;
+    if (this.kind === 'now') { tag.style.left = (cb.r + 12) + 'px'; tag.style.top = (q.cy - h / 2 - 6) + 'px'; }
+    else if (this.kind === 'lift') { tag.style.left = (cb.r + 10) + 'px'; tag.style.top = Math.max(146, q.cy - LIFT - h) + 'px'; }
+    else { tag.style.left = cb.l + 'px'; tag.style.top = (cb.t - 8 - h) + 'px'; }
+  }
+  /* Held at the column's top, it scrolls the faces above into view. */
+  edge() {
+    if (this.raf) return;
+    let last = performance.now();
+    const loop = now => {
+      const s = this.slide;
+      if (!s) { this.raf = 0; return; }
+      const dt = Math.min(48, now - last) / 1000; last = now;
+      const sc = s.col ? this.q('.cs') : null;
+      if (sc && s.pt && sc.scrollHeight > sc.clientHeight + 1) {
+        const r = box(this, sc), y = s.pt.y, B = 40, V = 560 / SLOW;
+        const cb = box(this, this.q('.col'));
+        const inX = s.pt.x > cb.l - 40 && s.pt.x < cb.r + 120;
+        let v = 0;
+        if (inX && y < r.t + B && y > r.t - 90) v = -Math.min(1, (r.t + B - y) / B) * V;
+        if (v) {
+          s.acc += v * dt;
+          const step = Math.trunc(s.acc);
+          if (step) { sc.scrollTop += step; s.acc -= step; }
+          this.litB(s.pt);
+        }
+      }
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
+  }
+  tick() { const t = this.q('.touch'); t.classList.remove('tk'); void t.offsetWidth; t.classList.add('tk'); }
+
+  /* ── the finger, drawn ── */
+  fingerTo(pt) {
+    this.fp = pt;
+    this.q('.touch').style.translate = `${pt.x - 22}px ${pt.y - 22}px`;
+    if (HAND === 'off') return;
+    const a = thumbAxis(pt), th = this.q('.thumb');
+    th.style.width = (a.d + TIP + 80) + 'px';
+    th.style.transform = `translate(${a.tip.x}px, ${a.tip.y - TW / 2}px) rotate(${a.angle}rad)`;
+  }
+  finger(on) {
+    const t = this.q('.touch'), th = this.q('.thumb'); if (!t) return;
+    t.classList.toggle('on', on && HAND === 'off'); if (!on) t.classList.remove('down');
+    th.classList.toggle('on', on && HAND !== 'off');
+  }
+  press(on) { this.q('.touch').classList.toggle('down', on); }
+
+  /* ── your own finger or mouse ── */
+  bind() {
+    const el = this.el;
+    el.addEventListener('pointerdown', e => {
+      if (!e.isPrimary || e.button > 0) return;
+      // Asked first: stopping the demo can draw the faces again, and the pressed one with them.
+      const onTok = !!e.target.closest('.tok');
+      this.swallow = false;
+      this.user();
+      const pt = local(this, e);
+      if (onTok) {
+        e.preventDefault();
+        this.down(pt);
+        this.cap = e.pointerId;
+        // A mouse gets a thumb drawn at it; a real thumb needs none.
+        this.drawn = e.pointerType === 'mouse';
+        if (this.drawn) { this.fingerTo(pt); this.finger(true); this.press(true); }
+        try { el.setPointerCapture(e.pointerId); } catch (_) { /* not every browser */ }
+        return;
+      }
+      if (this.open && !e.target.closest('.field')) { this.setOpen(false); this.swallow = true; return; }
+      const row = e.target.closest('.mi'); if (row && !e.target.closest('.cc')) row.classList.add('hit');
+    });
+    el.addEventListener('pointermove', e => {
+      if (this.cap !== e.pointerId) return;
+      const pt = local(this, e);
+      if (this.drawn) this.fingerTo(pt);
+      this.move(pt);
+    });
+    const end = (e, ok) => {
+      if (this.cap === e.pointerId) {
+        this.cap = null; this.swallow = true;
+        ok ? this.up(local(this, e)) : this.cancel();
+        if (this.drawn) { this.press(false); setTimeout(() => { if (this.cap == null) this.finger(false); }, 260); }
+        this.idleLater();
+      }
+      for (const r of this.qa('.mi.hit')) r.classList.remove('hit');
+    };
+    el.addEventListener('pointerup', e => end(e, true));
+    el.addEventListener('pointercancel', e => end(e, false));
+    el.addEventListener('click', e => {
+      if (this.swallow) { this.swallow = false; return; }
+      if (e.target.closest('.tok')) { this.setOpen(!this.open); this.idleLater(); return; }
+      if (!this.open) return;
+      const cc = e.target.closest('.cc');
+      if (cc) { this.add(cc.dataset.id); this.idleLater(); return; }
+      const row = e.target.closest('.mi');
+      if (row) { this.pick(this.choices[+row.dataset.i]); this.setOpen(false); this.idleLater(); }
+    });
+    el.addEventListener('keydown', e => {
+      if (!e.target.closest('.tok') || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault(); this.user(); this.setOpen(!this.open);
+    });
+  }
+  user() {
+    this.run++;
+    clearTimeout(this.idle);
+    if (this.slide && this.cap == null) this.cancel();
+    this.finger(false);
+    this.idleLater();
+  }
+  idleLater() { clearTimeout(this.idle); this.idle = setTimeout(() => { if (this.cap == null) this.play(); }, 9000); }
+
+  /* ── the demo's finger ── */
+  check(id) { if (this.run !== id) throw STOP; }
+  async wait(id, ms) { await new Promise(r => setTimeout(r, ms * SLOW)); this.check(id); }
+  async until(id, cond, ms) { const t0 = performance.now(); while (!cond() && performance.now() - t0 < ms * SLOW) await this.wait(id, 30); }
+  glide(id, to, ms) {
+    const from = { ...this.fp }, t0 = performance.now(), dur = ms * SLOW;
+    return new Promise((res, rej) => {
+      const f = now => {
+        if (this.run !== id) return rej(STOP);
+        const t = Math.min(1, (now - t0) / dur), e = ease(t), target = to();
+        const pt = { x: from.x + (target.x - from.x) * e, y: from.y + (target.y - from.y) * e };
+        this.fingerTo(pt);
+        if (this.slide) this.move(pt);
+        t < 1 ? requestAnimationFrame(f) : res();
+      };
+      requestAnimationFrame(f);
+    });
+  }
+  async play() {
+    const id = ++this.run;
+    clearTimeout(this.idle);
+    if (this.slide) this.cancel();
+    if (this.open) this.setOpen(false);
+    this.aim = { all: true }; this.renderAim();
+    this.finger(false);
+    try {
+      await this.wait(id, 600);
+      for (;;) await DEMOS[ROOMK](this, id);
+    } catch (e) { if (e !== STOP) console.error(e); }
+  }
+}
+
+const tokPt = p => () => { const b = box(p, p.q('.tf')); return { x: b.cx, y: b.cy }; };
+const slotPt = (p, name, dx = 4) => () => { const b = box(p, p.q(`.sl[data-name="${name}"]`)); return { x: b.cx + dx, y: b.cy }; };
+const shownIn = (p, name, margin) => () => {
+  const q = box(p, p.q(`.sl[data-name="${name}"]`)), sc = box(p, p.q('.cs'));
+  return q.t >= sc.t + margin && q.b <= sc.b - margin;
+};
+/* Press the faces, rest on each face in turn, let go on the last. */
+async function tour(p, id, names, hold = 1000) {
+  p.fingerTo(tokPt(p)()); p.finger(true);
+  await p.wait(id, 300);
+  p.press(true); p.down(p.fp);
+  await p.wait(id, 150);
+  for (const n of names) { await p.glide(id, slotPt(p, n), 460); await p.wait(id, hold); }
+  p.up(p.fp); p.press(false);
+  await p.wait(id, 260); p.finger(false);
+}
+const DEMOS = {
+  small: async (p, id) => {
+    await tour(p, id, ['Iris', 'Rook', 'Milo']); await p.wait(id, 1200);
+    await tour(p, id, ['Echo', 'Everyone'], 800); await p.wait(id, 1600);
+  },
+  big: async (p, id) => {
+    await tour(p, id, ['Kit', 'Juno']); await p.wait(id, 1200);
+    // Iris is above what the column shows: hold at its top until she comes down into view.
+    p.fingerTo(tokPt(p)()); p.finger(true);
+    await p.wait(id, 300);
+    p.press(true); p.down(p.fp);
+    await p.wait(id, 150);
+    await p.glide(id, () => { const c = box(p, p.q('.cs')); return { x: c.cx + 4, y: c.t + 10 }; }, 620);
+    await p.until(id, shownIn(p, 'Iris', 44), 4000);
+    await p.glide(id, slotPt(p, 'Iris'), 240);
+    await p.wait(id, 1000);
+    p.up(p.fp); p.press(false);
+    await p.wait(id, 260); p.finger(false);
+    await p.wait(id, 1600);
+  },
+};
+
+/* One frame of each, held still on Iris: the picture the page shows before its script runs. */
+function pose(phones, name = 'Iris') {
+  for (const p of phones) {
+    p.run++;
+    p.el.classList.add('notrans');
+    const tp = tokPt(p)(); p.down(tp); p.move({ x: tp.x, y: tp.y - 30 });
+    const pt = slotPt(p, name)(); p.move(pt); p.fingerTo(pt); p.finger(true); p.press(true);
+    p.q('.touch').classList.remove('tk');
+  }
+}
+/* How much of the name, where it is drawn, lies under the thumb: for the check, not the page. */
+function covered(p) {
+  const node = p.kind === 'bar' ? p.q('.namecap b') : p.q('.ntag b');
+  if (!node || !p.fp) return null;
+  const b = box(p, node);
+  let n = 0, hit = 0;
+  for (let x = b.l + 2; x <= b.r - 2; x += 4) for (let y = b.t + 2; y <= b.b - 2; y += 4) { n++; if (underThumb(p.fp, { x, y })) hit++; }
+  return n ? +(hit / n).toFixed(2) : null;
+}
+
+const phones = $$('.phone').map(el => new Phone(el));
+function fit() {
+  const k = Math.min(1, (document.documentElement.clientWidth - 32) / 402);
+  document.documentElement.style.setProperty('--k', k.toFixed(4));
+}
+fit(); addEventListener('resize', fit);
+phones.forEach(p => p.build(ROOMK));
+
+const posing = /[?&]pose\b/.test(location.search);
+if (posing) requestAnimationFrame(() => pose(phones));
+else phones.forEach(p => p.play());
+
+$('#replay').addEventListener('click', () => phones.forEach(p => p.play()));
+$('#slow').addEventListener('click', e => {
+  SLOW = SLOW === 1 ? 3 : 1;
+  document.documentElement.style.setProperty('--slow', SLOW);
+  e.currentTarget.setAttribute('aria-pressed', String(SLOW !== 1));
+  phones.forEach(p => p.play());
+});
+for (const b of $$('[data-hand]')) b.addEventListener('click', () => {
+  HAND = b.dataset.hand;
+  for (const x of $$('[data-hand]')) x.setAttribute('aria-pressed', String(x === b));
+  phones.forEach(p => p.play());
+});
+for (const b of $$('[data-room]')) b.addEventListener('click', () => {
+  ROOMK = b.dataset.room;
+  for (const x of $$('[data-room]')) x.setAttribute('aria-pressed', String(x === b));
+  phones.forEach(p => { p.run++; p.build(ROOMK); p.play(); });
+});
+for (const b of $$('[data-set-theme]')) b.addEventListener('click', () => {
+  document.documentElement.dataset.theme = b.dataset.setTheme;
+  for (const x of $$('[data-set-theme]')) x.setAttribute('aria-pressed', String(x === b));
+});
+window.__mock = { phones, pose, covered, setHand: h => { HAND = h; } };
+})();
+</script>

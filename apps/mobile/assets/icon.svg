@@ -1,0 +1,37 @@
+<!--
+  The app icon: the chip, gold on ink (blueprint, Brand — "rounded square, pins on the sides, one
+  bite out of the corner ... it works at 16 pixels, on a lock screen, and in gold on ink"), drawn
+  full bleed so the phone can round the corners itself. Since ADR 0096 the mark is the outline an agent wears
+  (`src/ui/outline.ts`): the body and the ten pins below are its `bittenPath` and `pinsOf` for the
+  square each `data-outline` and `data-pins` names (left, top, side), and
+  `tools/guardrails/icons-wear-the-outline.test.ts` fails when they drift apart.
+  The pins are paper rather than gold for the reason the web gives them ink: a chip whose pins are
+  the colour of its body is a blob at 40 pixels, and the pins are the point. They rest a little
+  dim, as the mark's do (`PIN_REST.mark`, ADR 0103), which the guardrail holds too.
+  The body is lit from above as an agent's face is, a little lighter at the top and deeper at
+  the foot: `litGround` of the gold at `MARK_LIGHT` (`apps/mobile/src/ui/lit.ts`), which the guardrail holds. `icon.png` is this
+  file at 1024 square; re-render it with any SVG tool when this changes.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>The Chips mark: a chip, gold on ink</title>
+  <rect width="1024" height="1024" fill="#16181d"/>
+  <g fill="#ecede8" fill-opacity="0.55" data-pins="248 248 528">
+    <rect x="347" y="179.36" width="66" height="89.76" rx="33"/>
+    <rect x="479" y="179.36" width="66" height="89.76" rx="33"/>
+    <rect x="754.88" y="479" width="89.76" height="66" rx="33"/>
+    <rect x="754.88" y="611" width="89.76" height="66" rx="33"/>
+    <rect x="611" y="754.88" width="66" height="89.76" rx="33"/>
+    <rect x="479" y="754.88" width="66" height="89.76" rx="33"/>
+    <rect x="347" y="754.88" width="66" height="89.76" rx="33"/>
+    <rect x="179.36" y="611" width="89.76" height="66" rx="33"/>
+    <rect x="179.36" y="479" width="89.76" height="66" rx="33"/>
+    <rect x="179.36" y="347" width="89.76" height="66" rx="33"/>
+  </g>
+  <defs>
+    <linearGradient id="lit" x1="0" y1="248" x2="0" y2="776" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fed17b"/>
+      <stop offset="1" stop-color="#ebc339"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#lit)" data-outline="248 248 528" d="M380 248H598.21A148.5 148.5 0 0 0 776 425.79V644A132 132 0 0 1 644 776H380A132 132 0 0 1 248 644V380A132 132 0 0 1 380 248Z"/>
+</svg>

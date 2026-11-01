@@ -1,0 +1,701 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1,
+      "description": "Protocol major version."
+    },
+    "type": {
+      "type": "string",
+      "const": "message.overheard"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^evt_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "The event's own id. Stable across a retry of the same event."
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+      "description": "When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced."
+    },
+    "workspace_id": {
+      "type": "string",
+      "pattern": "^ws_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "A workspace identifier: `ws_` followed by a ULID."
+    },
+    "space_id": {
+      "description": "The space, when the event belongs to one.",
+      "type": "string",
+      "pattern": "^spc_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "run_id": {
+      "description": "The run, when the event belongs to one.",
+      "type": "string",
+      "pattern": "^run_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "seq": {
+      "description": "Assigned by the server on append, monotonic per workspace. Absent on the way in.",
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "idempotency_key": {
+      "description": "Required on every client-originated write. Sending the same key twice is a no-op.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "harness",
+            "agent",
+            "system"
+          ],
+          "description": "Whether a person, a harness, one of a harness's agents or Chips itself acted."
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The participant id, or `system` for Chips."
+        },
+        "harness_id": {
+          "description": "For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips.",
+          "type": "string",
+          "pattern": "^hrn_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "description": "The participant an event is attributed to."
+    },
+    "message_id": {
+      "type": "string",
+      "pattern": "^msg_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "A message identifier: `msg_` followed by a ULID."
+    },
+    "from": {
+      "type": "object",
+      "properties": {
+        "participant_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The stable id of the sender."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "harness",
+            "agent"
+          ],
+          "description": "Whether the sender is a person or an agent (ADR 0087); `harness` for a harness written before agents, and for any agent as a harness that has not declared `agents` is told it."
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "The name to show."
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "member",
+            "guest"
+          ],
+          "description": "The sender's standing in this space. Multi-user is Chips' job, not the harness's."
+        },
+        "workspace_role": {
+          "description": "A person's standing in the workspace (SEC-15): what a model should weigh the words by, since a guest's read as the owner's otherwise. `promptFor` says it after the name. Absent for an agent or a harness, and from a Chips before it said.",
+          "type": "string",
+          "enum": [
+            "owner",
+            "admin",
+            "member",
+            "guest"
+          ]
+        }
+      },
+      "required": [
+        "participant_id",
+        "kind",
+        "display_name",
+        "role"
+      ],
+      "description": "Who sent it, and whether they are the owner, a member or a guest."
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 64000,
+      "description": "Markdown, with mentions resolved to participant ids."
+    },
+    "attachments": {
+      "description": "URLs expire in ten minutes.",
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "attachment_id": {
+            "type": "string",
+            "pattern": "^att_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "A attachment identifier: `att_` followed by a ULID."
+          },
+          "filename": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "The name to show. Never trusted for its type."
+          },
+          "mime_type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Sniffed from the bytes on upload, not taken from the client."
+          },
+          "byte_size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Size in bytes."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Lowercase hex digest. The store is content-addressed."
+          },
+          "width": {
+            "description": "Pixels, for images and video.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "height": {
+            "description": "Pixels, for images and video.",
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "duration_ms": {
+            "description": "Milliseconds, for audio and video.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "transcript": {
+            "description": "What was said, for a voice note the server transcribed when it arrived (ADR 0054). Machine-heard: the person's words as best the server could make them out.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50000
+          },
+          "replaces": {
+            "description": "The version of the room's file of this name that this one was made from (ADR 0099), from the post's `replaces`. Filled in by Chips; a value the sender writes is replaced.",
+            "type": "string",
+            "pattern": "^att_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "A signed URL, bound to the requesting token: fetch it with that token as the bearer, since the URL alone is refused."
+          },
+          "url_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "description": "Ten minutes from issue, by default (decision 10)."
+          }
+        },
+        "required": [
+          "attachment_id",
+          "filename",
+          "mime_type",
+          "byte_size",
+          "sha256",
+          "url",
+          "url_expires_at"
+        ],
+        "description": "An attachment with a short-lived, token-bound URL."
+      }
+    },
+    "mentions": {
+      "description": "Participant ids mentioned in the text.",
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 120
+      }
+    },
+    "reply_to": {
+      "description": "The message this answers.",
+      "type": "string",
+      "pattern": "^msg_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "replying_to": {
+      "description": "The message `reply_to` names, as the room reads it now (ADR 0219): who said it, when, its words and its files, and with a turn, when it is older than `context`, the lines said just before it. Put it in the turn ahead of the words; the SDK's `promptFor` does. Absent on a message that answers none, or one no longer in the room.",
+      "type": "object",
+      "properties": {
+        "seq": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Where in the log it happened."
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When."
+        },
+        "kind": {
+          "type": "string",
+          "const": "said"
+        },
+        "from": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "Their participant id, or `system`."
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "person",
+                "harness",
+                "agent",
+                "system"
+              ]
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "description": "What they go by now."
+            },
+            "role": {
+              "description": "Their standing in this room, when they are in it (SEC-15).",
+              "type": "string",
+              "enum": [
+                "owner",
+                "member",
+                "guest"
+              ]
+            },
+            "workspace_role": {
+              "description": "A person's standing in the workspace (SEC-15): the plain form says it after the name, so a guest's line reads as a guest's. Absent for an agent or a harness.",
+              "type": "string",
+              "enum": [
+                "owner",
+                "admin",
+                "member",
+                "guest"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "name"
+          ],
+          "description": "Who: the one who said it, came, went or took the new name; for the room's own lines, who retitled, archived or unarchived it."
+        },
+        "message_id": {
+          "type": "string",
+          "pattern": "^msg_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "description": "The message the reply answers: its `reply_to`."
+        },
+        "text": {
+          "description": "On `said`: the words as they read now, so an edited message reads edited; a deleted one is not a line. Cut with an ellipsis when the one line is longer than the whole budget.",
+          "type": "string",
+          "maxLength": 64000
+        },
+        "transcript": {
+          "description": "On `said`: what a voice note said, as the server heard it (ADR 0054).",
+          "type": "string",
+          "maxLength": 50000
+        },
+        "files": {
+          "description": "On `said`: the names of the files it carried.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "addressed_to": {
+          "description": "On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so.",
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?:agt|hrn)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "An agent identifier (`agt_`, ADR 0087), or a harness's (`hrn_`) for one written before agents."
+          }
+        },
+        "held": {
+          "description": "On `said`: the guard held it (ADR 0081), so it was for nobody.",
+          "type": "boolean",
+          "const": true
+        },
+        "name": {
+          "description": "On `renamed`, for a participant: the name they took.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "previous": {
+          "description": "On `renamed`, for a participant: the name they went by until then.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "title": {
+          "description": "On `renamed`, for the room: its new title.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "edited": {
+          "description": "Its author changed its words since: `text` is how it reads now.",
+          "type": "boolean",
+          "const": true
+        },
+        "deleted": {
+          "description": "Taken back since it was answered: no words, no files, only who and when.",
+          "type": "boolean",
+          "const": true
+        },
+        "before": {
+          "description": "Up to three lines said just before it, oldest first, so the turn has what it was about. Only with a turn, and only when the message is older than the lines `context` hands over.",
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "seq": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Where in the log it happened."
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "When."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "said",
+                  "joined",
+                  "left",
+                  "renamed",
+                  "archived",
+                  "unarchived"
+                ],
+                "description": "`said`: a message, addressed to this harness or not. `joined` and `left`: somebody came into the room or went. `renamed`: somebody took a new name, or the room a new title. `archived` and `unarchived`: the room was put away or brought back."
+              },
+              "from": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "description": "Their participant id, or `system`."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "harness",
+                      "agent",
+                      "system"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "description": "What they go by now."
+                  },
+                  "role": {
+                    "description": "Their standing in this room, when they are in it (SEC-15).",
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "member",
+                      "guest"
+                    ]
+                  },
+                  "workspace_role": {
+                    "description": "A person's standing in the workspace (SEC-15): the plain form says it after the name, so a guest's line reads as a guest's. Absent for an agent or a harness.",
+                    "type": "string",
+                    "enum": [
+                      "owner",
+                      "admin",
+                      "member",
+                      "guest"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "name"
+                ],
+                "description": "Who: the one who said it, came, went or took the new name; for the room's own lines, who retitled, archived or unarchived it."
+              },
+              "message_id": {
+                "description": "On `said`: the message.",
+                "type": "string",
+                "pattern": "^msg_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "text": {
+                "description": "On `said`: the words as they read now, so an edited message reads edited; a deleted one is not a line. Cut with an ellipsis when the one line is longer than the whole budget.",
+                "type": "string",
+                "maxLength": 64000
+              },
+              "transcript": {
+                "description": "On `said`: what a voice note said, as the server heard it (ADR 0054).",
+                "type": "string",
+                "maxLength": 50000
+              },
+              "files": {
+                "description": "On `said`: the names of the files it carried.",
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 255
+                }
+              },
+              "addressed_to": {
+                "description": "On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so.",
+                "maxItems": 64,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(?:agt|hrn)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+                  "description": "An agent identifier (`agt_`, ADR 0087), or a harness's (`hrn_`) for one written before agents."
+                }
+              },
+              "held": {
+                "description": "On `said`: the guard held it (ADR 0081), so it was for nobody.",
+                "type": "boolean",
+                "const": true
+              },
+              "name": {
+                "description": "On `renamed`, for a participant: the name they took.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "previous": {
+                "description": "On `renamed`, for a participant: the name they went by until then.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "title": {
+                "description": "On `renamed`, for the room: its new title.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "seq",
+              "at",
+              "kind",
+              "from"
+            ],
+            "description": "One line of a room: something said, or something that happened to who is in it."
+          }
+        },
+        "attachments": {
+          "description": "Its files, as the message's own are sent: URLs expire in ten minutes.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "attachment_id": {
+                "type": "string",
+                "pattern": "^att_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+                "description": "A attachment identifier: `att_` followed by a ULID."
+              },
+              "filename": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "The name to show. Never trusted for its type."
+              },
+              "mime_type": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "Sniffed from the bytes on upload, not taken from the client."
+              },
+              "byte_size": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Size in bytes."
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "Lowercase hex digest. The store is content-addressed."
+              },
+              "width": {
+                "description": "Pixels, for images and video.",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "height": {
+                "description": "Pixels, for images and video.",
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "duration_ms": {
+                "description": "Milliseconds, for audio and video.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "transcript": {
+                "description": "What was said, for a voice note the server transcribed when it arrived (ADR 0054). Machine-heard: the person's words as best the server could make them out.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50000
+              },
+              "replaces": {
+                "description": "The version of the room's file of this name that this one was made from (ADR 0099), from the post's `replaces`. Filled in by Chips; a value the sender writes is replaced.",
+                "type": "string",
+                "pattern": "^att_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "description": "A signed URL, bound to the requesting token: fetch it with that token as the bearer, since the URL alone is refused."
+              },
+              "url_expires_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "Ten minutes from issue, by default (decision 10)."
+              }
+            },
+            "required": [
+              "attachment_id",
+              "filename",
+              "mime_type",
+              "byte_size",
+              "sha256",
+              "url",
+              "url_expires_at"
+            ],
+            "description": "An attachment with a short-lived, token-bound URL."
+          }
+        }
+      },
+      "required": [
+        "seq",
+        "at",
+        "kind",
+        "from",
+        "message_id"
+      ]
+    },
+    "session_ref": {
+      "description": "The visit the sender meant, when they named one (ADR 0040). A harness that works by visits delivers to it rather than choosing, and says so rather than delivering elsewhere when it cannot.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "addressed_to": {
+      "description": "The agents the message is for, as Chips decided them (ADR 0081, ADR 0087). Absent on a message from before Chips said so, which was for every agent in the space.",
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(?:agt|hrn)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "An agent identifier (`agt_`, ADR 0087), or a harness's (`hrn_`) for one written before agents."
+      }
+    },
+    "for": {
+      "description": "Who of this connection takes a turn: its own among `addressed_to` (ADR 0087). Each is one of its agents, or the harness's own id where the harness itself is the member addressed: a room asked of it from the +, until it claims the room. Never empty on a `message.new`, and always empty on a `message.overheard`. Sent only to a harness that declares `agents`; one that has not is told its agents are itself.",
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(?:agt|hrn)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "description": "An agent identifier (`agt_`, ADR 0087), or a harness's (`hrn_`) for one written before agents."
+      }
+    },
+    "working_turns": {
+      "description": "This connection's agents with a turn going in the room, other than the one who said it and those it is for (ADR 0106). Hand the words to each of those turns at its next step, as said to somebody else, and start no turn on them; post `message.heard` on the run once a turn has them, and the room shows it heard. A turn that ends first hears nothing, and is handed the words with its agent's next turn (ADR 0105). Absent when there are none.",
+      "maxItems": 64,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "pattern": "^(?:agt|hrn)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "One of this connection's agents."
+          },
+          "run_id": {
+            "type": "string",
+            "pattern": "^run_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "description": "Its turn going in the room."
+          }
+        },
+        "required": [
+          "agent_id",
+          "run_id"
+        ]
+      }
+    },
+    "held": {
+      "description": "The agents had sent each other more messages than Chips lets through without a person, or a person paused them, so Chips held this one from the agents it named (ADR 0097). The newest held message for each agent is handed over when a person acts.",
+      "type": "boolean",
+      "const": true
+    }
+  },
+  "required": [
+    "v",
+    "type",
+    "id",
+    "ts",
+    "workspace_id",
+    "actor",
+    "message_id",
+    "from",
+    "text"
+  ],
+  "description": "Something said in a space this harness is in, for somebody else: context, not a turn (ADR 0081). A harness with a turn going in the space hands it to that turn at its next step (ADR 0105).",
+  "$id": "https://chipschat.ai/schema/v1/message.overheard.json",
+  "title": "MessageOverheard"
+}

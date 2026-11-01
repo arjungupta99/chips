@@ -1,0 +1,307 @@
+<title>Reconnect a Phone</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&amp;family=Instrument+Sans:ital,wght@0,400..700;1,400..700&amp;family=JetBrains+Mono:wght@400..700&amp;display=swap">
+<style>
+/* Layout: one row of iPhone 17 frames (402 × 874 pt), Natalie's page as Arjun sees it: today, then three ways to end with one iPhone 17. Captions and cost under each. */
+*,*::before,*::after{box-sizing:border-box}
+:root{--k:1;
+  --page:#EFEFE9;--bg:#FBFBF8;--grouped:#F2F2EC;--raised:#FFFFFF;--surface-2:#F2F2EC;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#626670;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-soft:#FFF3C3;--accent:#A06306;--blue:#1D6AFF;
+  --red:#C8352B;--red-soft:#FCE7E4;--green:#0B7258;--violet:#7A5CE0;
+  --scrim:rgba(20,22,27,.32);
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--grouped:#0F1013;--raised:#20232A;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-soft:#3C3005;--accent:#F38B00;--blue:#5F91FF;
+  --red:#FF7A6E;--red-soft:#3A1714;--green:#5FD3B0;--violet:#A48BFF;--scrim:rgba(0,0,0,.55)}}
+:root[data-theme="dark"]{color-scheme:dark;
+  --page:#08090B;--bg:#0F1013;--grouped:#0F1013;--raised:#20232A;--surface-2:#20232A;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-soft:#3C3005;--accent:#F38B00;--blue:#5F91FF;
+  --red:#FF7A6E;--red-soft:#3A1714;--green:#5FD3B0;--violet:#A48BFF;--scrim:rgba(0,0,0,.55)}
+
+body{margin:0;background:var(--page);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 96px}
+.wrap{max-width:1330px;margin:0 auto}
+h1{font-family:var(--font-display);font-weight:700;font-size:clamp(27px,4vw,38px);line-height:1.12;letter-spacing:-.02em;margin:34px 0 0;text-wrap:balance;max-width:26ch}
+h2{font-family:var(--font-display);font-weight:650;font-size:22px;line-height:1.2;margin:0;text-wrap:balance}
+p{margin:0;max-width:68ch;color:var(--ink-2)}
+b,strong{color:var(--ink);font-weight:650}
+header{display:grid;gap:16px}
+.tools{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.seg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.seg span{font:12px var(--font-mono);color:var(--ink-3);margin-right:2px}
+button.tg{font:600 14px var(--font-body);color:var(--ink);background:var(--raised);border:1px solid var(--line-2);border-radius:999px;padding:7px 15px;cursor:pointer}
+button.tg[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.tg:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.figs{display:flex;flex-wrap:wrap;gap:48px 34px;margin-top:34px;align-items:flex-start}
+.fig{width:calc(402px * var(--k));display:grid;gap:14px;margin:0;min-width:0}
+.pw{width:calc(402px * var(--k));height:calc(874px * var(--k));position:relative}
+.pw>.phone{position:absolute;left:0;top:0;transform:scale(var(--k));transform-origin:0 0}
+figcaption{display:grid;gap:9px;min-width:0}
+figcaption p{font-size:14.5px}
+.tag{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag .o{font:700 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 7px}
+.tag .rec{font:600 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--gold);color:#1A1400;border-radius:6px;padding:5px 7px}
+.tag .now{font:600 11.5px/1 var(--font-mono);letter-spacing:.04em;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line-2);border-radius:6px;padding:4px 7px}
+.tag h3{font-family:var(--font-display);font-size:18px;margin:0;font-weight:650}
+.cost{font-size:13.5px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:9px}
+.cost b{color:var(--ink-2)}
+section{margin-top:72px;display:grid;gap:14px;max-width:820px}
+section ul{margin:0;padding-left:20px;display:grid;gap:8px;color:var(--ink-2);max-width:72ch}
+
+/* ── the phone ───────────────────────────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--grouped);color:var(--ink);
+  border:1px solid var(--line);font-family:var(--font-ios);line-height:normal;isolation:isolate;
+  box-shadow:0 30px 60px -32px rgba(0,0,0,.5);user-select:none;-webkit-user-select:none}
+.status{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:19px 34px 0 46px;font-size:16.5px;font-weight:600}
+.sbi{display:block;width:25px;height:12px;border-radius:4px;border:1.5px solid currentColor;position:relative;opacity:.9}
+.sbi::after{content:"";position:absolute;inset:1.5px 5px 1.5px 1.5px;background:currentColor;border-radius:1.5px}
+.home{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:140px;height:5px;border-radius:3px;background:var(--ink);opacity:.85;z-index:30}
+
+/* Natalie's page */
+.page{position:absolute;inset:0;padding:62px 16px 0}
+.back{font-size:17px;color:var(--accent);display:flex;align-items:center;gap:2px;margin:6px 0 0 -2px}
+.back svg{width:12px;height:20px}
+.me{display:grid;justify-items:center;gap:6px;margin-top:6px;text-align:center}
+.face{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;font:600 34px var(--font-ios);color:#fff;background:#B44C7B}
+.me b{font-size:24px;font-weight:700;letter-spacing:-.2px}
+.me span{font-size:15px;color:var(--ink-3)}
+.gh{font-size:13px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin:24px 16px 7px}
+.group{background:var(--raised);border-radius:22px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;min-height:58px;padding:0 16px;position:relative}
+.row+.row::before{content:"";position:absolute;left:60px;right:0;top:0;border-top:1px solid var(--line)}
+.row.plain+.row::before,.row+.row.plain::before{left:16px}
+.mk{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;flex:none;background:var(--grouped);color:var(--ink-2)}
+.mk svg{width:18px;height:18px}
+.rt{display:grid;gap:2px;min-width:0;flex:1}
+.rt b{font-size:17px;font-weight:400}
+.rt span{font-size:14px;color:var(--ink-3)}
+.rt span.gone{color:var(--red)}
+.chev{width:8px;height:13px;color:var(--ink-4);flex:none}
+.acc{font-size:17px;color:var(--accent)}
+.gf{font-size:13.5px;line-height:1.38;color:var(--ink-3);margin:7px 16px 0;text-wrap:pretty}
+.pill{font:600 12px/1 var(--font-ios);color:var(--green);background:color-mix(in srgb,var(--green) 14%,transparent);border-radius:999px;padding:5px 8px;flex:none}
+.dup{position:absolute;inset:0;border:2px dashed var(--red);border-radius:14px;pointer-events:none;opacity:.7;margin:4px}
+
+/* A: a row pushed left */
+.swipe{overflow:hidden}
+.swipe .slide{display:flex;align-items:center;gap:12px;width:100%;translate:-92px 0;background:var(--raised)}
+.disc{position:absolute;right:16px;top:50%;translate:0 -50%;width:62px;height:42px;border-radius:21px;background:var(--red);color:#fff;font:600 13.5px var(--font-ios);display:grid;place-items:center}
+
+/* B and C: a sheet from the bottom */
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:5}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:10;background:var(--grouped);border-radius:30px 30px 0 0;padding:10px 20px 40px;box-shadow:0 -10px 40px -18px rgba(0,0,0,.4)}
+.grab{width:38px;height:5px;border-radius:3px;background:var(--line-2);margin:0 auto 10px}
+.x{position:absolute;right:16px;top:16px;width:32px;height:32px;border-radius:50%;background:var(--raised);display:grid;place-items:center;color:var(--ink-3)}
+.x svg{width:13px;height:13px}
+.st{font-size:21px;font-weight:700;letter-spacing:-.2px;margin:6px 0 0 4px}
+.sl{font-size:15px;line-height:1.4;color:var(--ink-2);margin:8px 4px 0;text-wrap:pretty}
+.qr{width:184px;height:184px;margin:18px auto 0;border-radius:18px;background:#fff;padding:14px;display:grid;grid-template-columns:repeat(21,1fr);gap:0;border:1px solid var(--line)}
+.qr i{background:#14161B}
+.qr i.o{background:transparent}
+.cd{font:600 26px/1 var(--font-mono);letter-spacing:.14em;text-align:center;margin-top:14px;color:var(--ink)}
+.good{font-size:13.5px;text-align:center;color:var(--ink-3);margin-top:6px}
+.sbtn{height:50px;border-radius:16px;display:grid;place-items:center;font-size:17px;font-weight:600;margin-top:16px;background:var(--raised);color:var(--accent)}
+.pick .row{min-height:54px}
+.tickc{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--line-2);flex:none;display:grid;place-items:center}
+.tickc.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.tickc svg{width:12px;height:12px}
+.after-only{display:none}
+.phone[data-state="after"] .after-only{display:block}
+.phone[data-state="after"] .before-only{display:none}
+</style>
+
+<div class="wrap">
+<header>
+  <h1>Reconnect a phone</h1>
+  <p>Tonight: Chips was deleted from Natalie's iPhone and put back, and you paired it again from her page with <b>Pair a new phone…</b>. It came back as her, but her page now lists <b>two iPhone 17s</b>. The first holds a key that went with the old app. Nothing can use it, and nothing on the phone lets you take it off: the server would let an owner sign it out, but no screen asks.</p>
+  <p>Your words: <b>"we need to provide a 'reconnect' option or something"</b>. Three ways to end with one iPhone 17, from the smallest.</p>
+  <div class="tools">
+    <div class="seg" role="group" aria-label="When"><span>step</span>
+      <button class="tg" data-step="before" aria-pressed="true">Before</button>
+      <button class="tg" data-step="after" aria-pressed="false">After</button>
+    </div>
+    <div class="seg" role="group" aria-label="Theme"><span>theme</span>
+      <button class="tg" data-theme-pick="light" aria-pressed="false">Light</button>
+      <button class="tg" data-theme-pick="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<div class="figs">
+
+  <!-- Today -->
+  <figure class="fig">
+    <div class="pw"><div class="phone">
+      <div class="status"><span>12:41</span><span class="sbi"></span></div>
+      <div class="page">
+        <div class="back"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2 2 10l8 8"/></svg>People</div>
+        <div class="me"><div class="face">N</div><b>Natalie</b><span>Member · Arjun's Chips</span></div>
+        <div class="gh">Devices</div>
+        <div class="group">
+          <div class="row"><span class="mk" data-phone></span><span class="rt"><b>iPhone 17</b><span>Seen 2 h ago</span></span><span class="dup"></span></div>
+          <div class="row"><span class="mk" data-phone></span><span class="rt"><b>iPhone 17</b><span>Seen just now</span></span></div>
+          <div class="row plain"><span class="acc">Pair a new phone…</span></div>
+        </div>
+        <div class="gf">When Natalie's phone is new, or Chips was deleted from it: a code that brings it back as Natalie, with every space and everything they said.</div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="now">TODAY</span><h3>Two of the same</h3></div>
+      <p>The rows don't press. The older one will say "Last seen Oct 25" for good, and it counts as one of her devices wherever devices are counted.</p>
+    </figcaption>
+  </figure>
+
+  <!-- A -->
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-state="before">
+      <div class="status"><span>12:41</span><span class="sbi"></span></div>
+      <div class="page">
+        <div class="back"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2 2 10l8 8"/></svg>People</div>
+        <div class="me"><div class="face">N</div><b>Natalie</b><span>Member · Arjun's Chips</span></div>
+        <div class="gh">Devices</div>
+        <div class="group">
+          <div class="row swipe before-only"><span class="slide"><span class="mk" data-phone></span><span class="rt"><b>iPhone 17</b><span>Seen 2 h ago</span></span></span><span class="disc">Sign out</span></div>
+          <div class="row"><span class="mk" data-phone></span><span class="rt"><b>iPhone 17</b><span>Seen just now</span></span></div>
+          <div class="row plain"><span class="acc">Pair a new phone…</span></div>
+        </div>
+        <div class="gf">Push a phone left to sign it out: it can't reach Natalie's spaces again. When her phone is new, or Chips was deleted from it, Pair a new phone… brings it back as her.</div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="o">A</span><h3>Sign out a phone</h3></div>
+      <p>The swipe You → Devices already has, on a person's page, for an owner or admin. You pair her again as today, then push the old iPhone 17 left and press Sign out. The web and the Mac get a Sign out in her opened row.</p>
+      <div class="cost"><b>Cost: small.</b> Phone and web only; the server already lets an owner or admin sign out somebody's device. Two steps for you, and you have to know which iPhone 17 is the dead one (the older "Seen").</div>
+    </figcaption>
+  </figure>
+
+  <!-- B -->
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-state="before">
+      <div class="status"><span>12:41</span><span class="sbi"></span></div>
+      <div class="page">
+        <div class="back"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2 2 10l8 8"/></svg>People</div>
+        <div class="me"><div class="face">N</div><b>Natalie</b><span>Member · Arjun's Chips</span></div>
+        <div class="gh">Devices</div>
+        <div class="group">
+          <div class="row"><span class="mk" data-phone></span><span class="rt"><b>iPhone 17</b><span class="before-only">Seen 2 h ago</span><span class="after-only">Seen just now · reconnected</span></span><svg class="chev before-only" viewBox="0 0 8 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1.5 1.5 5 5-5 5"/></svg></div>
+          <div class="row plain"><span class="acc">Pair a new phone…</span></div>
+        </div>
+        <div class="gf">Tap a phone of Natalie's to reconnect it, when Chips was deleted from it or it was reset. Pair a new phone… is for a phone she hasn't used here before.</div>
+      </div>
+      <div class="scrim before-only"></div>
+      <div class="sheet before-only">
+        <div class="grab"></div>
+        <div class="x"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 10 10M11.5 1.5l-10 10"/></svg></div>
+        <div class="st">Reconnect iPhone 17</div>
+        <div class="sl">Chips deleted from it, or the phone reset? Scan this from Welcome on it. It takes this iPhone 17's place, with every space and everything Natalie said, and the old key stops working.</div>
+        <div class="qr" data-qr></div>
+        <div class="cd">KQ7-4WM</div>
+        <div class="good">Good for 15 minutes, once</div>
+        <div class="sbtn">Send the link</div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="o">B</span><span class="rec">RECOMMENDED</span><h3>Reconnect the phone itself</h3></div>
+      <p>Your word, on the phone's own row: a tap opens <b>Reconnect iPhone 17</b>, a code like Pair a new phone's that names the phone it replaces. When the phone scans it and you allow the six digits, the server signs the old key out and the new one takes its name: one row, "Seen just now · reconnected".</p>
+      <div class="cost"><b>Cost: medium.</b> Server: a pairing code may name a device of the same person to replace, checked again at use, and its key withdrawn the moment the new one is allowed (one column, a migration). Phone sheet and the web/Mac panel. Pair a new phone… stays for a second phone. A row swiped left still signs a phone out (A) for one that's lost.</div>
+    </figcaption>
+  </figure>
+
+  <!-- C -->
+  <figure class="fig">
+    <div class="pw"><div class="phone" data-state="before">
+      <div class="status"><span>12:41</span><span class="sbi"></span></div>
+      <div class="page">
+        <div class="back"><svg viewBox="0 0 12 20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2 2 10l8 8"/></svg>People</div>
+        <div class="me"><div class="face">N</div><b>Natalie</b><span>Member · Arjun's Chips</span></div>
+        <div class="gh">Devices</div>
+        <div class="group">
+          <div class="row"><span class="mk" data-phone></span><span class="rt"><b>iPhone 17</b><span class="before-only">Seen 2 h ago</span><span class="after-only">Seen just now</span></span></div>
+          <div class="row plain"><span class="acc">Pair a new phone…</span></div>
+        </div>
+        <div class="gf">When Natalie's phone is new, or Chips was deleted from it: a code that brings it back as Natalie, with every space and everything they said.</div>
+      </div>
+      <div class="scrim before-only"></div>
+      <div class="sheet before-only">
+        <div class="grab"></div>
+        <div class="x"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m1.5 1.5 10 10M11.5 1.5l-10 10"/></svg></div>
+        <div class="st">A new phone for Natalie</div>
+        <div class="gh" style="margin:14px 12px 7px">It takes the place of</div>
+        <div class="group pick">
+          <div class="row"><span class="tickc on"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m2.5 6.2 2.3 2.3 4.7-5"/></svg></span><span class="rt"><b>iPhone 17</b><span>Seen 2 h ago</span></span></div>
+          <div class="row"><span class="tickc"></span><span class="rt"><b>Nothing: it's another phone</b></span></div>
+        </div>
+        <div class="qr" data-qr style="width:156px;height:156px;padding:12px"></div>
+        <div class="cd" style="font-size:24px">KQ7-4WM</div>
+        <div class="good">Good for 15 minutes, once</div>
+        <div class="sbtn">Send the link</div>
+      </div>
+      <div class="home"></div>
+    </div></div>
+    <figcaption>
+      <div class="tag"><span class="o">C</span><h3>Pair a new phone asks what it replaces</h3></div>
+      <p>No new entry point: the sheet you already used asks <b>It takes the place of</b>, ticking her phone when she has exactly one. The old one is signed out once the new one is allowed.</p>
+      <div class="cost"><b>Cost: medium,</b> the same server change as B. One sheet instead of two, but a choice to read on every new phone, and "Pair a new phone" still says new when hers isn't.</div>
+    </figcaption>
+  </figure>
+
+</div>
+
+<section>
+  <h2>What stays the same</h2>
+  <ul>
+    <li>Her phone scans from Welcome exactly as tonight, and your Allow with the six digits (ADR 0232) still comes first. Nothing is replaced until you allow it.</li>
+    <li>A phone that's lost rather than reinstalled is signed out by hand. B and C both keep A's swipe for that.</li>
+    <li>Tonight's leftover, the iPhone 17 paired 20 October and last seen 10:32 pm on 25 October, can be signed out now by whichever you pick, or by me from the server on your word.</li>
+  </ul>
+</section>
+</div>
+
+<script>
+// The phone mark and a QR of plain squares (a picture of one, not a code).
+const PHONE = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4.5" y="1.5" width="9" height="15" rx="2.2"/><path d="M7.6 3.8h2.8" stroke-linecap="round"/></svg>';
+for (const m of document.querySelectorAll("[data-phone]")) m.innerHTML = PHONE;
+function qr(el) {
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  const finder = (r, c) => [[0, 0], [0, 14], [14, 0]].some(([y, x]) => {
+    const dy = r - y, dx = c - x;
+    if (dy < 0 || dx < 0 || dy > 6 || dx > 6) return false;
+    return dy === 0 || dy === 6 || dx === 0 || dx === 6 || (dy > 1 && dy < 5 && dx > 1 && dx < 5);
+  });
+  const near = (r, c) => [[0, 0], [0, 14], [14, 0]].some(([y, x]) => r >= y - 1 && r <= y + 7 && c >= x - 1 && c <= x + 7);
+  let html = "";
+  for (let r = 0; r < 21; r++) for (let c = 0; c < 21; c++) {
+    const on = near(r, c) ? finder(r, c) : rnd() > 0.52;
+    html += on ? "<i></i>" : '<i class="o"></i>';
+  }
+  el.innerHTML = html;
+}
+for (const el of document.querySelectorAll("[data-qr]")) qr(el);
+function show(step) {
+  for (const b of document.querySelectorAll("[data-step]")) b.setAttribute("aria-pressed", String(b.dataset.step === step));
+  for (const p of document.querySelectorAll(".phone[data-state]")) p.dataset.state = step;
+}
+for (const b of document.querySelectorAll("[data-step]")) b.addEventListener("click", () => show(b.dataset.step));
+for (const b of document.querySelectorAll("[data-theme-pick]")) b.addEventListener("click", () => {
+  const was = document.documentElement.dataset.theme;
+  const next = was === b.dataset.themePick ? undefined : b.dataset.themePick;
+  if (next) document.documentElement.dataset.theme = next; else delete document.documentElement.dataset.theme;
+  for (const o of document.querySelectorAll("[data-theme-pick]")) o.setAttribute("aria-pressed", String(o.dataset.themePick === next));
+});
+// Fit the frames to a narrow screen.
+function fit() { const w = Math.min(402, document.querySelector(".wrap").clientWidth); document.documentElement.style.setProperty("--k", String(w / 402)); }
+addEventListener("resize", fit); fit();
+</script>

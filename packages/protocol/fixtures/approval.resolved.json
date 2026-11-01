@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "type": "approval.resolved",
+  "id": "evt_01K4ZQPX000000000000000076",
+  "ts": "2026-09-02T14:22:18.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "system",
+    "id": "system"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "approval_id": "apr_01K4ZQPX000000000000000006",
+  "decision": "approved",
+  "scope": "once",
+  "reason": "Looks right. Send it.",
+  "resolved_by": "usr_01K4ZQPX000000000000000003",
+  "resolved_at": "2026-09-02T14:30:12.881Z",
+  "resolved_elsewhere": false
+}

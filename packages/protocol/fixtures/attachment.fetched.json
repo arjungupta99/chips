@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "attachment.fetched",
+  "id": "evt_01K4ZQPX0000000000000000CC",
+  "ts": "2026-09-02T14:22:16.504Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "attachment_id": "att_01K4ZQPX000000000000000008",
+  "filename": "PO-4471.pdf",
+  "by": "hrn_01K4ZQPX000000000000000004"
+}

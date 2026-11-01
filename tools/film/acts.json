@@ -1,0 +1,242 @@
+{
+  "watch:5": [
+    {
+      "at": 8300,
+      "tap": "room-capsule"
+    },
+    {
+      "at": 11100,
+      "tap": {
+        "label": "Close"
+      }
+    }
+  ],
+  "watch:6": [
+    {
+      "at": 300,
+      "slide": "composer-token",
+      "path": [
+        [20, 0, 250],
+        [62, 4, 450],
+        [62, 4, 600],
+        [109, 8, 400],
+        [109, 8, 550],
+        [154, 10, 400],
+        [154, 10, 900]
+      ]
+    },
+    {
+      "at": 4050,
+      "type": "composer",
+      "text": "Can you keep this design for the thank-you notes?",
+      "every": 26
+    },
+    {
+      "at": 5450,
+      "tap": "composer-send"
+    }
+  ],
+  "watch:7": [
+    {
+      "at": 3800,
+      "tap": "approval-approve"
+    }
+  ],
+  "watch:8": [
+    {
+      "at": 3200,
+      "tap": "demo-lock-approve"
+    }
+  ],
+  "agents:1": [
+    {
+      "at": 1500,
+      "tap": "model-row"
+    },
+    {
+      "at": 2800,
+      "tap": "model-choice-heron-2"
+    },
+    {
+      "at": 3700,
+      "tap": {
+        "label": "Deep"
+      }
+    },
+    {
+      "at": 4500,
+      "tap": "model-save"
+    }
+  ],
+  "agents:2": [
+    {
+      "at": 300,
+      "reveal": "context-group"
+    },
+    {
+      "at": 1300,
+      "tap": {
+        "text": "Instructions"
+      }
+    },
+    {
+      "at": 2000,
+      "type": "context-text",
+      "text": "- Say whether a place has step-free access.\n",
+      "every": 45
+    },
+    {
+      "at": 4300,
+      "tap": "context-save"
+    }
+  ],
+  "agents:3": [
+    {
+      "at": 300,
+      "reveal": "window-group"
+    },
+    {
+      "at": 2100,
+      "tap": "window-compact"
+    },
+    {
+      "at": 3800,
+      "tap": "confirm-go"
+    }
+  ],
+  "agents:4": [
+    {
+      "at": 300,
+      "reveal": "agent-fork"
+    },
+    {
+      "at": 1700,
+      "tap": "agent-fork"
+    },
+    {
+      "at": 3200,
+      "tap": "picker-new"
+    }
+  ],
+  "agents:5": [
+    {
+      "at": 500,
+      "scroll": "agent-move",
+      "ms": 800
+    },
+    {
+      "at": 1600,
+      "tap": "agent-move"
+    },
+    {
+      "at": 2800,
+      "tap": {
+        "text": "Tax receipts"
+      }
+    }
+  ],
+  "trouble:0": [
+    {
+      "at": 1200,
+      "press": {
+        "text": "Sent to 11. Ana and Raj have said yes already."
+      },
+      "ms": 600
+    },
+    {
+      "at": 3300,
+      "tap": {
+        "text": "What the run did"
+      }
+    },
+    {
+      "at": 6700,
+      "tap": {
+        "label": "Close"
+      }
+    }
+  ],
+  "trouble:1": [
+    {
+      "at": 1200,
+      "tap": "room-capsule"
+    },
+    {
+      "at": 3100,
+      "tap": "room-sheet-spend"
+    },
+    {
+      "at": 4500,
+      "tap": "room-sheet-spend-5"
+    },
+    {
+      "at": 5300,
+      "tap": "room-sheet-spend-save"
+    },
+    {
+      "at": 6200,
+      "tap": {
+        "label": "Close"
+      }
+    }
+  ],
+  "trouble:2": [
+    {
+      "at": 300,
+      "scroll": {
+        "text": "Three can seat 12 on Saturday, all a walk from Mum's:"
+      },
+      "ms": 700
+    },
+    {
+      "at": 1100,
+      "press": {
+        "text": "Three can seat 12 on Saturday, all a walk from Mum's:"
+      },
+      "ms": 600
+    },
+    {
+      "at": 2900,
+      "tap": {
+        "text": "Not right?"
+      }
+    },
+    {
+      "at": 3600,
+      "tap": {
+        "text": "Missed what I asked"
+      }
+    },
+    {
+      "at": 3850,
+      "type": {
+        "label": "Anything else"
+      },
+      "text": "Mum can't manage stairs.",
+      "every": 33
+    },
+    {
+      "at": 4800,
+      "tap": "not-right-send"
+    },
+    {
+      "at": 6200,
+      "scroll": {
+        "text": "Sent to 11. Ana and Raj have said yes already."
+      },
+      "ms": 900
+    }
+  ],
+  "trouble:3": [
+    {
+      "at": 500,
+      "type": "composer",
+      "text": "What's on tomorrow?",
+      "every": 45
+    },
+    {
+      "at": 1600,
+      "tap": "composer-send"
+    }
+  ]
+}

@@ -1,0 +1,347 @@
+<meta charset="utf-8">
+<title>Chips · Floating chrome, and the blur that fades</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--green:#009B5C;--red:#E62728;
+  --cap:78%;      /* how solid a floating capsule's own glass is */
+  --scrim:62%;    /* the tint at the very edge, fading to nothing */
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--green:#00BA7A;--red:#FE5550;
+  --cap:64%;--scrim:56%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1220px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.03em}
+.brand svg{width:22px;height:22px}
+.wrap{max-width:1220px;margin:0 auto;padding:0 24px 110px}
+h1{font-family:var(--font-display);font-size:clamp(28px,4vw,38px);margin:28px 0 6px;letter-spacing:-.02em}
+h1+p{color:var(--ink-2);max-width:68ch;margin:0 0 10px}
+h2{font-family:var(--font-display);font-size:22px;margin:46px 0 10px;padding-top:20px;border-top:1px solid var(--line)}
+p{color:var(--ink-2);max-width:72ch}
+ul{color:var(--ink-2);max-width:72ch}
+li{margin:5px 0}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 4px}
+.ctl button{font:inherit;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.ctl .hint{font-size:12.5px;color:var(--ink-3)}
+.opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin:24px 0 8px}
+.opt{display:grid;gap:10px;width:330px}
+.opt h3{font-family:var(--font-display);font-size:17px;margin:0;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.opt .tag{font:11px var(--font-mono);border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.opt .tag.free{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.opt .tag.dep{background:var(--gold-soft);color:var(--gold-deep)}
+.opt .why{font-size:13.5px;color:var(--ink-3);line-height:1.52}
+.opt .why b{color:var(--ink-2)}
+
+/* ── the phone ───────────────────────────────────────────────── */
+.phone{position:relative;width:330px;height:668px;border-radius:40px;overflow:hidden;background:var(--bg);
+  border:1px solid var(--line);font-family:var(--font-ios);box-shadow:0 24px 50px -28px rgba(0,0,0,.45);
+  --navH:96px;--barH:92px;--keysH:0px;--rampTop:56px;--rampBot:64px}
+.phone[data-keys="up"]{--barH:70px;--keysH:262px}
+.room{position:absolute;left:0;right:0;top:0;bottom:var(--keysH);overflow:hidden}
+.scroll{position:absolute;inset:0;overflow-y:scroll;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.lines{display:grid;gap:3px;padding:calc(var(--navH) + 10px) 12px calc(var(--barH) + 10px)}
+
+.turn{display:grid;gap:2px;margin-top:9px}
+.row{display:flex;gap:7px;align-items:flex-end}
+.row.me{justify-content:flex-end}
+.face{width:26px;height:26px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
+.bub{position:relative;max-width:74%;border-radius:18px;padding:7px 12px 8px;font-size:15px;line-height:1.35;overflow:hidden;background:var(--surface-2);color:var(--ink)}
+.bub .nm{display:block;font-size:11.5px;font-weight:700;margin-bottom:1px;color:var(--ink-3)}
+.row.me .bub{color:#fff;background:#34669e}
+.row.me .bub .tx{position:relative}
+.field-g{position:absolute;left:0;right:0;top:0;height:668px;pointer-events:none;
+  background:linear-gradient(#6651A8 0%,#6651A8 8%,#34669E 50%,#0B737D 92%,#0B737D 100%);will-change:transform}
+.stamp{font-size:11px;color:color-mix(in srgb,#fff 78%,transparent);margin-left:8px}
+.bub.them .stamp{color:var(--ink-4)}
+.margin{text-align:center;font-size:11.5px;color:var(--ink-4);padding:9px 0 5px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:11px 12px;margin:8px 2px 2px;display:grid;gap:7px}
+.card b{font-size:14px;font-weight:600}
+.card p{margin:0;font-size:13px;color:var(--ink-3)}
+.card .btns{display:flex;gap:7px}
+.card .btns span{font-size:13px;font-weight:600;padding:6px 14px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+.card .btns span.go{background:var(--ink);color:var(--bg)}
+.lane{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3);padding:2px 4px}
+.lane i{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block}
+
+/* ── the edge effect: blur that ramps out, UIKit's `soft` ─────── */
+.band{position:absolute;left:0;right:0;pointer-events:none;z-index:4}
+.band>i{position:absolute;left:0;right:0;top:0;bottom:0;display:block}
+.band.t{top:0;height:calc(var(--navH) + var(--rampTop))}
+.band.b{bottom:var(--keysH);height:calc(var(--barH) + var(--rampBot))}
+.band .scrim{background:linear-gradient(to bottom,color-mix(in srgb,var(--bg) var(--scrim),transparent),transparent)}
+.band.b .scrim{background:linear-gradient(to top,color-mix(in srgb,var(--bg) var(--scrim),transparent),transparent)}
+/* `hard`: one flat pane of glass with a cut-off, the way a bar has always looked */
+.phone[data-edge="hard"] .band.t{height:var(--navH)}
+.phone[data-edge="hard"] .band.b{height:var(--barH)}
+.phone[data-edge="hard"] .band>i{-webkit-mask-image:none!important;mask-image:none!important;
+  -webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%)}
+.phone[data-edge="hard"] .band .scrim{background:color-mix(in srgb,var(--bg) 66%,transparent);
+  -webkit-backdrop-filter:none;backdrop-filter:none}
+.phone[data-edge="hard"] .band.t{border-bottom:1px solid color-mix(in srgb,var(--line) 80%,transparent)}
+.phone[data-edge="hard"] .band.b{border-top:1px solid color-mix(in srgb,var(--line) 80%,transparent)}
+/* `hidden`: nothing at all behind the capsules */
+.phone[data-edge="none"] .band{display:none}
+
+/* ── floating chrome ─────────────────────────────────────────── */
+.chrome{position:absolute;left:0;right:0;z-index:6}
+.chrome.t{top:0}
+.chrome.b{bottom:var(--keysH)}
+.status{display:flex;align-items:center;justify-content:space-between;padding:12px 20px 0;font-size:12.5px;font-weight:600;color:var(--ink)}
+.status .sig{display:flex;gap:3px;align-items:flex-end}
+.status .sig i{width:3px;background:var(--ink);border-radius:1px;display:block}
+.navrow{display:flex;align-items:center;gap:8px;padding:8px 12px 10px;min-height:46px}
+.glass{background:color-mix(in srgb,var(--surface) var(--cap),transparent);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);backdrop-filter:blur(16px) saturate(180%);
+  border:.5px solid color-mix(in srgb,var(--line-2) 55%,transparent);
+  box-shadow:0 6px 18px -10px rgba(0,0,0,.45)}
+.cap{border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none}
+.cap.sq{width:36px;height:36px}
+.chev svg{width:17px;height:17px;stroke:var(--blue);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.mark i{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 26%,transparent);display:block}
+.who{min-width:0;display:grid;text-align:center}
+.who b{font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who.bare b{text-shadow:0 0 12px color-mix(in srgb,var(--bg) 70%,transparent)}
+.namecap{padding:5px 14px 6px;border-radius:999px;min-width:0;max-width:190px}
+.spread{flex:1;min-width:0;display:flex;justify-content:center}
+
+.composer{display:flex;align-items:flex-end;gap:8px;padding:8px 12px 0}
+.plus svg{width:17px;height:17px;stroke:var(--ink-2);stroke-width:2.2;fill:none;stroke-linecap:round}
+.pill{flex:1;display:flex;align-items:center;gap:8px;min-height:42px;border-radius:21px;padding:0 5px 0 15px}
+.pill span{flex:1;font-size:15px;color:var(--ink-3)}
+.send{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--blue)}
+.send svg{width:15px;height:15px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.home{height:22px;display:grid;place-items:center}
+.home i{width:106px;height:4px;border-radius:2px;background:var(--ink);opacity:.28;display:block}
+.phone[data-keys="up"] .home{display:none}
+
+.keys{position:absolute;left:0;right:0;bottom:0;height:var(--keysH);z-index:2;background:var(--surface-2);
+  border-top:1px solid var(--line);display:none;padding:9px 4px 0}
+.phone[data-keys="up"] .keys{display:block}
+.krow{display:flex;gap:5px;justify-content:center;padding:4px 3px}
+.key{flex:1;height:38px;border-radius:6px;background:var(--surface);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 22%,transparent);display:grid;place-items:center;font-size:14px;color:var(--ink)}
+.key.wide{flex:2.4}
+.key.plain{background:none;box-shadow:none;color:var(--ink-2);font-size:16px}
+.kfoot{display:flex;align-items:center;gap:5px;padding:2px 3px 0}
+.kfoot .bar-i{flex:1;height:4px;border-radius:2px;background:var(--ink);opacity:.28;margin:9px 26px 0}
+.legend{font:11.5px var(--font-mono);color:var(--gold-deep);margin:0}
+</style>
+
+<header class="top"><div class="top-in">
+  <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Chips</span>
+  <span style="font-size:13px;color:var(--ink-3)">Floating chrome, and the blur that fades</span>
+  <span style="margin-left:auto;font:12px var(--font-mono);color:var(--ink-3)">21 Sep 2026</span>
+</div></header>
+
+<div class="wrap">
+<h1>Floating chrome, and the blur that fades</h1>
+<p>No bars at either end — the back, the name and the field float over the room as their own pieces of glass, and behind them the room blurs at the very edge and comes clear a finger's width in. That fade is <strong>iOS 26's own scroll edge effect</strong>, and it turns out <code>react-native-screens</code> already hands it to us: <code>scrollEdgeEffects: { top: 'soft', bottom: 'soft' }</code> on the room's screen, applied by UIKit to the list itself. Three arrangements of the floating pieces, all with the same fade behind them.</p>
+<p class="legend">Toggle <em>Edge</em> to see the three values the API actually takes: soft · hard · hidden.</p>
+
+<div class="ctl">
+  <button id="t-theme" aria-pressed="false">Dark</button>
+  <button id="t-keys" aria-pressed="false">Keyboard up</button>
+  <button id="t-run" aria-pressed="true">Scrolling</button>
+  <button id="t-edge">Edge · soft</button>
+  <span class="hint">CSS layered <code>backdrop-filter</code> standing in for <code>UIScrollEdgeEffect</code>.</span>
+</div>
+
+<div class="opts" id="opts"></div>
+
+<h2>Where each piece comes from</h2>
+<ul>
+  <li><strong>The fade is native, and free.</strong> <code>scrollEdgeEffects</code> is a screen option in the stack this app already runs (expo-router 57's fork, <code>react-native-screens</code> 4.26) and it reaches UIKit's <code>UIScrollEdgeEffect</code>. No package, no rebuild — it would reach your phone over Metro. <code>soft</code> is the fade; <code>hard</code> is the flat pane with a cut-off; <code>hidden</code> is nothing.</li>
+  <li><strong>It is iOS 26 and only iOS 26.</strong> Below that, and on Android, the option is ignored and the capsules float over an unblurred room — which is legible over a bubble and thin over a photo. The fallback is a scrim behind each capsule, which we would want anyway.</li>
+  <li><strong>The list is inverted, and that is the one thing I cannot promise from here.</strong> UIKit is told about a scroll view whose top is our bottom. Whether <code>top</code> lands on the name or on the field is a five-minute answer on the simulator and a swap of two words if it is the wrong way round.</li>
+  <li><strong>The capsules need <code>expo-blur</code> — or they don't.</strong> Real glass (translucent, blurring what passes under the capsule itself) is <code>expo-blur</code> and a rebuild. Painted capsules — <code>surface</code>, a hairline, a soft shadow — need nothing, and over the fade they read almost the same. <strong>A and C are drawn painted; B is drawn as glass</strong>, so you can see the difference between them.</li>
+  <li><strong>A floating field gives up the ground the extras stand on.</strong> The staged-file chips, a refused command's sentence and <em>This space is closed</em> are children of the composer's bar today. They need their own capsule above the field — drawn here in <strong>C</strong>, since that is the arrangement that has room for it.</li>
+  <li><strong>The title is the platform's in A, ours in B and C.</strong> Keeping the native header (transparent, no blur of its own) keeps the chevron, the truncation, Dynamic Type and the push animation. Drawing our own capsule means owning all four — and it is the only way the name gets glass around it.</li>
+</ul>
+
+<h2>My call</h2>
+<p><strong>A, then decide about the name.</strong> It is a day's work at most and most of it is deleting: the header goes transparent, the composer's bar loses its ground and becomes a capsule, the list gets its insets, and one screen option turns on the fade. On iOS 26 the chevron and the connection mark already arrive in the system's own glass capsules, so the top is <em>floating</em> without this app drawing a single bar.</p>
+<p><strong>B</strong> is the full version of what you asked for — everything in glass, including the name — and it is the one that needs <code>expo-blur</code> and a rebuild, and it is the one where the room's own text has to survive under a name that is now a solid object in the middle of it. Worth it if the name-in-glass is the thing you want; I would rather see A on the phone first.</p>
+<p><strong>C</strong> is A with the extras solved: the + inside the field, and one capsule above it that the chips, the notice and the closed line can all live in.</p>
+</div>
+
+<script>
+const SIG = '<span class="sig"><i style="height:4px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:10px"></i></span>';
+const CHEV = '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>';
+const PLUS = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+const UP = '<svg viewBox="0 0 24 24"><path d="M12 19V6"/><path d="M6 12l6-6 6 6"/></svg>';
+
+const LINES = [
+  {k:'margin', t:'Today 09:12'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'Pulled the 14 failing specs. Eleven are the same assertion — the fixture still has the old column name.'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'Renaming it in the fixture fixes eleven. The other three are real.', st:'09:12'},
+  {k:'me', tx:'Do the fixture, leave the three.', st:'09:13'},
+  {k:'lane', t:'Ledger picked this up'},
+  {k:'them', who:'Ledger', hue:'#7a4a86', tx:'Fixture renamed. Eleven green.', st:'09:19'},
+  {k:'margin', t:'Checkpoint · before the migration'},
+  {k:'them', who:'Ledger', hue:'#7a4a86', tx:'The three left are all the rounding in `totalOf`. Half a cent either way depending on the order the rows arrive in.'},
+  {k:'me', tx:'That one is mine — do not touch it. What does the migration need?', st:'09:24'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'A backfill for the renamed column across 1.2M rows. About four minutes, and it locks writes while it runs.'},
+  {k:'card', b:'Run the backfill?', p:'Locks writes on `entries` for about four minutes. Scout would run it now.'},
+];
+
+function lineHTML(l){
+  if(l.k==='margin') return `<div class="margin">${l.t}</div>`;
+  if(l.k==='lane') return `<div class="lane"><i></i>${l.t}</div>`;
+  if(l.k==='card') return `<div class="card"><b>${l.b}</b><p>${l.p}</p><div class="btns"><span class="go">Approve</span><span>Not now</span><span>Details</span></div></div>`;
+  if(l.k==='me') return `<div class="turn"><div class="row me"><div class="bub mine"><div class="field-g"></div><span class="tx">${l.tx}${l.st?`<span class="stamp">${l.st}</span>`:''}</span></div></div></div>`;
+  return `<div class="turn"><div class="row"><div class="face" style="background:${l.hue}">${l.who[0]}</div><div class="bub them"><span class="nm" style="color:${l.hue}">${l.who}</span>${l.tx}${l.st?`<span class="stamp">${l.st}</span>`:''}</div></div></div>`;
+}
+
+const KEYS = [['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫']];
+const keysHTML = () => KEYS.map(r=>`<div class="krow">${r.map(k=>`<div class="key">${k}</div>`).join('')}</div>`).join('')
+  + `<div class="krow"><div class="key" style="flex:.7">123</div><div class="key wide">space</div><div class="key">return</div></div>`
+  + `<div class="kfoot"><div class="key plain" style="flex:none;width:34px;height:26px">☺</div><span class="bar-i"></span><div class="key plain" style="flex:none;width:34px;height:26px">🎙</div></div>`;
+
+/* The fade: six panes, each blurring harder than the last over a shorter run.
+   Stacked, the edge carries every pane and the far end carries only the softest —
+   which is what makes the blur ramp out rather than stop at a line. */
+function bandHTML(edge){
+  const N = 6, layers = [];
+  for (let k = 0; k < N; k++){
+    const blur = (1.2 * Math.pow(1.9, k)).toFixed(1);
+    const end = 100 * (N - k) / N, fade = 100 / N;
+    const dir = edge === 't' ? 'to bottom' : 'to top';
+    const mask = `linear-gradient(${dir},#000 0%,#000 ${Math.max(0, end - fade).toFixed(0)}%,transparent ${end.toFixed(0)}%)`;
+    layers.push(`<i style="backdrop-filter:blur(${blur}px) saturate(140%);-webkit-backdrop-filter:blur(${blur}px) saturate(140%);mask-image:${mask};-webkit-mask-image:${mask}"></i>`);
+  }
+  layers.push('<i class="scrim"></i>');
+  return `<div class="band ${edge}">${layers.join('')}</div>`;
+}
+
+/* nav: 'system' — the platform's header, floating: system capsules round the buttons, bare name
+        'caps'   — one glass capsule each: back, name, mark
+   bar: 'split'  — a + circle beside the field capsule
+        'one'    — the + inside a single capsule
+        'stack'  — 'one', with a capsule above it for the chips, the notice, the closed line */
+const FRAMES = [
+  {id:'a', h:'A · The platform floats', tag:'no new deps', cls:'free', nav:'system', bar:'split', glassCaps:false,
+   why:'<b>Nothing here is drawn by this app but the field.</b> The header goes transparent and iOS 26 puts the chevron and the connection mark in its own glass capsules; the name floats bare over the fade, as Messages does it. The composer loses its bar and becomes a painted capsule with the + beside it.'},
+  {id:'b', h:'B · Everything in glass', tag:'expo-blur', cls:'dep', nav:'caps', bar:'one', glassCaps:true,
+   why:'<b>Ours, and the whole way.</b> Back, name and mark are three capsules of real glass — you can see the room move through them — and the field is one capsule with the + inside. The most floating of the three, and the one that needs the dependency and a rebuild.'},
+  {id:'c', h:'C · Floating, with somewhere to put the rest', tag:'no new deps', cls:'free', nav:'system', bar:'stack', glassCaps:false,
+   why:'<b>A, with the loose ends tied.</b> The + moves inside the field so the capsule is one object, and a second capsule above it holds what the old bar used to hold: a staged file, a refused command, <em>this space is closed</em>.'},
+];
+
+function navHTML(f){
+  const g = f.glassCaps ? 'glass' : 'paint';
+  if (f.nav === 'system'){
+    return `<div class="navrow">
+      <div class="cap sq chev ${g}">${CHEV}</div>
+      <div class="spread"><div class="who bare"><b>Scout · deploy</b><small>You, Scout and Ledger</small></div></div>
+      <div class="cap sq mark ${g}"><i></i></div></div>`;
+  }
+  return `<div class="navrow">
+    <div class="cap sq chev ${g}">${CHEV}</div>
+    <div class="spread"><div class="cap namecap ${g}"><div class="who"><b>Scout · deploy</b><small>You, Scout and Ledger</small></div></div></div>
+    <div class="cap sq mark ${g}"><i></i></div></div>`;
+}
+
+function barHTML(f){
+  const g = f.glassCaps ? 'glass' : 'paint';
+  const field = `<div class="pill cap ${g}"><span>Message, or /command</span><div class="send">${UP}</div></div>`;
+  const withPlus = `<div class="pill cap ${g}"><div class="cap sq plus" style="width:26px;height:26px;margin-left:-4px;border:0;box-shadow:none;background:none">${PLUS}</div><span style="margin-left:4px">Message, or /command</span><div class="send">${UP}</div></div>`;
+  if (f.bar === 'split') return `<div class="composer"><div class="cap sq plus ${g}">${PLUS}</div>${field}</div>`;
+  if (f.bar === 'one') return `<div class="composer">${withPlus}</div>`;
+  return `<div style="padding:0 12px 0;display:flex;justify-content:center">
+      <div class="cap ${g}" style="border-radius:16px;padding:7px 13px;font-size:12.5px;color:var(--ink-3);gap:7px">
+        <span style="width:7px;height:7px;border-radius:2px;background:var(--gold);display:inline-block"></span>
+        screenshot-2.png · uploading… 68%</div></div>
+    <div class="composer">${withPlus}</div>`;
+}
+
+function frameHTML(f){
+  return `<div class="opt">
+    <h3>${f.h} <span class="tag ${f.cls}">${f.tag}</span></h3>
+    <div class="phone" data-keys="down" data-edge="soft" id="ph-${f.id}">
+      <div class="room"><div class="scroll"><div class="lines">${LINES.map(lineHTML).join('')}</div></div></div>
+      ${bandHTML('t')}${bandHTML('b')}
+      <div class="chrome t"><div class="status"><span>9:41</span>${SIG}</div>${navHTML(f)}</div>
+      <div class="chrome b">${barHTML(f)}<div class="home"><i></i></div></div>
+      <div class="keys">${keysHTML()}</div>
+    </div>
+    <div class="why">${f.why}</div>
+  </div>`;
+}
+
+document.getElementById('opts').innerHTML = FRAMES.map(frameHTML).join('');
+/* the painted capsule: what it looks like with no dependency at all */
+document.querySelectorAll('.paint').forEach(el => {
+  el.style.background = 'var(--surface)';
+  el.style.border = '.5px solid color-mix(in srgb,var(--line-2) 70%,transparent)';
+  el.style.boxShadow = '0 6px 18px -10px rgba(0,0,0,.45)';
+});
+
+const phones = [...document.querySelectorAll('.phone')];
+const scrollers = phones.map(p => {
+  const sc = p.querySelector('.scroll');
+  sc.scrollTop = sc.scrollHeight;
+  return {phone:p, sc, dir:-1, held:false};
+});
+scrollers.forEach(s => {
+  s.sc.addEventListener('pointerdown', () => { s.held = true; });
+  window.addEventListener('pointerup', () => { s.held = false; });
+});
+
+let running = true;
+function tick(){
+  for (const s of scrollers){
+    const {sc} = s, max = sc.scrollHeight - sc.clientHeight;
+    if (running && !s.held && max > 0){
+      sc.scrollTop += s.dir * 0.55;
+      if (sc.scrollTop <= 0){ sc.scrollTop = 0; s.dir = 1; }
+      if (sc.scrollTop >= max){ sc.scrollTop = max; s.dir = -1; }
+    }
+    const top = s.phone.getBoundingClientRect().top;
+    for (const bub of s.phone.querySelectorAll('.bub.mine')){
+      bub.firstElementChild.style.transform = `translateY(${-(bub.getBoundingClientRect().top - top)}px)`;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+const press = (b, on) => b.setAttribute('aria-pressed', String(on));
+const run = document.getElementById('t-run');
+run.onclick = () => { running = !running; press(run, running); run.textContent = running ? 'Scrolling' : 'Still'; };
+const theme = document.getElementById('t-theme');
+theme.onclick = () => {
+  const dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  press(theme, dark); theme.textContent = dark ? 'Light' : 'Dark';
+};
+const keys = document.getElementById('t-keys');
+keys.onclick = () => {
+  const up = keys.getAttribute('aria-pressed') !== 'true';
+  press(keys, up);
+  for (const p of phones) p.setAttribute('data-keys', up ? 'up' : 'down');
+};
+const EDGES = ['soft','hard','none'];
+const edge = document.getElementById('t-edge');
+edge.onclick = () => {
+  const now = phones[0].getAttribute('data-edge');
+  const next = EDGES[(EDGES.indexOf(now) + 1) % EDGES.length];
+  for (const p of phones) p.setAttribute('data-edge', next);
+  edge.textContent = `Edge · ${next === 'none' ? 'hidden' : next}`;
+};
+</script>

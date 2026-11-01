@@ -1,0 +1,21 @@
+{
+  "v": 1,
+  "type": "feedback",
+  "id": "evt_01K4ZQPX00000000000000007F",
+  "ts": "2026-09-02T14:22:27.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "message_id": "msg_01K4ZQPX000000000000000067",
+  "kind": "correction",
+  "text": "The delivery date is the 19th, not the 12th.",
+  "from": {
+    "participant_id": "usr_01K4ZQPX000000000000000003",
+    "kind": "person",
+    "display_name": "Arjun",
+    "role": "owner"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "approval.executed",
+  "id": "evt_01K4ZQPX000000000000000070",
+  "ts": "2026-09-02T14:22:12.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "approval_id": "apr_01K4ZQPX000000000000000006",
+  "outcome": "executed",
+  "detail": "Sent to dana@northwind.com at 14:31."
+}

@@ -1,0 +1,50 @@
+# dependencies and builds
+node_modules/
+dist/
+.astro/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+# the desktop shell's Rust build. `Cargo.lock` is committed: it is an application, and a
+# reproducible build is the point of pinning it.
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/schemas/
+
+# environment and secrets
+.env
+.env.*
+!.env.example
+
+# local data: a database, and the write-ahead log and shared memory SQLite keeps beside it
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+
+# keys and signing material (SEC-16): Apple's push and signing keys, certificates, provisioning
+# profiles, and any private key or PEM a setup leaves behind. None belongs in the repository.
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
+
+# editors and OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# the dev-mode demo workspace: holds a harness token and a pairing code
+.chips/
+.playwright-chips/
+playwright-report/
+playwright-report-visual/
+reports/
+test-results/
+test-results-visual/
+
+# A copy of a data directory is data: a database, attachments, and tokens.
+.chips.bak*/

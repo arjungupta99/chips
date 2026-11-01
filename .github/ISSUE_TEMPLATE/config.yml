@@ -1,0 +1,9 @@
+# New issue offers the feedback prompt and nothing blank (ADR 0237).
+blank_issues_enabled: false
+contact_links:
+  - name: A security problem
+    url: https://github.com/arjungupta99/chips/blob/main/SECURITY.md
+    about: Don't open an issue. SECURITY.md says where to send it.
+  - name: What makes a good prompt
+    url: https://chipschat.ai/feedback
+    about: What a feedback prompt says, with an example.

@@ -1,0 +1,234 @@
+/* The kitchen sink's own layout. Everything inside a section is the design system's. */
+
+.sink {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.sink__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sink__head h1 {
+  font-size: var(--text-2xl);
+}
+
+.sink__head p {
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+
+.sink__switch {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+.sink__switch legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.sink__switch label {
+  position: relative;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--ink-3);
+  cursor: pointer;
+  text-transform: capitalize;
+}
+
+.sink__switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  cursor: inherit;
+}
+
+.sink__switch label[data-on="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-1);
+}
+
+.sink__switch label:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+}
+
+.sink__themes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+}
+
+.sink__theme {
+  background: var(--bg);
+  color: var(--ink);
+  padding: 8px 0 40px;
+}
+
+.sink__component {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sink__component h2 {
+  font-family: var(--font-body);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.sink__examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 22px;
+  align-items: flex-start;
+}
+
+.sink__example {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.sink__caption {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.sink__inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+.sink__wide {
+  width: 560px;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.sink__message {
+  display: flex;
+  gap: 8px;
+  font-size: var(--text-md);
+}
+
+.sink__message p {
+  background: var(--surface-2);
+  padding: 8px 12px;
+  border-radius: var(--radius-xl);
+  border-top-left-radius: 4px;
+  margin-top: 4px;
+  max-width: 52ch;
+}
+
+.sink__message b {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+}
+
+.sink__time {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+/*
+ * The media viewer's chrome at a size, rather than over the whole window. The real one is a
+ * `<dialog>` fixed to the viewport; here the same classes are shown in a box, so the gallery and
+ * the visual suite can look at the stage, the filmstrip and the actions beside everything else.
+ *
+ * Both classes, on purpose. `.viewer` in `styles.css` says `position: fixed; inset: 0`, and this
+ * stylesheet is loaded first — `KitchenSink.tsx` imports it, and `main.tsx` imports the page
+ * before it imports `styles.css` — so at equal specificity the fixed one won and the gallery wore
+ * a viewer over the whole window, swallowing the clicks meant for the theme radio (16 September
+ * 2026). Naming both classes settles it by specificity rather than by load order.
+ */
+.viewer.viewer-sink {
+  position: relative;
+  inset: auto;
+  width: 460px;
+  height: 280px;
+  max-width: 100%;
+  max-height: none;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.viewer-sink .viewer-stage {
+  background: #000;
+}
+
+/* Nothing in the gallery is pressed, so the actions are words rather than buttons. */
+.viewer-sink .viewer-actions span,
+.viewer-sink .viewer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: var(--text-sm);
+}
+
+.viewer-sink .viewer-close {
+  min-width: 28px;
+  padding: 0;
+}
+
+.viewer-sink .viewer-arrow {
+  opacity: 1;
+  min-width: 28px;
+  min-height: 28px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xl);
+}
+
+.viewer-sink .viewer-thumb {
+  cursor: default;
+}
+
+/*
+ * A stand-in for the browser's own video controls, which the real stage leaves a `<video controls>`
+ * to draw along the bottom of its own box. Nothing in the gallery plays, so without this the space
+ * the caption stands above would read as an empty gap.
+ */
+.viewer-sink-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.25));
+}

@@ -1,0 +1,108 @@
+{
+  "expo": {
+    "name": "Chips",
+    "slug": "chips",
+    "scheme": "chips",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "owner": "arjunguptaxor",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "bundleIdentifier": "chat.chips.app",
+      "appleTeamId": "W9K648WB82",
+      "supportsTablet": true,
+      "associatedDomains": ["applinks:relay.chipschat.ai"],
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "NSLocalNetworkUsageDescription": "Chips finds and connects to your Chips server on your own network, which may be on this Wi-Fi or on your tailnet.",
+        "NSBonjourServices": ["_chips._tcp"],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "chat.chips.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#14161b"
+      },
+      "permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#fbfbf8",
+          "dark": { "backgroundColor": "#0f1013" }
+        }
+      ],
+      ["expo-secure-store", { "faceIDPermission": false }],
+      "expo-notifications",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Chips uses the camera to read the pairing code your server shows, and to take a photo or a video for a space.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Chips opens your photo library so you can send a photo or a video to a space.",
+          "cameraPermission": "Chips uses the camera to read the pairing code your server shows, and to take a photo or a video for a space.",
+          "microphonePermission": "Chips records sound for a voice note or a video you send to a space."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Chips opens your photo library so you can send a photo or a video to a space.",
+          "savePhotosPermission": "Chips saves a photo or a video you choose to your library.",
+          "granularPermissions": ["photo", "video"],
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-video",
+        {
+          "supportsPictureInPicture": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Chips records sound for a voice note or a video you send to a space."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "./plugins/with-push-seal.js",
+      "./plugins/with-android-theme.js"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "942a13f7-2a4f-47f6-9ba1-935ca499454f"
+      }
+    }
+  }
+}

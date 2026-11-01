@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "type": "session.started",
+  "id": "evt_01K4ZQPX0000000000000000S1",
+  "ts": "2026-09-04T09:12:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "idempotency_key": "scout:3f9c1a-started",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "session_ref": "scout:3f9c1a",
+  "started_reason": "startup",
+  "where": "mbp · ~/Work/Chips",
+  "transcript_ref": "/Users/arjun/.scout/sessions/3f9c1a.jsonl"
+}

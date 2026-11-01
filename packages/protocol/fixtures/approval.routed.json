@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "type": "approval.routed",
+  "id": "evt_01K4ZQPX0000000000000000D8",
+  "ts": "2026-09-06T12:04:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "idempotency_key": "route-1",
+  "approval_id": "apr_01K4ZQPX000000000000000006",
+  "to": ["usr_01K4ZQPX000000000000000009"],
+  "approvers": ["usr_01K4ZQPX000000000000000009"],
+  "reason": "Dana knows the Northwind account.",
+  "routed_by": "usr_01K4ZQPX000000000000000003",
+  "routed_at": "2026-09-06T12:04:00.004Z"
+}

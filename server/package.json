@@ -1,0 +1,48 @@
+{
+  "name": "@chipschat/server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "chipsd: the gateway, the event log, and the media jobs.",
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "migrate": "tsx bin/chipsd.ts migrate",
+    "bench": "tsx bench/append.ts",
+    "serve": "tsx bin/chipsd.ts serve",
+    "dev": "CHIPS_DEV_MODE=true CHIPS_LOG_PRETTY=true tsx bin/chipsd.ts serve"
+  },
+  "dependencies": {
+    "@chipschat/platform": "workspace:*",
+    "@chipschat/protocol": "workspace:*",
+    "@chipschat/tunnel": "workspace:*",
+    "@hono/node-server": "2.1.1",
+    "better-sqlite3": "13.0.3",
+    "esbuild": "0.28.2",
+    "hono": "4.13.13",
+    "kysely": "0.29.5",
+    "parse5": "8.0.1",
+    "sharp": "0.35.5",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@chipschat/relay": "workspace:*",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/ws": "8.18.1",
+    "fast-check": "4.9.0",
+    "tsx": "4.23.13",
+    "vitest": "4.1.11"
+  }
+}

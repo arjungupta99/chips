@@ -1,0 +1,462 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Chips · The field in glass</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--ink-4:#A9ABB3;--gray:#8C8F98;
+  --gold:#F7C431;--gold-deep:#7D5B00;--gold-soft:#FFF3C3;--blue:#1D6AFF;--green:#009B5C;--red:#E62728;
+  /* today's capsule: chrome material under 40% of the page's surface */
+  --chrome:color-mix(in srgb,var(--surface) 72%,transparent);
+  /* Liquid Glass, regular: a whisper of white, a bright rim, a soft shadow */
+  --lg-tint:rgba(255,255,255,.26);--lg-rim:rgba(255,255,255,.95);--lg-rim-2:rgba(255,255,255,.35);
+  --lg-shade:rgba(0,0,0,.16);--lg-drop:rgba(20,22,27,.28);
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--ink-4:#5F626C;--gray:#6B6E78;
+  --gold:#F7C431;--gold-deep:#F7CE54;--gold-soft:#3C3005;--blue:#5F91FF;--green:#00BA7A;--red:#FE5550;
+  --chrome:color-mix(in srgb,var(--surface) 70%,transparent);
+  --lg-tint:rgba(40,42,48,.30);--lg-rim:rgba(255,255,255,.55);--lg-rim-2:rgba(255,255,255,.12);
+  --lg-shade:rgba(0,0,0,.35);--lg-drop:rgba(0,0,0,.55)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1340px;margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:700;font-size:20px;letter-spacing:-.03em}
+.brand svg{width:22px;height:22px}
+.wrap{max-width:1340px;margin:0 auto;padding:0 24px 110px}
+h1{font-family:var(--font-display);font-size:clamp(28px,4vw,38px);margin:28px 0 6px;letter-spacing:-.02em}
+h1+p{color:var(--ink-2);max-width:74ch;margin:0 0 10px}
+h2{font-family:var(--font-display);font-size:22px;margin:46px 0 10px;padding-top:20px;border-top:1px solid var(--line)}
+p{color:var(--ink-2);max-width:76ch}
+ul{color:var(--ink-2);max-width:76ch}
+li{margin:6px 0}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 4px}
+.ctl button{font:inherit;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.ctl .hint{font-size:12.5px;color:var(--ink-3)}
+.opts{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;margin:24px 0 8px}
+.opt{display:grid;gap:10px;width:402px}
+.opt h3{font-family:var(--font-display);font-size:18px;margin:0;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.opt .tag{font:11px var(--font-mono);border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.opt .tag.free{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.opt .tag.now{background:var(--surface-3);color:var(--ink-2)}
+.opt .why{font-size:13.5px;color:var(--ink-3);line-height:1.55}
+.opt .why b{color:var(--ink-2)}
+.opt .cost{font:12px/1.5 var(--font-mono);color:var(--ink-3);border-top:1px dashed var(--line-2);padding-top:8px}
+
+/* ── the phone: iPhone 17, in points ───────────────────────── */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--bg);
+  border:1px solid var(--line);font-family:var(--font-ios);box-shadow:0 24px 50px -28px rgba(0,0,0,.45);
+  --navH:106px;--keysH:0px;--inset:34px}
+.phone[data-keys="up"]{--keysH:336px;--inset:0px}
+.room{position:absolute;inset:0 0 var(--keysH) 0;overflow:hidden}
+.scroll{position:absolute;inset:0;overflow-y:scroll;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.lines{display:grid;gap:2px;padding:calc(var(--navH) + 10px) 16px calc(var(--inset) + 12px + 50px + 18px)}
+
+.turn{display:grid;gap:2px;margin-top:12px}
+.row{display:flex;gap:8px;align-items:flex-end}
+.row.me{justify-content:flex-end}
+.face{width:28px;height:28px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+.bub{position:relative;max-width:78%;border-radius:18px;padding:9px 14px;font-size:17px;line-height:22px;overflow:hidden;background:var(--surface-2);color:var(--ink)}
+.bub .nm{display:block;font-size:13px;font-weight:700;margin-bottom:1px}
+.row.me .bub{color:#fff;background:#0b737d}
+.row.me .bub .tx{position:relative}
+.field-g{position:absolute;left:0;right:0;top:0;height:874px;pointer-events:none;
+  background:linear-gradient(#6651A8 0%,#34669E 50%,#0B737D 100%);will-change:transform}
+.stamp{display:block;text-align:right;font-size:12px;line-height:14px;margin-top:2px;color:color-mix(in srgb,#fff 88%,transparent)}
+.bub.them .stamp{color:var(--ink-2)}
+.margin{text-align:center;font-size:13px;color:var(--ink-3);padding:10px 0 4px}
+.photo{width:236px;height:176px;border-radius:18px;overflow:hidden;position:relative;
+  background:
+    radial-gradient(90px 70px at 72% 30%,#ffe9a8 0%,#ffcf5a 30%,transparent 70%),
+    linear-gradient(#ff8a5b 0%,#f0558a 38%,#6a3fb0 62%,#1d2d6b 63%,#13224f 100%)}
+.photo::after{content:"";position:absolute;left:0;right:0;bottom:0;height:64px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.08) 0 2px,transparent 2px 18px),linear-gradient(transparent,rgba(0,0,0,.25))}
+
+/* ── top: iOS 26 draws the back and the mark in its own glass; the name is ours ─ */
+.chrome{position:absolute;left:0;right:0;z-index:6}
+.chrome.t{top:0}
+.chrome.b{bottom:var(--keysH);padding:12px 12px calc(12px + var(--inset))}
+.status{display:flex;align-items:center;justify-content:space-between;padding:18px 32px 0 42px;font-size:16px;font-weight:600;color:var(--ink)}
+.status .sig{display:flex;gap:3px;align-items:flex-end}
+.status .sig i{width:3.5px;background:var(--ink);border-radius:1px;display:block}
+.navrow{display:flex;align-items:center;gap:8px;padding:10px 16px 8px;min-height:60px}
+.cap{border-radius:999px;display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+.cap.sq{width:44px;height:44px}
+.chev svg{width:20px;height:20px;stroke:var(--ink);stroke-width:2.4;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.mark i{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 26%,transparent);display:block}
+.spread{flex:1;min-width:0;display:flex;justify-content:center}
+.namecap{padding:6px 16px 7px;min-width:0;max-width:220px}
+.who{min-width:0;display:grid;text-align:center;line-height:1.2}
+.who b{font-size:16px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who small{font-size:12px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* today's material: expo-blur's chrome, a 40% wash, a hairline, a shadow */
+.chromecap{background:var(--chrome);-webkit-backdrop-filter:blur(18px) saturate(180%);backdrop-filter:blur(18px) saturate(180%);
+  border:.5px solid color-mix(in srgb,var(--line-2) 55%,transparent);box-shadow:0 4px 12px -2px rgba(0,0,0,.18)}
+
+/* Liquid Glass, as near as CSS gets: the lensing is an SVG displacement (Chromium only) */
+.lg{background:var(--lg-tint);isolation:isolate;
+  -webkit-backdrop-filter:blur(2.5px) saturate(170%) brightness(1.04);backdrop-filter:blur(2.5px) saturate(170%) brightness(1.04);
+  box-shadow:0 10px 26px -12px var(--lg-drop),0 1px 2px var(--lg-shade);transition:transform .38s cubic-bezier(.3,1.6,.5,1)}
+.lg::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.3px;pointer-events:none;z-index:2;
+  background:linear-gradient(140deg,var(--lg-rim) 0%,var(--lg-rim-2) 26%,transparent 48%,transparent 58%,var(--lg-rim-2) 78%,var(--lg-rim) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0)}
+.lg::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;
+  box-shadow:inset 0 1px 1.5px rgba(255,255,255,.55),inset 0 -1px 1.5px rgba(255,255,255,.18),inset 0 0 14px rgba(255,255,255,.12)}
+:root[data-theme="dark"] .lg::after{box-shadow:inset 0 1px 1px rgba(255,255,255,.22),inset 0 -1px 1px rgba(255,255,255,.06),inset 0 0 14px rgba(255,255,255,.05)}
+.lg.held{transform:scale(1.045)}
+.lg.held::after{box-shadow:inset 0 1px 1.5px rgba(255,255,255,.8),inset 0 0 22px rgba(255,255,255,.32)}
+
+/* the band behind today's composer: a frosted strip the height of the foot, plus a hair */
+.band{position:absolute;left:0;right:0;bottom:var(--keysH);height:calc(12px + 50px + 12px + var(--inset) + 4px);pointer-events:none;z-index:4;
+  background:color-mix(in srgb,var(--surface) 34%,transparent);
+  -webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);
+  -webkit-mask-image:linear-gradient(to top,#000 calc(100% - 4px),transparent);mask-image:linear-gradient(to top,#000 calc(100% - 4px),transparent)}
+.phone:not([data-band]) .band{display:none}
+
+/* the top band stays in all three: it is not what was asked about */
+.tband{position:absolute;left:0;right:0;top:0;height:calc(var(--navH) + 16px);pointer-events:none;z-index:4;
+  -webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);
+  background:color-mix(in srgb,var(--bg) 2%,transparent);
+  -webkit-mask-image:linear-gradient(#000 calc(100% - 16px),transparent);mask-image:linear-gradient(#000 calc(100% - 16px),transparent)}
+
+/* the composer */
+.composer{display:flex;align-items:flex-end;gap:8px}
+.field{flex:1;min-height:50px;border-radius:25px;display:flex;align-items:center;gap:8px;padding:9px 9px 9px 20px;cursor:text}
+.field.withplus{padding-left:9px}
+.field .words{flex:1;font-size:17px;line-height:23px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;z-index:3}
+.phone[data-typing="on"] .field .words{color:var(--ink)}
+.field .words .caret{display:inline-block;width:2px;height:21px;margin-left:1px;vertical-align:-4px;background:var(--blue);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.send{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--gray);position:relative;z-index:3;transition:background .2s}
+.phone[data-typing="on"] .send{background:var(--blue)}
+.send svg{width:17px;height:17px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.plusin{width:32px;height:32px;display:grid;place-items:center;flex:none;position:relative;z-index:3}
+.plusin svg,.plusout svg{width:20px;height:20px;stroke:var(--ink-2);stroke-width:2.2;fill:none;stroke-linecap:round}
+.plusout{width:50px;height:50px;cursor:pointer}
+.plusout svg{width:22px;height:22px;stroke:var(--ink)}
+.home{position:absolute;left:0;right:0;bottom:8px;display:grid;place-items:center;z-index:7;pointer-events:none}
+.home i{width:140px;height:5px;border-radius:3px;background:var(--ink);opacity:.9;display:block}
+.phone[data-keys="up"] .home{display:none}
+
+.keys{position:absolute;left:0;right:0;bottom:0;height:var(--keysH);z-index:5;display:none;padding:10px 4px 0;
+  background:color-mix(in srgb,var(--surface-3) 88%,transparent);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px)}
+.phone[data-keys="up"] .keys{display:block}
+.krow{display:flex;gap:6px;justify-content:center;padding:5px 3px}
+.key{flex:1;height:44px;border-radius:8px;background:var(--surface);box-shadow:0 1px 0 color-mix(in srgb,var(--ink) 22%,transparent);display:grid;place-items:center;font-size:20px;color:var(--ink)}
+.key.wide{flex:3.2}
+.key.plain{background:none;box-shadow:none;color:var(--ink-2);font-size:18px}
+.kfoot{display:flex;align-items:center;justify-content:space-between;padding:6px 18px 0}
+.legend{font:12px var(--font-mono);color:var(--gold-deep);margin:0}
+.lens-note{font:12px var(--font-mono);color:var(--ink-3)}
+</style>
+
+<svg id="filters" width="0" height="0" style="position:absolute" aria-hidden="true"><defs></defs></svg>
+
+<header class="top"><div class="top-in">
+  <span class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6h12v12H6z"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></svg>Chips</span>
+  <span style="font-size:13px;color:var(--ink-3)">The field in glass, and no bar behind it</span>
+  <span style="margin-left:auto;font:12px var(--font-mono);color:var(--ink-3)">23 Sep 2026</span>
+</div></header>
+
+<div class="wrap">
+<h1>The field in glass, and no bar behind it</h1>
+<p>Today a frosted strip runs the width of the screen behind the composer, so the foot of the room still reads as a bar. Here that strip is gone and the conversation runs to the bottom edge of the glass. The field floats over it as one piece of <strong>Liquid Glass</strong>, iOS 26's material, which is what Messages uses on your phone. The room scrolls by itself so you can watch what passes under the field. Tap B's field or its + to see the glass respond to a finger.</p>
+<p class="legend">A browser can't draw real Liquid Glass. The edge lensing here is an SVG stand-in, which only works in Chrome and the desktop app; Safari shows the blur without the lensing.</p>
+
+<div class="ctl">
+  <button id="t-theme" aria-pressed="false">Dark</button>
+  <button id="t-keys" aria-pressed="false">Keyboard up</button>
+  <button id="t-typing" aria-pressed="false">Typing</button>
+  <button id="t-run" aria-pressed="true">Scrolling</button>
+  <span class="hint" id="lens-state"></span>
+</div>
+
+<div class="opts" id="opts"></div>
+
+<h2>What B is made of</h2>
+<ul>
+  <li><strong>The glass is the system's, and it's already on your phone.</strong> <code>expo-glass-effect</code>'s <code>GlassView</code> puts UIKit's own <code>UIGlassEffect</code> behind the field. That is the same material as Messages, with real lensing, a rim that catches the light, and a tint that turns dark over dark content without being told. expo-router already depends on it, so it is compiled into the build on your iPhone (<code>ExpoGlassEffect 57.0.1</code> in <code>Podfile.lock</code>). The change is JavaScript only, plus a rebuild through <code>pnpm phone build</code> as usual.</li>
+  <li><strong>The glass responds to a finger.</strong> With <code>isInteractive</code> on, it swells and brightens under your thumb the way iOS 26's own buttons do. B's field and + do the same in this mock.</li>
+  <li><strong>Where there's no Liquid Glass, the field stays as it is today.</strong> Below iOS 26, with Reduce Transparency on, on Android and on the web, you get today's capsule: chrome blur or plain paint. The strip stays gone in every case.</li>
+  <li><strong>What used to stand on the strip needs its own ground.</strong> A staged photo's chip, a refused command's sentence and <em>This space is closed</em> all sit above the field. Today the strip is what keeps them readable. Without it, each of them gets the same glass as the field. That's in the cost.</li>
+  <li><strong>The top of the room is left as it is.</strong> iOS already draws the back button and the connection mark in its own Liquid Glass. The room's name is still in today's chrome capsule, so after B it would be the one piece of glass in a different material. Moving it over is the same change, and I'd suggest doing it next, but I left it out here because you asked about the bottom.</li>
+</ul>
+
+<h2>My call</h2>
+<p><strong>B.</strong> It's what you described, and it costs little because the native glass is already in the build. It's about half a day: change the capsule to use the system glass, move the + out beside the field, remove the strip, and give the chips and the notice their glass. <strong>A</strong> is the ten-minute version. It removes the strip but keeps today's frosted field, which turns dull over a busy photo. It only makes sense if you want to see the room without the strip before deciding on the glass.</p>
+</div>
+
+<script>
+const SIG = '<span class="sig"><i style="height:5px"></i><i style="height:7px"></i><i style="height:9px"></i><i style="height:11px"></i></span>';
+const CHEV = '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>';
+const PLUS = '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>';
+const UP = '<svg viewBox="0 0 24 24"><path d="M12 19V6"/><path d="M6 12l6-6 6 6"/></svg>';
+
+const LINES = [
+  {k:'margin', t:'Yesterday 17:40'},
+  {k:'me', tx:'Can you find out why CI went red after the rename?', st:'17:40'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'On it. I\'ll pull the failing specs first thing and group them by assertion.', st:'17:41'},
+  {k:'me', tx:'Thanks. No migrations until I have seen the list.', st:'17:42'},
+  {k:'margin', t:'Today 09:12'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'Pulled the 14 failing specs. Eleven are the same assertion — the fixture still has the old column name.'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'Renaming it in the fixture fixes eleven. The other three are real.', st:'09:12'},
+  {k:'me', tx:'Do the fixture, leave the three.', st:'09:13'},
+  {k:'photo', who:'Ledger', hue:'#7a4a86'},
+  {k:'them', who:'Ledger', hue:'#7a4a86', tx:'The staging dashboard after the rename. Eleven green.', st:'09:19'},
+  {k:'margin', t:'Checkpoint · before the migration'},
+  {k:'them', who:'Ledger', hue:'#7a4a86', tx:'The three left are all the rounding in totalOf. Half a cent either way depending on the order the rows arrive in.'},
+  {k:'me', tx:'That one is mine — do not touch it. What does the migration need?', st:'09:24'},
+  {k:'them', who:'Scout', hue:'#317243', tx:'A backfill for the renamed column across 1.2M rows. About four minutes, and it locks writes while it runs.', st:'09:25'},
+  {k:'me', tx:'Run it after lunch.'},
+  {k:'me', tx:'And ping me when the three are the only red left.', st:'09:26'},
+];
+
+function lineHTML(l){
+  if(l.k==='margin') return `<div class="margin">${l.t}</div>`;
+  if(l.k==='photo') return `<div class="turn"><div class="row"><div class="face" style="background:${l.hue}">${l.who[0]}</div><div class="photo"></div></div></div>`;
+  const stamp = l.st ? `<span class="stamp">${l.st}</span>` : '';
+  if(l.k==='me') return `<div class="turn" style="margin-top:${l.st===undefined?12:2}px"><div class="row me"><div class="bub mine"><div class="field-g"></div><span class="tx">${l.tx}${stamp}</span></div></div></div>`;
+  return `<div class="turn"><div class="row"><div class="face" style="background:${l.hue}">${l.who[0]}</div><div class="bub them"><span class="nm" style="color:${l.hue}">${l.who}</span>${l.tx}${stamp}</div></div></div>`;
+}
+
+const KEYS = [['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['⇧','z','x','c','v','b','n','m','⌫']];
+const keysHTML = () => KEYS.map(r=>`<div class="krow">${r.map(k=>`<div class="key">${k}</div>`).join('')}</div>`).join('')
+  + `<div class="krow"><div class="key" style="flex:1.3;font-size:16px">123</div><div class="key wide" style="font-size:16px">space</div><div class="key" style="flex:1.3;font-size:16px">return</div></div>`
+  + `<div class="kfoot"><div class="key plain" style="flex:none;width:34px;height:30px">☺</div><div class="key plain" style="flex:none;width:34px;height:30px">🎙</div></div>`;
+
+const FRAMES = [
+  {id:'now', h:'Today', tag:'on your phone', cls:'now', band:true, field:'chrome', plus:'in',
+   why:'<b>The strip and the frosted capsule.</b> A blurred band the height of the foot runs edge to edge behind the field, so the room stops a hand above the bottom of the glass. The capsule is expo-blur\'s <em>chrome</em> material under a 40% wash of the page, with the + inside it.',
+   cost:'—'},
+  {id:'a', h:'A · The strip gone', tag:'10 minutes', cls:'free', band:false, field:'chrome', plus:'in',
+   why:'<b>Only the band goes.</b> The room runs to the bottom edge and passes under the field, and the capsule is today\'s. It reads as floating, but the capsule is still frosted and opaque, so over the photo it turns into a grey smear rather than glass.',
+   cost:'Delete the bottom EdgeBand in SpaceView.tsx. The notice and the closed line need a ground (a capsule) or they are unreadable over bubbles. No rebuild beyond the usual.'},
+  {id:'b', h:'B · Liquid Glass, as Messages has it', tag:'half a day', cls:'free', band:false, field:'glass', plus:'out',
+   why:'<b>The field is the system\'s glass, and the + is a glass button of its own.</b> Clear enough to see the room moving through it, lensed at the rim, and dark over dark content without being told. It swells under the thumb. Send stays the blue circle inside the field.',
+   cost:'Capsule gains a GlassView branch (expo-glass-effect, already compiled in, so no new native code). The + moves beside the field. The band is deleted, and the chips, notice and closed line go on glass. Today\'s capsule stays as the fallback.'},
+];
+
+function glassClass(kind){ return kind === 'glass' ? 'lg' : 'chromecap'; }
+
+function navHTML(){
+  // iOS 26 draws the back and the mark in its own Liquid Glass today; the name is our chrome capsule.
+  return `<div class="navrow">
+    <div class="cap sq chev lg">${CHEV}</div>
+    <div class="spread"><div class="cap namecap chromecap"><div class="who"><b>Scout · deploy</b><small>You, Scout and Ledger</small></div></div></div>
+    <div class="cap sq mark lg"><i></i></div></div>`;
+}
+
+function barHTML(f){
+  const g = glassClass(f.field);
+  const words = `<span class="words" data-words></span>`;
+  if (f.plus === 'in') {
+    return `<div class="composer"><div class="cap field withplus ${g}"><span class="plusin">${PLUS}</span>${words}<span class="send">${UP}</span></div></div>`;
+  }
+  return `<div class="composer"><div class="cap sq plusout ${g}">${PLUS}</div><div class="cap field ${g}">${words}<span class="send">${UP}</span></div></div>`;
+}
+
+function frameHTML(f){
+  return `<div class="opt">
+    <h3>${f.h} <span class="tag ${f.cls}">${f.tag}</span></h3>
+    <div class="phone" data-keys="down" data-typing="off" ${f.band ? 'data-band' : ''} id="ph-${f.id}">
+      <div class="room"><div class="scroll"><div class="lines">${LINES.map(lineHTML).join('')}</div></div></div>
+      <div class="tband"></div>
+      <div class="band"></div>
+      <div class="chrome t"><div class="status"><span>9:41</span>${SIG}</div>${navHTML()}</div>
+      <div class="chrome b">${barHTML(f)}</div>
+      <div class="home"><i></i></div>
+      <div class="keys">${keysHTML()}</div>
+    </div>
+    <div class="why">${f.why}</div>
+    <div class="cost">${f.cost}</div>
+  </div>`;
+}
+
+document.getElementById('opts').innerHTML = FRAMES.map(frameHTML).join('');
+
+/* ── the lens: a displacement map per size, sampled inward across a rim ─────────────
+   For every pixel within BEZEL of the capsule's edge, the backdrop is read from a little
+   further in, most at the very edge — so the room bends as it passes under the rim, which is
+   the thing that makes glass read as glass rather than as frosted plastic. */
+const BEZEL = 13, STRENGTH = 26;
+const isChromium = !!window.chrome || /Chrome\//.test(navigator.userAgent);
+const made = new Map();
+
+function sdfCapsule(x, y, w, h, r){
+  const qx = Math.abs(x - w/2) - (w/2 - r), qy = Math.abs(y - h/2) - (h/2 - r);
+  const ox = Math.max(qx, 0), oy = Math.max(qy, 0);
+  return Math.hypot(ox, oy) + Math.min(Math.max(qx, qy), 0) - r;
+}
+
+function mapFor(w, h, r){
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++){
+    const px = x + .5, py = y + .5;
+    const d = -sdfCapsule(px, py, w, h, r);          // inside distance
+    let dx = 0, dy = 0;
+    if (d > 0 && d < BEZEL){
+      const e = .5;
+      const gx = sdfCapsule(px + e, py, w, h, r) - sdfCapsule(px - e, py, w, h, r);
+      const gy = sdfCapsule(px, py + e, w, h, r) - sdfCapsule(px, py - e, w, h, r);
+      const len = Math.hypot(gx, gy) || 1;
+      const m = Math.pow(1 - d / BEZEL, 2.2);
+      dx = -gx / len * m; dy = -gy / len * m;           // inward
+    }
+    const i = (y * w + x) * 4;
+    img.data[i] = 128 + dx * 127; img.data[i+1] = 128 + dy * 127; img.data[i+2] = 128; img.data[i+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL();
+}
+
+function lensFor(w, h){
+  const key = `${w}x${h}`;
+  if (made.has(key)) return made.get(key);
+  const id = `lens-${key}`;
+  const r = Math.min(h / 2, w / 2);
+  const ns = 'http://www.w3.org/2000/svg';
+  const f = document.createElementNS(ns, 'filter');
+  f.setAttribute('id', id);
+  f.setAttribute('x', '0'); f.setAttribute('y', '0'); f.setAttribute('width', w); f.setAttribute('height', h);
+  f.setAttribute('filterUnits', 'userSpaceOnUse'); f.setAttribute('primitiveUnits', 'userSpaceOnUse');
+  f.setAttribute('color-interpolation-filters', 'sRGB');
+  f.innerHTML = `<feImage href="${mapFor(w, h, r)}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>
+    <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="soft"/>
+    <feDisplacementMap in="soft" in2="map" scale="${STRENGTH}" xChannelSelector="R" yChannelSelector="G" result="bent"/>
+    <feColorMatrix in="bent" type="saturate" values="1.7"/>`;
+  document.querySelector('#filters defs').appendChild(f);
+  made.set(key, id);
+  return id;
+}
+
+function lensAll(){
+  if (!isChromium) return;
+  document.querySelectorAll('.lg').forEach(el => {
+    const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
+    if (!w || !h) return;
+    const id = lensFor(w, h);
+    const bf = `url(#${id}) brightness(1.04)`;
+    el.style.backdropFilter = bf;
+    el.style.webkitBackdropFilter = bf;
+  });
+}
+document.getElementById('lens-state').textContent = isChromium
+  ? 'Lensing on (Chromium).' : 'Lensing off: this browser shows the blur only.';
+
+/* ── words in the field ──────────────────────────────────────── */
+function setWords(){
+  document.querySelectorAll('.phone').forEach(p => {
+    const typing = p.dataset.typing === 'on';
+    p.querySelectorAll('[data-words]').forEach(w => {
+      w.innerHTML = typing ? 'Can the backfill wait for Ledger?<span class="caret"></span>' : 'Message, or /command';
+    });
+  });
+}
+setWords();
+
+/* ── the glass answers a finger (B only, as isInteractive would) ─ */
+document.querySelectorAll('#ph-b .lg').forEach(el => {
+  el.addEventListener('pointerdown', () => el.classList.add('held'));
+  const up = () => el.classList.remove('held');
+  el.addEventListener('pointerup', up); el.addEventListener('pointerleave', up);
+});
+
+/* ── the room scrolls, and the outgoing field follows the glass ── */
+const phones = [...document.querySelectorAll('.phone')];
+const scrollers = phones.map(p => {
+  const sc = p.querySelector('.scroll');
+  sc.scrollTop = sc.scrollHeight;
+  return {phone:p, sc, dir:-1, held:false};
+});
+scrollers.forEach(s => {
+  s.sc.addEventListener('pointerdown', () => { s.held = true; });
+  window.addEventListener('pointerup', () => { s.held = false; });
+});
+
+let running = true;
+function paintField(s){
+  const top = s.phone.getBoundingClientRect().top;
+  for (const bub of s.phone.querySelectorAll('.bub.mine')){
+    bub.firstElementChild.style.transform = `translateY(${-(bub.getBoundingClientRect().top - top)}px)`;
+  }
+}
+function tick(){
+  for (const s of scrollers){
+    const {sc} = s, max = sc.scrollHeight - sc.clientHeight;
+    if (running && !s.held && max > 0){
+      sc.scrollTop += s.dir * 0.5;
+      if (sc.scrollTop <= 0){ sc.scrollTop = 0; s.dir = 1; }
+      if (sc.scrollTop >= max){ sc.scrollTop = max; s.dir = -1; }
+    }
+    paintField(s);
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+/* ── controls ─────────────────────────────────────────────────── */
+function toggle(id, on){
+  const b = document.getElementById(id);
+  b.setAttribute('aria-pressed', String(on));
+  return on;
+}
+document.getElementById('t-theme').onclick = e => {
+  const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  toggle('t-theme', on);
+  document.documentElement.dataset.theme = on ? 'dark' : 'light';
+};
+document.getElementById('t-keys').onclick = e => {
+  const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  toggle('t-keys', on);
+  phones.forEach(p => p.dataset.keys = on ? 'up' : 'down');
+  requestAnimationFrame(() => { scrollers.forEach(s => s.sc.scrollTop = s.sc.scrollHeight); lensAll(); });
+};
+document.getElementById('t-typing').onclick = e => {
+  const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  toggle('t-typing', on);
+  phones.forEach(p => p.dataset.typing = on ? 'on' : 'off');
+  setWords();
+};
+document.getElementById('t-run').onclick = e => {
+  running = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+  toggle('t-run', running);
+};
+
+/* for stills: ?theme=dark&keys=up&typing=on&still=1&at=<px from the foot> */
+const q = new URLSearchParams(location.search);
+if (q.get('theme') === 'dark') document.getElementById('t-theme').click();
+if (q.get('typing') === 'on') document.getElementById('t-typing').click();
+if (q.get('keys') === 'up') document.getElementById('t-keys').click();
+if (q.get('still') === '1'){
+  running = false; toggle('t-run', false);
+  const at = Number(q.get('at') || 0);
+  requestAnimationFrame(() => scrollers.forEach(s => {
+    s.sc.scrollTop = s.sc.scrollHeight - s.sc.clientHeight - at;
+    // ?under=photo: the photo's middle under the field's, the hardest thing glass has to sit on
+    if (q.get('under') === 'photo'){
+      const photo = s.phone.querySelector('.photo').getBoundingClientRect();
+      const field = s.phone.querySelector('.field').getBoundingClientRect();
+      s.sc.scrollTop += (photo.top + photo.height * .62) - (field.top + field.height / 2);
+    }
+  }));
+}
+document.fonts.ready.then(lensAll);
+lensAll();
+</script>

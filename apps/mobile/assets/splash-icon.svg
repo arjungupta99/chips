@@ -1,0 +1,36 @@
+<!--
+  What stands on the glass while the app starts: the icon itself, corners and all, on the app's own
+  background. Launching then shows the thing you tapped, at rest, rather than a stranger's logo —
+  and the gold reads on paper only because the ink tile is under it. `splash-icon.png` is this file
+  at 512 square, on nothing; the ground around it is `app.json`'s splash colour, which is the app's
+  own (light `#fbfbf8`, dark `#111215`), so the screen behind never changes shade.
+  Since ADR 0096 the mark is the outline an agent wears
+  (`src/ui/outline.ts`): the body and the ten pins below are its `bittenPath` and `pinsOf` for the
+  square each `data-outline` and `data-pins` names (left, top, side), and
+  `tools/guardrails/icons-wear-the-outline.test.ts` fails when they drift apart.
+  The body is lit from above as an agent's face is, a little lighter at the top and deeper at
+  the foot: `litGround` of the gold at `MARK_LIGHT` (`apps/mobile/src/ui/lit.ts`), which the guardrail holds.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>The Chips mark: a chip, gold on ink</title>
+  <rect width="512" height="512" rx="114.5" fill="#16181d"/>
+  <g fill="#ecede8" fill-opacity="0.55" data-pins="124 124 264">
+    <rect x="173.5" y="89.68" width="33" height="44.88" rx="16.5"/>
+    <rect x="239.5" y="89.68" width="33" height="44.88" rx="16.5"/>
+    <rect x="377.44" y="239.5" width="44.88" height="33" rx="16.5"/>
+    <rect x="377.44" y="305.5" width="44.88" height="33" rx="16.5"/>
+    <rect x="305.5" y="377.44" width="33" height="44.88" rx="16.5"/>
+    <rect x="239.5" y="377.44" width="33" height="44.88" rx="16.5"/>
+    <rect x="173.5" y="377.44" width="33" height="44.88" rx="16.5"/>
+    <rect x="89.68" y="305.5" width="44.88" height="33" rx="16.5"/>
+    <rect x="89.68" y="239.5" width="44.88" height="33" rx="16.5"/>
+    <rect x="89.68" y="173.5" width="44.88" height="33" rx="16.5"/>
+  </g>
+  <defs>
+    <linearGradient id="lit" x1="0" y1="124" x2="0" y2="388" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fed17b"/>
+      <stop offset="1" stop-color="#ebc339"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#lit)" data-outline="124 124 264" d="M190 124H299.11A74.25 74.25 0 0 0 388 212.89V322A66 66 0 0 1 322 388H190A66 66 0 0 1 124 322V190A66 66 0 0 1 190 124Z"/>
+</svg>

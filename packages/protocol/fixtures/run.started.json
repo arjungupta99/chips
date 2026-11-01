@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "type": "run.started",
+  "id": "evt_01K4ZQPX000000000000000064",
+  "ts": "2026-09-02T14:22:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "goal": "Get PO #4471 confirmed with Northwind and update the tracker.",
+  "plan": [
+    {
+      "step_id": "read-po",
+      "title": "Read PO #4471"
+    },
+    {
+      "step_id": "check-crm",
+      "title": "Check the Northwind record in the CRM"
+    },
+    {
+      "step_id": "email-dana",
+      "title": "Email Dana to confirm"
+    },
+    {
+      "step_id": "update-tracker",
+      "title": "Update the tracker"
+    }
+  ],
+  "session_ref": "scout://sessions/2026-09-02/po-4471"
+}

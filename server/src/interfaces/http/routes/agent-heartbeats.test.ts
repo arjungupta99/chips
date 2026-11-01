@@ -1,0 +1,446 @@
+/**
+ * An agent's heartbeat (ADR 0143): a harness's copy, read by the people who run it; a change down
+ * the harness's socket that hears `heartbeats`, answered or refused by its next copy; and a
+ * check-in, an ordinary message only a harness marks as its heartbeat's.
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import WebSocket from "ws";
+import type { Principal } from "../../../application/index.js";
+import { viewOfHeartbeatChange } from "../../../application/use-cases/agent-heartbeats.js";
+import {
+  createTestWorkspace,
+  type TestPerson,
+  type TestWorkspace,
+} from "../../../testing/workspace.js";
+
+let ws: TestWorkspace;
+let port: number;
+const BASE = "http://chips.local";
+
+beforeEach(async () => {
+  ws = await createTestWorkspace();
+  ({ port } = await ws.gateway.listen());
+});
+afterEach(async () => {
+  await ws.close();
+});
+
+type Body = Record<string, unknown>;
+
+async function call(
+  method: string,
+  path: string,
+  options: { person?: TestPerson; harness?: Record<string, string>; body?: unknown } = {},
+): Promise<{ status: number; body: Body }> {
+  const raw = options.body === undefined ? "" : JSON.stringify(options.body);
+  const signed = options.harness ?? (options.person ?? ws.arjun).sign(method, path, raw);
+  const response = await ws.gateway.app.fetch(
+    new Request(`${BASE}${path}`, {
+      method,
+      headers: { "content-type": "application/json", ...signed },
+      ...(raw === "" ? {} : { body: raw }),
+    }),
+  );
+  return { status: response.status, body: (await response.json()) as Body };
+}
+
+const scout = () => ws.scout.participantId;
+const asScout = () => ws.scout.headers;
+
+async function declare(capabilities = ["agents", "heartbeats"]): Promise<void> {
+  const declared = await call("PATCH", `/v1/harnesses/${scout()}`, { body: { capabilities } });
+  expect(declared.status).toBe(200);
+}
+
+async function registerAgent(name = "Lathe 1"): Promise<string> {
+  const answer = await call("POST", `/v1/harnesses/${scout()}/agents`, {
+    harness: asScout(),
+    body: { key: `k-${name}`, name },
+  });
+  return String(answer.body["agent_id"]);
+}
+
+/** An agent whose heartbeat is off, every half hour when on, as an adapter sends it. */
+const copy = (extra: Body = {}): Body => ({
+  on: false,
+  every: 30,
+  choices: [15, 30, 60, 120, 240, 720, 1440],
+  editable: true,
+  ...extra,
+});
+
+const sendCopy = (agentId: string, extra: Body = {}) =>
+  call("PUT", `/v1/agents/${agentId}/heartbeat`, { harness: asScout(), body: copy(extra) });
+
+const change = (agentId: string, body: Body, person?: TestPerson) =>
+  call("POST", `/v1/agents/${agentId}/heartbeat/changes`, {
+    body,
+    ...(person ? { person } : {}),
+  });
+
+const read = (agentId: string, person?: TestPerson) =>
+  call("GET", `/v1/agents/${agentId}/heartbeat`, person ? { person } : {});
+
+async function scoutSocket(accepts: string[]) {
+  const socket = new WebSocket(`ws://127.0.0.1:${port}/v1/ws`, { headers: ws.scout.headers });
+  const frames: Body[] = [];
+  socket.on("message", (data) => frames.push(JSON.parse(data.toString())));
+  await new Promise<void>((resolve, reject) => {
+    socket.once("open", () => resolve());
+    socket.once("error", reject);
+  });
+  socket.send(
+    JSON.stringify({
+      frame: "hello",
+      protocol: { min: 1, max: 1 },
+      client: { name: "scout", version: "0" },
+      accepts,
+    }),
+  );
+  await until(() => frames.length > 0);
+  return { socket, frames };
+}
+
+async function until(done: () => boolean): Promise<void> {
+  for (let i = 0; i < 200 && !done(); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/** A declared harness, one agent with its copy sent, and a socket that hears changes. */
+async function ready() {
+  await declare();
+  const agentId = await registerAgent();
+  expect((await sendCopy(agentId)).status).toBe(200);
+  const hears = await scoutSocket(["heartbeats"]);
+  return { agentId, hears };
+}
+
+describe("an agent's heartbeat, as its harness sends it (ADR 0143)", () => {
+  it("is read by the harness's owner, as sent, and only once the harness declares heartbeats", async () => {
+    const agentId = await registerAgent();
+    expect((await sendCopy(agentId, { on: true })).status).toBe(200);
+    const undeclared = await read(agentId);
+    expect(undeclared.status).toBe(404);
+    expect(JSON.stringify(undeclared.body)).toContain("doesn't share heartbeats");
+
+    await declare();
+    const seen = await read(agentId);
+    expect(seen.status).toBe(200);
+    expect(seen.body).toEqual({
+      agent_id: agentId,
+      harness_id: scout(),
+      ...copy({ on: true }),
+      read_at: expect.any(String),
+      away: true,
+    });
+  });
+
+  it("is a 404 until the harness has sent it", async () => {
+    await declare();
+    const agentId = await registerAgent();
+    const unsent = await read(agentId);
+    expect(unsent.status).toBe(404);
+    expect(JSON.stringify(unsent.body)).toContain("hasn't said whether this agent has a heartbeat");
+  });
+
+  it("is read and changed by an admin, and by nobody else but the owner", async () => {
+    const { agentId, hears } = await ready();
+    const priya = await ws.addPerson("Priya", "admin");
+    expect((await read(agentId, priya)).status).toBe(200);
+    const member = await ws.addPerson("Mo", "member");
+    expect((await read(agentId, member)).status).toBe(403);
+    expect((await change(agentId, { on: true }, member)).status).toBe(403);
+    expect((await change(agentId, { on: true }, priya)).status).toBe(202);
+    hears.socket.close();
+  });
+
+  it("is sent by the agent's own harness only", async () => {
+    await declare();
+    const agentId = await registerAgent();
+    const byPerson = await call("PUT", `/v1/agents/${agentId}/heartbeat`, { body: copy() });
+    expect(byPerson.status).toBe(403);
+
+    const raw = JSON.stringify({ name: "Kiln" });
+    const added = await ws.gateway.app.fetch(
+      new Request(`${BASE}/v1/harnesses`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...ws.arjun.sign("POST", "/v1/harnesses", raw),
+        },
+        body: raw,
+      }),
+    );
+    const kiln = { authorization: `Bearer ${((await added.json()) as { token: string }).token}` };
+    const another = await call("PUT", `/v1/agents/${agentId}/heartbeat`, {
+      harness: kiln,
+      body: copy(),
+    });
+    expect(another.status).toBe(403);
+    expect(JSON.stringify(another.body)).toContain("isn't yours");
+  });
+
+  it("refuses an interval not among its choices, and a reason for one that can be changed", async () => {
+    await declare();
+    const agentId = await registerAgent();
+    expect((await sendCopy(agentId, { every: 45 })).status).toBe(422);
+    expect((await sendCopy(agentId, { choices: [60, 30] })).status).toBe(422);
+    expect((await sendCopy(agentId, { why_read_only: "Lathe keeps it." })).status).toBe(422);
+  });
+
+  it("is forgotten with the agent", async () => {
+    await declare();
+    const agentId = await registerAgent();
+    await sendCopy(agentId);
+    expect((await call("DELETE", `/v1/agents/${agentId}`)).status).toBe(200);
+    expect((await read(agentId)).status).toBe(404);
+    const rows = await ws.db.selectFrom("agent_heartbeats").selectAll().execute();
+    expect(rows).toEqual([]);
+  });
+
+  it("is forgotten with its harness", async () => {
+    await declare();
+    await sendCopy(await registerAgent());
+    expect((await ws.db.selectFrom("agent_heartbeats").selectAll().execute()).length).toBe(1);
+    const removed = await call("DELETE", `/v1/harnesses/${scout()}`);
+    expect(removed.status).toBe(200);
+    expect(await ws.db.selectFrom("agent_heartbeats").selectAll().execute()).toEqual([]);
+  });
+});
+
+describe("a change, down the harness's socket (ADR 0143)", () => {
+  it("goes to the socket that hears heartbeats, waits, and is saved by the copy that answers it", async () => {
+    const { agentId, hears } = await ready();
+    const deaf = await scoutSocket(["models"]);
+
+    const asked = await change(agentId, { on: true, every: 60 });
+    expect(asked.status).toBe(202);
+    expect(asked.body).toMatchObject({ on: true, every: 60, state: "waiting" });
+    const changeId = String(asked.body["change_id"]);
+    expect(changeId).toMatch(/^chg_/);
+    await until(() => hears.frames.some((f) => f["frame"] === "heartbeat.change"));
+    expect(hears.frames.find((f) => f["frame"] === "heartbeat.change")).toEqual({
+      frame: "heartbeat.change",
+      change_id: changeId,
+      harness_id: scout(),
+      agent_id: agentId,
+      on: true,
+      every: 60,
+      asked_by: ws.arjun.participantId,
+      asked_at: expect.any(String),
+    });
+    expect(deaf.frames.some((f) => f["frame"] === "heartbeat.change")).toBe(false);
+
+    const waiting = await read(agentId);
+    expect(waiting.body).toMatchObject({ away: false, change: { state: "waiting" } });
+
+    const answered = await sendCopy(agentId, { on: true, every: 60, answers: changeId });
+    expect(answered.status).toBe(200);
+    const saved = await read(agentId);
+    expect(saved.body).toMatchObject({
+      on: true,
+      every: 60,
+      change: { change_id: changeId, state: "saved", answered_at: expect.any(String) },
+    });
+    expect(saved.body["answers"]).toBeUndefined();
+    hears.socket.close();
+    deaf.socket.close();
+  });
+
+  it("names the interval it has when the person names none", async () => {
+    const { agentId, hears } = await ready();
+    const asked = await change(agentId, { on: true });
+    expect(asked.status).toBe(202);
+    const changeId = String(asked.body["change_id"]);
+    await until(() => hears.frames.some((f) => f["change_id"] === changeId));
+    expect(hears.frames.find((f) => f["change_id"] === changeId)).toMatchObject({
+      on: true,
+      every: 30,
+    });
+    hears.socket.close();
+  });
+
+  it("is failed, with the harness's words, by the copy that refuses it", async () => {
+    const { agentId, hears } = await ready();
+    const asked = await change(agentId, { on: true, every: 15 });
+    const changeId = String(asked.body["change_id"]);
+    await sendCopy(agentId, {
+      refuses: { change_id: changeId, message: "Lathe can't beat that often." },
+    });
+    expect((await read(agentId)).body).toMatchObject({
+      on: false,
+      every: 30,
+      change: { state: "failed", message: "Lathe can't beat that often." },
+    });
+    hears.socket.close();
+  });
+
+  it("refuses an interval not among the choices", async () => {
+    const { agentId, hears } = await ready();
+    const stranger = await change(agentId, { on: true, every: 45 });
+    expect(stranger.status).toBe(422);
+    expect(JSON.stringify(stranger.body)).toContain("isn't one this agent's heartbeat offers");
+    expect((await change(agentId, { on: true, every: 0 })).status).toBe(422);
+    expect(hears.frames.some((f) => f["frame"] === "heartbeat.change")).toBe(false);
+    hears.socket.close();
+  });
+
+  it("refuses an agent its harness won't let Chips change, in the harness's words", async () => {
+    await declare();
+    const agentId = await registerAgent();
+    const why = "Lathe keeps this one's heartbeat. Change it in Lathe.";
+    await sendCopy(agentId, { editable: false, why_read_only: why });
+    const hears = await scoutSocket(["heartbeats"]);
+    const asked = await change(agentId, { on: true });
+    expect(asked.status).toBe(422);
+    expect(asked.body).toMatchObject({ error: { message: why } });
+    hears.socket.close();
+  });
+
+  it("is refused at once when nothing of the harness hears it: no queue", async () => {
+    await declare();
+    const agentId = await registerAgent();
+    await sendCopy(agentId);
+    const away = await change(agentId, { on: true });
+    expect(away.status).toBe(422);
+    expect(away.body).toMatchObject({ error: { refusal: "harness_away" } });
+    expect(JSON.stringify(away.body)).toContain("is away");
+    expect((await read(agentId)).body).toMatchObject({ away: true, change: { state: "failed" } });
+  });
+
+  it("is refused while the last one waits inside its minute", async () => {
+    const { agentId, hears } = await ready();
+    expect((await change(agentId, { on: true })).status).toBe(202);
+    const again = await change(agentId, { on: true, every: 60 });
+    expect(again.status).toBe(422);
+    expect(again.body).toMatchObject({ error: { refusal: "change_waiting" } });
+    hears.socket.close();
+  });
+
+  it("is refused for a harness that doesn't declare heartbeats, or hasn't sent the agent's", async () => {
+    await declare(["agents"]);
+    const agentId = await registerAgent();
+    await sendCopy(agentId);
+    expect((await change(agentId, { on: true })).status).toBe(404);
+    await declare();
+    const unsent = await registerAgent("Lathe 2");
+    expect((await change(unsent, { on: true })).status).toBe(404);
+  });
+
+  it("refuses an answer to a change not asked of that agent", async () => {
+    const { agentId, hears } = await ready();
+    const other = await registerAgent("Lathe 2");
+    await sendCopy(other);
+    const asked = await change(agentId, { on: true });
+    const wrong = await sendCopy(other, { answers: String(asked.body["change_id"]) });
+    expect(wrong.status).toBe(422);
+    expect(JSON.stringify(wrong.body)).toContain("isn't one asked of this agent");
+    hears.socket.close();
+  });
+});
+
+describe("a change not answered", () => {
+  const waiting = {
+    id: "chg_01K4ZQPX00000000000000000Z",
+    on: true,
+    every: 60,
+    askedBy: "usr_1",
+    askedAt: "2026-10-09T17:00:00.000Z",
+    state: "waiting" as const,
+    message: null,
+    answeredAt: null,
+  };
+
+  it("reads as missed once its minute has passed", () => {
+    const at = (iso: string) => viewOfHeartbeatChange(waiting, Date.parse(iso)).state;
+    expect(at("2026-10-09T17:00:59.000Z")).toBe("waiting");
+    expect(at("2026-10-09T17:01:01.000Z")).toBe("missed");
+  });
+
+  /** Ask a change and let its minute pass: the stored ask is made older than a minute. */
+  async function missedChange(agentId: string): Promise<string> {
+    const asked = await change(agentId, { on: true, every: 60 });
+    const row = await ws.db
+      .selectFrom("agent_heartbeats")
+      .select("change")
+      .executeTakeFirstOrThrow();
+    const late = { ...JSON.parse(row.change ?? "{}"), askedAt: "2026-01-01T00:00:00.000Z" };
+    await ws.db
+      .updateTable("agent_heartbeats")
+      .set({ change: JSON.stringify(late) })
+      .execute();
+    expect((await read(agentId)).body).toMatchObject({ change: { state: "missed" } });
+    return String(asked.body["change_id"]);
+  }
+
+  it("still counts when the harness answers after its minute", async () => {
+    const { agentId, hears } = await ready();
+    const changeId = await missedChange(agentId);
+    await sendCopy(agentId, { on: true, every: 60, answers: changeId });
+    expect((await read(agentId)).body).toMatchObject({
+      on: true,
+      every: 60,
+      change: { change_id: changeId, state: "saved" },
+    });
+    hears.socket.close();
+  });
+
+  it("lets a new change be asked", async () => {
+    const { agentId, hears } = await ready();
+    const missed = await missedChange(agentId);
+    const next = await change(agentId, { on: false });
+    expect(next.status).toBe(202);
+    expect(next.body["change_id"]).not.toBe(missed);
+    hears.socket.close();
+  });
+});
+
+describe("a check-in (ADR 0143)", () => {
+  /** The newest event in the log, as it was kept. */
+  async function lastPost(): Promise<Record<string, unknown>> {
+    const head = await ws.gateway.deps.store.head(ws.workspaceId);
+    const page = await ws.gateway.deps.store.since(ws.workspaceId, head - 1, 1);
+    return page.events[0]?.payload ?? {};
+  }
+
+  it("is a harness's message, kept as its heartbeat's", async () => {
+    const posted = await ws.gateway.app.fetch(
+      new Request(`${BASE}/v1/harnesses/${scout()}/events`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...asScout() },
+        body: JSON.stringify({
+          type: "message.post",
+          space_id: ws.spaceId,
+          text: "It reaches 94°F by 3 PM, the hour you said you'd run.",
+          heartbeat: true,
+          idempotency_key: "beat-1",
+        }),
+      }),
+    );
+    expect(posted.status, await posted.clone().text()).toBe(201);
+    expect(await lastPost()).toMatchObject({ type: "message.post", heartbeat: true });
+  });
+
+  it("is refused from a person", async () => {
+    const principal: Principal = {
+      kind: "person",
+      participantId: ws.arjun.participantId,
+      workspaceId: ws.workspaceId,
+      displayName: "Arjun",
+      via: "device_key",
+    };
+    const posted = await ws.gateway.deps.submitEvent({
+      principal,
+      event: {
+        type: "message.post",
+        space_id: ws.spaceId,
+        text: "Checking in for the agent.",
+        heartbeat: true,
+        idempotency_key: "person-beat-1",
+      },
+    });
+    expect(posted).toMatchObject({ ok: false, error: { kind: "wrong_direction" } });
+  });
+});

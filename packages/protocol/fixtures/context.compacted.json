@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "type": "context.compacted",
+  "id": "evt_01K4ZQPX0000000000000000C7",
+  "ts": "2026-10-09T18:30:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "agent",
+    "id": "agt_01K4ZQPX0000000000000000A1"
+  },
+  "from": 214000,
+  "to": 21000,
+  "window": 272000,
+  "by": "itself"
+}

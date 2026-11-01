@@ -1,0 +1,374 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Chips · The time that leaves a bubble</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400..700&display=swap">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{color-scheme:light;
+  --bg:#FBFBF8;--surface:#FFFFFF;--surface-2:#F2F2EC;--surface-3:#E7E7DF;--line:#E4E4DC;--line-2:#C4C4BA;
+  --ink:#14161B;--ink-2:#454851;--ink-3:#666973;--gray:#8C8F98;--green:#009B5C;--blue:#1D6AFF;--gold:#F7C431;
+  --font-display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --font-body:"Instrument Sans",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --font-ios:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Helvetica,Arial,sans-serif}
+:root[data-theme="dark"]{color-scheme:dark;
+  --bg:#0F1013;--surface:#191B20;--surface-2:#20232A;--surface-3:#2B2E37;--line:#2A2D35;--line-2:#454953;
+  --ink:#F1F2ED;--ink-2:#BDBFC7;--ink-3:#8A8D97;--gray:#6B6E78;--green:#00BA7A;--blue:#5F91FF}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1340px;margin:0 auto;padding:0 24px 90px}
+h1{font-family:var(--font-display);font-size:clamp(28px,4vw,38px);margin:28px 0 6px;letter-spacing:-.02em}
+p{color:var(--ink-2);max-width:76ch}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:5px;color:var(--ink)}
+.ctl{position:sticky;top:0;z-index:25;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:18px 0 4px;padding:10px 0;background:color-mix(in srgb,var(--bg) 92%,transparent)}
+.ctl button{font:inherit;font-size:13px;font-weight:600;padding:6px 13px;border-radius:999px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);cursor:pointer}
+.ctl button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.opts{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;margin:22px 0 8px}
+.opt{display:grid;gap:10px;width:402px;flex:none}
+.opt h3{font-family:var(--font-display);font-size:18px;margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tag{font:11px var(--font-mono);border-radius:999px;padding:2px 8px;background:var(--surface-2);color:var(--ink-3);font-weight:500}
+.tag.pick{background:color-mix(in srgb,var(--green) 18%,transparent);color:var(--green)}
+.why{font-size:13.5px;color:var(--ink-3);line-height:1.55}
+.why b{color:var(--ink-2)}
+.cost{font:12px/1.5 var(--font-mono);color:var(--ink-3);border-top:1px dashed var(--line-2);padding-top:8px}
+
+/* the phone: iPhone 17, in points */
+.phone{position:relative;width:402px;height:874px;border-radius:54px;overflow:hidden;background:var(--bg);
+  border:1px solid var(--line);font-family:var(--font-ios);box-shadow:0 24px 50px -28px rgba(0,0,0,.45)}
+.lines{position:absolute;left:0;right:0;bottom:118px;display:flex;flex-direction:column;padding:0 16px;will-change:transform}
+.row{position:relative;display:flex;margin-top:16px}
+.row.joins{margin-top:4px}
+.row.me{justify-content:flex-end}
+.bw{position:relative;max-width:78%;display:flex;flex-direction:column}
+.bub{position:relative;z-index:1;border-radius:18px;padding:9px 14px;font-size:17px;line-height:22px;overflow:hidden;background:var(--surface-2);color:var(--ink)}
+.mine{color:#fff;background-image:linear-gradient(#6651A8 0%,#34669E 50%,#0B737D 100%);background-size:100% 874px;background-color:#0B737D}
+.stamp{display:block;text-align:right;font-size:12px;line-height:14.5px;color:var(--ink-2)}
+.mine .stamp,.skirt.mine .stamp{color:rgba(255,255,255,.9)}
+/* the skirt: the foot the bubble had, behind it, tucking up under the words */
+.skirt{position:absolute;top:0;z-index:0;border-radius:18px;background-color:var(--surface-2);will-change:transform}
+.skirt.mine{background-color:#0B737D}
+/* the time itself goes in front: behind, the bubble's own padding would hide its top half */
+.ghost{position:absolute;top:0;z-index:2;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;padding:0 14px 9px;pointer-events:none;will-change:transform,opacity}
+.margin{text-align:center;font-size:13px;color:var(--ink-3);padding:6px 0 0;margin-top:16px}
+.think{display:flex;margin-top:16px}
+.think .bub{font-size:15px;line-height:20px;display:flex;gap:10px;align-items:center;color:var(--ink-2)}
+.dots{display:inline-flex;gap:3px}
+.dots i{width:6px;height:6px;border-radius:50%;background:var(--gold);display:block;animation:dot 1.1s infinite ease-in-out}
+.dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
+@keyframes dot{0%,80%,100%{opacity:.35}40%{opacity:1}}
+
+.top{position:absolute;left:0;right:0;top:0;z-index:6;height:128px;
+  background:linear-gradient(var(--bg) 70%,color-mix(in srgb,var(--bg) 0%,transparent))}
+.status{display:flex;justify-content:space-between;padding:18px 32px 0 42px;font-size:16px;font-weight:600}
+.nav{display:flex;justify-content:center;padding:12px 0 0}
+.cap{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 22px;text-align:center;line-height:1.2}
+.cap b{display:block;font-size:16px}.cap small{font-size:12px;color:var(--ink-3)}
+.foot{position:absolute;left:0;right:0;bottom:0;z-index:6;padding:12px 12px 46px;display:flex;gap:8px;align-items:flex-end;background:var(--bg)}
+.plus{width:50px;height:50px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;font-size:26px;color:var(--ink-2);flex:none}
+.field{flex:1;min-height:50px;border-radius:25px;border:1px solid var(--line);background:var(--surface);display:flex;align-items:center;gap:8px;padding:9px 9px 9px 20px}
+.words{flex:1;font-size:17px;line-height:23px;min-height:23px;color:var(--ink)}
+.send{width:32px;height:32px;border-radius:50%;background:var(--gray);opacity:.55;display:grid;place-items:center;color:#fff;font-weight:700}
+.phone.typing .send{background:var(--blue);opacity:1}
+.fly{position:absolute;inset:0;z-index:8;pointer-events:none}
+.copy{position:absolute;left:0;top:0;border-radius:18px;padding:9px 14px;font-size:17px;line-height:22px;will-change:transform}
+.label{position:absolute;left:14px;top:132px;z-index:9;font:600 13px var(--font-ios);padding:4px 10px;border-radius:999px;background:color-mix(in srgb,var(--ink) 86%,transparent);color:var(--bg)}
+</style>
+
+<div class="wrap">
+<h1>The time that leaves a bubble</h1>
+<p>When a second message joins the one before it, that one's time goes: the time sits on the last bubble of a run. On your phone it goes in one frame, and the bubble's foot and its rounded corner go with it — about 15&nbsp;pt, filmed on the simulator. The three phones below run the same minute: two messages from you in a row, then two from the harness. Slow motion shows the shape of each.</p>
+
+<div class="ctl">
+  <button id="t-theme" aria-pressed="true">Dark</button>
+  <button id="t-slow" aria-pressed="false">Slow motion ×4</button>
+  <button id="t-run" aria-pressed="true">Playing</button>
+</div>
+
+<div class="opts">
+  <div class="opt">
+    <h3>Now <span class="tag">on your phone</span></h3>
+    <div class="phone" id="p-now"></div>
+    <div class="why">The time and the foot go the moment you tap Send, while the words are still in the field.</div>
+  </div>
+  <div class="opt">
+    <h3>A · The foot tucks up <span class="tag pick">recommended</span></h3>
+    <div class="phone" id="p-tuck"></div>
+    <div class="why"><b>The time fades and the bubble closes up under its words</b> — shorter, and narrower too where the time was the widest line (a "Wait", an "On it.") on the spring of what lands under it: the send's for yours, so it moves with the room and the flight; the arrival's for a harness's first reply when its second comes in. The corner closes as the foot arrives.</div>
+    <div class="cost">Cost: about 100 lines in Line.tsx — the old bubble behind the new one, shrinking to it, and its time in front. Transforms only: nothing is laid out per frame, so nothing new for the frame drops. The bubble is measured twice, as it was and as it is, when its time leaves. (Built as ADR 0073: in the app a narrower bubble of yours also slides home from its old left edge, so its words stay put, which this mock does not show.)</div>
+  </div>
+  <div class="opt">
+    <h3>B · Every bubble keeps its time</h3>
+    <div class="phone" id="p-keep"></div>
+    <div class="why">Nothing leaves, so nothing jumps, as in Telegram. A run of four says the same minute four times. The foot's corner still closes in one frame, 13&nbsp;pt of rounding.</div>
+    <div class="cost">Cost: one line. Undoes "the time on the last alone" from the bubble design (ADR 0050).</div>
+  </div>
+</div>
+</div>
+
+<script>
+const UP = { k: 130, c: 19 };
+const IOS = { k: 320, c: 32 };
+const STEADY = 0.02;
+let slow = 1;
+let playing = true;
+
+class Spring {
+  constructor(p, x = 0) { this.p = p; this.x = x; this.v = 0; }
+  get moving() { return this.x !== 0 || this.v !== 0; }
+  step(dt) {
+    if (!this.moving) return;
+    this.v += (-this.p.k * this.x - this.p.c * this.v) * dt;
+    this.x += this.v * dt;
+    if (Math.abs(this.x) < 0.4 && Math.abs(this.v) < 20) { this.x = 0; this.v = 0; }
+  }
+}
+
+const SCRIPT = [
+  [0.9, "type", "thanks"],
+  [1.6, "send"],
+  [2.8, "type", "and the PO number too"],
+  [3.3, "send"],
+  [4.6, "think"],
+  [5.6, "reply", "On it."],
+  [6.5, "reply", "PO-4471, sent to you both."],
+  [9.2, "reset"],
+];
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+class Phone {
+  constructor(root, mode) {
+    this.root = root; this.mode = mode;
+    root.innerHTML = "";
+    const top = el("div", "top");
+    top.innerHTML = '<div class="status"><span>9:41</span><span>●●●</span></div><div class="nav"><div class="cap"><b>PO-4471</b><small>Scout</small></div></div>';
+    const foot = el("div", "foot");
+    foot.innerHTML = '<div class="plus">+</div><div class="field"><div class="words"></div><div class="send">↑</div></div>';
+    this.lines = el("div", "lines");
+    this.fly = el("div", "fly");
+    root.append(this.lines, top, foot, this.fly);
+    const label = { now: "Now", tuck: "A", keep: "B" }[mode];
+    root.append(el("div", "label", label));
+    this.words = foot.querySelector(".words");
+    this.room = new Spring(UP);
+    this.moving = []; // things stepping each frame
+    this.reset();
+  }
+  reset() {
+    this.lines.innerHTML = ""; this.fly.innerHTML = ""; this.moving = []; this.room = new Spring(UP);
+    this.items = [];
+    this.lines.append(el("div", "margin", "Today 10:52 AM"));
+    this.add("them", "Morning. The Northwind invoice is in.", "10:52 AM", true);
+    this.add("me", "Great, send it over", "10:53 AM", true);
+    this.words.textContent = ""; this.root.classList.remove("typing");
+    this.thinking = null;
+    this.draw();
+  }
+  add(who, text, time, shown) {
+    const row = el("div", `row ${who}`);
+    const bw = el("div", "bw");
+    const bub = el("div", `bub ${who === "me" ? "mine" : ""}`);
+    bub.append(el("span", "tx", text));
+    const stamp = el("span", "stamp", time);
+    bub.append(stamp);
+    bw.append(bub); row.append(bw);
+    if (this.thinking) this.lines.insertBefore(row, this.thinking); else this.lines.append(row);
+    const item = { who, row, bw, bub, stamp, time, stamped: true, shown };
+    if (!shown) bub.style.opacity = "0";
+    this.items.push(item);
+    return item;
+  }
+  // The runs: corners close where one author's bubbles meet; the time on the last alone.
+  place() {
+    const its = this.items;
+    its.forEach((it, i) => {
+      const before = its[i - 1], after = its[i + 1];
+      const joinsUp = before && before.who === it.who;
+      const joinsDown = after && after.who === it.who;
+      it.row.classList.toggle("joins", !!joinsUp);
+      it.row.style.zIndex = String(100 - i);
+      const side = it.who === "me" ? "Right" : "Left";
+      it.bub.style[`borderTop${side}Radius`] = joinsUp ? "5px" : "18px";
+      it.bub.style[`borderBottom${side}Radius`] = joinsDown ? "5px" : "18px";
+      const stamped = this.mode === "keep" || !joinsDown;
+      if (it.stamped && !stamped) this.unstamp(it);
+      it.stamped = stamped;
+    });
+  }
+  unstamp(it) {
+    const W = it.bub.offsetWidth, H = it.bub.offsetHeight;
+    it.stamp.remove();
+    if (this.mode !== "tuck") return;
+    const w = it.bub.offsetWidth, h = it.bub.offsetHeight;
+    const mine = it.who === "me";
+    const side = mine ? "right" : "left";
+    // The bubble as it was, behind it, shrinking to it from the corner that stays put.
+    const skirt = el("div", `skirt ${mine ? "mine" : ""}`);
+    Object.assign(skirt.style, { width: `${W}px`, height: `${H}px`, [side]: "0", transformOrigin: mine ? "100% 0" : "0 0" });
+    // Its time, in front, riding the corner that moves.
+    const ghost = el("div", "ghost");
+    Object.assign(ghost.style, { width: `${W}px`, height: `${H}px`, [side]: "0" });
+    const time = el("span", "stamp", it.time);
+    if (mine) time.style.color = "rgba(255,255,255,.9)";
+    ghost.append(time);
+    it.bw.prepend(skirt);
+    it.bw.append(ghost);
+    // On the spring of what lands under it: a send's for yours, an arrival's for a reply.
+    const s = new Spring(mine ? UP : IOS, 1);
+    this.moving.push({
+      done: () => !s.moving,
+      step: (dt) => {
+        s.step(dt);
+        const q = 1 - s.x; // nought at the start, one tucked
+        skirt.style.transform = `scale(${1 + (w / W - 1) * q}, ${1 + (h / H - 1) * q})`;
+        ghost.style.transform = `translate(${(mine ? 0 : w - W) * q}px, ${(h - H) * q}px)`;
+        ghost.style.opacity = String(Math.max(0, 1 - q / 0.4));
+      },
+      end: () => { skirt.remove(); ghost.remove(); },
+    });
+  }
+  // Hold the line above what lands: whatever it moved by, the room takes up and settles away.
+  land(change) {
+    const anchor = this.items[this.items.length - 1];
+    const before = anchor ? anchor.bub.getBoundingClientRect().top : 0;
+    change();
+    this.place();
+    const after = anchor ? anchor.bub.getBoundingClientRect().top : 0;
+    this.room.x += before - after;
+    this.draw();
+  }
+  type(text) {
+    let shown = 0;
+    this.root.classList.add("typing");
+    this.moving.push({
+      done: () => shown >= text.length,
+      step: (dt) => { shown += dt / 0.022; this.words.textContent = text.slice(0, Math.ceil(shown)); },
+      end: () => { this.words.textContent = text; },
+    });
+  }
+  send() {
+    const text = this.words.textContent;
+    const from = this.words.getBoundingClientRect();
+    let item;
+    this.land(() => { item = this.add("me", text, "10:54 AM", false); });
+    this.words.textContent = ""; this.root.classList.remove("typing");
+    const copy = el("div", "copy mine", text);
+    copy.style.background = "transparent";
+    this.fly.append(copy);
+    const phone = this.root.getBoundingClientRect();
+    const target = () => item.bub.getBoundingClientRect();
+    const t0 = target();
+    const x = new Spring(UP, from.left - 14 - t0.left);
+    const y = new Spring(UP, from.top - 9 - t0.top);
+    let fade = -1;
+    this.moving.push({
+      done: () => fade >= 1,
+      step: (dt) => {
+        x.step(dt); y.step(dt);
+        const t = target();
+        copy.style.transform = `translate(${t.left - phone.left + x.x}px, ${t.top - phone.top + y.x}px)`;
+        if (fade < 0) {
+          copy.style.width = `${t.width}px`;
+          copy.style.background = "";
+          copy.style.backgroundImage = "linear-gradient(#6651A8 0%,#34669E 50%,#0B737D 100%)";
+          copy.style.backgroundSize = "100% 874px";
+          copy.style.backgroundPosition = `0 ${-(t.top - phone.top + y.x)}px`;
+          copy.style.color = "#fff";
+          copy.textContent = text;
+          if (!x.moving && !y.moving) { fade = 0; item.bub.style.opacity = "1"; }
+        } else {
+          fade += dt / 0.12;
+          copy.style.opacity = String(Math.max(0, 1 - fade));
+        }
+      },
+      end: () => copy.remove(),
+    });
+  }
+  think() {
+    this.land(() => {
+      this.thinking = el("div", "think");
+      this.thinking.innerHTML = '<div class="bub"><span class="dots"><i></i><i></i><i></i></span>Reading what was asked</div>';
+      this.lines.append(this.thinking);
+    });
+  }
+  reply(text) {
+    let item;
+    this.land(() => { item = this.add("them", text, "10:55 AM", true); });
+    const s = new Spring(IOS, 1);
+    this.moving.push({
+      done: () => !s.moving,
+      step: (dt) => { s.step(dt); item.row.style.opacity = String(1 - s.x); item.row.style.transform = `translateY(${10 * s.x}px)`; },
+      end: () => { item.row.style.opacity = ""; item.row.style.transform = ""; },
+    });
+  }
+  draw() {
+    this.lines.style.transform = `translateY(${this.room.x}px)`;
+    const top = this.root.getBoundingClientRect().top;
+    for (const m of this.root.querySelectorAll(".mine:not(.copy)")) {
+      m.style.backgroundPosition = `0 ${-(m.getBoundingClientRect().top - top)}px`;
+    }
+  }
+  step(dt) {
+    this.room.step(dt);
+    for (const m of this.moving) m.step(dt);
+    for (const m of this.moving.filter((each) => each.done())) m.end();
+    this.moving = this.moving.filter((each) => !each.done());
+    this.draw();
+  }
+}
+
+const phones = [new Phone(document.getElementById("p-now"), "now"), new Phone(document.getElementById("p-tuck"), "tuck"), new Phone(document.getElementById("p-keep"), "keep")];
+let clock = 0, next = 0, last = performance.now();
+function advance(dt) {
+  clock += dt;
+  while (next < SCRIPT.length && clock >= SCRIPT[next][0]) {
+    const [, what, arg] = SCRIPT[next];
+    for (const p of phones) {
+      if (what === "reset") p.reset(); else p[what](arg);
+    }
+    next += 1;
+    if (what === "reset") { clock = 0; next = 0; break; }
+  }
+  for (const p of phones) p.step(dt);
+}
+function frame(now) {
+  const real = Math.min((now - last) / 1000, STEADY);
+  last = now;
+  if (playing) advance(real / slow);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+// For stills: the minute from its start to `t` seconds, at 120 frames a second, then held.
+window.runTo = (t) => {
+  playing = false;
+  for (const p of phones) p.reset();
+  clock = 0; next = 0;
+  while (clock < t) advance(1 / 120);
+};
+
+const theme = document.getElementById("t-theme");
+document.documentElement.dataset.theme = "dark";
+theme.onclick = () => {
+  const dark = theme.getAttribute("aria-pressed") !== "true";
+  theme.setAttribute("aria-pressed", String(dark));
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+};
+const slowButton = document.getElementById("t-slow");
+slowButton.onclick = () => {
+  slow = slow === 1 ? 4 : 1;
+  slowButton.setAttribute("aria-pressed", String(slow !== 1));
+};
+const run = document.getElementById("t-run");
+run.onclick = () => {
+  playing = !playing;
+  run.setAttribute("aria-pressed", String(playing));
+  run.textContent = playing ? "Playing" : "Paused";
+};
+</script>

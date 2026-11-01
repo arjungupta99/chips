@@ -1,0 +1,46 @@
+# A feedback prompt (ADR 0237): what you saw, what you'd change, and how to tell it's done.
+# Each field's id is the name a link fills it by: the apps' `feedbackLink()` fills `version`, and
+# chipschat.ai/feedback.md tells an agent to fill the rest. `tools/guardrails/feedback-form.test.ts`
+# holds them to that.
+name: Feedback prompt
+description: Chips doesn't take pull requests. Write the change you want the way you'd ask a coding agent to make it.
+labels: ["feedback-prompt"]
+body:
+  - type: textarea
+    id: saw
+    attributes:
+      label: What you saw
+      description: What you were doing, and what Chips did.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: What you'd change
+      description: The change, in your own words. You don't need to know the code.
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: How to tell it's done
+      description: What someone would do to check that it works.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Chips version
+      description: In the app, You → Version.
+  - type: input
+    id: credit
+    attributes:
+      label: Name in the release notes
+      description: Leave it empty to stay unnamed.
+  - type: checkboxes
+    id: grant
+    attributes:
+      label: Licence
+      options:
+        - label: The people who make Chips may use this prompt, and anything made from it, under any licence.
+          required: true

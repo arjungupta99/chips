@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+#
+# chips — the front door on this machine.
+#
+#   chips              open the Chips web app in your browser, with a code to pair it
+#   chips phone        rebuild the app, install it on the iPhone, and pair it
+#   chips phone sim    the same, in a booted simulator
+#   chips phone …      the rest of the phone tool: doctor, build, connect, server
+#   chips build mobile      the iOS app: the same as chips phone
+#   chips build mobile a    the Android app: build, install on a phone or the emulator, pair it
+#   chips <command>    the Chips CLI: serve, pair --issue, doctor, export, …
+#
+# The web app always opens at a loopback address on purpose: a browser makes its
+# device key only in a secure context, which 127.0.0.1 is and a LAN or tailnet
+# address is not. So this points the browser at 127.0.0.1 whatever the server
+# advertises to phones.
+#
+# This file is the checkout's, and `~/bin/chips` is a symlink to it — the same
+# arrangement as the other per-project commands on this machine. Editing it here
+# changes the command everywhere.
+#
+# Overrides: CHIPS_REPO (checkout to run from), CHIPS_PORT (the server's port),
+# CHIPS_BROWSER (the command that opens a URL; defaults to `open`).
+
+set -u
+
+# The checkout this file is in, so a symlink from anywhere still finds its own repo.
+here="${BASH_SOURCE[0]}"
+while [ -L "$here" ]; do
+  link="$(readlink "$here")"
+  case "$link" in
+    /*) here="$link" ;;
+    *) here="$(dirname "$here")/$link" ;;
+  esac
+done
+CHIPS_REPO="${CHIPS_REPO:-$(cd "$(dirname "$here")/../.." && pwd)}"
+port="${CHIPS_PORT:-4431}"
+
+# The phone is its own tool, not a CLI command: it drives Xcode, the device and the pairing.
+if [ "${1-}" = "phone" ]; then
+  shift
+  exec pnpm --silent -C "$CHIPS_REPO" phone "$@"
+fi
+
+# The app, by platform. iOS is the phone tool; Android is its own (`tools/phone/android.mjs`).
+if [ "${1-}" = "build" ] && [ "${2-}" = "mobile" ]; then
+  platform="${3-}"
+  shift 2
+  case "$platform" in
+    a | android)
+      shift
+      exec pnpm --silent -C "$CHIPS_REPO" phone:android "$@"
+      ;;
+    i | ios) shift ;;
+    "" | -*) ;;
+    *)
+      echo "Which phone: chips build mobile [i] … for iOS, chips build mobile a … for Android." >&2
+      exit 2
+      ;;
+  esac
+  exec pnpm --silent -C "$CHIPS_REPO" phone "$@"
+fi
+
+# Any other arguments mean the CLI, which is where they have always gone (`pnpm chips …`).
+if [ "$#" -gt 0 ]; then
+  exec pnpm -C "$CHIPS_REPO" chips "$@"
+fi
+
+# The browser shows whatever is on disk, and a build older than its source looks exactly like a
+# working one — the page opens, and quietly behaves like the day it was built. That is not
+# something to be told about, because nobody can see it. It is rebuilt.
+newest() { find "$1" -type f -print0 2>/dev/null | xargs -0 stat -f %m 2>/dev/null | sort -nr | head -1; }
+built="$(newest "$CHIPS_REPO/apps/web/dist")"
+written="$(newest "$CHIPS_REPO/apps/web/src")"
+if [ -z "$built" ] || { [ -n "$written" ] && [ "$written" -gt "$built" ]; }; then
+  echo "The browser app is older than the source it is built from. Building it."
+  if ! pnpm --silent -C "$CHIPS_REPO" run web:build >/dev/null; then
+    echo "That build failed. Run it on its own to see why:" >&2
+    echo "  pnpm -C \"$CHIPS_REPO\" run web:build" >&2
+    exit 1
+  fi
+fi
+
+url="http://127.0.0.1:${port}"
+# Nothing on the port is the one case with a single right answer: the launch agent, which is
+# also there after the next reboot. A server that is running and answering wrongly is somebody's
+# and is left alone.
+if ! curl -fsS -m 2 "${url}/v1/health" >/dev/null 2>&1; then
+  if lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "Something holds port ${port} and does not answer as Chips." >&2
+    echo "Find out what, and then: chips phone doctor" >&2
+    exit 1
+  fi
+  echo "Nothing is serving Chips on ${url}. Starting it, permanently."
+  pnpm --silent -C "$CHIPS_REPO" phone server || exit 1
+fi
+
+echo "Opening Chips at ${url}"
+"${CHIPS_BROWSER:-open}" "${url}"
+
+# A browser's device key belongs to the origin that made it, so this address asks to pair on its
+# first visit even when another browser, or this one on another port, is already in the workspace.
+# Pairing is once per browser, and the code it wants is this one.
+code=$(pnpm --silent -C "$CHIPS_REPO" chips pair --issue 2>/dev/null |
+  sed -n 's/^[[:space:]]*code[[:space:]]\{1,\}\([A-Z2-9]\{3\}-[A-Z2-9]\{3\}\)[[:space:]]*$/\1/p' |
+  head -1)
+if [ -n "$code" ]; then
+  echo "If it asks to pair this browser, the code is ${code}"
+else
+  echo "If it asks to pair this browser, a code comes from: chips pair --issue"
+fi

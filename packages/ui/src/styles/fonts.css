@@ -1,0 +1,15 @@
+/*
+ * The three faces the blueprint names, self-hosted. Bricolage Grotesque for headings and names,
+ * Instrument Sans for the interface, JetBrains Mono for receipts, ids and costs. Serving them
+ * from the app rather than a font service is what lets a Mac mini in a closet render the same
+ * page offline as a cluster does, and what keeps the content security policy strict (technical-
+ * plan 6.4). All three are under the SIL Open Font License, via Fontsource.
+ *
+ * Bricolage's optical-size axis is what gives large headings their character and small labels
+ * their legibility; the file that carries it is the one loaded.
+ */
+
+@import "@fontsource-variable/bricolage-grotesque/opsz.css";
+@import "@fontsource-variable/instrument-sans/index.css";
+@import "@fontsource-variable/instrument-sans/wght-italic.css";
+@import "@fontsource-variable/jetbrains-mono/index.css";

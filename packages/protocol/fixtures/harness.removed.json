@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "harness.removed",
+  "id": "evt_01K4ZQPX0000000000000000F1",
+  "ts": "2026-09-27T10:00:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "harness_id": "hrn_01K4ZQPX000000000000000004",
+  "display_name": "Scout",
+  "homes": ["spc_01K4ZQPX000000000000000002"],
+  "reason": "Only here for a test."
+}

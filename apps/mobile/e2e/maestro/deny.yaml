@@ -1,0 +1,38 @@
+# Deny, with a reason. The swipe denies at scope once and with no words; the reason needs the
+# ask's own screen, which is the point of having both.
+appId: ${APP_ID}
+# Maestro reads `${…}` as JavaScript, so the defaults are here, and `-e` still overrides them.
+env:
+  APP_ID: chat.chips.app
+  SPACE: PO-4471
+---
+- launchApp:
+    clearState: false
+
+# The app opens on Spaces; the ask stands at the foot of its room.
+- assertVisible: "Spaces"
+- tapOn:
+    text: "${SPACE}"
+- assertVisible:
+    text: ".* asks"
+
+# Open the ask in full.
+- tapOn: "Details"
+- assertVisible:
+    text: "Scout: .*"
+- assertVisible: "How far this yes reaches"
+
+# Deny opens the form; the words go to the harness.
+- tapOn: "Deny"
+- tapOn:
+    id: "deny-input"
+- inputText: "Wrong supplier this quarter"
+- tapOn:
+    text: "Deny"
+    index: 1
+
+# Back in the room, and the ask is gone from its foot.
+- assertVisible:
+    id: "composer"
+- assertNotVisible:
+    text: ".* asks"

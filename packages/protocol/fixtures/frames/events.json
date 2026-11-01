@@ -1,0 +1,39 @@
+{
+  "frame": "events",
+  "events": [
+    {
+      "v": 1,
+      "type": "run.status",
+      "id": "evt_01K4ZQPX000000000000000065",
+      "ts": "2026-09-02T14:22:01.004Z",
+      "workspace_id": "ws_01K4ZQPX000000000000000001",
+      "space_id": "spc_01K4ZQPX000000000000000002",
+      "actor": {
+        "kind": "harness",
+        "id": "hrn_01K4ZQPX000000000000000004"
+      },
+      "run_id": "run_01K4ZQPX000000000000000005",
+      "phase": "reading",
+      "verb_phrase": "Reading PO #4471\u2026",
+      "progress": 0.15,
+      "estimate_seconds": 40
+    },
+    {
+      "v": 1,
+      "type": "run.status",
+      "id": "evt_01K4ZQPX000000000000000066",
+      "ts": "2026-09-02T14:22:01.004Z",
+      "workspace_id": "ws_01K4ZQPX000000000000000001",
+      "space_id": "spc_01K4ZQPX000000000000000002",
+      "actor": {
+        "kind": "harness",
+        "id": "hrn_01K4ZQPX000000000000000004"
+      },
+      "run_id": "run_01K4ZQPX000000000000000005",
+      "phase": "writing",
+      "verb_phrase": "Drafting the reply\u2026",
+      "progress": 0.4,
+      "estimate_seconds": 40
+    }
+  ]
+}

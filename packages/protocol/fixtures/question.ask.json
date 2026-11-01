@@ -1,0 +1,37 @@
+{
+  "v": 1,
+  "type": "question.ask",
+  "id": "evt_01K4ZQPX000000000000000069",
+  "ts": "2026-09-02T14:22:05.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "harness",
+    "id": "hrn_01K4ZQPX000000000000000004"
+  },
+  "run_id": "run_01K4ZQPX000000000000000005",
+  "ask_id": "qst_01K4ZQPX000000000000000009",
+  "questions": [
+    {
+      "question_id": "delivery-window",
+      "prompt": "Northwind can ship on the 19th or the 26th. Which should I confirm?",
+      "options": [
+        {
+          "value": "19",
+          "label": "19 September",
+          "description": "The date on the PO."
+        },
+        {
+          "value": "26",
+          "label": "26 September",
+          "description": "A week later, but a full pallet."
+        }
+      ],
+      "multi_select": false,
+      "allow_free_text": true,
+      "default_value": "19"
+    }
+  ],
+  "timeout_seconds": 3600,
+  "on_no_answer": "use_default"
+}

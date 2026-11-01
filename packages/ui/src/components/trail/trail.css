@@ -1,0 +1,89 @@
+.ui-trail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ui-trail__hop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-trail__arrow {
+  color: var(--ink-3);
+  font-size: var(--text-md);
+}
+
+.ui-trail[data-size="small"],
+.ui-trail[data-size="small"] .ui-trail__hop {
+  gap: 4px;
+}
+
+.ui-trail[data-size="small"] .ui-trail__arrow {
+  font-size: var(--text-sm);
+}
+
+.ui-faces {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+/* Twenty pixels: a trail inside a line of words, as the composer's capsule and a fold's
+   header draw one. */
+.ui-faces[data-size="small"] .ui-avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+}
+
+.ui-faces[data-size="small"] .ui-avatar[data-kind="harness"] {
+  border-radius: 6px;
+}
+
+.ui-faces[data-size="small"] .ui-avatar[data-kind="harness"]::after {
+  border-radius: 9px;
+}
+
+/* Four or more as one mark (ADR 0113): the first four's colours in a square of four, in a face's
+   corner, and how many beside it. */
+.ui-faces__mark {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  overflow: hidden;
+  flex: none;
+}
+
+.ui-faces[data-size="small"] .ui-faces__mark {
+  width: 20px;
+  height: 20px;
+  border-radius: 8px;
+}
+
+.ui-faces__mark i {
+  display: block;
+}
+
+.ui-faces__count {
+  margin-left: 4px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+/* Several faces as one hop: overlapped, each cut from the one before by a ring of the ground it
+   stands on. Whoever draws a group on something other than a surface says what that is. */
+.ui-faces[data-many="true"] .ui-avatar + .ui-avatar {
+  margin-left: -4px;
+  box-shadow: 0 0 0 2px var(--trail-ground, var(--surface));
+}

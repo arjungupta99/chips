@@ -1,0 +1,46 @@
+{
+  "name": "@chipschat/harness",
+  "version": "1.0.0",
+  "description": "The Agent Connect client for a harness you control: connect, start runs, log steps, ask, and hear what people say back.",
+  "license": "Apache-2.0",
+  "homepage": "https://chipschat.ai/connect/sdk/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arjungupta99/chips.git",
+    "directory": "packages/sdk-ts"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "@chipschat/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@chipschat/platform": "workspace:*",
+    "@chipschat/server": "workspace:*",
+    "kysely": "0.29.5",
+    "vitest": "4.1.11"
+  }
+}

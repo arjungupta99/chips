@@ -1,0 +1,12 @@
+{
+  "frame": "presence",
+  "participant_id": "hrn_01K4ZQPX000000000000000004",
+  "state": {
+    "connected": true,
+    "since": "2026-09-28T18:34:46.205Z",
+    "trouble": {
+      "reason": "Can't reach its gateway",
+      "since": "2026-09-28T18:34:50.000Z"
+    }
+  }
+}
