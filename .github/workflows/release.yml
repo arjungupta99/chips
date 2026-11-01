@@ -131,11 +131,14 @@ jobs:
           chips="$HOME/.local/bin/chips"
           "$chips" --version
           "$chips" up --no-service --no-open --reach local --json --port 4450 > up.json &
+          # By its pid: dash, the containers' sh, sends `kill %1` to a process group a script's
+          # background job never gets, and says "No such process" (1 November 2026).
+          up=$!
           for i in $(seq 1 60); do curl -fsS http://127.0.0.1:4450/v1/health && break; sleep 0.5; done
           cat up.json
           grep -q '"created":true' up.json
           "$chips" doctor || true
-          kill %1
+          kill "$up"
           wait || true
           # The relay from the same tarball, as the hosted relay's box runs it.
           CHIPS_RELAY_PORT=4460 "$chips" relay > relay.log 2>&1 &
