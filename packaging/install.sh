@@ -95,11 +95,25 @@ if [ "$OS" = linux ] && (ldd --version 2>&1 || true) | grep -qi musl; then
 fi
 TARGET="$OS-$ARCH"
 
+# How this machine gets OpenSSH's ssh-keygen, by its package manager: a sentence, or nothing.
+openssh_how() {
+  sudo="sudo "
+  [ "$(id -u)" = 0 ] && sudo=""
+  if command -v apt-get >/dev/null 2>&1; then how="apt-get install openssh-client"
+  elif command -v dnf >/dev/null 2>&1; then how="dnf install openssh-clients"
+  elif command -v yum >/dev/null 2>&1; then how="yum install openssh-clients"
+  elif command -v zypper >/dev/null 2>&1; then how="zypper install openssh-clients"
+  elif command -v pacman >/dev/null 2>&1; then how="pacman -S openssh"
+  else return 0
+  fi
+  printf ' Install it with "%s%s", then run this again.' "$sudo" "$how"
+}
+
 # Whether SHA256SUMS ($1) carries the release key's signature ($2). OpenSSH's ssh-keygen checks
 # it, 8.1 or later, which macOS and every current Linux have.
 signed() {
-  command -v ssh-keygen >/dev/null 2>&1 \
-    || die "Checking the release's signature needs ssh-keygen, which comes with OpenSSH."
+  command -v ssh-keygen >/dev/null 2>&1 || die "Checking the release's signature needs \
+ssh-keygen, which comes with OpenSSH.$(openssh_how)"
   printf '%s\n' "$SIGNER" > "$TMP/signers"
   ssh-keygen -Y verify -f "$TMP/signers" -I release@chipschat.ai -n chips-release -s "$2" \
     < "$1" > /dev/null 2>&1

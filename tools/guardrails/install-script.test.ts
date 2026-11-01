@@ -15,6 +15,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   readlinkSync,
   realpathSync,
@@ -91,6 +92,23 @@ function trustingOwnKey(dir: string): { readonly script: string; readonly key: s
 /** `SHA256SUMS.sig` beside `sums`, as `pnpm release:sign` makes it. */
 function sign(key: string, sums: string): void {
   execFileSync("ssh-keygen", ["-Y", "sign", "-q", "-f", key, "-n", "chips-release", sums]);
+}
+
+/**
+ * A folder for PATH with every program the system has but ssh-keygen and the package managers
+ * install.sh names, so a test can stand in one of its own.
+ */
+function withoutSshKeygen(home: string): string {
+  const bin = join(home, "bin");
+  mkdirSync(bin);
+  for (const dir of ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]) {
+    for (const name of readdirSync(dir)) {
+      const there = join(bin, name);
+      if (name === "ssh-keygen" || /^(apt-get|dnf|yum|zypper|pacman)$/.test(name)) continue;
+      if (!existsSync(there)) symlinkSync(join(dir, name), there);
+    }
+  }
+  return bin;
 }
 
 /**
@@ -321,6 +339,27 @@ describe("install.sh", () => {
     const changed = tryIt();
     expect(changed.status).not.toBe(0);
     expect(changed.stderr).toContain("not signed with Chips's release key");
+    expect(existsSync(join(home, ".local", "bin", "chips"))).toBe(false);
+  });
+
+  it("says how to get ssh-keygen where it's missing, in this machine's package manager's words", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    const { script, key } = trustingOwnKey(home);
+    const { base, sums } = host(home, "0.2.0");
+    sign(key, sums);
+    const bin = withoutSshKeygen(home);
+    const without = (manager?: string) => {
+      for (const name of ["apt-get", "dnf"]) rmSync(join(bin, name), { force: true });
+      if (manager !== undefined) writeFileSync(join(bin, manager), "#!/bin/sh\n", { mode: 0o755 });
+      return run(script, { CHIPS_DOWNLOAD_BASE: base, PATH: bin }, home, "--no-path");
+    };
+    const apt = without("apt-get");
+    expect(apt.status).not.toBe(0);
+    expect(apt.stderr).toContain("needs ssh-keygen, which comes with OpenSSH.");
+    expect(apt.stderr).toContain('Install it with "sudo apt-get install openssh-client"');
+    expect(without("dnf").stderr).toContain('"sudo dnf install openssh-clients"');
+    // No package manager it knows: the sentence alone.
+    expect(without().stderr).toContain("comes with OpenSSH.\n");
     expect(existsSync(join(home, ".local", "bin", "chips"))).toBe(false);
   });
 
