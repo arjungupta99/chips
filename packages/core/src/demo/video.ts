@@ -54,6 +54,14 @@ export function chaptersOf(video: FilmVideo): readonly FilmBeat[] {
   return video.beats.filter((beat) => beat.key !== CLOSING);
 }
 
+/**
+ * How early a part counts as begun, in seconds: two of the film's frames (60 a second). A jump to
+ * a part's start lands on a frame, and the player can say the one before it, 1/60 s short; a tap
+ * on the right just after a jump to the last part was taken for a tap in the part before, and
+ * went to the last part's start again rather than to its end.
+ */
+export const BEGUN_EARLY = 2 / 60;
+
 /** The chapter playing at `time`: the last begun, or the count of them once the closing card is. */
 export function chapterAt(video: FilmVideo, time: number): number {
   const chapters = chaptersOf(video);
@@ -61,7 +69,7 @@ export function chapterAt(video: FilmVideo, time: number): number {
   if (last !== undefined && time >= last.end) return chapters.length;
   return Math.max(
     0,
-    chapters.findLastIndex((beat) => beat.start <= time),
+    chapters.findLastIndex((beat) => beat.start <= time + BEGUN_EARLY),
   );
 }
 

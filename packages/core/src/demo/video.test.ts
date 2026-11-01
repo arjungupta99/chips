@@ -62,8 +62,10 @@ describe("a film's video", () => {
 
   it("says which beat plays at a time, and past them all once the closing card is up", () => {
     expect(chapterAt(FILM, 0)).toBe(0);
-    expect(chapterAt(FILM, 4.99)).toBe(0);
+    expect(chapterAt(FILM, 4.96)).toBe(0);
     expect(chapterAt(FILM, 5)).toBe(1);
+    // A jump to a part can land a frame short of its start, and that is the part.
+    expect(chapterAt(FILM, 5 - 1 / 60)).toBe(1);
     expect(chapterAt(FILM, 12)).toBe(2);
     expect(chapterAt(FILM, 17)).toBe(3);
     expect(chapterAt(FILM, 20)).toBe(3);
@@ -92,6 +94,8 @@ describe("a film's video", () => {
     expect(nextPartAt(FILM, 0)).toBe(5);
     expect(nextPartAt(FILM, 7)).toBe(12);
     expect(nextPartAt(FILM, 12.5)).toBeUndefined();
+    // Just after a jump to the last part, said a frame short: still the last, nowhere to go.
+    expect(nextPartAt(FILM, 12 - 1 / 60)).toBeUndefined();
     // The closing card is past every part.
     expect(nextPartAt(FILM, 18)).toBeUndefined();
   });
