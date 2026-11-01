@@ -273,7 +273,8 @@ describe("a job's page", () => {
     expect(hero.textContent).toContain("Heartbeat");
     expect(hero.textContent).toContain("Every hour Main looks over its work");
     expect(toggle().checked).toBe(true);
-    expect(sub()).toMatch(/^On · next at /);
+    // Thirteen minutes on: "tonight at" when that's after nine in the evening (`nextWords`).
+    expect(sub()).toMatch(/^On · next (tonight )?at /);
     expect((screen.getByRole("combobox", { name: "Every" }) as HTMLSelectElement).value).toBe("60");
 
     const bars = screen.getByTestId("job-bars");
