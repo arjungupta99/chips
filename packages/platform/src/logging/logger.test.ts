@@ -244,12 +244,16 @@ describe("a log file", () => {
     const { join } = await import("node:path");
     const path = join(mkdtempSync(join(tmpdir(), "chips-log-")), "deep", "chips.log");
     const destination = fileDestination(path) as ReturnType<typeof fileDestination> & {
-      once: (event: "ready", listener: () => void) => void;
-      flushSync: () => void;
+      once: (event: "ready" | "close", listener: () => void) => void;
+      end: () => void;
     };
     await new Promise<void>((resolve) => destination.once("ready", resolve));
     createLogger({ name: "chips", destination }).info({ token: "chips_at_secret" }, "first");
-    destination.flushSync();
+    // The file is written off this thread, and flushSync skips a write already under way, so the
+    // line is read once the stream has closed, which waits for it.
+    const closed = new Promise<void>((resolve) => destination.once("close", resolve));
+    destination.end();
+    await closed;
     const line = JSON.parse(readFileSync(path, "utf8").trim()) as Record<string, unknown>;
     expect(line["msg"]).toBe("first");
     expect(line["token"]).toBe("[redacted]");

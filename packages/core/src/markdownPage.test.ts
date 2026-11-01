@@ -154,7 +154,8 @@ describe("a Markdown file as a page", () => {
     ]) {
       expect(drawn(open(100_000)) / drawn(open(50_000))).toBeLessThan(3);
     }
-  });
+    // Twelve drawings of up to 200 KB: CI with coverage needs more than the usual 5 seconds.
+  }, 30_000);
 
   it("is drawn in the client's own colours and size, light or dark", () => {
     const page = markdownPage("words", light);
