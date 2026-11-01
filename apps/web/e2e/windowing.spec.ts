@@ -186,10 +186,13 @@ test("a reply taller than the window, last in the room, scrolls all the way to i
   await expect(last).toBeVisible({ timeout: 120_000 });
   const window = await messages.boundingBox();
   if (window === null) throw new Error("the messages are not on the page");
-  const reply = await messages
-    .locator(".msg", { hasText: "Paragraph 1 of the long reply." })
-    .boundingBox();
-  expect(reply?.height ?? 0).toBeGreaterThan(window.height * 2);
+  const row = messages.locator(".msg", { hasText: "Paragraph 1 of the long reply." });
+  // Read once it is drawn whole: on the CI runner, under eleven thousand lines, its last
+  // paragraph was in view while the row still measured 60 px (1 November 2026).
+  await expect
+    .poll(async () => (await row.boundingBox())?.height ?? 0, { timeout: 30_000 })
+    .toBeGreaterThan(window.height * 2);
+  const reply = await row.boundingBox();
 
   // Up past the reply's top and two windows into the rows above it, with the wheel, as a person.
   await page.mouse.move(window.x + window.width / 2, window.y + window.height / 2);
