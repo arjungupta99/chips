@@ -114,7 +114,7 @@ describe("an invite opened in a paired tab", () => {
       screen.getByText("You join as Arjun Gupta. You can change your name there in You."),
     ).toBeDefined();
     expect(await screen.findByRole("button", { name: "Not now" })).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Join Acme" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Join Acme" }));
     await waitFor(() => expect(onJoined).toHaveBeenCalledWith(joined, undefined));
     expect(onDone).toHaveBeenCalled();
     expect(core.joinByInvite.mock.calls[0]?.slice(0, 2)).toEqual(["chips_inv_acme", "Arjun Gupta"]);
@@ -131,7 +131,7 @@ describe("an invite opened in a paired tab", () => {
     const { onJoined, onDone } = arrive("chips_inv_acme_taken");
     expect(await screen.findByText("Join Acme too?")).toBeDefined();
     expect(screen.queryByTestId("invite-name")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Join Acme" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Join Acme" }));
 
     // Why, in the dialog's words, and the name tried in a field to change; the link is unspent.
     expect((await screen.findByTestId("confirm-failed")).textContent).toBe(
@@ -188,7 +188,7 @@ describe("an invite opened in a paired tab", () => {
       screen.getByText(/You're in Demo as Arjun Gupta, so it adds you to Bakery/),
     ).toBeDefined();
     expect(await screen.findByRole("button", { name: "Not now" })).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Join Bakery" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Join Bakery" }));
     await waitFor(() => expect(onLand).toHaveBeenCalledWith("dev_demo", "spc_bakery"));
     expect(enterByInvite).toHaveBeenCalledWith("chips_inv_bakery_enter");
     expect(core.joinByInvite).not.toHaveBeenCalled();
@@ -202,7 +202,7 @@ describe("an invite opened in a paired tab", () => {
     const { onDone, onLand } = arrive("chips_inv_bakery_guest", {}, store);
     expect(await screen.findByText("A guest is in one space")).toBeDefined();
     expect(screen.getByText(/You're a guest in Studio/)).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    fireEvent.click(await screen.findByRole("button", { name: "OK" }));
     expect(onDone).toHaveBeenCalled();
     expect(onLand).not.toHaveBeenCalled();
     expect(enterByInvite).not.toHaveBeenCalled();
@@ -226,7 +226,7 @@ describe("an invite opened in a paired tab", () => {
     const { onDone } = arrive("chips_inv_dead");
     expect(await screen.findByText("This invite can't be used")).toBeDefined();
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    fireEvent.click(await screen.findByRole("button", { name: "OK" }));
     expect(onDone).toHaveBeenCalled();
   });
 });

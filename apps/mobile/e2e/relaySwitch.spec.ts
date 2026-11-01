@@ -9,7 +9,8 @@
  * specs after this one.
  */
 
-import { putJson } from "@chipschat/core";
+import { getJson, putJson } from "@chipschat/core";
+import type { ServerFacts } from "@chipschat/protocol";
 import { expect, test } from "@playwright/test";
 import { allowAsIssuer, payload, relayStats, SERVER, specDevice } from "./support.ts";
 
@@ -19,6 +20,9 @@ test("an owner turns the relay off from Relay: the phone on it hears who, and wh
   await expect.poll(async () => (await relayStats()).servers, { timeout: 20_000 }).toBe(1);
   await page.routeWebSocket(/\/v1\/tunnel$/, (door) => door.close());
   const owner = await specDevice();
+  // The name the machine running the suite goes by, which is what the phone is told.
+  const { machine } = await getJson<ServerFacts>(owner, "/v1/server");
+  const named = machine.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   try {
     const offer = await payload(SERVER);
     await page.goto("/pair?code=1");
@@ -60,8 +64,9 @@ test("an owner turns the relay off from Relay: the phone on it hears who, and wh
     // machine by the name the server gave it while it could be asked.
     await page.goBack();
     await page.getByRole("button", { name: /^Connection/ }).click();
-    const why =
-      /turned the relay off at \d{1,2}:\d\d\s?(AM|PM)?, so Chips reaches Arjun's Mac mini only on its own network now\. What you send waits here and goes once it is connected\./;
+    const why = new RegExp(
+      `turned the relay off at \\d{1,2}:\\d\\d\\s?(AM|PM)?, so Chips reaches ${named} only on its own network now\\. What you send waits here and goes once it is connected\\.`,
+    );
     await expect(page.getByTestId("connection-words")).toHaveText(why, { timeout: 30_000 });
     // And still while it tries again, which it does every few seconds.
     await page.waitForTimeout(4000);

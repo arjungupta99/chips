@@ -316,8 +316,11 @@ describe("the editor", () => {
     await waitFor(() => expect(screen.getByTestId("agent-card")).toBeTruthy(), {
       timeout: 2500,
     });
+    // The row is drawn first and lit once the page takes its landing, a render later.
     expect(
-      within(await screen.findByTestId("context-row-PERSONA.md")).getByTestId("context-flash"),
+      await within(await screen.findByTestId("context-row-PERSONA.md")).findByTestId(
+        "context-flash",
+      ),
     ).toBeTruthy();
   });
 
