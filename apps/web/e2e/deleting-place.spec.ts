@@ -6,7 +6,7 @@
  */
 
 import { expect, type Locator, type Page, type TestInfo, test } from "@playwright/test";
-import { Harness, newRunId, pair } from "./support.ts";
+import { Harness, newRunId, pair, registerSpecialist } from "./support.ts";
 
 /** A row is seventy pixels; the ease opens and closes by less than a third of that in a frame. */
 const MOST_IN_A_FRAME = 30;
@@ -72,11 +72,15 @@ async function longRoom(
   await pair(page);
   const stamp = Date.now();
   const words = (n: number) => `Line ${n} of a long room, ${stamp}.`;
-  const harness = await Harness.connect(newRunId());
+  // A space of its own: in the demo space, what other specs left Scout doing (a status row under
+  // the last line that grows as it goes) moves the room's end while the rows are read.
+  const tide = await registerSpecialist("Tide");
+  const harness = await Harness.connect(newRunId(), { token: tide.token, space: tide.space });
   await harness.send("run.started", { goal: "Talk.", plan: [] });
   for (let line = 1; line <= 40; line += 1) {
     await harness.send("message.post", { text: words(line) });
   }
+  await page.getByTestId("space-list").locator(`[data-space="${tide.space}"]`).click();
   const messages = page.getByTestId("messages");
   const row = (n: number) => messages.locator(".msg").filter({ hasText: words(n) });
   await expect(row(40)).toBeVisible();
