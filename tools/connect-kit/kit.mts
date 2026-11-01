@@ -29,6 +29,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
@@ -214,7 +215,12 @@ function stopGroup(child: ChildProcess, exited: Promise<unknown>): () => Promise
   };
 }
 
-/** This checkout's `chips`, as a command on a PATH: the CLI's source run on this Node. */
+/**
+ * This checkout's `chips`, as a command on a PATH: the CLI's source run on this Node. This Node is
+ * beside it, in a folder of nothing else, as an install carries its own: from a checkout, `chips
+ * connect` runs a bridge on the PATH's first node and puts that folder first on the bridge's PATH,
+ * so Homebrew's would put its other commands, a harness's real one among them, ahead of a test's.
+ */
 function chipsCommand(bin: string): void {
   mkdirSync(bin, { recursive: true });
   const tsx = import.meta.resolve("tsx");
@@ -223,6 +229,7 @@ function chipsCommand(bin: string): void {
     `#!/bin/sh\nexec "${process.execPath}" --import "${tsx}" "${join(ROOT, "cli", "bin", "chips.ts")}" "$@"\n`,
   );
   chmodSync(join(bin, "chips"), 0o755);
+  symlinkSync(process.execPath, join(bin, "node"));
 }
 
 /** A connector's checkout as npm would publish it: its own `npm pack`, which builds it first. */

@@ -4269,6 +4269,28 @@ describe("join requests (ADR 0122)", () => {
     });
   });
 
+  it("keeps a request its frame brought while the hello's read was out, the answer older", async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    const h = harness({
+      cached: [joined(1, "owner")],
+      get: (path) =>
+        path.startsWith("/v1/join")
+          ? new Promise((resolve) => {
+              answer = resolve;
+            })
+          : Promise.resolve({ participants: [] }),
+    });
+    await started();
+    h.wire().onEvent(HELLO);
+    await started();
+    // A harness asks a moment after the server answered the read, which has not landed yet.
+    h.wire().onJoin?.(wire() as never);
+    answer({ requests: [] });
+    await started();
+    h.flush();
+    expect(h.snapshots.at(-1)?.joins?.get("jrq_01K4ZQPX0000000000000000J1")?.state).toBe("waiting");
+  });
+
   it("never moves a request back: Allow's answer after the frame that says it was collected", async () => {
     const h = harness({ post: async () => ({ request: wire({ state: "allowed" }) }) });
     await started();

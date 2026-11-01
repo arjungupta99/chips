@@ -1583,10 +1583,21 @@ export function createStore(options: StoreOptions): Store {
    * the links they handed out (ADR 0232); `payJoins` asks once the person is known.
    */
   const loadJoins = async (): Promise<JoinRequest[]> => {
+    const asked = joins;
     const answer = await read<{ requests: JoinRequestView[] }>(device, "/v1/join?state=waiting");
     const waiting = answer.requests.map(joinRequestOf);
     const kept = [...joins.values()].filter((each) => each.state !== "waiting");
-    joins = new Map([...kept, ...waiting].map((each) => [each.requestId, each]));
+    // What a frame said while the read was out can be newer than its answer: a harness that asked
+    // just after the server answered would otherwise be dropped with the waiting it replaces.
+    const heard = [...joins.values()].filter((each) => asked.get(each.requestId) !== each);
+    const now = new Map([...kept, ...waiting].map((each) => [each.requestId, each]));
+    for (const each of heard) {
+      const read = now.get(each.requestId);
+      if (read === undefined || joinStage(each.state) >= joinStage(read.state)) {
+        now.set(each.requestId, each);
+      }
+    }
+    joins = now;
     notify();
     return waiting;
   };
