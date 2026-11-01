@@ -8,8 +8,13 @@
 import { expect, type Locator, type Page, type TestInfo, test } from "@playwright/test";
 import { Harness, newRunId, pair, registerSpecialist } from "./support.ts";
 
-/** A row is seventy pixels; the ease opens and closes by less than a third of that in a frame. */
-const MOST_IN_A_FRAME = 30;
+/**
+ * A row is seventy pixels, and a jump moves it all in one frame. The ease opens and closes by less
+ * than a third of that in a frame, but a first frame that comes late on a loaded machine carries
+ * half (35 px on the CI runner, 1 November 2026, then 12, 8, 5...): still a glide, and well short
+ * of a row.
+ */
+const MOST_IN_A_FRAME = 50;
 /** What a row under the place may drift by, all told: rounding, and nothing a reader would see. */
 const STILL = 4;
 
