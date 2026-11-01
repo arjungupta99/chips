@@ -180,22 +180,25 @@ describe("the line's menu", () => {
     expect(first.onClose).toHaveBeenCalledTimes(2);
   });
 
-  it("is put away by a scroll under it, which means the reader has moved on", async () => {
-    const { onClose } = open();
-    await nextFrame();
-    fireEvent.scroll(window);
-    expect(onClose).toHaveBeenCalled();
+  it("is put away by the reader scrolling, a wheel or a finger dragging, outside it", () => {
+    const wheeled = open();
+    fireEvent.wheel(wheeled.menu);
+    expect(wheeled.onClose).not.toHaveBeenCalled();
+    fireEvent.wheel(document.body);
+    expect(wheeled.onClose).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    const dragged = open();
+    fireEvent.touchMove(document.body);
+    expect(dragged.onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("stays through a scroll that was already on its way as it opened", async () => {
+  it("stays while the room scrolls by itself, as an agent's line lands or a row comes into view", async () => {
     const { onClose } = open();
-    // The click that opened it brought the row into view; the browser delivers that scroll
-    // a frame later, and it is nobody's leaving.
     fireEvent.scroll(window);
-    expect(onClose).not.toHaveBeenCalled();
     await nextFrame();
     fireEvent.scroll(window);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("stays inside the window when it is asked for at the edge of it", () => {

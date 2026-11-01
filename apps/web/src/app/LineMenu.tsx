@@ -210,9 +210,8 @@ export function More({ open }: { readonly open: (at: Point) => void }) {
 /**
  * The first item takes the focus, so a menu opened from the keyboard is usable from it.
  *
- * `preventScroll`, or the menu shuts itself the instant it opens: the browser scrolls a newly
- * focused element into view, that scroll reaches the listener below, and the listener's whole
- * job is to read a scroll as "not this message". A fixed menu is already where it belongs.
+ * `preventScroll`: the browser scrolls a newly focused element into view, and a fixed menu is
+ * already where it belongs.
  */
 function focusFirst(element: HTMLButtonElement | null): void {
   element?.focus({ preventScroll: true });
@@ -250,34 +249,27 @@ function useClamped(menu: React.RefObject<HTMLDivElement | null>, at: Point): Po
 }
 
 /**
- * A click elsewhere, a scroll or a resize all mean the same thing: not this message.
+ * A click elsewhere, the reader scrolling, or a resize all mean the same thing: not this message.
  *
- * A scroll that was already on its way when the menu opened is not that. The click that opens
- * the menu can bring the row into view first — a line jumped to, then shifted by a PDF preview
- * finding its height — and the browser delivers that scroll a frame later, after the menu is
- * up: a menu that closed on it was gone the moment it was opened (a loaded machine, 10
- * September 2026). So the scroll listener arms on the next animation frame, which the browser
- * runs after the scroll steps that were pending; a scroll after that is the reader's.
+ * The reader's scrolling is a wheel or a finger dragging, not any `scroll`: the room scrolls by
+ * itself too, following an agent's line as it lands or bringing a row into view as the menu
+ * opens, and a menu that closed on those was gone under the reader's hand (a loaded machine, 10
+ * September 2026; the public CI, 1 November 2026). A scrollbar is pressed, which is a press
+ * elsewhere. Within the menu, none of it is leaving.
  */
 function useDismiss(menu: React.RefObject<HTMLDivElement | null>, onClose: () => void): void {
   useEffect(() => {
-    let armed = false;
-    const arming = requestAnimationFrame(() => {
-      armed = true;
-    });
-    const outside = (event: PointerEvent) => {
+    const outside = (event: Event) => {
       if (!menu.current?.contains(event.target as Node)) onClose();
     };
-    const scrolled = () => {
-      if (armed) onClose();
-    };
     window.addEventListener("pointerdown", outside);
-    window.addEventListener("scroll", scrolled, true);
+    window.addEventListener("wheel", outside, { capture: true, passive: true });
+    window.addEventListener("touchmove", outside, { capture: true, passive: true });
     window.addEventListener("resize", onClose);
     return () => {
-      cancelAnimationFrame(arming);
       window.removeEventListener("pointerdown", outside);
-      window.removeEventListener("scroll", scrolled, true);
+      window.removeEventListener("wheel", outside, { capture: true });
+      window.removeEventListener("touchmove", outside, { capture: true });
       window.removeEventListener("resize", onClose);
     };
   }, [menu, onClose]);

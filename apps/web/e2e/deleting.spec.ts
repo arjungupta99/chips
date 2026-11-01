@@ -82,7 +82,13 @@ test("delete for everyone asks first, then leaves a tombstone in the line's plac
 
   await box.fill(`Take me back ${stamp}`);
   await box.press("Enter");
-  const mine = messages.locator(`.msg[data-mine='true']`).last();
+  const sent = messages
+    .locator(`.msg[data-mine='true']`)
+    .filter({ hasText: `Take me back ${stamp}` });
+  await expect(sent).not.toHaveAttribute("data-pending", "true");
+  // Held by its id from here: as a tombstone it no longer says its words, and once it is gone a
+  // `.last()` would find an older line of this person's.
+  const mine = messages.locator(`.msg[data-line='${await sent.getAttribute("data-line")}']`);
   await expect(mine).toContainText(`Take me back ${stamp}`);
 
   await pick(page, mine, "Delete for everyone");
