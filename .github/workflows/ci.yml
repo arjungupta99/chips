@@ -35,7 +35,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Everything in one job, about an hour on GitHub's runner: the unit tests with coverage alone
+    # took 14 minutes on 1 November 2026, then the phone tests, the docs and both e2e suites.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
