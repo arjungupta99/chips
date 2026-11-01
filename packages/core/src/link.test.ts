@@ -25,6 +25,7 @@ import {
   LinkError,
   type LinkSocket,
   linkFor,
+  REASK_MS,
   reached,
   reachNamedBy,
   readOnLink,
@@ -708,13 +709,35 @@ describe("a read the connection drops under (ADR 0179)", () => {
     dropLink(device.deviceId);
   });
 
+  it("is asked again after a moment when nothing says the socket closed, the fetch failing alone", async () => {
+    vi.useFakeTimers();
+    try {
+      const device = { deviceId: "dev_alone" };
+      const network = networkLink(noNetwork, json({ n: 3 }));
+      useLink(device.deviceId, network);
+      const read = readOnLink(device, async (link) => (await link.fetch("https://s/a")).json());
+      await vi.advanceTimersByTimeAsync(REASK_MS - 1);
+      expect(network.asked).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      // Two seconds, not the twenty a socket coming back is waited for.
+      expect(await read).toEqual({ n: 3 });
+      expect(network.asked).toHaveLength(2);
+      dropLink(device.deviceId);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("says so in words when the connection does not come back in time, or drops again", async () => {
     const device = { deviceId: "dev_away" };
-    useLink(device.deviceId, networkLink(noNetwork));
+    const gone = networkLink(noNetwork, noNetwork);
+    useLink(device.deviceId, gone);
     const read = (link: Link) => link.fetch("https://s/a");
     await expect(readOnLink(device, read, 10)).rejects.toEqual(
       new ConnectionDropped("The connection dropped."),
     );
+    // Asked again after its moment, and dropped again with nothing back to wait for.
+    expect(gone.asked).toHaveLength(2);
     const twice = networkLink(noNetwork, noNetwork);
     useLink(device.deviceId, twice);
     const again = readOnLink(device, read, 1000);

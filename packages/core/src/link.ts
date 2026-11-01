@@ -782,6 +782,13 @@ function reachedSince(deviceId: string, since: number, ms: number): Promise<bool
  */
 export const REJOIN_MS = 20_000;
 
+/**
+ * How long a read the network failed waits for the socket to open again before it is asked again
+ * anyway. The fetch may have failed alone, the socket standing all along, and then nothing will
+ * say the device reached its server again: it waited out all of `REJOIN_MS` for nothing.
+ */
+export const REASK_MS = 2000;
+
 /** The connection dropped under a read, and did not come back in time for it to be asked again. */
 export class ConnectionDropped extends Error {
   override readonly name = "ConnectionDropped";
@@ -802,8 +809,9 @@ function droppedUnder(error: unknown, link: Link, fetchFailed: unknown): boolean
  * A read that may outlive its connection (ADR 0179). When the link drops under it — the server
  * restarted, the phone changed networks, the relay let go — it waits for the device to reach its
  * server again, through whichever link that is, and is asked once more; given up on, it says so in
- * words a person can read. A read is safe to ask twice. A write is not, and is not asked here: its
- * first try may have been done.
+ * words a person can read. One the network failed while the socket stood is asked again after
+ * `REASK_MS`, since no new socket is coming to say so. A read is safe to ask again. A write is
+ * not, and is not asked here: its first try may have been done.
  *
  * `read` is handed the link to use, and asks everything through it, signing afresh each time.
  */
@@ -813,7 +821,7 @@ export async function readOnLink<T>(
   waitMs = REJOIN_MS,
 ): Promise<T> {
   const since = reaches.get(device.deviceId) ?? 0;
-  const tryOn = async (link: Link): Promise<{ readonly answer: T } | undefined> => {
+  const tryOn = async (link: Link): Promise<Tried<T>> => {
     let fetchFailed: unknown;
     const watched: Link = {
       ...link,
@@ -826,15 +834,41 @@ export async function readOnLink<T>(
     try {
       return { answer: await read(watched) };
     } catch (error) {
-      if (droppedUnder(error, link, fetchFailed)) return undefined;
-      throw error;
+      if (!droppedUnder(error, link, fetchFailed)) throw error;
+      return error instanceof TunnelClosedError ? "tunnel" : "network";
     }
   };
   const first = await tryOn(linkFor(device));
-  if (first !== undefined) return first.answer;
-  if (await reachedSince(device.deviceId, since, waitMs)) {
-    const again = await tryOn(linkFor(device));
-    if (again !== undefined) return again.answer;
-  }
+  if (typeof first === "object") return first.answer;
+  const again = await askedAgain(device.deviceId, since, first, waitMs, () =>
+    tryOn(linkFor(device)),
+  );
+  if (again !== undefined) return again.answer;
   throw new ConnectionDropped("The connection dropped.");
+}
+
+/** A read's answer, or how it dropped: its tunnel closed, or the network failed its fetch. */
+type Tried<T> = { readonly answer: T } | "tunnel" | "network";
+
+/**
+ * A read that dropped, asked again. A tunnel that closed took the connection with it, and the read
+ * waits for the next one. A fetch the network failed is asked again after a moment either way
+ * (`REASK_MS`); dropped again before anything said the socket was back, it waits for it then.
+ */
+async function askedAgain<T>(
+  deviceId: string,
+  since: number,
+  dropped: "tunnel" | "network",
+  waitMs: number,
+  ask: () => Promise<Tried<T>>,
+): Promise<{ readonly answer: T } | undefined> {
+  const pause = dropped === "network" ? Math.min(REASK_MS, waitMs) : waitMs;
+  const back = await reachedSince(deviceId, since, pause);
+  if (!back && dropped === "tunnel") return undefined;
+  const counted = reaches.get(deviceId) ?? 0;
+  const again = await ask();
+  if (typeof again === "object") return again;
+  if (back || !(await reachedSince(deviceId, counted, waitMs - pause))) return undefined;
+  const last = await ask();
+  return typeof last === "object" ? last : undefined;
 }
