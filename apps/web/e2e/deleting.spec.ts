@@ -9,8 +9,22 @@
  */
 
 import { DUST_MS } from "@chipschat/core";
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { pair } from "./support.ts";
+
+/**
+ * Opens a line's menu and picks from it. A scroll closes the menu (LineMenu's `useDismiss`), and
+ * the room scrolls when an agent's state lands under a line just sent (Scout "can't answer yet"),
+ * so on a slow machine the menu can be gone before the pick: then it is opened again, as a person
+ * would.
+ */
+async function pick(page: Page, line: Locator, name: string): Promise<void> {
+  const menu = page.getByTestId("line-menu");
+  await expect(async () => {
+    if (!(await menu.isVisible())) await line.click({ button: "right" });
+    await menu.getByRole("menuitem", { name }).click({ timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
+}
 
 test("delete for me breaks the line away, Undo brings it back, and it stays gone once let go", async ({
   page,
@@ -19,7 +33,6 @@ test("delete for me breaks the line away, Undo brings it back, and it stays gone
   const stamp = Date.now();
   const box = page.getByLabel("Message PO-4471");
   const messages = page.getByTestId("messages");
-  const menu = page.getByTestId("line-menu");
   const pill = page.getByTestId("undo-pill");
 
   await box.fill(`Dust me ${stamp}`);
@@ -28,8 +41,7 @@ test("delete for me breaks the line away, Undo brings it back, and it stays gone
   await expect(mine).toBeVisible();
 
   // Asked nothing: it breaks away at once, the room closes over it, and Undo is offered.
-  await mine.click({ button: "right" });
-  await menu.getByRole("menuitem", { name: "Delete for me" }).click();
+  await pick(page, mine, "Delete for me");
   await expect(mine).toHaveAttribute("data-breaking", "away");
   await expect(mine).toHaveCount(0);
   await expect(pill).toContainText("Deleted for you");
@@ -47,8 +59,7 @@ test("delete for me breaks the line away, Undo brings it back, and it stays gone
   await expect(mine).toBeVisible();
 
   // Deleted again and let go: the count runs out, and the log keeps it gone for this person.
-  await mine.click({ button: "right" });
-  await menu.getByRole("menuitem", { name: "Delete for me" }).click();
+  await pick(page, mine, "Delete for me");
   await expect(mine).toHaveCount(0);
   await expect(pill).toHaveCount(0, { timeout: 8000 });
   await page.reload();
@@ -74,8 +85,7 @@ test("delete for everyone asks first, then leaves a tombstone in the line's plac
   const mine = messages.locator(`.msg[data-mine='true']`).last();
   await expect(mine).toContainText(`Take me back ${stamp}`);
 
-  await mine.click({ button: "right" });
-  await menu.getByRole("menuitem", { name: "Delete for everyone" }).click();
+  await pick(page, mine, "Delete for everyone");
   // The question says what happens, and what the agents in the room keep.
   await expect(page.getByTestId("line-menu-asking")).toContainText("Delete for everyone?");
   await expect(page.getByTestId("line-menu-asking")).toContainText("keep what they read");
@@ -95,7 +105,7 @@ test("delete for everyone asks first, then leaves a tombstone in the line's plac
   // A tombstone may still be deleted for oneself, and then it is gone too.
   await mine.click({ button: "right" });
   await expect(menu.getByRole("menuitem")).toHaveCount(1);
-  await menu.getByRole("menuitem", { name: "Delete for me" }).click();
+  await pick(page, mine, "Delete for me");
   await expect(mine.getByTestId("tombstone")).toHaveCount(0);
   await expect(page.getByTestId("undo-pill")).toContainText("Deleted for you");
 });
