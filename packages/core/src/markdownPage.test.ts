@@ -135,13 +135,24 @@ describe("a Markdown file as a page", () => {
   it("draws a long link reference that never closes in one pass (SEC-44)", () => {
     // markdown-it 15.0.2 read a reference's label or title that never closes again from every
     // line (GHSA-gfr2-rv44-r23c): these 200 KB took 950 and 850 ms here, and four times as long at
-    // twice the size, on whoever opened the file. 15.0.3 reads each in about 80 ms.
-    for (const source of ['[a]: b "' + "c\n".repeat(100_000), `[${"a\n".repeat(100_000)}`]) {
+    // twice the size, on whoever opened the file. 15.0.3 reads each in about 80 ms. A clock bound
+    // fails on a slow machine (CI with coverage took 970 ms), so this asks how the time grows:
+    // twice the lines take about twice as long now, and took four times as long then.
+    const drawn = (source: string) => {
       markdownPage(source, light);
-      const start = performance.now();
-      const page = markdownPage(source, light);
-      expect(performance.now() - start).toBeLessThan(400);
-      expect(page).toContain("<body>");
+      let fastest = Infinity;
+      for (let i = 0; i < 2; i += 1) {
+        const start = performance.now();
+        expect(markdownPage(source, light)).toContain("<body>");
+        fastest = Math.min(fastest, performance.now() - start);
+      }
+      return fastest;
+    };
+    for (const open of [
+      (lines: number) => '[a]: b "' + "c\n".repeat(lines),
+      (lines: number) => `[${"a\n".repeat(lines)}`,
+    ]) {
+      expect(drawn(open(100_000)) / drawn(open(50_000))).toBeLessThan(3);
     }
   });
 

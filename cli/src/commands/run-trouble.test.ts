@@ -41,6 +41,12 @@ describe("what went wrong", () => {
     );
   });
 
+  it("reads the program's name from dash, Linux's sh, too", async () => {
+    expect(await troubleOf("sh: 1: node: not found", 127, undefined, nobody)).toBe(
+      "Chips couldn't find node on your Mac, so the program couldn't start. Install Node.js, or ask the agents for a version that needs nothing installed.",
+    );
+  });
+
   it("takes the port from where it opens when the program didn't say it, and names nobody it can't", async () => {
     const said = "OSError: [Errno 48] Address already in use";
     expect(await troubleOf(said, 1, "http://localhost:8000", nobody)).toBe(

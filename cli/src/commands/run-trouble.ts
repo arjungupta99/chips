@@ -94,8 +94,11 @@ export async function troubleOf(
 
 /** A program the Mac doesn't have (or whose shell can't find it), and what to install. */
 function missingWords(text: string, code: number | undefined): string | undefined {
+  // zsh says "command not found: X", bash "X: command not found", and dash, Linux's sh, "sh: 1: X: not found".
   const tool =
-    /command not found:\s*(\S+)/i.exec(text)?.[1] ?? /(\S+): command not found/i.exec(text)?.[1];
+    /command not found:\s*(\S+)/i.exec(text)?.[1] ??
+    /(\S+): command not found/i.exec(text)?.[1] ??
+    /^\S+: \d+: (\S+): not found$/m.exec(text)?.[1];
   const after = "so the program couldn't start.";
   if (tool !== undefined) {
     return `Chips couldn't find ${tool} on your Mac, ${after} Install ${INSTALLS[tool] ?? tool}, or ask the agents for a version that needs nothing installed.`;
