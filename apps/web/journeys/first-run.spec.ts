@@ -16,7 +16,7 @@
  * runs this with the rest of onboarding is `testing/scenarios/onboarding/first-run.md`.
  */
 
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BrowserContext, expect, type Page, test } from "@playwright/test";
 import { type Connected, connector } from "./connector.js";
@@ -26,6 +26,7 @@ import {
   filesUnder,
   freshHome,
   install,
+  REPO,
   shell,
   stop,
   tarball,
@@ -314,7 +315,11 @@ test("J6: uninstalled with its workspace, it leaves no file behind", async () =>
   await stop(server);
   server = undefined;
   const doctor = chips(HOME, "doctor");
-  expect(doctor.output).toContain("chips 0.");
+  // The release's own version, as its build stamped it from the root package.json.
+  const { version } = JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")) as {
+    version: string;
+  };
+  expect(doctor.output).toContain(`chips ${version},`);
   const gone = await timed("uninstall", () => chips(HOME, "uninstall", "--yes", "--remove-data"));
   expect(gone.status, gone.output).toBe(0);
   expect(gone.output).toContain("Chips is uninstalled");
