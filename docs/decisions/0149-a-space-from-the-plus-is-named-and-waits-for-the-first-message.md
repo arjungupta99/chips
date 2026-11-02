@@ -116,3 +116,45 @@ read "Claude…".
    line, which a second line would only break inside. The row is as tall as its tallest name, which
    depends on who is offered, not on who is picked, so it still never moves under the thumb. The
    desktop's names have 74 pixels and "Claude Code" fits there.
+
+## Addendum, 1 November 2026: the room is drawn before the server sends it back
+
+Arjun made "Dude chat" from the + on his iPhone three times while the server on the Mac mini was
+stalled (its own log fell silent for 274 s, then 79 s). Each time the window filled the screen and
+stayed a blank page for a second and a half, then went into a room that said "This space is not on
+this phone. It may not have replayed yet.", in words standing under the status bar over the clock.
+He took both for a freeze. "Dude char" reached the server seventy-one seconds after the + sent it.
+
+Seen again on the simulator against a scratch server stopped with `kill -STOP`: the send is fine,
+and the space waits in the outbox. The room had nothing to draw because a device's model holds only
+what the server has sent, and a space made here was not in it until `space.created` came back. So
+the room never said it had drawn, and the window held its blank page for all of `DRAWN_WAIT_MS`.
+
+1. **A space made here is drawn from what was sent** (core `madeHere.ts`). `createSpace` keeps the
+   `space.created` it sends, and each `membership.added` sent for that space with it, stamped as the
+   server will stamp them. The snapshot's model folds them with the same fold as the rest and puts
+   the space at the top of the list. So the room under the window is the room it will be: its name,
+   its faces, "What would you like to do?", its lead, and a field to write in. A message written
+   there before the server has the space waits in the outbox behind it and goes in order: one
+   socket's frames are handled one after another, and a reconnect sends the outbox oldest first.
+   Seen on the simulator: the space, the agent's place in it and "Plan a dinner" landed as three
+   events in that order when the server was let go, and the room did not move.
+2. **The server's own takes its place** the moment its `space.created` is folded, as a pending line
+   gives way to its echo. A yes from the server before the event changes nothing; the room waits
+   for the event.
+3. **Turned away, it goes.** The list drops it, and its room says "This space wasn't made." with
+   the server's words. The words go through the room's notices, as a change to who is in a room
+   does (ADR 0112).
+4. **A room that is not here says so where it can be read, and at once.** The words stand under
+   the room's head, which floats on glass, rather than at the top of the screen. And the room says
+   it has drawn when they are laid out (`onDrawn`), so the window goes into them rather than holding
+   a blank page. It is not `onListed`: that also hands UIKit's edge settings to the room's list, and
+   a list that came later would keep iOS's own (this ADR's first addendum).
+
+5. **It outlasts the app** (Arjun, the same day: "fix this as well"). The cache keeps each space
+   made here until the server says yes to it (`loadMadeHere`/`saveMadeHere`, beside the outbox). Quit
+   before the server heard of it, the next launch draws it again and sends what was sent for it
+   ahead of the messages written in it, which before went to a room the server had never heard of
+   and were turned away. One the history the cache folded already has is not sent again. Once the
+   server has said yes, it is never sent again, though it is still drawn until its own event comes
+   back: sent again after the room was erased, it would make the room again.

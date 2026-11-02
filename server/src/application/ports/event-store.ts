@@ -109,6 +109,11 @@ export interface EraseResult {
   readonly erased: readonly string[];
   /** File digests nothing refers to any more, which the blob store may now remove. */
   readonly orphanedDigests: readonly string[];
+  /**
+   * Whether the projections were rebuilt from the log (ADR 0067) rather than the rooms' rows
+   * taken in place (ADR 0258): the slow way, taken when only a rebuild was sure.
+   */
+  readonly rebuilt: boolean;
 }
 
 export interface EventStore {

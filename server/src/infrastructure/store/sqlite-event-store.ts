@@ -36,6 +36,7 @@ import {
 } from "../../application/visibility.js";
 import { PROJECTION_TABLES, project, ROWS_OF_THE_LOG } from "../../domain/index.js";
 import type { Database } from "../db/schema.js";
+import { eraseInPlace, planInPlace } from "./erase-in-place.js";
 import { applyChanges } from "./projection-writer.js";
 import { resumeSearchIndex, suspendSearchIndex } from "./search-index.js";
 
@@ -216,9 +217,13 @@ export function createSqliteEventStore(options: EventStoreOptions): EventStore {
   /**
    * Erase spaces (ADR 0067), in one transaction: the tombstone's number is taken before anything
    * goes, so no number a device has already passed is handed out again; the spaces' events go;
-   * the rows kept beside the log for them go; the projections are rebuilt from what is left, so
-   * they are exactly what a later replay would make; what the rooms cost goes back on each
-   * harness's account through the tombstone; and the uploads nothing refers to any more go.
+   * the rows kept beside the log for them go; the projections become exactly what a later replay
+   * would make; what the rooms cost stays on each harness's account through the tombstone; and
+   * the uploads nothing refers to any more go.
+   *
+   * The projections are made so in place where that can be shown to agree with a rebuild: the
+   * rooms' rows go, and the few outside them their events reached are made again (ADR 0258). Else
+   * they are rebuilt from what is left, which holds the server for as long as the log takes.
    *
    * Then, outside it, the search index is compacted and the log's write-ahead file is folded in
    * and emptied, with SQLite zeroing what it frees throughout, so the words are not left behind
@@ -231,16 +236,17 @@ export function createSqliteEventStore(options: EventStoreOptions): EventStore {
       const done = await db.transaction().execute(async (trx) => {
         const seq = (await headIn(trx, workspaceId)) + 1;
         const spaceIds = await withThreads(trx, workspaceId, input.spaceId);
-        const before = await spentByHarness(trx, workspaceId);
         const held = await heldBy(trx, workspaceId, spaceIds);
+        const inPlace = await planInPlace(trx, workspaceId, spaceIds);
+        const before = await spentByHarness(trx, workspaceId);
+        const spentInPlace = inPlace && (await eraseInPlace(trx, inPlace));
         await trx
           .deleteFrom("events")
           .where("workspace_id", "=", workspaceId)
           .where("space_id", "in", spaceIds)
           .execute();
         await forgetRegistryRows(trx, workspaceId, spaceIds, held.asks);
-        await rebuildInto(trx, workspaceId);
-        const spent = spentSince(before, await spentByHarness(trx, workspaceId));
+        const spent = spentInPlace ?? (await rebuiltSpend(trx, workspaceId, before));
         const event = {
           ...tombstone,
           erased: spaceIds,
@@ -248,15 +254,20 @@ export function createSqliteEventStore(options: EventStoreOptions): EventStore {
         };
         const row = { ...toRow(event, now()), seq };
         await trx.insertInto("events").values(row).execute();
-        await applyChanges(trx, project({ ...event, seq } as Parameters<typeof project>[0]));
+        await applyChanges(trx, tombstoneChanges({ ...event, seq }, spentInPlace !== undefined));
         const orphanedDigests = await dropOrphanedUploads(trx, workspaceId, held.uploads);
-        return { row, erased: spaceIds, orphanedDigests };
+        return { row, erased: spaceIds, orphanedDigests, rebuilt: spentInPlace === undefined };
       });
       await compact(db);
       const event = toStored(done.row);
       instruments?.eventsAppended.add(1, { workspace: workspaceId, type: event.type });
       onAppended?.(event);
-      return { event, erased: done.erased, orphanedDigests: done.orphanedDigests };
+      return {
+        event,
+        erased: done.erased,
+        orphanedDigests: done.orphanedDigests,
+        rebuilt: done.rebuilt,
+      };
     } finally {
       await secureDelete(db, secure);
     }
@@ -417,6 +428,25 @@ async function spentByHarness(
     .groupBy("harness_id")
     .execute();
   return new Map(rows.map((row) => [row.harness_id, row.spent ?? 0]));
+}
+
+/** The projections rebuilt from what is left, and what went off each harness's account with it. */
+async function rebuiltSpend(
+  trx: Transaction<Database>,
+  workspaceId: string,
+  before: ReadonlyMap<string, number>,
+): Promise<{ harness_id: string; usd: number }[]> {
+  await rebuildInto(trx, workspaceId);
+  return spentSince(before, await spentByHarness(trx, workspaceId));
+}
+
+/**
+ * What the tombstone writes: the rooms' cost back on each harness's account after a rebuild. In
+ * place, the spend never left the harnesses' rows, so it has none to put back.
+ */
+function tombstoneChanges(event: Record<string, unknown>, inPlace: boolean) {
+  const changes = project(event as Parameters<typeof project>[0]);
+  return inPlace ? changes.filter((change) => change.kind !== "carried_spend") : changes;
 }
 
 /** What went off each harness's account with the rooms: the tombstone puts it back. */

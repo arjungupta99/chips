@@ -1351,10 +1351,14 @@ export class Session {
   /**
    * Heartbeat. Called on a timer: sends a ping, and closes a socket that has been silent for
    * longer than the idle timeout (decision 5: every twenty seconds, closed at sixty).
+   *
+   * `stalledMs` is how long the server itself stood still before this beat. That time is not the
+   * socket's silence: what it sent meanwhile is still waiting to be read, behind this very timer
+   * (1 November 2026: after 79 s of a stalled server, every socket was closed as silent at once).
    */
-  tick(idleTimeoutMs: number): void {
+  tick(idleTimeoutMs: number, stalledMs = 0): void {
     if (this.closed) return;
-    if (this.options.now() - this.lastSeenAt > idleTimeoutMs) {
+    if (this.options.now() - this.lastSeenAt - stalledMs > idleTimeoutMs) {
       this.options.onLog?.("info", "closing a silent socket");
       this.close(CLOSE_IDLE, "idle");
       return;

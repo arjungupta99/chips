@@ -90,6 +90,7 @@ function readEraseBody(raw: string | undefined): boolean {
 export function registerSpaceRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps): void {
   app.delete("/v1/spaces/:id", async (c) => {
     const spaceId = c.req.param("id");
+    const began = performance.now();
     const result = await deps.eraseSpace({
       principal: c.get("principal"),
       spaceId,
@@ -101,8 +102,9 @@ export function registerSpaceRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps): v
       if (kind === "unknown_space") throw new HttpError("not_found", message);
       throw new HttpError("invalid_event", message);
     }
-    const { eventId, erased, files } = result.value;
-    c.get("logger").info({ spaceId, erased: erased.length, files }, "space erased");
+    const { eventId, erased, files, rebuilt } = result.value;
+    const ms = Math.round(performance.now() - began);
+    c.get("logger").info({ spaceId, erased: erased.length, files, rebuilt, ms }, "space erased");
     return c.json({ event_id: eventId, erased, files });
   });
 

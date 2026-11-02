@@ -201,6 +201,37 @@ describe("the line's menu", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("moves with its line as the room scrolls by itself, and goes once the line has left the room", () => {
+    const room = document.createElement("div");
+    const row = document.createElement("div");
+    const spaces = document.createElement("div");
+    room.append(row);
+    document.body.append(room, spaces);
+    let top = 200;
+    room.getBoundingClientRect = () => ({ top: 100, bottom: 500, left: 0, right: 400 }) as DOMRect;
+    row.getBoundingClientRect = () => ({ top, bottom: top + 40, left: 20, right: 380 }) as DOMRect;
+    const { menu, onClose } = open({ at: { x: 40, y: 260 }, row: { current: row } });
+    expect(menu.style.top).toBe("260px");
+
+    // An agent's answer lands under it and the room follows: the line goes up 80, and so does the menu.
+    top = 120;
+    fireEvent.scroll(room);
+    expect(menu.style.top).toBe("180px");
+    expect(menu.style.left).toBe("40px");
+
+    // The spaces list scrolling by itself is nothing to do with this line.
+    top = 50;
+    fireEvent.scroll(spaces);
+    expect(menu.style.top).toBe("180px");
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Past the top of the room, the line is out of sight, and a menu for it would be beside others.
+    fireEvent.scroll(room);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    room.remove();
+    spaces.remove();
+  });
+
   it("stays inside the window when it is asked for at the edge of it", () => {
     const { menu } = open({ at: { x: 9000, y: 9000 } });
     expect(menu.style.left).toBe(`${window.innerWidth - 8}px`);

@@ -226,6 +226,8 @@ function Open({
           // A frame on, so what was laid out has been drawn.
           requestAnimationFrame(drawn);
         }}
+        // A room not here yet says so: the window goes into those words, not a blank page.
+        onDrawn={() => requestAnimationFrame(drawn)}
       />
       {space === undefined ? null : (
         <RoomSheet

@@ -109,6 +109,14 @@ import type { LinkKind, LinkStretch } from "./link.js";
 export type { LinkStretch } from "./link.js";
 
 import {
+  type KeptSpace,
+  keptSpaces,
+  type MadeHere,
+  madeHereEvent,
+  settleMadeHere,
+  withMadeHere,
+} from "./madeHere.js";
+import {
   createFold,
   type Line,
   myRole,
@@ -1307,6 +1315,25 @@ export function createStore(options: StoreOptions): Store {
   const memberships = new Map<string, string>();
   /** What the server said of the last such change it turned away, by room. */
   const roomNotices = new Map<string, string>();
+  /**
+   * Spaces made here that the server has not sent back yet, by id (ADR 0149's third addendum):
+   * drawn from what was sent for them until its own `space.created` is folded, or it says no.
+   */
+  const madeHere = new Map<string, MadeHere>();
+  /** The spaces made here changed since the cache last held them. */
+  let madeHereDirty = false;
+  /** What was sent for a space made here, as the event the server will send back. */
+  const sentFor = (spaceId: string, event: OutboxEvent): void => {
+    const made = madeHere.get(spaceId);
+    const events = made?.events ?? [];
+    const stamped = madeHereEvent(event, device, now(), events.length + 1);
+    madeHere.set(spaceId, {
+      key: made?.key ?? event.idempotency_key,
+      events: [...events, stamped],
+      sent: [...(made?.sent ?? []), event],
+    });
+    madeHereDirty = true;
+  };
   const receipts = new Map<string, "queued" | "steered">();
   /** The person's notification settings, once read from the server (M5.6). */
   let settings: NotificationSettings | undefined;
@@ -1457,15 +1484,25 @@ export function createStore(options: StoreOptions): Store {
   const runListeners = new Set<(spaceId: string, run: HeldRun) => void>();
   let flushQueued = false;
 
+  /**
+   * The model with the spaces made here that it does not have yet (ADR 0149's third addendum),
+   * letting go of those it now has, which the cache then hears of.
+   */
+  const withMadeHereDrawn = (model: WorkspaceModel): WorkspaceModel => {
+    if (settleMadeHere(madeHere, model)) madeHereDirty = true;
+    return withMadeHere(model, madeHere, device.participantId);
+  };
+
   const rebuild = () => {
     const model = fold.model();
     if (awaiting !== undefined) for (const space of model.spaces) awaiting.delete(space.id);
+    const drawn = withMadeHereDrawn(model);
     snapshot = {
       connection,
       link,
       model: withTakenOut(
-        withHidden(withPending(model, [...pending.values()]), settleHiding(model)),
-        settleTakingOut(model),
+        withHidden(withPending(drawn, [...pending.values()]), settleHiding(drawn)),
+        settleTakingOut(drawn),
       ),
       directory,
       readState,
@@ -1543,6 +1580,11 @@ export function createStore(options: StoreOptions): Store {
         void cache.saveOutbox(unsent());
       }
       rebuild();
+      // After the rebuild, which lets go of the spaces made here that the server has sent back.
+      if (madeHereDirty) {
+        madeHereDirty = false;
+        void cache.saveMadeHere(keptSpaces(madeHere)).catch(() => undefined);
+      }
       for (const listener of listeners) listener(snapshot);
     });
   };
@@ -1975,8 +2017,26 @@ export function createStore(options: StoreOptions): Store {
     }
   };
 
+  /**
+   * A space made here, turned away: it goes from the list, and its room says why. Taken, it waits
+   * for its own `space.created`, which may come after the answer, and is never sent again.
+   */
+  const madeHereAnswered = (key: string, refused?: string): void => {
+    for (const [spaceId, made] of madeHere) {
+      if (made.key !== key) continue;
+      madeHereDirty = true;
+      if (refused === undefined) {
+        madeHere.set(spaceId, { ...made, taken: true });
+        continue;
+      }
+      madeHere.delete(spaceId);
+      roomNotices.set(spaceId, notMadeWords(refused));
+    }
+  };
+
   /** The server answered for a key, one way or the other: the command it was for is settled. */
   const answered = (key: string, refused?: string): void => {
+    madeHereAnswered(key, refused);
     membershipAnswered(key, refused);
     hidingAnswered(key, refused);
     const note = notes.get(key);
@@ -2009,6 +2069,27 @@ export function createStore(options: StoreOptions): Store {
       idempotency_key: key,
     });
     notify();
+  };
+
+  /** The spaces made here the cache kept: drawn again, before the cache is folded. */
+  const keepMadeHere = (kept: readonly KeptSpace[]): void => {
+    for (const { spaceId, ...made } of kept) {
+      opened.add(spaceId);
+      madeHere.set(spaceId, made);
+    }
+  };
+
+  /**
+   * And sent again, ahead of the messages written in them, unless the history the cache folded
+   * already has them: the server had them before the app last went.
+   */
+  const sendMadeHereAgain = (kept: readonly KeptSpace[]): void => {
+    if (kept.length === 0) return;
+    const known = new Set(fold.model().spaces.map((space) => space.id));
+    for (const { spaceId, sent } of kept) {
+      if (known.has(spaceId)) continue;
+      for (const event of sent) dispatch(event);
+    }
   };
 
   /** What the cache says was still on its way: pending again, before the cache is folded. */
@@ -2153,6 +2234,7 @@ export function createStore(options: StoreOptions): Store {
     const cached = await cache.loadEvents();
     readState = await cache.loadReadState();
     const held = await cache.loadOutbox();
+    const made = await cache.loadMadeHere();
     const kept = await cache.loadParticipants();
     const keptIcons = await cache.loadSpaceIcons();
     const keptHidden = await cache.loadHiddenSpaces();
@@ -2166,8 +2248,10 @@ export function createStore(options: StoreOptions): Store {
       directoryFrom = "cache";
     }
     keptForThePerson(keptIcons, keptHidden, keptPinned);
+    keepMadeHere(made);
     hold(held);
     ingest(cached, "cache");
+    sendMadeHereAgain(made);
     resend(held);
     // Read, whatever it held: a list may now say what it has, including nothing.
     readingCache = false;
@@ -2632,7 +2716,7 @@ export function createStore(options: StoreOptions): Store {
     createSpace(input) {
       const spaceId = newId("space");
       opened.add(spaceId);
-      dispatch({
+      const event: OutboxEvent = {
         type: "space.created",
         space_id: spaceId,
         ...("askedOf" in input
@@ -2646,7 +2730,11 @@ export function createStore(options: StoreOptions): Store {
             }
           : { kind: input.kind ?? "group", title: input.title }),
         idempotency_key: `space-${spaceId}`,
-      });
+      };
+      // Drawn at once from what was sent, until the server sends it back (ADR 0149's third
+      // addendum): its room opens under the + window before the server has heard of it.
+      sentFor(spaceId, event);
+      dispatch(event);
       notify();
       return spaceId;
     },
@@ -2655,7 +2743,7 @@ export function createStore(options: StoreOptions): Store {
       const key = `add-${input.spaceId}-${input.participantId}-${randomKey()}`;
       memberships.set(key, input.spaceId);
       roomNotices.delete(input.spaceId);
-      dispatch({
+      const event: OutboxEvent = {
         type: "membership.added",
         space_id: input.spaceId,
         participant_id: input.participantId,
@@ -2663,7 +2751,10 @@ export function createStore(options: StoreOptions): Store {
         role: "member",
         ...(input.agentName === undefined ? {} : { agent_name: input.agentName }),
         idempotency_key: key,
-      });
+      };
+      // Who is in a space made here is drawn with it, faces and all, until it is sent back.
+      if (madeHere.has(input.spaceId)) sentFor(input.spaceId, event);
+      dispatch(event);
       notify();
     },
 
@@ -3874,6 +3965,11 @@ function withTakenOut(model: WorkspaceModel, outs: readonly TakenOut[]): Workspa
       return { ...space, members: space.members.filter((id) => !gone.includes(id)), roles };
     }),
   };
+}
+
+/** A space made here that the server turned away, in its room: that it was not made, and why. */
+function notMadeWords(refused: string): string {
+  return `This space wasn't made. ${asSentence(refused)}`;
 }
 
 function asSentence(words: string): string {

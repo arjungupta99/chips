@@ -24,6 +24,7 @@ import * as SQLite from "expo-sqlite";
  */
 const READ_STATE = "read-state";
 const OUTBOX = "outbox";
+const MADE_HERE = "made-here";
 const CURSOR = "cursor";
 const PARTICIPANTS = "participants";
 const SPACE_ICONS = "space-icons";
@@ -188,6 +189,8 @@ export function openSqliteCache(key: string): Cache {
     saveReadState: (readState) => putMeta(READ_STATE, readState),
     loadOutbox: () => meta(OUTBOX, []),
     saveOutbox: (messages) => putMeta(OUTBOX, [...messages]),
+    loadMadeHere: () => meta(MADE_HERE, []),
+    saveMadeHere: (spaces) => putMeta(MADE_HERE, [...spaces]),
     loadParticipants: async () => {
       const kept = await meta<unknown>(PARTICIPANTS, undefined);
       return Array.isArray(kept) ? kept : undefined;

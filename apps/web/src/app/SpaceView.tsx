@@ -2172,6 +2172,7 @@ function MessageRowBody(props: MessageRowProps) {
       {menu !== undefined && actions !== undefined && (
         <LineMenu
           at={menu}
+          row={row}
           spaceId={actions.spaceId}
           line={line}
           may={actions.may}

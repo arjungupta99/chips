@@ -29,6 +29,7 @@
  */
 
 import type { ClientEvent } from "./events.js";
+import type { KeptSpace } from "./madeHere.js";
 import type { QueuedMessage } from "./pending.js";
 import type { ReadState } from "./read-state.js";
 
@@ -39,6 +40,7 @@ const EVENTS = "events";
 const META = "meta";
 const READ_STATE_KEY = "read-state";
 const OUTBOX_KEY = "outbox";
+const MADE_HERE_KEY = "made-here";
 const CURSOR_KEY = "cursor";
 const PARTICIPANTS_KEY = "participants";
 const SPACE_ICONS_KEY = "space-icons";
@@ -103,6 +105,13 @@ export interface Cache {
   /** The messages sent and not yet answered when the page last flushed, to go again after a reload. */
   readonly loadOutbox: () => Promise<QueuedMessage[]>;
   readonly saveOutbox: (messages: readonly QueuedMessage[]) => Promise<void>;
+  /**
+   * The spaces made on this device the server had not said yes to when the page last flushed
+   * (ADR 0149's third addendum): drawn again after a reload, and sent again before the messages
+   * written in them.
+   */
+  readonly loadMadeHere: () => Promise<readonly KeptSpace[]>;
+  readonly saveMadeHere: (spaces: readonly KeptSpace[]) => Promise<void>;
   /**
    * The rows `GET /v1/participants` last answered with, as they came: the store reads them as it
    * reads the server's, so a row a later build reads differently is read the new way. `undefined`
@@ -234,6 +243,8 @@ export function openCache(key: string): Cache {
     loadOutbox: () => withDb((db) => getMeta<QueuedMessage[]>(db, OUTBOX_KEY, []), []),
 
     saveOutbox: (messages) => withDb((db) => putMeta(db, OUTBOX_KEY, [...messages]), undefined),
+    loadMadeHere: () => withDb((db) => getMeta<KeptSpace[]>(db, MADE_HERE_KEY, []), []),
+    saveMadeHere: (spaces) => withDb((db) => putMeta(db, MADE_HERE_KEY, [...spaces]), undefined),
 
     loadParticipants: () =>
       withDb(async (db) => {

@@ -30,7 +30,7 @@ import {
 import type { Database } from "../db/schema.js";
 
 /** The natural key of each projection table. An upsert conflicts on it; a table not here is unreachable. */
-const KEYS: Readonly<Record<ProjectionTable, readonly string[]>> = {
+export const KEYS: Readonly<Record<ProjectionTable, readonly string[]>> = {
   participants: ["id"],
   replacements: ["space_id", "from_id"],
   held_messages: ["event_id"],

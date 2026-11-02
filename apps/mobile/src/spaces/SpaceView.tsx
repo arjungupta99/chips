@@ -946,18 +946,36 @@ function Flown({
 
 /**
  * A room that is not on this phone. Somebody took the reader out of it while it was on screen: it
- * says by whom, and OK goes back (JR-6); added back, the room is here again in its place. Else it
- * has not replayed yet.
+ * says by whom, and OK goes back (JR-6); added back, the room is here again in its place. A room
+ * made here and turned away says why (ADR 0149's third addendum). Else it has not replayed yet.
+ *
+ * Under the room's head, which floats over the room on glass: the words stood under the status bar,
+ * over the clock (his iPhone, 1 November 2026). And it says it has drawn (`onDrawn`): the + window
+ * over a room it opened waits for that, and filled the screen with nothing for a second and a half
+ * before going into these words. Not `onListed`, which hands UIKit's edge settings to a list there
+ * is not yet.
  */
 function NotHere({
   taken,
+  notice,
   onSeen,
+  headHeight,
+  onDrawn,
 }: {
   readonly taken: TakenOut | undefined;
+  readonly notice: string | undefined;
   readonly onSeen: (() => void) | undefined;
+  readonly headHeight: number;
+  readonly onDrawn: (() => void) | undefined;
 }) {
   if (taken !== undefined) return <TakenOutNotice taken={taken} onSeen={() => onSeen?.()} />;
-  return <Empty>{`This space is not on ${thisDevice()}. It may not have replayed yet.`}</Empty>;
+  return (
+    <View style={{ paddingTop: headHeight }} onLayout={onDrawn}>
+      <Empty>
+        {notice ?? `This space is not on ${thisDevice()}. It may not have replayed yet.`}
+      </Empty>
+    </View>
+  );
 }
 
 /** How long a line put back by Undo is looked for, to form again as it is drawn. */
@@ -1041,6 +1059,7 @@ export function SpaceView({
   bandReach = 0,
   inView = true,
   onListed,
+  onDrawn,
   onTakenSeen,
 }: {
   /** The reader, told they were taken out of this room, said OK: back to the list (JR-6). */
@@ -1091,6 +1110,8 @@ export function SpaceView({
   readonly inView?: boolean | undefined;
   /** The room's list has laid out, and is the scroll view its screen finds (`app/spaces/[id].tsx`). */
   readonly onListed?: (() => void) | undefined;
+  /** The room has drawn what it has, a list or the words saying it is not here: the + window goes. */
+  readonly onDrawn?: (() => void) | undefined;
 }) {
   const chips = useChips();
   const files = givenFiles ?? chips.paired?.files;
@@ -1290,7 +1311,15 @@ export function SpaceView({
   });
 
   if (space === undefined) {
-    return <NotHere taken={snapshot.model.takenOut[spaceId]} onSeen={onTakenSeen} />;
+    return (
+      <NotHere
+        taken={snapshot.model.takenOut[spaceId]}
+        notice={snapshot.notices?.get(spaceId)}
+        onSeen={onTakenSeen}
+        headHeight={headHeight}
+        onDrawn={onDrawn}
+      />
+    );
   }
 
   return (

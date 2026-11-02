@@ -2,7 +2,9 @@
 
 **Status:** Accepted, 22 September 2026. Amends ADR 0004's *events are immutable*. Amended by
 [ADR 0069](0069-a-delete-reaches-the-harness-and-its-home-is-always-there.md), 25 September 2026:
-a delete reaches the harness, and a harness's home is never erased.
+a delete reaches the harness, and a harness's home is never erased. Amended by
+[ADR 0258](0258-an-erase-takes-the-rooms-rows-in-place.md), 1 November 2026: the room's rows are
+taken in place, and the workspace is rebuilt only when that cannot be shown to agree.
 
 ## Context
 

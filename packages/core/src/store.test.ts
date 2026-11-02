@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Cache } from "./cache.js";
 import type { Device, DeviceStorage } from "./device.js";
 import type { ClientEvent } from "./events.js";
+import type { KeptSpace } from "./madeHere.js";
 import type { Space } from "./model.js";
 import type { QueuedMessage } from "./pending.js";
 import type { ReadState } from "./read-state.js";
@@ -52,6 +53,8 @@ function harness(
     readState?: ReadState;
     /** What the cache says was sent and not yet answered when the page was last flushed. */
     outbox?: QueuedMessage[];
+    /** What the cache kept of the spaces made here the server had not said yes to. */
+    madeHere?: readonly KeptSpace[];
     /** Where the cache says the socket resumes; absent, a cache from before the cursor was kept. */
     cursor?: number;
     /** What the cache kept of the server's last list of participants; absent, it never had one. */
@@ -87,6 +90,7 @@ function harness(
   const saved: ClientEvent[][] = [];
   const savedReadState: ReadState[] = [];
   const savedOutbox: QueuedMessage[][] = [];
+  const savedMadeHere: (readonly KeptSpace[])[] = [];
   const forgotten: string[][] = [];
   const savedCursor: number[] = [];
   const savedParticipants: (readonly unknown[])[] = [];
@@ -114,6 +118,10 @@ function harness(
     loadOutbox: async () => options.outbox ?? [],
     saveOutbox: async (messages) => {
       savedOutbox.push([...messages]);
+    },
+    loadMadeHere: async () => options.madeHere ?? [],
+    saveMadeHere: async (spaces) => {
+      savedMadeHere.push([...spaces]);
     },
     loadParticipants: options.loadParticipants ?? (async () => options.participants),
     saveParticipants: async (participants) => {
@@ -197,6 +205,7 @@ function harness(
     saved,
     savedReadState,
     savedOutbox,
+    savedMadeHere,
     savedCursor,
     savedParticipants,
     savedSpaceIcons,
@@ -1728,6 +1737,153 @@ describe("a group space, from the store (M3.3)", () => {
     h.wire().onEvent({ type: "hello", spaces: ["spc_1", "spc_9"] } as unknown as ClientEvent);
     await started();
     expect(asked.filter((path) => path.includes("space_id="))).toEqual([]);
+  });
+});
+
+describe("a space made here, before the server sends it back (ADR 0149's third addendum)", () => {
+  /** What the + sends: the space by its name, asked of a harness, and the harness added. */
+  const makeRoom = (h: ReturnType<typeof harness>) => {
+    const spaceId = h.store.createSpace({ kind: "direct", askedOf: "hrn_2", title: "Dude chat" });
+    h.store.addMember({ spaceId, participantId: "hrn_2", kind: "harness", agentName: "Luis" });
+    h.flush();
+    return spaceId;
+  };
+  const spaceIn = (h: ReturnType<typeof harness>, spaceId: string) =>
+    h.store.getSnapshot().model.spaces.find((space) => space.id === spaceId);
+
+  it("is in the model at once, by its name, with who was asked, at the top of the list", async () => {
+    const h = harness({ cached: [OPENED] });
+    await started();
+    h.flush();
+    const spaceId = makeRoom(h);
+    const space = spaceIn(h, spaceId);
+    expect(space?.title).toBe("Dude chat");
+    expect(space?.askedOf).toBe("hrn_2");
+    expect(space?.members).toEqual(["usr_1", "hrn_2"]);
+    expect(h.store.getSnapshot().model.spaces[0]?.id).toBe(spaceId);
+  });
+
+  it("takes a message sent in it, after the space in the outbox, and shows it on its way", async () => {
+    const h = harness();
+    await started();
+    const spaceId = makeRoom(h);
+    h.store.send({ spaceId, text: "Plan a dinner" });
+    h.flush();
+    expect(h.sent.map((each) => each["type"])).toEqual([
+      "space.created",
+      "membership.added",
+      "message.post",
+    ]);
+    expect(spaceIn(h, spaceId)?.lines.at(-1)?.text).toBe("Plan a dinner");
+  });
+
+  it("gives way to the server's own once it is folded, and is not drawn twice", async () => {
+    const h = harness();
+    await started();
+    const spaceId = makeRoom(h);
+    h.wire().onEvent(
+      event(40, {
+        type: "space.created",
+        space_id: spaceId,
+        actor: { kind: "person", id: "usr_1" },
+        kind: "direct",
+        asked_of: "hrn_2",
+        title: "Dude chat",
+      }),
+    );
+    h.flush();
+    const spaces = h.store.getSnapshot().model.spaces.filter((space) => space.id === spaceId);
+    expect(spaces).toHaveLength(1);
+    expect(spaces[0]?.lastEventSeq).toBe(40);
+  });
+
+  it("waits for its own space.created after the server's yes, which may come first", async () => {
+    const h = harness();
+    await started();
+    const spaceId = makeRoom(h);
+    h.wire().onAck?.({ idempotencyKey: `space-${spaceId}`, seq: 40, duplicate: false });
+    h.flush();
+    expect(spaceIn(h, spaceId)?.title).toBe("Dude chat");
+  });
+
+  it("is kept by the cache until the server says yes, and not after", async () => {
+    const h = harness();
+    await started();
+    const spaceId = makeRoom(h);
+    const kept = h.savedMadeHere.at(-1);
+    expect(kept?.map((each) => each.spaceId)).toEqual([spaceId]);
+    expect(kept?.[0]?.sent.map((each) => each["type"])).toEqual([
+      "space.created",
+      "membership.added",
+    ]);
+    h.wire().onAck?.({ idempotencyKey: `space-${spaceId}`, seq: 40, duplicate: false });
+    h.flush();
+    // The server has it: sent again after an erase, it would make the room again.
+    expect(h.savedMadeHere.at(-1)).toEqual([]);
+    // Drawn still, until its own space.created comes back.
+    expect(spaceIn(h, spaceId)?.title).toBe("Dude chat");
+  });
+
+  it("is drawn after a relaunch, and goes again ahead of the message written in it", async () => {
+    const first = harness();
+    await started();
+    const spaceId = makeRoom(first);
+    first.store.send({ spaceId, text: "Plan a dinner" });
+    first.flush();
+    first.store.close();
+
+    // The app was quit before the server ever heard of the space.
+    const again = harness({
+      madeHere: first.savedMadeHere.at(-1) ?? [],
+      outbox: first.savedOutbox.at(-1) ?? [],
+    });
+    await started();
+    again.flush();
+    expect(spaceIn(again, spaceId)?.title).toBe("Dude chat");
+    expect(spaceIn(again, spaceId)?.lines.at(-1)?.text).toBe("Plan a dinner");
+    expect(again.sent.map((each) => each["type"])).toEqual([
+      "space.created",
+      "membership.added",
+      "message.post",
+    ]);
+  });
+
+  it("is not sent again after a relaunch when the history it kept already has it", async () => {
+    const first = harness();
+    await started();
+    const spaceId = makeRoom(first);
+    const created = event(40, {
+      type: "space.created",
+      space_id: spaceId,
+      actor: { kind: "person", id: "usr_1" },
+      kind: "direct",
+      asked_of: "hrn_2",
+      title: "Dude chat",
+    });
+
+    const again = harness({ madeHere: first.savedMadeHere.at(-1) ?? [], cached: [created] });
+    await started();
+    again.flush();
+    expect(again.sent).toEqual([]);
+    expect(
+      again.store.getSnapshot().model.spaces.filter((space) => space.id === spaceId),
+    ).toHaveLength(1);
+  });
+
+  it("goes from the list when the server turns it away, and its room says why", async () => {
+    const h = harness();
+    await started();
+    const spaceId = makeRoom(h);
+    h.wire().onError?.({
+      code: "forbidden",
+      message: "a guest may not open a space",
+      idempotencyKey: `space-${spaceId}`,
+    });
+    h.flush();
+    expect(spaceIn(h, spaceId)).toBeUndefined();
+    expect(h.store.getSnapshot().notices?.get(spaceId)).toBe(
+      "This space wasn't made. A guest may not open a space.",
+    );
   });
 });
 

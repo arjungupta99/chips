@@ -28,6 +28,7 @@ import type { Cache } from "../cache.js";
 import type { Device, DeviceStorage } from "../device.js";
 import type { ClientEvent } from "../events.js";
 import type { Link } from "../link.js";
+import type { KeptSpace } from "../madeHere.js";
 import type { OutboxEvent } from "../outbox.js";
 import type { QueuedMessage } from "../pending.js";
 import type { ReadState } from "../read-state.js";
@@ -726,6 +727,7 @@ function memoryCache(readTo: ReadState): Cache {
   let cursor = 0;
   let readState: ReadState = readTo;
   let outbox: QueuedMessage[] = [];
+  let madeHere: KeptSpace[] = [];
   let participants: readonly unknown[] | undefined;
   let icons: Readonly<Record<string, unknown>> | undefined;
   let hidden: readonly string[] | undefined;
@@ -751,6 +753,10 @@ function memoryCache(readTo: ReadState): Cache {
     loadOutbox: async () => outbox,
     saveOutbox: async (messages) => {
       outbox = [...messages];
+    },
+    loadMadeHere: async () => madeHere,
+    saveMadeHere: async (spaces) => {
+      madeHere = [...spaces];
     },
     loadParticipants: async () => participants,
     saveParticipants: async (rows) => {

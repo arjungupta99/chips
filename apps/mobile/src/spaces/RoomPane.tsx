@@ -136,6 +136,7 @@ export function RoomPane({
       onOpenRoom={room.sheet.show}
       // A frame on, so what was laid out has been drawn, and the new-space window can go into it.
       onListed={() => requestAnimationFrame(room.drawn)}
+      onDrawn={() => requestAnimationFrame(room.drawn)}
     />
   );
   const sheetUp =

@@ -33,6 +33,8 @@ export interface Point {
 
 export interface LineMenuProps {
   readonly at: Point;
+  /** The row the menu is about: the menu moves with it, and goes when it leaves the room's view. */
+  readonly row?: React.RefObject<HTMLElement | null>;
   readonly spaceId: string;
   readonly line: Line;
   readonly may: LineMay;
@@ -80,6 +82,7 @@ export function LineMenu(props: LineMenuProps) {
   const [confirming, setConfirming] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const at = useClamped(menu, props.at);
+  const moved = useFollow(props.row, onClose);
 
   useDismiss(menu, onClose);
 
@@ -108,7 +111,7 @@ export function LineMenu(props: LineMenuProps) {
       role="menu"
       aria-label="What to do with this message"
       data-asking={confirming ? "true" : undefined}
-      style={{ left: `${at.x}px`, top: `${at.y}px` }}
+      style={{ left: `${at.x + moved.x}px`, top: `${at.y + moved.y}px` }}
       onKeyDown={(event) => {
         if (event.key === "Escape") onClose();
         walk(event);
@@ -246,6 +249,46 @@ function useClamped(menu: React.RefObject<HTMLDivElement | null>, at: Point): Po
     });
   }, [menu, at]);
   return where;
+}
+
+/**
+ * How far the line has moved since the menu opened, so the menu goes where its line goes. The
+ * room scrolls by itself, following an agent's answer as it lands, and a menu left where it
+ * opened stood beside other messages while still acting on its own (seen in the demo, 2 November
+ * 2026). Once the line has left the view of the scroller that moved it, the menu goes too.
+ *
+ * Only a scroller that holds the row counts: the spaces list scrolling by itself moves nothing.
+ * Where the row stood is taken once, when the menu opens, since `onClose` is new on every draw.
+ */
+function useFollow(
+  row: React.RefObject<HTMLElement | null> | undefined,
+  onClose: () => void,
+): Point {
+  const [moved, setMoved] = useState<Point>({ x: 0, y: 0 });
+  const start = useRef<DOMRect | undefined>(undefined);
+  useEffect(() => {
+    start.current ??= row?.current?.getBoundingClientRect();
+    if (row === undefined) return;
+    const follow = (event: Event) => {
+      const line = row.current;
+      const from = start.current;
+      const scroller = event.target instanceof Element ? event.target : undefined;
+      if (line === null || from === undefined || scroller?.contains(line) === false) return;
+      const box = inView(line, scroller);
+      if (box === undefined) onClose();
+      else setMoved({ x: box.left - from.left, y: box.top - from.top });
+    };
+    window.addEventListener("scroll", follow, { capture: true, passive: true });
+    return () => window.removeEventListener("scroll", follow, { capture: true });
+  }, [row, onClose]);
+  return moved;
+}
+
+/** Where the line is now, or nothing once it has left the view of the scroller that moved it. */
+function inView(line: HTMLElement, scroller: Element | undefined): DOMRect | undefined {
+  const box = line.getBoundingClientRect();
+  const view = scroller?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+  return box.bottom <= view.top || box.top >= view.bottom ? undefined : box;
 }
 
 /**

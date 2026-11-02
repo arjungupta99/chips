@@ -69,6 +69,8 @@ export interface Erased {
   readonly erased: readonly string[];
   /** How many stored files went with it. */
   readonly files: number;
+  /** Whether the store had to rebuild every projection to erase it (ADR 0258), the slow way. */
+  readonly rebuilt: boolean;
 }
 
 type Answer = { ok: true; value: Erased } | { ok: false; error: EraseFailure };
@@ -259,7 +261,7 @@ export function createEraseSpace(deps: EraseSpaceDeps) {
       }
     }
     await removeProjects(deps, result.erased);
-    return { ok: true, value: { eventId, erased: result.erased, files } };
+    return { ok: true, value: { eventId, erased: result.erased, files, rebuilt: result.rebuilt } };
   };
 }
 

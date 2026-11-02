@@ -193,9 +193,14 @@ export function createSessionHub(options: SessionHubOptions): SessionHub {
     }
   });
 
-  // Decision 5: heartbeats every twenty seconds, and a silent socket closed at sixty.
+  // Decision 5: heartbeats every twenty seconds, and a silent socket closed at sixty. A beat that
+  // comes late says how long the server itself stood still, which no socket is blamed for.
+  let lastBeat = now();
   const heartbeat = setInterval(() => {
-    for (const session of sessions) session.tick(options.idleTimeoutSeconds * 1000);
+    const beat = now();
+    const stalled = Math.max(0, beat - lastBeat - options.heartbeatSeconds * 1000);
+    lastBeat = beat;
+    for (const session of sessions) session.tick(options.idleTimeoutSeconds * 1000, stalled);
   }, options.heartbeatSeconds * 1000);
   heartbeat.unref?.();
 

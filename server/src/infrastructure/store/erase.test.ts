@@ -4,13 +4,14 @@
  * projections are what a replay of the log makes, before and after.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { type Kysely, sql } from "kysely";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { EventStore } from "../../application/ports/index.js";
-import { PROJECTION_TABLES } from "../../domain/index.js";
+import { PROJECTION_TABLES, project } from "../../domain/index.js";
 import { openDatabase } from "../db/connection.js";
 import { migrateToLatest } from "../db/migrator.js";
 import type { Database } from "../db/schema.js";
@@ -375,8 +376,14 @@ describe("erasing a space", () => {
 
   it("leaves projections that a replay of the log makes again, exactly", async () => {
     await twoRooms();
-    await store.erase({ workspaceId: WS, spaceId: CHESS, tombstone: tombstone() });
+    const { rebuilt } = await store.erase({
+      workspaceId: WS,
+      spaceId: CHESS,
+      tombstone: tombstone(),
+    });
     const live = await projections();
+    // A lane that crossed into the trip, a spend and a thread are all erased in place (ADR 0258).
+    expect(rebuilt).toBe(false);
 
     await store.rebuild(WS);
 
@@ -443,3 +450,136 @@ describe("erasing a space", () => {
     expect(orphanedDigests).toEqual([]);
   });
 });
+
+/** An agent of Scout's, put in Chess in Scout's place and taken out of it there, its row the log's. */
+async function anAgentInChess(): Promise<void> {
+  // Scout's own row is the registry's, which a rebuild keeps and only patches.
+  await db
+    .insertInto("participants")
+    .values({
+      id: SCOUT,
+      workspace_id: WS,
+      kind: "harness",
+      display_name: "Scout",
+      ephemeral: 0,
+      created_at: "2026-09-02T00:00:00.000Z",
+    })
+    .execute();
+  await put(
+    "agent.registered",
+    undefined,
+    { agent_id: AGENT, harness_id: SCOUT, key: "chess", name: "Magnus", lead: false },
+    { kind: "harness", id: SCOUT },
+  );
+  await put("agent.released", TRIP, { agent_id: AGENT, reason: "archived" }, SYSTEM);
+  await put("membership.replaced", CHESS, { from: SCOUT, to: AGENT }, SYSTEM);
+  await put("agent.attached", CHESS, { agent_id: AGENT }, SYSTEM);
+  await put("agent.released", CHESS, { agent_id: AGENT, reason: "removed" }, SYSTEM);
+}
+
+const AGENT = "agt_01K4ZQPX00000000000000AGNT";
+const SYSTEM = { kind: "system", id: "system" };
+const FIXTURES = fileURLToPath(new URL("../../../../packages/protocol/fixtures/", import.meta.url));
+
+/** Erase Chess, and the projections then and after a rebuild of what the log keeps. */
+async function eraseThenRebuild() {
+  const { rebuilt } = await store.erase({
+    workspaceId: WS,
+    spaceId: CHESS,
+    tombstone: tombstone(),
+  });
+  const live = await projections();
+  await store.rebuild(WS);
+  return { rebuilt, live, replayed: await projections() };
+}
+
+describe("erasing a space in place (ADR 0258)", () => {
+  it("makes again the rows outside the room it reached, as a rebuild of what is left would", async () => {
+    await twoRooms();
+    await anAgentInChess();
+
+    const { rebuilt, live, replayed } = await eraseThenRebuild();
+
+    expect(rebuilt).toBe(false);
+    expect(live).toEqual(replayed);
+    const agent = await db
+      .selectFrom("participants")
+      .select(["last_space_id", "released_from"])
+      .where("id", "=", AGENT)
+      .executeTakeFirstOrThrow();
+    // Chess's news of it went with Chess: it was last let go from the trip, by an archive.
+    expect(agent).toEqual({ last_space_id: TRIP, released_from: TRIP });
+  });
+
+  it("takes the room's words out of the search index before it answers", async () => {
+    await twoRooms();
+    await drainSearchIndex(db);
+
+    await store.erase({ workspaceId: WS, spaceId: CHESS, tombstone: tombstone() });
+
+    const indexed = await sql<{ space_id: string }>`select space_id from messages_fts`.execute(db);
+    expect(new Set(indexed.rows.map((row) => row.space_id))).toEqual(new Set([TRIP]));
+  });
+
+  it("rebuilds when a policy row began after the room spent, which held only part of it", async () => {
+    await twoRooms();
+    await put("policy.updated", TRIP, {
+      harness_id: SCOUT,
+      policy: { autonomy: 2, rules: [] },
+      workspace_max_autonomy: 2,
+    });
+    await put(
+      "usage",
+      CHESS,
+      { run_id: "run_01K4ZQPX000000000000CHESS1", scope: "step", cost: { usd: 0.125 } },
+      { kind: "harness", id: SCOUT },
+    );
+
+    const { rebuilt, live, replayed } = await eraseThenRebuild();
+
+    expect(rebuilt).toBe(true);
+    expect(live).toEqual(replayed);
+  });
+
+  it("rebuilds when another room's event is about one of the room's runs", async () => {
+    await twoRooms();
+    await put(
+      "usage",
+      TRIP,
+      { run_id: "run_01K4ZQPX000000000000CHESS1", scope: "step", cost: { usd: 0.125 } },
+      { kind: "harness", id: SCOUT },
+    );
+
+    const { rebuilt, live, replayed } = await eraseThenRebuild();
+
+    expect(rebuilt).toBe(true);
+    expect(live).toEqual(replayed);
+  });
+
+  it("finds every change to an agent's or a lane's row by its id, as it makes them again", () => {
+    // `remakes` reads the events naming the row's id. A change reaching such a row any other way
+    // (every agent of a harness, say) would be missed there, so none may.
+    for (const file of readdirSync(FIXTURES).filter((name) => name.endsWith(".json"))) {
+      const event = JSON.parse(readFileSync(join(FIXTURES, file), "utf8"));
+      for (const key of agentOrLaneKeys(project({ ...event, seq: 7 }))) {
+        expect(typeof key["id"], file).toBe("string");
+        expect(Object.keys(key).filter(notIdOrWorkspace), file).toEqual([]);
+      }
+    }
+  });
+});
+
+/** What names the row of each change a projector makes to an agent's or a lane's row. */
+function agentOrLaneKeys(changes: ReturnType<typeof project>): Record<string, unknown>[] {
+  return changes.flatMap((change) => {
+    if (!("table" in change) || (change.table !== "participants" && change.table !== "lanes")) {
+      return [];
+    }
+    if (change.kind === "upsert") return [{ id: change.row["id"] }];
+    return "key" in change ? [change.key] : [{}];
+  });
+}
+
+function notIdOrWorkspace(column: string): boolean {
+  return column !== "id" && column !== "workspace_id";
+}

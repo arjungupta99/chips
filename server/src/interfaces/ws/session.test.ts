@@ -1202,6 +1202,19 @@ describe("heartbeats and backpressure", () => {
     expect(wire.closes).toHaveLength(0);
   });
 
+  it("does not count the server's own stall as the socket's silence", () => {
+    const wire = open("harness");
+    // The server stood still for 79 s: the socket's frames from then are still unread.
+    clock += 99_000;
+    wire.session.tick(60_000, 79_000);
+    expect(wire.closes).toEqual([]);
+    expect(wire.frames("ping")).toHaveLength(1);
+    // Silent after it all the same, it goes on the next beats.
+    clock += 41_000;
+    wire.session.tick(60_000);
+    expect(wire.closes[0]).toMatchObject({ reason: "idle" });
+  });
+
   it("keeps a socket that answered its ping", async () => {
     const wire = open("harness");
     clock += 30_000;

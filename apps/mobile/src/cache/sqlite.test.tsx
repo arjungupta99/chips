@@ -201,6 +201,15 @@ describe("the phone's cache", () => {
     expect(await openSqliteCache("ws_pinned").loadPinnedSpaces()).toEqual(["spc_2", "spc_1"]);
   });
 
+  it("keeps the spaces made here the server has not taken, after a relaunch too (ADR 0149)", async () => {
+    const cache = openSqliteCache("ws_made");
+    expect(await cache.loadMadeHere()).toEqual([]);
+    const sent = { type: "space.created", space_id: "spc_9", idempotency_key: "space-spc_9" };
+    const made = [{ spaceId: "spc_9", key: "space-spc_9", events: [], sent: [sent] }];
+    await cache.saveMadeHere(made);
+    expect(await openSqliteCache("ws_made").loadMadeHere()).toEqual(made);
+  });
+
   it("lets a failed write be heard, so the store holds the cursor back, and writes again once it can", async () => {
     const cache = openSqliteCache("ws_locked");
     stand.mockLock("chips-cache-ws_locked.db", true);
