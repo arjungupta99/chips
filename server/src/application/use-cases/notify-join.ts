@@ -17,6 +17,7 @@ import type { Clock } from "../ports/clock.js";
 import type { NotificationRegistry } from "../ports/notifications.js";
 import type { PushMessage, PushRegistry, PushSender } from "../ports/push.js";
 import type { ReadModels } from "../ports/read-models.js";
+import { sayPushed } from "../pushed.js";
 
 /** The two sentences a push carries. Neither says who asks. */
 export const JOIN_PUSH_WORDS = {
@@ -64,11 +65,9 @@ export function createNotifyJoin(deps: NotifyJoinDeps) {
       });
     }
     if (messages.length === 0) return;
-    await deps.sender.send(messages);
-    deps.logger.info(
-      { event: "push.sent", join_request_id: requestId, phones: messages.length },
-      "a join request was pushed",
-    );
+    sayPushed(deps.logger, await deps.sender.send(messages), "a join request", {
+      join_request_id: requestId,
+    });
   }
 
   return {

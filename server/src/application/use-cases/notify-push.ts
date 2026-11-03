@@ -13,6 +13,9 @@
  * Which one is settled before the claim — a phone where it is the middle of the night has
  * already been dropped by the domain.
  *
+ * A phone whose push didn't go gives its claim back (ADR 0244). The person's computer asks once
+ * more about a decision it was told was taken, so it raises the banner after all.
+ *
  * Nothing here throws. A push that does not go is a push that does not go; the decision is in
  * the queue, on every screen, the moment anything looks.
  */
@@ -25,6 +28,7 @@ import type { StoredEvent } from "../ports/event-store.js";
 import type { NotificationRegistry } from "../ports/notifications.js";
 import type { PushMessage, PushRegistry, PushSender, PushTicket } from "../ports/push.js";
 import type { ApprovalView, ReadModels } from "../ports/read-models.js";
+import { sayPushed } from "../pushed.js";
 
 /** The two words a push carries. Neither says anything about the ask. */
 const TITLE = "A decision is waiting";
@@ -39,9 +43,16 @@ const DEFAULT_TTL_SECONDS = 3600;
 /** The events worth a push. Everything else in the log is somebody's screen to notice. */
 const ABOUT = new Set(["approval.request", "approval.routed"]);
 
+/** A claim the ledger granted for one phone: what to give back if its push doesn't go. */
+interface Held {
+  readonly participantId: string;
+  readonly deviceId: string;
+  readonly key: string;
+}
+
 export interface NotifyPushDeps {
   readonly readModels: Pick<ReadModels, "approval" | "membersOf" | "run">;
-  readonly notifications: Pick<NotificationRegistry, "settings" | "claim">;
+  readonly notifications: Pick<NotificationRegistry, "settings" | "claim" | "release">;
   readonly push: PushRegistry;
   readonly sender: PushSender;
   readonly clock: Clock;
@@ -164,9 +175,9 @@ export function createNotifyPush(deps: NotifyPushDeps): NotifyPush {
     recipients: ReturnType<typeof pushRecipients>,
     approval: ApprovalView,
     at: string,
-  ): Promise<{ messages: PushMessage[]; devices: string[] }> {
+  ): Promise<{ messages: PushMessage[]; held: Held[] }> {
     const messages: PushMessage[] = [];
-    const devices: string[] = [];
+    const held: Held[] = [];
     const ttl = ttlFor(approval, Date.parse(at));
     for (const recipient of recipients) {
       const granted = await deps.notifications.claim({
@@ -178,9 +189,48 @@ export function createNotifyPush(deps: NotifyPushDeps): NotifyPush {
       });
       if (granted.length === 0) continue;
       messages.push({ ...messageFor(recipient.token, recipient.deviceId, approval), ttl });
-      devices.push(recipient.deviceId);
+      held.push(recipient);
     }
-    return { messages, devices };
+    return { messages, held };
+  }
+
+  /** Give back each claim whose push didn't go, so the person's computer may raise it. */
+  async function giveBack(
+    workspaceId: string,
+    held: readonly Held[],
+    tickets: readonly PushTicket[] | undefined,
+  ): Promise<void> {
+    for (const [index, one] of held.entries()) {
+      if (tickets?.[index]?.ok === true) continue;
+      await deps.notifications.release({
+        workspaceId,
+        participantId: one.participantId,
+        deviceId: one.deviceId,
+        keys: [one.key],
+      });
+    }
+  }
+
+  /** Send what was claimed, say what went, and settle the claims and tokens by the tickets. */
+  async function send(
+    workspaceId: string,
+    approvalId: string,
+    messages: readonly PushMessage[],
+    held: readonly Held[],
+  ): Promise<void> {
+    let tickets: PushTicket[];
+    try {
+      tickets = await deps.sender.send(messages);
+    } catch (error) {
+      await giveBack(workspaceId, held, undefined);
+      throw error;
+    }
+    sayPushed(deps.logger, tickets, "a decision", { approval_id: approvalId });
+    await giveBack(workspaceId, held, tickets);
+    await forgetDead(
+      tickets,
+      held.map((one) => one.deviceId),
+    );
   }
 
   async function notify(event: StoredEvent): Promise<void> {
@@ -195,15 +245,9 @@ export function createNotifyPush(deps: NotifyPushDeps): NotifyPush {
     const recipients = await eligible(event, approval, at);
     if (recipients.length === 0) return;
 
-    const { messages, devices } = await claimEach(event, recipients, approval, at);
+    const { messages, held } = await claimEach(event, recipients, approval, at);
     if (messages.length === 0) return;
-
-    const tickets = await deps.sender.send(messages);
-    deps.logger.info(
-      { event: "push.sent", approval_id: approvalId, phones: messages.length },
-      "a decision was pushed",
-    );
-    await forgetDead(tickets, devices);
+    await send(event.workspace_id, approvalId, messages, held);
   }
 
   return {

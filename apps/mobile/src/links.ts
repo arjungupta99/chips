@@ -17,6 +17,8 @@
  * and the mobile guide says so.
  */
 
+import { joinPathFor } from "./pairing/inviteLink";
+
 /** The route a link points at, or nothing when it points at something this app does not have. */
 export function routeFor(raw: string): string | undefined {
   const [kind, id] = partsOf(raw);
@@ -24,6 +26,19 @@ export function routeFor(raw: string): string | undefined {
   if (kind === "space" && id.startsWith("spc_")) return `/spaces/${id}`;
   if (kind === "approval" && id.startsWith("apr_")) return `/needs/${id}`;
   return undefined;
+}
+
+/**
+ * What the router is given of a link the system opens the app with (`app/+native-intent.tsx`),
+ * whether it opened the app or came while it ran. A space's link and an ask's are nothing to the
+ * router: `useDeepLinks` follows them once there is a store to open them with, and the router,
+ * which has no route by those names, put its own "Unmatched Route" over the room (the iPhone Duo
+ * simulator, 2 November 2026). An invite at a relay's page goes to `/join` (`joinPathFor`). Every
+ * other link goes on as it came.
+ */
+export function routerPathFor(path: string): string | null {
+  if (routeFor(path) !== undefined) return null;
+  return joinPathFor(path) ?? path;
 }
 
 /**

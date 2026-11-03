@@ -37,6 +37,12 @@ export interface NotificationRegistry {
    * another device holds, and not one this device was granted before (Gate 5).
    */
   readonly claim: (request: ClaimRequest) => Promise<string[]>;
+  /**
+   * Give back keys this device holds, so the person's next device to ask is granted them: the
+   * server claimed them for a phone whose push didn't go (ADR 0244). A key another device
+   * holds is left as it is.
+   */
+  readonly release: (request: Omit<ClaimRequest, "at">) => Promise<void>;
   /** Forget claims older than a moment: a banner from last week is nobody's to raise again. */
   readonly prune: (before: string) => Promise<number>;
 }

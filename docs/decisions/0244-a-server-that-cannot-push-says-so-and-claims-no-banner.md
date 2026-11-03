@@ -50,3 +50,27 @@ browser, asking for the same key, was told it was taken: an approval raised no b
 - A token Expo refuses costs one banner: the claim for the first push after the token went bad
   was already made when the refusal came. Every push after it claims nothing.
 - A server older than this one sends no `pushes`, and the phone takes it to push as it always did.
+
+## Addendum, 2 November 2026: a push that didn't go gives its banner back
+
+A push can still fail after its claim is made. That happens on the first 401 or 403, while the
+push relay is down or answers `push_unavailable` (ADR 0246), at a rate limit, or for a phone
+that's gone. Each time, the person's computer was told the banner was taken, and the log still
+said "a decision was pushed".
+
+- **The server gives the claim back.** When a decision's push doesn't go, the server releases
+  its claim for that phone (`release` on the claim ledger). It releases only what that phone
+  holds. Today only `decision:` keys are claimed both by a phone and by a computer, so only
+  decisions give a claim back. Messages, join requests, direct asks, the agents' talk and the
+  relay's ask are claimed only by phones.
+- **The computer asks once more.** On the web and on the Mac, a decision the ledger said was
+  taken is asked about again 15 seconds later. That is past the 10 seconds the server waits for
+  the push service. If the decision is still waiting and was given back, this device gets it and
+  raises the banner. It asks once and no more.
+- **The log says what happened.** Every push says `push.sent` with the phones it reached. For
+  the rest it says `push.not_sent` and why ("… could not be pushed").
+
+So the consequence above, "a token Expo refuses costs one banner", no longer holds. The banner
+comes up on the person's computer up to 15 seconds late. A computer that was offline when the
+claim was given back asks as it would for any decision. The phone's switch still says nothing
+while the push relay is down: that would mean a new value for `pushes`, which is still open.

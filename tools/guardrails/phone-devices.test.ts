@@ -28,6 +28,50 @@ describe("the iPhone as CoreDevice lists it", () => {
     expect(coreDeviceRowOf(list("available (no DDI)"), "My iPhone 17").reachable).toBe(true);
   });
 
+  it("reads Xcode 27's list, where a phone has no hostname and its id says (UDID)", () => {
+    // As `devicectl list devices` printed it on 2 November 2026, with Xcode 27.2: the empty
+    // hostname left the identifier where the hostname was, and the state was taken for the id.
+    const row = (cells: string[]) =>
+      cells.map((cell, index) => cell.padEnd([22, 11, 45, 21, 27, 9][index] ?? 0)).join("");
+    const xcode27 = [
+      row(["Name", "Hostname", "Identifier", "State", "Model", "Reality"]),
+      row([
+        "-".repeat(19),
+        "-".repeat(8),
+        "-".repeat(42),
+        "-".repeat(18),
+        "-".repeat(24),
+        "-".repeat(9),
+      ]),
+      row([
+        "My iPhone 17",
+        "",
+        "11111111-2222333344445555 (UDID)",
+        "connected",
+        "iPhone 17 (iPhone18,3)",
+        "physical",
+      ]),
+      row([
+        "Ada?s Apple Watch",
+        "",
+        "66666666-7777888899990000 (UDID)",
+        "available (paired)",
+        "Watch7,2",
+        "",
+      ]),
+    ].join("\n");
+    expect(coreDeviceRowOf(xcode27, "My iPhone 17")).toEqual({
+      identifier: "11111111-2222333344445555",
+      state: "connected",
+      reachable: true,
+    });
+    expect(coreDeviceRowOf(xcode27.replace("connected", "unavailable"), "My iPhone 17")).toEqual({
+      identifier: "11111111-2222333344445555",
+      state: "unavailable",
+      reachable: false,
+    });
+  });
+
   it("is not refused when CoreDevice does not list it, and has no identifier then", () => {
     expect(coreDeviceRowOf("", "My iPhone 17")).toEqual({
       identifier: undefined,

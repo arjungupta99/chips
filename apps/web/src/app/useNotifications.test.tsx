@@ -12,9 +12,10 @@ import { buildModel } from "@chipschat/core";
 import { DEFAULT_NOTIFICATION_SETTINGS, type NotificationSettings } from "@chipschat/protocol";
 import { render, waitFor } from "@testing-library/react";
 import { act } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Desktop } from "../native.ts";
 import {
+  ASK_AGAIN_MS,
   browserNotifier,
   browserPermission,
   desktopNotifier,
@@ -150,6 +151,55 @@ describe("what is raised", () => {
     await waitFor(() => expect(store.claimed).toHaveLength(1));
     expect(notifier.decisions).toEqual([]);
     expect(notifier.digests).toHaveLength(1);
+  });
+
+  it("asks about a taken decision once more, and raises it when a phone whose push didn't go gave it back (ADR 0244)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const store = fakeStore(snapshotOf(waiting()));
+      store.taken.add(`decision:${APPROVAL}`);
+      const notifier = fakeNotifier();
+      render(<Bridge stores={[store]} notifier={notifier} now={DAY} />);
+      await waitFor(() => expect(store.claimed).toHaveLength(1));
+      expect(notifier.decisions).toEqual([]);
+
+      // The phone's push didn't go, and the server gave the key back.
+      store.taken.delete(`decision:${APPROVAL}`);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ASK_AGAIN_MS);
+      });
+      await waitFor(() => expect(notifier.decisions).toHaveLength(1));
+      expect(store.claimed).toEqual([
+        [`decision:${APPROVAL}`, "digest:fyi:2026-09-08"],
+        [`decision:${APPROVAL}`],
+      ]);
+
+      // Once more, and no more.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(store.claimed).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("doesn't ask again about a taken decision that was answered meanwhile", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const store = fakeStore(snapshotOf(waiting()));
+      store.taken.add(`decision:${APPROVAL}`);
+      const notifier = fakeNotifier();
+      render(<Bridge stores={[store]} notifier={notifier} now={DAY} />);
+      await waitFor(() => expect(store.claimed).toHaveLength(1));
+      store.update(snapshotOf([...waiting(), fixture("approval.resolved", 6)]));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ASK_AGAIN_MS);
+      });
+      expect(store.claimed).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("holds the digests in quiet hours and lets a decision through, unless nothing does", async () => {

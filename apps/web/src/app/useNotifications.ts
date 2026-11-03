@@ -8,6 +8,10 @@
  * banner can be raised: the desktop shell, with Approve and Deny for a decision, or the
  * browser's own notifications when the person has allowed them. In a tab that has allowed
  * nothing, this does nothing at all.
+ *
+ * A decision told taken is asked about once more, a little later. The server claims it for a
+ * phone before pushing, and gives it back when the push doesn't go (ADR 0244): asked again,
+ * this device is granted it and raises the banner the phone never showed.
  */
 
 import {
@@ -61,6 +65,12 @@ export function browserNotifier(where: typeof globalThis = globalThis): Notifier
     digest: (title, body) => show(title, body, title),
   };
 }
+
+/**
+ * How long after a decision is told taken to ask about it again: past the ten seconds the
+ * server gives the push service, so a push that didn't go has given its claim back.
+ */
+export const ASK_AGAIN_MS = 15_000;
 
 /** What `browserPermission`'s asking raises on the page once the browser has answered. */
 export const PERMISSION_ANSWERED = "chips:notification-permission";
@@ -237,6 +247,7 @@ async function raise(
   store: Store,
   snapshot: Snapshot,
   fresh: readonly Notice[],
+  again = true,
 ): Promise<void> {
   let granted: string[];
   try {
@@ -253,4 +264,19 @@ async function raise(
     if (notice.kind === "decision") void watch.notifier.decision(notice.item, snapshot);
     else void watch.notifier.digest(digestTitle(notice), digestBody(notice, snapshot));
   }
+  const taken = fresh.filter((one) => one.kind === "decision" && !granted.includes(one.key));
+  if (again && taken.length > 0) {
+    const keys = new Set(taken.map((one) => one.key));
+    setTimeout(() => askAgain(watch, store, keys), ASK_AGAIN_MS);
+  }
+}
+
+/** Ask once more about the taken decisions still waiting: a phone may have given one back. */
+function askAgain(watch: Watch, store: Store, keys: ReadonlySet<string>): void {
+  if (!watch.live) return;
+  const snapshot = store.getSnapshot();
+  const waiting = attention(snapshot.model.needsYou, snapshot.readState);
+  const notices = planNotices(waiting, store.notificationSettings(), momentOf(watch.clock()));
+  const still = notices.filter((notice) => keys.has(notice.key));
+  if (still.length > 0) void raise(watch, store, snapshot, still, false);
 }

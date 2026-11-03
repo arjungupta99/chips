@@ -63,6 +63,17 @@ export function createNotificationRegistry(db: Kysely<Database>): NotificationRe
       return wanted.filter((key) => granted.has(key));
     },
 
+    async release({ workspaceId, participantId, deviceId, keys }) {
+      if (keys.length === 0) return;
+      await db
+        .deleteFrom("notification_claims")
+        .where("workspace_id", "=", workspaceId)
+        .where("participant_id", "=", participantId)
+        .where("device_id", "=", deviceId)
+        .where("key", "in", [...keys])
+        .execute();
+    },
+
     async prune(before) {
       const result = await db
         .deleteFrom("notification_claims")

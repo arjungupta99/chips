@@ -17,6 +17,7 @@ import {
   startDemo,
 } from "@chipschat/core";
 import { inDesktop } from "../../native.ts";
+import { browserDeviceName } from "../browserName.ts";
 
 /** What the demo's store is made to play: a film from a chapter, or the film played whole. */
 export interface DemoRun {
@@ -57,7 +58,9 @@ export function makeStore(device: Device, run?: DemoRun | undefined): MadeStore 
     return { store, close: () => store.close() };
   }
   const { film, from } = run ?? lookedAround();
-  const start = startDemo({ film, from });
+  // Named as it would pair (`Pairing.tsx`): the demo's one device, in You's Devices.
+  const deviceName = inDesktop() ? "Chips for Mac" : browserDeviceName();
+  const start = startDemo({ film, from, deviceName });
   const store = createStore({ ...usual, ...start.storeOptions });
   // Made even for a film played whole: the player is what tells the demo to answer once it ends.
   const player = start.makePlayer();

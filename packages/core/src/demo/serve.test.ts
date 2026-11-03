@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { fetchAttachmentWithType, inAlbum, kindOf } from "../attachments.js";
 import { cacheKey } from "../cache.js";
 import type { ClientEvent } from "../events.js";
+import { type RelayView, relayFactsOf, relayLists } from "../relaySwitch.js";
 import { SNIPPET_CLOSE, SNIPPET_OPEN } from "../store.js";
 import { fakeClock, watch } from "../testing/demo.js";
 import type { TransportOptions } from "../transport.js";
@@ -115,11 +116,45 @@ describe("the demo's reads", () => {
     expect(history.events.map((event) => event.type)).toContain("space.created");
   });
 
+  it("lists one device, the one showing it, by the name it would pair with", async () => {
+    // A clock of its own, so the two reads are of one moment.
+    const { storeOptions } = serveDemo({ deviceName: "iPhone 17 Pro", clock: fakeClock() });
+    const device = await demoDevice();
+    type Listed = { devices: { device_id: string; name: string; current: boolean }[] };
+    const mine = await storeOptions.get<Listed>(device, "/v1/devices");
+    expect(mine.devices).toMatchObject([
+      { device_id: DEMO_DEVICE_ID, name: "iPhone 17 Pro", current: true, revoked_at: null },
+    ]);
+    const yours = await storeOptions.get<Listed>(device, `/v1/people/${DEMO_PERSON_ID}/devices`);
+    expect(yours).toEqual(mine);
+    const rosas = await storeOptions.get<Listed>(device, "/v1/people/per_somebody_else/devices");
+    expect(rosas.devices).toEqual([]);
+    await expect(storeOptions.remove(device, `/v1/devices/${DEMO_DEVICE_ID}`)).rejects.toThrow();
+  });
+
+  it("has the relay switch as a server starts it, off, with the one device on its network", async () => {
+    const { storeOptions } = serveDemo({ deviceName: "iPhone Duo" });
+    const device = await demoDevice();
+    const facts = relayFactsOf(await storeOptions.get<RelayView>(device, "/v1/relay"));
+    expect(facts).toMatchObject({
+      configured: true,
+      on: false,
+      status: "off",
+      keptLink: undefined,
+    });
+    expect(relayLists(facts.devices)).toMatchObject({
+      relayed: [],
+      direct: [{ deviceId: DEMO_DEVICE_ID, participantId: DEMO_PERSON_ID, name: "iPhone Duo" }],
+      away: [],
+    });
+    await expect(storeOptions.put(device, "/v1/relay", { on: true })).rejects.toThrow();
+  });
+
   it("turns away every other read and every write, as not in the demo, at once", async () => {
     const { storeOptions } = serveDemo();
     const device = await demoDevice();
     const refused = { code: NOT_IN_DEMO, refusal: NOT_IN_DEMO, message: "This isn't in the demo." };
-    await expect(storeOptions.get(device, "/v1/devices")).rejects.toMatchObject(refused);
+    await expect(storeOptions.get(device, "/v1/invites")).rejects.toMatchObject(refused);
     await expect(storeOptions.post(device, "/v1/invites", {})).rejects.toMatchObject(refused);
     await expect(storeOptions.put(device, "/v1/me/pins/x", {})).rejects.toMatchObject(refused);
     await expect(storeOptions.patch(device, "/v1/harnesses/x", {})).rejects.toMatchObject(refused);

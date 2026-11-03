@@ -60,9 +60,23 @@ export const NOT_VALID = "That invite is not valid.";
 /** What went wrong reaching the server, in a sentence that says where to look. */
 export function troubleOf(error: unknown): string {
   if (error instanceof PairingError) return error.message;
-  const said = error instanceof Error ? error.message.trim().replace(/\.$/, "") : "";
+  const said = error instanceof Error ? plainCause(error.message) : "";
   const cause = said === "" ? "" : ` (${said})`;
   return `Chips couldn't reach the server this invite is for, on its network or through its relay${cause}.`;
+}
+
+/**
+ * The cause as a person reads it. Expo's fetch on iOS wraps what the system said in its own names
+ * and the line of Swift it came from: "fetch failed: UnexpectedException: Could not connect to
+ * the server. (at ExpoModulesCore/Promise.swift:56)". Only the system's words are kept.
+ */
+function plainCause(said: string): string {
+  return said
+    .trim()
+    .replace(/\s*\(at [^()]*\)$/, "")
+    .replace(/^fetch failed:\s*/i, "")
+    .replace(/^\w+Exception:\s*/, "")
+    .replace(/\.$/, "");
 }
 
 /**

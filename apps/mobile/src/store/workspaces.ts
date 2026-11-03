@@ -38,6 +38,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { openSqliteCache } from "../cache/sqlite";
 import { deviceStorage } from "../device/storage";
+import { phoneName } from "../pairing/usePairing";
 import { letGoOf } from "../spaces/erased";
 import { createFileService, type FileService } from "../spaces/files";
 
@@ -116,7 +117,8 @@ function made(device: Device, at: DemoStartAt): Held {
   const files = createFileService(device);
   const own = { device, deviceStorage, openCache: openSqliteCache, onErased: letGoOf };
   if (!isDemo(device)) return { store: createStore(own), files };
-  const demo = startDemo({ film: at.film, from: at.from });
+  // Named as it would pair: the demo's one device, in You's Devices.
+  const demo = startDemo({ film: at.film, from: at.from, deviceName: phoneName() });
   const store = createStore({ ...own, ...demo.storeOptions });
   return { store, files, player: demo.makePlayer() };
 }

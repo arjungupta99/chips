@@ -12,6 +12,7 @@ import {
   isDemo,
   ownsWorkspace,
   type PairedDeviceRecord,
+  relaySettled,
   type ServerFacts,
   type SetupStep,
   type SetupStepId,
@@ -118,8 +119,14 @@ export function useSetup(store: Store, snapshot: Snapshot, device: Device | unde
       live = false;
     };
   }, [hiddenKey]);
+  // Read again once an owner turns the relay, when the server has done what the switch says
+  // (`relaySettled`), so Away from home follows the switch rather than a read a minute old.
+  const relayAt = snapshot.model.relay?.at;
   const facts = useEvery<ServerFacts>(
-    useCallback(() => store.serverFacts(), [store]),
+    useCallback(async () => {
+      await relaySettled(relayAt);
+      return store.serverFacts();
+    }, [store, relayAt]),
     60_000,
     `facts.${deviceId}`,
   );

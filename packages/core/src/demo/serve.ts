@@ -36,7 +36,13 @@ import { SNIPPET_CLOSE, SNIPPET_OPEN } from "../store.js";
 import { ServerRefused, type Transport, type TransportOptions } from "../transport.js";
 import { type DemoAgents, keepAgents, refusal } from "./agents.js";
 import { type Book, createBook, type Taken } from "./book.js";
-import { DEMO_PERSON_ID, DEMO_WORKSPACE_ID, DEMO_WORKSPACE_NAME, demoId } from "./device.js";
+import {
+  DEMO_DEVICE_ID,
+  DEMO_PERSON_ID,
+  DEMO_WORKSPACE_ID,
+  DEMO_WORKSPACE_NAME,
+  demoId,
+} from "./device.js";
 import { inviteCardBytes } from "./picture.js";
 import {
   type Act,
@@ -117,11 +123,18 @@ export interface ServeOptions {
    * the whole film played: Look around.
    */
   readonly from?: number | undefined;
+  /**
+   * What the device showing the demo calls itself, as it would pair ("iPhone 17 Pro", "Safari on
+   * Mac"): the one device of the made-up workspace, in You's Devices.
+   */
+  readonly deviceName?: string | undefined;
 }
 
 const MINUTE = 60_000;
 /** How long the canned answer takes to come, so it reads as an answer and not an echo. */
 const ANSWER_MS = 1200;
+/** Chips's own relay, the one a server is given when it has none of its own (ADR 0245). */
+const DEMO_RELAY = "wss://relay.chipschat.ai";
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -274,6 +287,7 @@ export function serveDemo(options: ServeOptions = {}): DemoServer {
     now: () => iso(clock.now()),
     since,
     offline,
+    deviceName: options.deviceName ?? "This device",
   });
   return {
     storeOptions: {
@@ -511,9 +525,24 @@ function readsOf(
     readonly now: () => string;
     readonly since: string;
     readonly offline: ReadonlyMap<string, string>;
+    readonly deviceName: string;
   },
 ): (path: string) => unknown {
   const { book } = hands;
+  // The made-up workspace's one device is the one showing it, here since the demo began; there
+  // is no server to say it did not answer.
+  const devices = () => ({
+    devices: [
+      {
+        device_id: DEMO_DEVICE_ID,
+        name: seen.deviceName,
+        paired_at: seen.since,
+        last_seen_at: seen.now(),
+        revoked_at: null,
+        current: true,
+      },
+    ],
+  });
   const exact: Readonly<Record<string, (query: Query) => unknown>> = {
     "/v1/participants": () => ({
       participants: directoryRows(
@@ -527,6 +556,31 @@ function readsOf(
     "/v1/me/pinned-spaces": () => ({ spaces: [] }),
     "/v1/me/pins": () => ({ pins: [] }),
     "/v1/me/notifications": () => ({ settings: null }),
+    "/v1/devices": devices,
+    // The switch as a server starts it with Chips's relay: off, its one device on its network. You
+    // says Off on its row, and the page under it said nothing at all (the Duo simulator, 2 November
+    // 2026). Turning it on is a write, and not in the demo.
+    "/v1/relay": () => ({
+      configured: true,
+      url: DEMO_RELAY,
+      on: false,
+      status: "off",
+      why: null,
+      set_by: null,
+      set_at: null,
+      devices: [
+        {
+          device_id: DEMO_DEVICE_ID,
+          participant_id: DEMO_PERSON_ID,
+          name: seen.deviceName,
+          now: "lan",
+          last_via: "lan",
+          last_via_at: seen.since,
+          direct_at: seen.now(),
+        },
+      ],
+      kept_link: null,
+    }),
     "/v1/join": () => ({ requests: [] }),
     "/v1/direct-asks": () => ({ asks: [], kept_link: null }),
     "/v1/direct-asks/mine": () => ({ ask: null }),
@@ -536,6 +590,10 @@ function readsOf(
   const patterns: readonly (readonly [RegExp, (id: string, query: Query) => unknown])[] = [
     [/^\/v1\/spaces\/([^/]+)\/spend$/, (id) => jobSpend(book, id)],
     [/^\/v1\/spaces\/([^/]+)\/files$/, (id, query) => ({ files: roomFiles(book, id, query) })],
+    [
+      /^\/v1\/people\/([^/]+)\/devices$/,
+      (id) => (id === DEMO_PERSON_ID ? devices() : { devices: [] }),
+    ],
   ];
   return (path) => {
     const [route = "", search = ""] = path.split("?");

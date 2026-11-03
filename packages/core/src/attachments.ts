@@ -173,7 +173,8 @@ export class UploadError extends Error {
 
 async function reasonOf(response: Response): Promise<string> {
   const body = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
-  return body.error?.message ?? `the server answered ${response.status}`;
+  // A reason that ends its own sentence ("This isn't in the demo.") ends inside ours, with one stop.
+  return (body.error?.message ?? `the server answered ${response.status}`).replace(/\.$/, "");
 }
 
 /** Where an upload's bytes come from: how many there are, and a way to read a run of them. */

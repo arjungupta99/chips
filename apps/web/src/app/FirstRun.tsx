@@ -505,7 +505,7 @@ export function useFirstRun(input: {
 } {
   const { store, snapshot, device, open } = input;
   const selfId = device.participantId;
-  const facts = useServerFacts(store);
+  const facts = useServerFacts(store, snapshot.model.relay);
   const cards = useConnectors(store);
   const [welcomed, setWelcomed] = useDeviceFlag("welcomed", device.deviceId);
   const [owed, setOwed] = useDeviceFlag("phone", device.deviceId);

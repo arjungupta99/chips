@@ -224,6 +224,19 @@ describe("uploading", () => {
     );
   });
 
+  it("ends the sentence once when the server's reason ends its own", async () => {
+    vi.stubGlobal(
+      "fetch",
+      async () =>
+        new Response(JSON.stringify({ error: { message: "This isn't in the demo." } }), {
+          status: 501,
+        }),
+    );
+    await expect(uploadFile(device, { name: "a", bytes: new Uint8Array(1) })).rejects.toThrow(
+      new UploadError("Could not start the upload: This isn't in the demo."),
+    );
+  });
+
   it("stops at once, without trying again, when the server refuses the bytes", async () => {
     const server = fakeServer({ size: 10, refuse: { status: 422, message: "not a video here" } });
     const waits: number[] = [];

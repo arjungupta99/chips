@@ -92,6 +92,7 @@ import Animated, {
 import { useReduceMotion } from "../ui/useReduceMotion";
 import type { Field, Own } from "./field";
 import { movedGoal } from "./liftGoal";
+import { wholeFrame } from "./roomFrame";
 import type { Row } from "./spaces";
 
 /** Within this many points of the foot the room moves with what lands; further up, it holds still. */
@@ -547,16 +548,6 @@ function transitionOf(
     const still = away(timestamp());
     const to = (value: number, lowest?: SharedValue<Lowest>) =>
       roomSpring(value, clock, lowest === undefined ? { still } : { still, lowest });
-    // Only what changed, or is still on its way: a row carried up a line is one spring, not four.
-    const animations: { originX?: number; originY?: number; width?: number; height?: number } = {};
-    if (values.currentOriginX !== values.targetOriginX) {
-      animations.originX = to(values.targetOriginX);
-    }
-    if (values.currentOriginY !== values.targetOriginY) {
-      animations.originY = to(values.targetOriginY, reporting ? lowest : undefined);
-    }
-    if (values.currentWidth !== values.targetWidth) animations.width = to(values.targetWidth);
-    if (values.currentHeight !== values.targetHeight) animations.height = to(values.targetHeight);
     return {
       initialValues: {
         originX: values.currentOriginX,
@@ -564,7 +555,9 @@ function transitionOf(
         width: values.currentWidth,
         height: values.currentHeight,
       },
-      animations,
+      animations: wholeFrame(values, (value, which) =>
+        to(value, which === "originY" && reporting ? lowest : undefined),
+      ),
     };
   };
   const move = (values: LayoutAnimationsValues): LayoutAnimation => {

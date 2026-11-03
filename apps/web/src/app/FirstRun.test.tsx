@@ -3,10 +3,11 @@
  * alone, with no relay, says so and draws no code, and offers an owner the relay (ADR 0247).
  */
 
-import type { Store } from "@chipschat/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import type { RelayState, ServerFacts, Store } from "@chipschat/core";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { letYourWifiIn, ONLY_THIS_COMPUTER, PhoneOffer } from "./FirstRun.tsx";
+import { useServerFacts } from "./firstRun.ts";
 import { OpenRelay } from "./you/openRelay.ts";
 
 const store = { devices: async () => [] } as unknown as Store;
@@ -93,5 +94,37 @@ describe("the phone card", () => {
     );
     const qr = await screen.findByRole("img");
     expect(qr.dataset["link"]).toMatch(/^chips:\/\/pair\?pair=QRS-789/);
+  });
+});
+
+describe("the setup card's read of the server", () => {
+  it("reads again once an owner turns the relay, when the server has done it (ADR 0245)", async () => {
+    vi.useFakeTimers();
+    try {
+      let relay: ServerFacts["relay"] = { url: "wss://relay.example", status: "connected" };
+      const reads: number[] = [];
+      const store = {
+        serverFacts: async (): Promise<ServerFacts> => {
+          reads.push(Date.now());
+          return { machine: "Arjun's Mac mini", version: "1.0.0", publicUrl: "", relay };
+        },
+      } as unknown as Store;
+      const { result, rerender } = renderHook(
+        ({ turned }: { turned: RelayState | undefined }) => useServerFacts(store, turned),
+        { initialProps: { turned: undefined as RelayState | undefined } },
+      );
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(reads).toHaveLength(1);
+      // Switched off: the server lets the relay go two seconds later, so it is read after three.
+      relay = { url: undefined, status: "off" };
+      rerender({ turned: { on: false, by: "per_a", at: new Date().toISOString() } });
+      await act(() => vi.advanceTimersByTimeAsync(2900));
+      expect(reads).toHaveLength(1);
+      await act(() => vi.advanceTimersByTimeAsync(200));
+      expect(reads).toHaveLength(2);
+      expect(result.current?.relay.status).toBe("off");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

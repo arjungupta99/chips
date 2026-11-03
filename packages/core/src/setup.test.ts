@@ -5,6 +5,8 @@ import type { Line, Space } from "./model/types.js";
 import {
   awayHow,
   firstHello,
+  RELAY_SETTLE_MS,
+  relaySettleLeft,
   type SetupFacts,
   setupDoneCount,
   setupSteps,
@@ -199,6 +201,33 @@ describe("firstHello", () => {
     expect(
       firstHello({ spaces: [room([line("per_a", "2026-10-15T08:00:00Z")])] }, directory),
     ).toBeUndefined();
+  });
+});
+
+describe("Away from home and the relay's switch (ADR 0245)", () => {
+  const off = { on: false, by: "per_a", at: "2026-11-01T21:00:00.000Z" };
+  const on = { ...off, on: true };
+
+  it("doesn't count the relay once an owner has switched it off, though the last read says up", () => {
+    expect(awayHow(server, off)).toBeUndefined();
+    expect(awayHow(server, on)).toBe("through your relay");
+    // A tailnet still reaches it with the relay off.
+    expect(awayHow({ ...server, publicUrl: "http://100.64.0.7:4431" }, off)).toBe("over Tailscale");
+    const away = setupSteps(facts({ model: { spaces: [], relay: off } })).find(
+      (step) => step.id === "away",
+    );
+    expect(away).toMatchObject({ done: false });
+  });
+
+  it("waits what is left of three seconds since the switch, and no more, before reading again", () => {
+    const at = Date.parse(off.at);
+    expect(RELAY_SETTLE_MS).toBe(3000);
+    expect(relaySettleLeft(undefined, at)).toBe(0);
+    expect(relaySettleLeft(off.at, at + 1000)).toBe(2000);
+    expect(relaySettleLeft(off.at, at + 5000)).toBe(0);
+    // A clock behind the server's waits no longer than the three seconds.
+    expect(relaySettleLeft(off.at, at - 60_000)).toBe(3000);
+    expect(relaySettleLeft("not a time", at)).toBe(0);
   });
 });
 

@@ -7,7 +7,13 @@
  * Storage can be missing or refuse (a private window), and then each lasts as long as the page.
  */
 
-import type { PairedDeviceRecord, ServerFacts, Store } from "@chipschat/core";
+import {
+  type PairedDeviceRecord,
+  type RelayState,
+  relaySettled,
+  type ServerFacts,
+  type Store,
+} from "@chipschat/core";
 import type { Connector } from "@chipschat/protocol";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
@@ -84,10 +90,18 @@ function useRead<T>(read: () => Promise<T>, everyMs: number | undefined): T | un
   return value;
 }
 
-/** Which machine Chips runs on, and how far it reaches: read once a minute. */
-export function useServerFacts(store: Store): ServerFacts | undefined {
+/**
+ * Which machine Chips runs on, and how far it reaches: read once a minute, and again once an
+ * owner turns the relay (`relay`, from `relay.set`), when the server has done what the switch says
+ * (`relaySettled`), so Away from home follows the switch rather than a read a minute old.
+ */
+export function useServerFacts(store: Store, relay?: RelayState): ServerFacts | undefined {
+  const at = relay?.at;
   return useRead(
-    useCallback(() => store.serverFacts(), [store]),
+    useCallback(async () => {
+      await relaySettled(at);
+      return store.serverFacts();
+    }, [store, at]),
     60_000,
   );
 }

@@ -25,6 +25,7 @@ import type { HiddenSpaceRegistry } from "../ports/hidden-spaces.js";
 import type { NotificationRegistry } from "../ports/notifications.js";
 import type { PushMessage, PushRegistry, PushSender, PushTicket } from "../ports/push.js";
 import type { MemberView, ReadModels } from "../ports/read-models.js";
+import { sayPushed } from "../pushed.js";
 import { lockScreenLine, sealTo } from "../seal.js";
 
 /** The words a push shows when nothing opens it. They say nothing of the message. */
@@ -184,15 +185,10 @@ export function createNotifyMessage(deps: NotifyMessageDeps): NotifyMessage {
     if (messages.length === 0) return;
 
     const tickets = await deps.sender.send(messages);
-    deps.logger.info(
-      {
-        event: "push.sent",
-        space_id: spaceId,
-        message: messageIdOf(event.id),
-        phones: messages.length,
-      },
-      "a message was pushed",
-    );
+    sayPushed(deps.logger, tickets, "a message", {
+      space_id: spaceId,
+      message: messageIdOf(event.id),
+    });
     await forgetDead(tickets, devices);
   }
 

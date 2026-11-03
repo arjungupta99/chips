@@ -12,10 +12,20 @@
 
 /** The phone's row, by the name `xctrace` gave it. A phone CoreDevice does not list is not refused. */
 export function coreDeviceRowOf(listText, name) {
-  const row = listText.split("\n").find((line) => line.startsWith(name));
-  const columns = row?.split(/\s{2,}/) ?? [];
-  const state = columns[3]?.trim() ?? "";
-  return { identifier: columns[2]?.trim(), state, reachable: !/^unavailable/.test(state) };
+  const lines = listText.split("\n");
+  const header = lines.find((line) => line.startsWith("Name")) ?? "";
+  const row = lines.find((line) => line.startsWith(name)) ?? "";
+  // Each cell is read where its header starts, up to the next run of spaces. Splitting the whole
+  // row on spaces lost a column a phone leaves empty: with Xcode 27 it has no hostname, so its
+  // state was taken for its identifier (2 November 2026).
+  const cell = (column) => {
+    const at = header.indexOf(column);
+    return at < 0 ? "" : (row.slice(at).split(/\s{2,}/)[0] ?? "").trim();
+  };
+  // Xcode 27 writes `<udid> (UDID)`; `devicectl` takes the UDID.
+  const identifier = cell("Identifier").split(" ")[0] || undefined;
+  const state = cell("State");
+  return { identifier, state, reachable: !/^unavailable/.test(state) };
 }
 
 /**

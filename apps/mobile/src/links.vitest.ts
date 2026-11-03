@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeFor } from "./links";
+import { routeFor, routerPathFor } from "./links";
 
 /**
  * A link from outside is untrusted input: it arrives from a push tap, a message, a browser, or
@@ -41,5 +41,26 @@ describe("where a chips:// link goes", () => {
     expect(routeFor("chips://space/../../etc")).toBeUndefined();
     expect(routeFor("chips://space/spc_1/../../needs/apr_2")).toBeUndefined();
     expect(routeFor("exp://127.0.0.1:8081/--/../space/spc_1")).toBeUndefined();
+  });
+});
+
+describe("what the router is given of a link the app is opened with", () => {
+  it("is nothing for a space or an ask, which useDeepLinks opens once there is a store", () => {
+    expect(routerPathFor("chips://space/spc_01H")).toBeNull();
+    expect(routerPathFor("chips://approval/apr_01H")).toBeNull();
+  });
+
+  it("is /join for an invite at the relay's page, with the invite from its fragment", () => {
+    expect(
+      routerPathFor("https://relay.chipschat.ai/join#invite=chips_inv_1&lan=http%3A%2F%2Fa"),
+    ).toBe("/join?invite=chips_inv_1&lan=http%3A%2F%2Fa");
+  });
+
+  it("is the link as it came for anything else", () => {
+    expect(routerPathFor("chips://you")).toBe("chips://you");
+    expect(routerPathFor("chips://join?invite=chips_inv_1")).toBe(
+      "chips://join?invite=chips_inv_1",
+    );
+    expect(routerPathFor("chips://space/apr_01H")).toBe("chips://space/apr_01H");
   });
 });

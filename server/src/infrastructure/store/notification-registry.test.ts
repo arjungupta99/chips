@@ -55,6 +55,38 @@ describe("claims", () => {
     expect(await claim("dev_laptop", [])).toEqual([]);
   });
 
+  it("gives back a key a device holds, so another device may claim it, and nobody else's (ADR 0244)", async () => {
+    const registry = createNotificationRegistry(ws.db);
+    const claim = (deviceId: string, keys: string[]) =>
+      registry.claim({
+        workspaceId: ws.workspaceId,
+        participantId: ws.arjun.participantId,
+        deviceId,
+        keys,
+        at: "2026-09-06T12:00:00.000Z",
+      });
+    const release = (deviceId: string, keys: string[]) =>
+      registry.release({
+        workspaceId: ws.workspaceId,
+        participantId: ws.arjun.participantId,
+        deviceId,
+        keys,
+      });
+    // The server claimed it for the phone, and the push didn't go.
+    expect(await claim("dev_phone", ["decision:apr_1", "decision:apr_2"])).toEqual([
+      "decision:apr_1",
+      "decision:apr_2",
+    ]);
+    // Giving back what another device holds does nothing.
+    await release("dev_laptop", ["decision:apr_1"]);
+    expect(await claim("dev_laptop", ["decision:apr_1"])).toEqual([]);
+    await release("dev_phone", ["decision:apr_1"]);
+    expect(await claim("dev_laptop", ["decision:apr_1", "decision:apr_2"])).toEqual([
+      "decision:apr_1",
+    ]);
+    await release("dev_phone", []);
+  });
+
   it("forgets claims older than the moment given, and no newer", async () => {
     const registry = createNotificationRegistry(ws.db);
     const claim = (key: string, at: string) =>

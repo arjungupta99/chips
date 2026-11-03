@@ -10,7 +10,7 @@
 
 import { createLogger } from "@chipschat/platform";
 import type { NotificationSettings } from "@chipschat/protocol";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoredEvent } from "../ports/event-store.js";
 import type { ClaimRequest } from "../ports/notifications.js";
 import type {
@@ -106,7 +106,11 @@ interface Rig {
   readonly deps: NotifyPushDeps;
   readonly sent: PushMessage[][];
   readonly claims: ClaimRequest[];
+  /** Claims given back, as `<device>:<key>`. */
+  readonly released: string[];
   readonly removed: string[];
+  readonly info: ReturnType<typeof vi.fn>;
+  readonly warn: ReturnType<typeof vi.fn>;
   /** Keys already held by somebody: a desktop that got there first. */
   readonly taken: Set<string>;
 }
@@ -127,7 +131,11 @@ function rig(
 ): Rig {
   const sent: PushMessage[][] = [];
   const claims: ClaimRequest[] = [];
+  const released: string[] = [];
   const removed: string[] = [];
+  const info = vi.fn();
+  const warn = vi.fn();
+  const silent = createLogger({ level: "silent" });
   const taken = new Set(over.taken ?? []);
   const phones = over.phones ?? [];
 
@@ -157,6 +165,12 @@ function rig(
         for (const key of granted) taken.add(`${request_.participantId}:${key}`);
         return granted;
       },
+      release: async ({ participantId, deviceId, keys }) => {
+        for (const key of keys) {
+          released.push(`${deviceId}:${key}`);
+          taken.delete(`${participantId}:${key}`);
+        }
+      },
     },
     push,
     sender: {
@@ -168,9 +182,9 @@ function rig(
       readiness: () => over.readiness ?? "ready",
     },
     clock: { nowIso: () => NOW, nowMs: () => Date.parse(NOW), now: () => new Date(NOW) },
-    logger: createLogger({ level: "silent" }),
+    logger: { ...silent, info, warn } as unknown as typeof silent,
   };
-  return { deps, sent, claims, removed, taken };
+  return { deps, sent, claims, released, removed, info, warn, taken };
 }
 
 let harness: Rig;
@@ -359,6 +373,63 @@ describe("when a push cannot go (ADR 0244)", () => {
       expect(test.sent).toEqual([]);
     },
   );
+});
+
+describe("when a push does not go (ADR 0244)", () => {
+  const failed = { ok: false, message: "push_unavailable" };
+
+  it("gives the phone's claim back, so the person's computer raises the banner", async () => {
+    const test = rig({ phones: [phone(ARJUN)], tickets: [failed] });
+    await createNotifyPush(test.deps).after(request(), undefined);
+    expect(test.sent).toHaveLength(1);
+    expect(test.released).toEqual([`dev_04:decision:${ASK}`]);
+    expect(test.taken.has(`${ARJUN}:decision:${ASK}`)).toBe(false);
+  });
+
+  it("keeps the claim of a phone its push reached, and gives back the one it didn't", async () => {
+    const test = rig({
+      phones: [phone(ARJUN), phone(DANA)],
+      tickets: [{ ok: true }, { ok: false, error: "DeviceNotRegistered" }],
+    });
+    await createNotifyPush(test.deps).after(request(), undefined);
+    expect(test.released).toEqual([`dev_05:decision:${ASK}`]);
+    expect(test.taken.has(`${ARJUN}:decision:${ASK}`)).toBe(true);
+    expect(test.removed).toEqual(["dev_05"]);
+  });
+
+  it("gives every claim back when the push service falls over mid-call", async () => {
+    const test = rig({
+      phones: [phone(ARJUN)],
+      send: () => {
+        throw new Error("the push service fell over");
+      },
+    });
+    await createNotifyPush(test.deps).after(request(), undefined);
+    expect(test.released).toEqual([`dev_04:decision:${ASK}`]);
+  });
+
+  it("says it wasn't pushed, and doesn't say it was", async () => {
+    const test = rig({ phones: [phone(ARJUN)], tickets: [failed] });
+    await createNotifyPush(test.deps).after(request(), undefined);
+    expect(test.info).not.toHaveBeenCalled();
+    expect(test.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "push.not_sent", phones: 1, why: "push_unavailable" }),
+      "a decision could not be pushed",
+    );
+  });
+
+  it("says how many it reached when some went", async () => {
+    const test = rig({ phones: [phone(ARJUN), phone(DANA)], tickets: [{ ok: true }, failed] });
+    await createNotifyPush(test.deps).after(request(), undefined);
+    expect(test.info).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "push.sent", phones: 1 }),
+      "a decision was pushed",
+    );
+    expect(test.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "push.not_sent", phones: 1 }),
+      "a decision could not be pushed",
+    );
+  });
 });
 
 describe("afterwards", () => {

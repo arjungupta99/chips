@@ -16,6 +16,13 @@
  * the player's own events, and a test moves its clock. So these prove what the viewer asks of the
  * player — play on landing, pause on leaving, where to seek, mute — and what the bars say, and not
  * that a frame was decoded, which the simulator and the emulator show.
+ *
+ * Every test runs on Jest's clock, not the wall's. The bars' beat, a tile's measure, the room's
+ * follow and the bars' three seconds are all timers, and `waitFor`, the `find` queries and
+ * `userEvent` move that clock as they wait, so a Mac loaded by other builds takes the same steps
+ * as an idle one. On real timers a worker that lost the CPU for a second mid-wait saw `waitFor`'s
+ * second run out before the bars it was waiting for were drawn, and the bars' wait failed in 3 of
+ * 4 full checks at load 16–23 (1 November 2026).
  */
 
 import type { Attachment, Line as LineModel, Snapshot } from "@chipschat/core";
@@ -374,6 +381,7 @@ async function page(direction: "onNext" | "onPrevious") {
 
 let scrolled: jest.SpyInstance;
 beforeEach(() => {
+  jest.useFakeTimers();
   scrolled = jest.spyOn(FlatList.prototype, "scrollToIndex").mockImplementation(() => undefined);
   jest.mocked(MediaLibrary.Asset.create).mockClear();
   jest.mocked(Clipboard.setImageAsync).mockClear();
@@ -384,6 +392,7 @@ beforeEach(() => {
 afterEach(() => {
   scrolled.mockRestore();
   jest.restoreAllMocks();
+  jest.useRealTimers();
 });
 
 describe("the media viewer, opened from a room", () => {
@@ -562,10 +571,11 @@ describe("the media viewer, opened from a room", () => {
     await page("onPrevious");
     // Under Node no tile can say where it is, so the page that settles asks; newest first, the
     // album is 2, and the room's foot stands before the lines as its own row (`SpaceView.tsx`), so
-    // its row is 3. It asks a beat after the paging stops, which is why this waits longer than most.
-    await waitFor(
-      () => expect(scrolled).toHaveBeenCalledWith({ index: 3, viewPosition: 0.5, animated: false }),
-      { timeout: REVEAL_AFTER_MS + 2000 },
+    // its row is 3. It asks a beat after the paging stops, and nothing before.
+    expect(scrolled).not.toHaveBeenCalled();
+    await act(() => jest.advanceTimersByTimeAsync(REVEAL_AFTER_MS));
+    await waitFor(() =>
+      expect(scrolled).toHaveBeenCalledWith({ index: 3, viewPosition: 0.5, animated: false }),
     );
   });
 
@@ -577,9 +587,9 @@ describe("the media viewer, opened from a room", () => {
     for (let step = 0; step < 7; step += 1) await page("onPrevious");
     // Newest first the clip's line is 3, and the album's 2 was on the way: the room never hears it.
     // The room's foot is the list's first row, so the clip's row is 4.
-    await waitFor(
-      () => expect(scrolled).toHaveBeenCalledWith({ index: 4, viewPosition: 0.5, animated: false }),
-      { timeout: REVEAL_AFTER_MS + 2000 },
+    await act(() => jest.advanceTimersByTimeAsync(REVEAL_AFTER_MS));
+    await waitFor(() =>
+      expect(scrolled).toHaveBeenCalledWith({ index: 4, viewPosition: 0.5, animated: false }),
     );
     expect(scrolled).toHaveBeenCalledTimes(1);
   });
@@ -604,7 +614,7 @@ describe("the media viewer, opened from a room", () => {
       await waitFor(() =>
         expect(screen.getByTestId("photo-att_site4")).toHaveStyle({ opacity: 0 }),
       );
-      await act(() => new Promise((done) => setTimeout(done, REVEAL_AFTER_MS + 300)));
+      await act(() => jest.advanceTimersByTimeAsync(REVEAL_AFTER_MS + 300));
       expect(scrolled).not.toHaveBeenCalled();
 
       await act(async () => stage().props["onDismiss"]());
@@ -937,9 +947,8 @@ describe("a video in the viewer", () => {
     await waitFor(() => expect(player().playing).toBe(true));
     const bars = () => screen.getByTestId("viewer-chrome").props["pointerEvents"];
     expect(bars()).toBe("box-none");
-    // The one wait on the clock in this file: the bars' own three seconds, on real timers, since
-    // the tile's measure and the bars' arrival are timers of their own a fake clock would stall.
-    await waitFor(() => expect(bars()).toBe("none"), { timeout: CHROME_HIDES_MS + 1000 });
+    await act(() => jest.advanceTimersByTimeAsync(CHROME_HIDES_MS));
+    expect(bars()).toBe("none");
 
     // The bars hidden, a tap brings them back, and the film plays on under them.
     await act(async () => stage().props["onTap"]());
@@ -967,7 +976,7 @@ describe("a video in the viewer", () => {
     });
     expect(bars()).toBe("box-none");
     expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
-  }, 15_000);
+  });
 
   it("skips ten seconds back and on from the transport, and no further than either end", async () => {
     await render(room(fakeFiles()));

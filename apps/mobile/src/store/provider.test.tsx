@@ -19,6 +19,7 @@
 import type { Cache, Device } from "@chipschat/core";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 import { AppState } from "react-native";
+import { phoneName } from "../pairing/usePairing";
 import { CACHE_WAIT_MS, ChipsProvider, HOLD_MS, justArrived, useChips } from "./provider";
 
 interface MockMade {
@@ -546,7 +547,7 @@ describe("the demo's made-up workspace (ADR 0213)", () => {
     await waitFor(() => expect(hook.result.current.paired?.device).toBe(mockDemo));
     expect(hook.result.current.demo.film).toBe("watch");
     expect(hook.result.current.paired?.player).toMatchObject({ from: 0 });
-    expect(mockDemoStarts).toEqual([{ film: "watch", from: 0 }]);
+    expect(mockDemoStarts).toEqual([{ film: "watch", from: 0, deviceName: phoneName() }]);
     // Its store is handed the demo's device storage over the phone's, which holds nothing.
     expect(demoStores()[0]?.deviceStorage).toBe(mockNowhere);
     expect(ids(hook.result.current.devices)).toEqual([mockDemo.deviceId, "dev_home"]);
@@ -581,7 +582,7 @@ describe("the demo's made-up workspace (ADR 0213)", () => {
     const { hook } = await mount();
     await waitFor(() => expect(hook.result.current.paired?.device).toBe(mockDemo));
     expect(hook.result.current.demo).toMatchObject({ film: undefined, kept: true });
-    expect(mockDemoStarts).toEqual([{ film: "watch", from: 3 }]);
+    expect(mockDemoStarts).toEqual([{ film: "watch", from: 3, deviceName: phoneName() }]);
     expect(ids(hook.result.current.devices)).toEqual([mockDemo.deviceId]);
   });
 
@@ -591,7 +592,7 @@ describe("the demo's made-up workspace (ADR 0213)", () => {
 
     await waitFor(() => expect(hook.result.current.paired?.device).toBe(mockDemo));
     expect(hook.result.current.demo).toMatchObject({ film: undefined, kept: true });
-    expect(mockDemoStarts).toEqual([{ film: "watch", from: 3 }]);
+    expect(mockDemoStarts).toEqual([{ film: "watch", from: 3, deviceName: phoneName() }]);
     expect(ids(hook.result.current.devices)).toEqual([mockDemo.deviceId, "dev_home"]);
     expect(mockPrefs.get("demo")).toBe("look-around");
 

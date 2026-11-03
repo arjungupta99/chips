@@ -18,6 +18,7 @@ import type { StoredEvent } from "../ports/event-store.js";
 import type { NotificationRegistry } from "../ports/notifications.js";
 import type { PushMessage, PushRegistry, PushSender } from "../ports/push.js";
 import type { ReadModels } from "../ports/read-models.js";
+import { sayPushed } from "../pushed.js";
 
 const WORDS = {
   held: { title: "Chips paused the agents", body: "Open the space to let them carry on." },
@@ -75,11 +76,10 @@ export function createNotifyExchange(deps: NotifyExchangeDeps) {
       });
     }
     if (messages.length === 0) return;
-    await deps.sender.send(messages);
-    deps.logger.info(
-      { event: "push.sent", space_id: spaceId, stage, phones: messages.length },
-      "the agents' talk was pushed",
-    );
+    sayPushed(deps.logger, await deps.sender.send(messages), "the agents' talk", {
+      space_id: spaceId,
+      stage,
+    });
   }
 
   async function notify(event: StoredEvent, spaceId: string): Promise<void> {

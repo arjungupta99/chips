@@ -15,14 +15,14 @@
  * 3. An agent has said hello: an agent's line in any room.
  * 4. A phone is paired.
  * 5. Notifications are on, on this device.
- * 6. Chips is reachable away from home: its relay is up, or the address it hands out is a
- *    tailnet's or a public one.
+ * 6. Chips is reachable away from home: its relay is up and switched on, or the address it hands
+ *    out is a tailnet's or a public one.
  */
 
 import { DEMO_PERSON_ID } from "./demo/device.js";
 import { type DeviceKind, deviceKind } from "./devices.js";
 import { type Directory, isAgent, nameOf } from "./events.js";
-import type { WorkspaceModel } from "./model/types.js";
+import type { RelayState, WorkspaceModel } from "./model/types.js";
 import type { PairedDeviceRecord, ServerFacts } from "./store.js";
 
 export type SetupStepId = "running" | "computer" | "hello" | "phone" | "notify" | "away";
@@ -57,7 +57,8 @@ export interface SetupFacts {
   readonly here: "phone" | "android" | "ipad" | "mac" | "browser";
   /** This person's devices, from `GET /v1/devices`. */
   readonly devices: readonly PairedDeviceRecord[] | undefined;
-  readonly model: Pick<WorkspaceModel, "spaces">;
+  /** Its rooms, and the relay as an owner last turned it, heard the moment they did. */
+  readonly model: Pick<WorkspaceModel, "spaces" | "relay">;
   readonly directory: Directory;
   /** Whether this device will be told when an agent needs this person. */
   readonly notifications: boolean;
@@ -84,9 +85,19 @@ const TAILNET = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/;
 const PRIVATE =
   /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|169\.254\.)|^localhost$|\.local$/;
 
-/** How another device reaches Chips away from home, in a few words, or nothing when it can't. */
-export function awayHow(server: ServerFacts): string | undefined {
-  if (server.relay.url !== undefined && server.relay.status === "connected") {
+/**
+ * How another device reaches Chips away from home, in a few words, or nothing when it can't. The
+ * relay counts while it is up, unless an owner has just switched it off (`switched`, from
+ * `relay.set`): a device hears that at once, while the server's facts are read once a minute and
+ * the server lets the relay go two seconds after the switch. So "through your relay" never stands
+ * beside a switch that is off (Arjun's screenshot, 1 November 2026).
+ */
+export function awayHow(server: ServerFacts, switched?: RelayState): string | undefined {
+  if (
+    server.relay.url !== undefined &&
+    server.relay.status === "connected" &&
+    switched?.on !== false
+  ) {
     return "through your relay";
   }
   let host: string;
@@ -137,7 +148,7 @@ function notifyStep(on: boolean, pushes: ServerFacts["pushes"]): SetupStep {
 export function setupSteps(facts: SetupFacts): SetupStep[] {
   const { server, here, devices } = facts;
   const hello = firstHello(facts.model, facts.directory);
-  const away = server === undefined ? undefined : awayHow(server);
+  const away = server === undefined ? undefined : awayHow(server, facts.model.relay);
   const computer = devices === undefined ? undefined : pairedOf(devices, ["computer", "browser"]);
   // A phone or an iPad: either is Chips in a hand, which is what the step is for.
   const phone = devices === undefined ? undefined : pairedOf(devices, ["phone", "tablet"]);
@@ -166,6 +177,30 @@ export function setupSteps(facts: SetupFacts): SetupStep[] {
     notifyStep(facts.notifications, handHere ? server?.pushes : undefined),
     { id: "away", title: "Away from home", detail: away, done: away !== undefined },
   ];
+}
+
+/**
+ * How long after an owner turns the relay the server's facts say what the switch did: the server
+ * dials at once when it is turned on, and lets go two seconds after it is turned off (`TELL_MS`),
+ * so the setup card reads them again this long after the switch rather than a minute later.
+ */
+export const RELAY_SETTLE_MS = 3000;
+
+/**
+ * How long a read of the server's facts waits so that it says what the switch just did: what is
+ * left of `RELAY_SETTLE_MS` since the switch turned (`relay.at`), never more, and nothing once it
+ * has passed or when nobody has turned it.
+ */
+export function relaySettleLeft(turnedAt: string | undefined, nowMs: number): number {
+  if (turnedAt === undefined) return 0;
+  const left = Date.parse(turnedAt) + RELAY_SETTLE_MS - nowMs;
+  return Number.isNaN(left) ? 0 : Math.min(RELAY_SETTLE_MS, Math.max(0, left));
+}
+
+/** Until the server has done what an owner's switch at `turnedAt` said: at once when it has. */
+export function relaySettled(turnedAt: string | undefined, nowMs = Date.now()): Promise<void> {
+  const left = relaySettleLeft(turnedAt, nowMs);
+  return left === 0 ? Promise.resolve() : new Promise((done) => setTimeout(done, left));
 }
 
 export function setupDoneCount(steps: readonly SetupStep[]): number {

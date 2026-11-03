@@ -55,3 +55,14 @@ it may be asleep", which was not why.
   their own, and his server keeps its setting.
 - A self-hosted relay can still serve a list (`CHIPS_RELAY_ALLOW_KEYS`), and its box files still
   start with one.
+
+## Addendum, 1 November 2026: Away from home follows the switch
+
+His screenshot the same day showed *Away from home ✓ through your relay* beside a relay switched
+off. The setup card read the server's facts once a minute, and the server lets the relay go two
+seconds after the switch (`TELL_MS`), so for up to a minute the card said what was no longer true.
+Now the relay counts for Away from home only while the switch, as the device heard it from
+`relay.set` (`model.relay`), is not off, so turning it off un-ticks the step at once (core's
+`awayHow`). And on the web, the Mac and the phone the card reads the facts again once the switch
+turns, after the server has done it (`relaySettled`, `RELAY_SETTLE_MS` 3 s), so turning it on
+ticks the step when the relay is up.

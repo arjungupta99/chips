@@ -25,6 +25,7 @@ import type { NotificationRegistry } from "../ports/notifications.js";
 import type { PushMessage, PushRegistry, PushSender, PushToken } from "../ports/push.js";
 import type { ReadModels } from "../ports/read-models.js";
 import type { SocketWay } from "../ports/relay-switch.js";
+import { sayPushed } from "../pushed.js";
 
 /** The sentences each push carries. None says who. */
 export const DIRECT_PUSH_WORDS = {
@@ -125,11 +126,7 @@ export function createDirectAsks(deps: DirectAsksDeps) {
         data: { device_id: phone.deviceId, ...data },
       }));
       if (messages.length === 0) return;
-      await deps.sender.send(messages);
-      deps.logger.info(
-        { event: "push.sent", key, phones: messages.length },
-        "a direct ask was pushed",
-      );
+      sayPushed(deps.logger, await deps.sender.send(messages), "a direct ask", { key });
     } catch (error) {
       deps.logger.warn(
         { event: "push.failed", why: error instanceof Error ? error.message : String(error) },

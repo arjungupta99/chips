@@ -168,6 +168,18 @@ describe("the join card, on a phone in no workspace", () => {
     await userEvent.press(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Join Demo")).toBeOnTheScreen();
   });
+
+  it("says why in the system's words, not in Expo's and Swift's", async () => {
+    core.establishLink.mockRejectedValueOnce(
+      new Error(
+        "fetch failed: UnexpectedException: Could not connect to the server. (at ExpoModulesCore/Promise.swift:56)",
+      ),
+    );
+    await render(<JoinCard offer={OFFER} onJoined={jest.fn()} onCancel={jest.fn()} />);
+    expect(await screen.findByTestId("join-trouble")).toHaveTextContent(
+      "Chips couldn't reach the server this invite is for, on its network or through its relay (Could not connect to the server).",
+    );
+  });
 });
 
 function paired(
