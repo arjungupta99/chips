@@ -1,6 +1,6 @@
 {
   "name": "@chipschat/desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "The macOS shell around the web app: discovery, pairing, notifications, the menu bar.",
   "license": "FSL-1.1-ALv2",

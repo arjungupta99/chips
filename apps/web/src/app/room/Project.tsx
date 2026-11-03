@@ -466,11 +466,12 @@ export function ProjectFilePage(
         testId="room-sheet-file-back"
       />
       <div className="sheet-scroll">
-        {read.failed !== undefined && <Failed words={read.failed} />}
-        {read.value !== undefined && <FileShown file={read.value} path={props.path} url={url} />}
+        {/* Above the page's own words: under them, a long page left it out of sight. */}
         {read.value?.type === "text/html" && (
           <OpenPage path={props.path} project={props.project} files={props.files} />
         )}
+        {read.failed !== undefined && <Failed words={read.failed} />}
+        {read.value !== undefined && <FileShown file={read.value} path={props.path} url={url} />}
         {url !== undefined && (
           <a className="sheet-go" href={url} download={fileNameOf(props.path)}>
             Download

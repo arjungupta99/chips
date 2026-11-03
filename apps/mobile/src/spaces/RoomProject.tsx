@@ -491,6 +491,8 @@ export function ProjectFilePage({
     <View style={styles.page}>
       <PageBack title={fileNameOf(path)} onBack={onBack} testID="room-sheet-file-back" />
       <SheetScroll style={styles.scroll} contentContainerStyle={styles.content}>
+        {/* Above the page's own words: under them, a long page left it out of sight. */}
+        {read.value?.type === "text/html" ? <OpenPage path={path} project={project} /> : null}
         {read.failed !== undefined ? (
           <Said words={read.failed} failed />
         ) : read.value === undefined ? (
@@ -498,7 +500,6 @@ export function ProjectFilePage({
         ) : (
           <FileBody path={path} file={read.value} />
         )}
-        {read.value?.type === "text/html" ? <OpenPage path={path} project={project} /> : null}
         {versions.length === 0 ? null : (
           <View style={styles.folder}>
             <Text style={[styles.folderName, { color: palette.ink3 }]}>History</Text>

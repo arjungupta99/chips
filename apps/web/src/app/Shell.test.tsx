@@ -3883,7 +3883,11 @@ describe("a group space (M3.3)", () => {
     const sheet = openSheet();
     fireEvent.click(within(sheet).getByTestId("room-sheet-project"));
     fireEvent.click(await within(sheet).findByTestId("project-file-index.html"));
-    fireEvent.click(await within(sheet).findByTestId("project-open-page"));
+    // Open page comes before the page's words, which a long page would push it under.
+    const words = await within(sheet).findByTestId("project-file-words");
+    const open = within(sheet).getByTestId("project-open-page");
+    expect(open.compareDocumentPosition(words) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(open);
     const frame = await screen.findByTestId("project-page-view");
     expect(frame.getAttribute("src")).toBe("/v1/pages/ticket-for-index.html");
     expect(frame.getAttribute("sandbox")).toBe(

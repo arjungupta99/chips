@@ -1,6 +1,6 @@
 {
   "name": "@chipschat/web",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "The Chips web client. The desktop shell and browsers load this.",
   "license": "FSL-1.1-ALv2",

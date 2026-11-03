@@ -2147,7 +2147,14 @@ describe("the room's project (ADR 0222)", () => {
     );
     await userEvent.press(screen.getByTestId("room-sheet-project"));
     await userEvent.press(await screen.findByTestId("project-file-index.html"));
-    await userEvent.press(await screen.findByTestId("project-open-page"));
+    // Open page comes before the page's words, which a long page would push it under.
+    await screen.findByTestId("project-file-words");
+    expect(
+      screen
+        .getAllByTestId(/^project-(open-page|file-words)$/)
+        .map((each) => String(each.props["testID"])),
+    ).toEqual(["project-open-page", "project-file-words"]);
+    await userEvent.press(screen.getByTestId("project-open-page"));
     const sheet = await screen.findByTestId("page-sheet");
     expect(within(sheet).getByRole("header")).toHaveTextContent("index.html");
     // A page built for the asking has no file to share.

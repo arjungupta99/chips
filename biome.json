@@ -63,6 +63,7 @@
     {
       "includes": [
         "**/*.config.ts",
+        "**/*.config.js",
         "**/e2e/**",
         "**/visual/**",
         "testing/**",

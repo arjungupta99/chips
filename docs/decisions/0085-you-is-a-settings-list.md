@@ -145,3 +145,28 @@ the phone (the desktop's You keeps its own layout; the iPad uses the phone's):
 The order is now: you and the workspace; Notifications; Appearance; the workspace's own group
 (owners and admins); This phone, which was About (Media on this phone first, as the one row there
 that opens something, then Server, Connection and Version); Devices; Sign out.
+
+## Addendum, 2 November 2026: a build's stamp is in Metro's cache key
+
+TestFlight build 202611030636, archived from main `05dcb639`, had main's code but said
+release-1.0's commit, `98777fde`, on its Version row: another session archived release-1.0's
+1.0.1 from its own worktree in the same minutes. Arjun's word on finding it: "Do this task here".
+
+Metro keys a module's transform by its source and the transformer's settings, and none of them is
+the environment, though a release bundle has each `process.env.EXPO_PUBLIC_…` read written out as
+its value (`src/build.ts`: the commit, `EXPO_PUBLIC_FILM_SOURCE`, `EXPO_PUBLIC_CHIPS_FEEDBACK`).
+The cache is one folder for every checkout on the Mac (`$TMPDIR/metro-cache`) and its keys hold
+no absolute paths, so checkouts of this repository share entries. React Native's Xcode phase
+bundles with `--reset-cache`, so builds made one after another each start empty and stay right.
+Two at once do not: the later one empties the cache, the earlier one goes on writing into it,
+and whichever reaches `src/build.ts` second takes the other's. Shown with the bundler alone: a
+second bundle with no reset carried the first's stamp every time, and two bundles started one or
+two seconds apart, each with a reset, crossed in either direction, depending on the gap. The
+feedback switch could have crossed the same way, putting a test build's Send feedback row in a
+shipped one.
+
+`apps/mobile/metro.config.js` now adds every `EXPO_PUBLIC_…` value it is loaded with to
+`cacheVersion`, which Metro puts in every key. Bundles made with the same values still share the
+cache; bundles with different values never take each other's modules. With it, a second bundle
+without a reset and two bundles at once each carried their own stamp
+(`tools/guardrails/phone-stamp-cache.test.ts` holds the key's part).
