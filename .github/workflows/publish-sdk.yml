@@ -4,7 +4,8 @@ name: Publish the SDK
 # order since each names the one before it by version, with provenance: npm shows which run of
 # which commit built each tarball. A package whose version npm has already is left alone, so a
 # release is a version commit, as with the bridges: the snapshot that brings it to main publishes
-# it. A run by hand finishes a release a failed run left half done.
+# it. A change to this file runs it too, so a fixed workflow finishes the release a failed run
+# left half done; so does a run by hand.
 #
 # npm trusts this workflow (trusted publishing, set up per package on npmjs.com, as the bridges'
 # are), so no npm token is kept anywhere. Until he links the three, a run fails at its first
@@ -20,6 +21,7 @@ on:
       - packages/protocol/package.json
       - packages/sdk-ts/package.json
       - packages/conformance/package.json
+      - .github/workflows/publish-sdk.yml
   workflow_dispatch:
 
 concurrency:
@@ -109,8 +111,9 @@ jobs:
 
       - name: Publish what npm hasn't got
         run: |
+          # The `./` makes npm read a file: `sdk/<name>.tgz` alone is a GitHub repository to it.
           for name in protocol harness conformance; do
-            tarball=$(ls sdk/chipschat-"$name"-*.tgz)
+            tarball=$(ls ./sdk/chipschat-"$name"-*.tgz)
             spec=$(tar -xOzf "$tarball" package/package.json | node -p 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); `${m.name}@${m.version}`')
             if [ -n "$(npm view "$spec" version 2>/dev/null)" ]; then
               echo "$spec is on npm already"
