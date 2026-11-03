@@ -1049,11 +1049,17 @@ describe("sockets through the tunnel", () => {
     expect(await closed).toBe(CLOSE_TUNNEL_GONE);
     // Typed as a close, with its reason, so a reader can tell it from a refusal and ask again
     // through the next tunnel (ADR 0179).
-    await expect(waiting).rejects.toMatchObject({ name: "TunnelClosedError", reason: "bye" });
+    await expect(waiting).rejects.toMatchObject({
+      name: "TunnelClosedError",
+      reason: "bye",
+      sent: true,
+    });
     expect(await told).toBe("peer_closed");
+    // Asked of a tunnel closed already, it went nowhere, which a write may go again on (ADR 0179).
     const after = caller.fetch({ method: "GET", target: "/after" });
     await expect(after).rejects.toBeInstanceOf(TunnelClosedError);
     await expect(after).rejects.toThrow("The tunnel is closed.");
+    await expect(after).rejects.toMatchObject({ sent: false });
   });
 
   it("tell a socket opened on a closed tunnel, when its handler is attached after an await", async () => {

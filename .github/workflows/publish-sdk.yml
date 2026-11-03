@@ -1,0 +1,120 @@
+name: Publish the SDK
+
+# Publishes @chipschat/protocol, @chipschat/harness and @chipschat/conformance to npm, in that
+# order since each names the one before it by version, with provenance: npm shows which run of
+# which commit built each tarball. A package whose version npm has already is left alone, so a
+# release is a version commit, as with the bridges: the snapshot that brings it to main publishes
+# it. A run by hand finishes a release a failed run left half done.
+#
+# npm trusts this workflow (trusted publishing, set up per package on npmjs.com, as the bridges'
+# are), so no npm token is kept anywhere. Until he links the three, a run fails at its first
+# publish.
+#
+# It runs only on the public repository, arjungupta99/chips: the tarballs name it as their
+# `repository`, npm refuses provenance from anywhere else, and minutes on a private copy count.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/protocol/package.json
+      - packages/sdk-ts/package.json
+      - packages/conformance/package.json
+  workflow_dispatch:
+
+concurrency:
+  group: publish-sdk
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  DO_NOT_TRACK: 1
+
+jobs:
+  # Builds, tests and packs, with no way to publish: the install and the tests run other people's
+  # code, so they never see the token npm hands the next job.
+  pack:
+    if: github.repository == 'arjungupta99/chips'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+
+      # Node 22, the baseline the SDK promises (ADR 0001).
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The three packages' own tests, and the guardrail that what they ship reaches into no FSL
+      # part (LICENSING.md).
+      - name: Test
+        run: |
+          pnpm --filter @chipschat/protocol --filter @chipschat/harness --filter @chipschat/conformance run test
+          pnpm --filter @chipschat/guardrails exec vitest run licences.test.ts
+
+      - name: Pack
+        run: pnpm release:sdk "$RUNNER_TEMP/sdk"
+
+      # What a stranger does: the tarballs alone, in a folder with no workspace around it.
+      - name: The tarballs install and import in a clean folder
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir clean && cd clean
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/sdk/*.tgz
+          node --input-type=module -e '
+            const harness = await import("@chipschat/harness");
+            const kit = await import("@chipschat/conformance");
+            if (typeof harness.join !== "function" || typeof kit.runConformance !== "function") process.exit(1);
+          '
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sdk
+          path: ${{ runner.temp }}/sdk/*.tgz
+          retention-days: 7
+          if-no-files-found: error
+
+  # Publishes the tarballs the pack job made, and runs nothing from the repository.
+  publish:
+    needs: pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: sdk
+          path: sdk
+
+      # Trusted publishing needs npm 11.5.1 or later, and Node 22 brings npm 10.
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish what npm hasn't got
+        run: |
+          for name in protocol harness conformance; do
+            tarball=$(ls sdk/chipschat-"$name"-*.tgz)
+            spec=$(tar -xOzf "$tarball" package/package.json | node -p 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); `${m.name}@${m.version}`')
+            if [ -n "$(npm view "$spec" version 2>/dev/null)" ]; then
+              echo "$spec is on npm already"
+            else
+              npm publish "$tarball" --provenance --access public
+            fi
+          done

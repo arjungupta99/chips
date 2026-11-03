@@ -121,3 +121,30 @@ Mac viewer's 'cannot show this picture' wording"), `usePicture.ts` now tells the
 The video stage said **This video came, but would not play here.** when the video had not come at
 all. It now says **Could not fetch the video.**, with the reason, in that case. Tests in
 `Lightbox.test.tsx`.
+
+## Addendum, 2 November 2026: an open that never settles, and a write that never went
+
+On an iPhone locked partway through opening its socket, Chips tried nothing for hours, and for ten
+minutes after it was brought back to the front. "Make a link" said **The tunnel is closed.** and
+made nothing. The server's log had nothing from the phone after its last socket closed. A tunnel's
+socket is greeted, and so ready, before it opens (ADR 0253), so the transport was ready and opening
+at once. iOS never said what became of that socket. The silence check replaced it, and the open it
+asked for found one under way and left it to finish. Every wake after did the same.
+
+1. **An open is given up on after `OPEN_MS`, 30 seconds.** Dialling takes ten seconds at most and
+   the socket opens a round trip or two after. The silence sweep gives up on an open older than
+   that and reconnects on the backoff; a wake gives up on it and opens the next at once. Its socket
+   and its link are let go. An open given up on finds it is not the current one when what it was
+   waiting for comes after all, and closes what it brought, so a device never holds two sockets.
+2. **A request a closed tunnel turned away says it never went.** `TunnelClosedError` has `sent`:
+   false when the tunnel was closed before the request was put into it, true when it closed under
+   it.
+3. **A signed write turned away unsent waits for the connection.** `writeOnLink` waits up to
+   `REJOIN_MS` for the device to reach its server again, as a read does, and sends it once, signed
+   afresh. A write that went is still never sent twice. A tunnel that closed under it, or a
+   connection that did not come back in time, says **The connection dropped.**, not the tunnel's
+   words.
+
+Tests: `transport.test.ts` ("an open that never settles", one through a real tunnel whose server
+never takes the socket), `link.test.ts` ("a write on a link that may not be there"),
+`mux.test.ts`.

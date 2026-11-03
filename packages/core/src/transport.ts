@@ -34,12 +34,12 @@ import {
   DEFAULT_PROBE_MS,
   directLink,
   doorLink,
+  dropLink,
   establishLink,
   type Link,
   LinkError,
   type LinkKind,
   type LinkSocket,
-  linkFor,
   type NamedReach,
   type RelayAddress,
   reached,
@@ -49,6 +49,7 @@ import {
   relayVerdict,
   servedThisPage,
   useLink,
+  writeOnLink,
 } from "./link.js";
 import { createOutbox, type OutboxEvent } from "./outbox.js";
 
@@ -338,6 +339,12 @@ export const DEFAULT_SILENCE_MS = 60_000;
 /** How often the silence is checked. Often enough to be prompt, rarely enough to cost nothing. */
 const SILENCE_CHECK_MS = 5000;
 /**
+ * How long an open may take, from choosing the link to the socket opening, before it is given up
+ * on (`unstuck`). Dialling takes ten seconds at most (`DEFAULT_DIAL_MS`), and the socket opens a
+ * round trip or two behind it.
+ */
+export const OPEN_MS = 30_000;
+/**
  * How often a socket on the relay asks whether the server's own network answers now (ADR 0211):
  * a phone that came home, or turned Tailscale on, goes direct within this without a reconnect.
  */
@@ -356,6 +363,9 @@ export function connect(options: TransportOptions): Transport {
   let ready = false;
   /** Between asking for a ticket and the socket settling, so two opens never race. */
   let opening = false;
+  /** When the open under way began, and which it is: one given up on finds it is not the one. */
+  let openingAt = 0;
+  let attempt = 0;
   /**
    * Whether the server takes a socket's ticket ask in its open (ADR 0253): until it turns one away,
    * as a server from before does, after which this transport asks for tickets.
@@ -545,8 +555,12 @@ export function connect(options: TransportOptions): Transport {
     for (const event of outbox.unanswered()) ws.send(frame(event));
   };
 
-  /** No socket came of this attempt: say why, and try again unless trying cannot help. */
-  const failedToOpen = (error: unknown) => {
+  /**
+   * No socket came of the `mine`th open: say why, and try again unless trying cannot help. An open
+   * given up on (`unstuck`) has been said for already.
+   */
+  const failedToOpen = (error: unknown, mine: number) => {
+    if (mine !== attempt) return;
     opening = false;
     if (error instanceof UnknownDeviceError || error instanceof PersonRemovedError) {
       // Not offline: unknown, or no longer let in. No amount of waiting changes either.
@@ -608,24 +622,42 @@ export function connect(options: TransportOptions): Transport {
     void learnRelay(link);
   };
 
+  /**
+   * The socket for the `mine`th open, on the link this connection goes by from then; or nothing
+   * once that open has been given up on (`unstuck`), when what it brings is nobody's and is let go.
+   */
+  const dial = async (on: Link | undefined, mine: number): Promise<LinkSocket | undefined> => {
+    const ask = asksInOpen;
+    device = await withFirstKey(device, options.onFirstKey);
+    const link = on ?? (await establishLink(device));
+    if (mine !== attempt) {
+      link.close();
+      return undefined;
+    }
+    useLink(device.deviceId, link);
+    const ws = await openSocket(device, link, ask);
+    if (mine !== attempt) {
+      ws.close();
+      return undefined;
+    }
+    goesBy(link, ws, ask);
+    return ws;
+  };
+
   /** Open a socket: on `on`, the link held, or on the link that reaches the server now. */
   const open = async (on?: Link) => {
     if (closed || opening) return;
     opening = true;
+    openingAt = Date.now();
+    attempt += 1;
+    const mine = attempt;
     options.onState("connecting");
 
-    let ws: LinkSocket;
-    const ask = asksInOpen;
-    try {
-      device = await withFirstKey(device, options.onFirstKey);
-      const link = on ?? (await establishLink(device));
-      useLink(device.deviceId, link);
-      ws = await openSocket(device, link, ask);
-      goesBy(link, ws, ask);
-    } catch (error) {
-      failedToOpen(error);
-      return;
-    }
+    const ws = await dial(on, mine).catch((error: unknown) => {
+      failedToOpen(error, mine);
+      return undefined;
+    });
+    if (ws === undefined) return;
     // Closed while the link and the ticket were on their way: `close` had no socket to close
     // then, so this one is nobody's, and left open it would be a second socket for the device.
     if (closed) {
@@ -806,12 +838,42 @@ export function connect(options: TransportOptions): Transport {
     cameOnline();
   };
   /**
+   * Give up on an open still under way after `OPEN_MS`, and say whether it was. iOS suspends an
+   * app partway through opening and need never say what became of the socket: it neither opens
+   * nor closes, and every wake after found an open under way and left it to finish. An iPhone sat
+   * in front of a person for ten minutes trying nothing, hours after it was locked mid-dial, and
+   * "Make a link" said "The tunnel is closed." (2 November 2026). Its link goes with it: a tunnel
+   * that carried nothing for so long is not trusted either, and what waits for one waits for the
+   * next.
+   */
+  const unstuck = () => {
+    if (!opening || Date.now() - openingAt < OPEN_MS) return false;
+    attempt += 1;
+    opening = false;
+    // A tunnel's socket is greeted, and so ready, before it opens (ADR 0253).
+    ready = false;
+    const stuck = socket;
+    socket = undefined;
+    if (asking === stuck) asking = undefined;
+    if (toGreet === stuck) toGreet = undefined;
+    if (stuck !== undefined) {
+      stuck.onopen = null;
+      stuck.onclose = null;
+      stuck.close();
+    }
+    dropLink(device.deviceId);
+    options.onState("closed");
+    return true;
+  };
+  /**
    * Check this connection now. A socket that has been quiet for longer than the silence rule
    * allows is not a socket, whatever the runtime says about it: replacing it here reconnects at
-   * once instead of leaving the app looking connected until the next sweep notices.
+   * once instead of leaving the app looking connected until the next sweep notices. An open that
+   * has been under way too long is given up on, and the next begun at once.
    */
   const wake = () => {
     if (closed) return;
+    unstuck();
     if (ready && Date.now() - lastHeard >= silenceMs) {
       replace();
       return;
@@ -835,6 +897,8 @@ export function connect(options: TransportOptions): Transport {
   // says nothing at all, so this is the only way to find out: the server pings every twenty
   // seconds, and silence for `silenceMs` means whatever is on the other end is not it.
   const listener = setInterval(() => {
+    // An open that never settles is as silent as a socket that says nothing.
+    if (unstuck()) scheduleReconnect();
     if (!ready || Date.now() - lastHeard < silenceMs) return;
     replace();
   }, SILENCE_CHECK_MS);
@@ -979,15 +1043,17 @@ async function sendJson<T>(
   body?: unknown,
 ): Promise<T> {
   const raw = body === undefined ? "" : JSON.stringify(body);
-  const headers = {
-    "content-type": "application/json",
-    ...(await signRequest(device, method, path, raw)),
-  };
-  const response = await linkFor(device).fetch(endpoint(device, path), {
-    method,
-    headers,
-    ...(raw === "" ? {} : { body: raw }),
-  });
+  // One the tunnel turned away unsent waits for the next link (`writeOnLink`), signed afresh.
+  const response = await writeOnLink(device, async (link) =>
+    link.fetch(endpoint(device, path), {
+      method,
+      headers: {
+        "content-type": "application/json",
+        ...(await signRequest(device, method, path, raw)),
+      },
+      ...(raw === "" ? {} : { body: raw }),
+    }),
+  );
   if (!response.ok) {
     const failure = (await response.json().catch(() => ({}))) as Record<string, unknown> & {
       error?: { message?: string; code?: string; refusal?: string };

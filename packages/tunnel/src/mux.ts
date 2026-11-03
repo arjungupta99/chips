@@ -897,7 +897,8 @@ export function createCaller(channel: Channel, options: MuxOptions = {}): Caller
   };
 
   const stream = (input: RequestInput): Promise<StreamedOutput> => {
-    if (channel.isClosed()) return Promise.reject(new TunnelClosedError());
+    if (channel.isClosed())
+      return Promise.reject(new TunnelClosedError(undefined, { sent: false }));
     const { signal } = input;
     if (signal?.aborted) return Promise.reject(stoppedBy(signal));
     const body = input.body ?? bytes(0);

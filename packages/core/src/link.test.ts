@@ -34,6 +34,7 @@ import {
   relayVerdict,
   responseOf,
   useLink,
+  writeOnLink,
 } from "./link.js";
 import { fakeServer, okJson } from "./testing/fake-server.js";
 
@@ -774,6 +775,59 @@ describe("a read the connection drops under (ADR 0179)", () => {
     useLink(device.deviceId, relay);
     await expect(readOnLink(device, read, 1000)).rejects.toBe(refused);
     expect(relay.asked).toHaveLength(1);
+    dropLink(device.deviceId);
+  });
+});
+
+describe("a write on a link that may not be there", () => {
+  const unsent = () => Promise.reject(new TunnelClosedError(undefined, { sent: false }));
+
+  it("waits for the next link when the tunnel had closed before it went, and goes once there", async () => {
+    const device = { deviceId: "dev_back" };
+    const stale = scriptedLink("relay", unsent);
+    useLink(device.deviceId, stale);
+    const made = writeOnLink(device, async (link) =>
+      (await link.fetch("https://s/v1/invites")).json(),
+    );
+    await expect.poll(() => stale.asked.length).toBe(1);
+    // Back in front: the next tunnel opens and the socket on it with it.
+    const next = scriptedLink("relay", json({ invite_id: "inv_1" }));
+    useLink(device.deviceId, next);
+    reached(device.deviceId);
+    expect(await made).toEqual({ invite_id: "inv_1" });
+    expect(stale.asked).toEqual(["https://s/v1/invites"]);
+    expect(next.asked).toEqual(["https://s/v1/invites"]);
+    dropLink(device.deviceId);
+  });
+
+  it("is not sent again when the tunnel closed under it, and says the connection dropped", async () => {
+    const device = { deviceId: "dev_under" };
+    const cut = scriptedLink("relay", () => Promise.reject(new TunnelClosedError("server_gone")));
+    useLink(device.deviceId, cut);
+    const made = writeOnLink(device, (link) => link.fetch("https://s/v1/invites"), 1000);
+    reached(device.deviceId);
+    await expect(made).rejects.toEqual(new ConnectionDropped("The connection dropped."));
+    // Its first try may have been done: once is all it goes.
+    expect(cut.asked).toHaveLength(1);
+    dropLink(device.deviceId);
+  });
+
+  it("says the connection dropped when none comes back in time, and leaves anything else as it was", async () => {
+    const device = { deviceId: "dev_gone" };
+    const stale = scriptedLink("relay", unsent);
+    useLink(device.deviceId, stale);
+    await expect(writeOnLink(device, (link) => link.fetch("https://s/a"), 10)).rejects.toEqual(
+      new ConnectionDropped("The connection dropped."),
+    );
+    expect(stale.asked).toHaveLength(1);
+    // A network that failed the fetch may have carried it: it is the write's to say, once.
+    const network = networkLink(noNetwork, async () => new Response("no", { status: 500 }));
+    useLink(device.deviceId, network);
+    await expect(writeOnLink(device, (link) => link.fetch("https://s/a"), 10)).rejects.toThrow(
+      TypeError,
+    );
+    expect((await writeOnLink(device, (link) => link.fetch("https://s/a"), 10)).status).toBe(500);
+    expect(network.asked).toHaveLength(2);
     dropLink(device.deviceId);
   });
 });

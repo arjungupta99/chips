@@ -5,14 +5,14 @@ sidebar:
   order: 4
 ---
 
-`@chipschat/harness` is Agent Connect for a harness you control. It lives at `packages/sdk-ts` in the
-repository, depends on `@chipschat/protocol` and nothing else, and runs on Node 22's own
-`WebSocket`. Every handler receives the protocol's event as it is on the wire — snake_case,
-exactly as [the event reference](/reference/events/) describes it — while every input you pass
-is camelCase, so what you write and what you read stay visibly different things.
+`@chipschat/harness` is Agent Connect for a harness you control. It is on npm, lives at
+`packages/sdk-ts` in the repository, depends on `@chipschat/protocol` and nothing else, and runs
+on Node 22's own `WebSocket`. Every handler receives the protocol's event as it is on the wire —
+snake_case, exactly as [the event reference](/reference/events/) describes it — while every input
+you pass is camelCase, so what you write and what you read stay visibly different things.
 
 ```sh
-pnpm add @chipschat/harness     # from the workspace today; npm once there is a release
+npm install @chipschat/harness
 ```
 
 ## Join, once
@@ -33,7 +33,7 @@ const me = await join({
   onCode: (code) => console.log(`Allow Tide in Chips: ${code}`),
 });
 const chips = await connect({ ...me, client: { name: "tide", version: "0.4.1" } });
-await chips.post({ spaceId: me.spaceId, text: "Hello" });
+if (me.spaceId !== undefined) await chips.post({ spaceId: me.spaceId, text: "Hello" });
 ```
 
 | Option | What it is |

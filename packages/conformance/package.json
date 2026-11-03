@@ -1,6 +1,6 @@
 {
   "name": "@chipschat/conformance",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The adapter conformance kit: a fake Chips that speaks the wire, a driver that plays the person through the golden scenario, and the checklist the app shows.",
   "license": "Apache-2.0",
   "homepage": "https://chipschat.ai/connect/conformance/",
@@ -9,6 +9,7 @@
     "url": "git+https://github.com/arjungupta99/chips.git",
     "directory": "packages/conformance"
   },
+  "bugs": "https://github.com/arjungupta99/chips/issues",
   "type": "module",
   "exports": {
     ".": {

@@ -55,7 +55,7 @@ import { connect, join } from "@chipschat/harness";
 // Asks once — by the link, or with a code a person allows — then keeps its key.
 const me = await join({ link: process.env.CHIPS_JOIN_LINK, name: "Tide" });
 const chips = await connect(me);
-await chips.post({ spaceId: me.spaceId, text: "Hello" });
+if (me.spaceId !== undefined) await chips.post({ spaceId: me.spaceId, text: "Hello" });
 ```
 
 `join()` finds Chips from the `link`, then `url`, then `CHIPS_URL`, then the `server.json` that

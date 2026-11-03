@@ -16,7 +16,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Device } from "./device.js";
 import { LinkError, readOnLink } from "./link.js";
 import { fakeServer } from "./testing/fake-server.js";
-import { connect, DEFAULT_SILENCE_MS, deleteJson, getJson, putJson } from "./transport.js";
+import {
+  connect,
+  DEFAULT_SILENCE_MS,
+  deleteJson,
+  getJson,
+  OPEN_MS,
+  postJson,
+  putJson,
+} from "./transport.js";
 
 vi.mock("./device.js", () => ({
   signRequest: async () => ({ "x-chips-device": "dev_1" }),
@@ -1034,6 +1042,154 @@ describe("an app coming back to the foreground", () => {
     transport.wake();
     await vi.advanceTimersByTimeAsync(1000);
     expect(states).toEqual(["connecting", "rejected"]);
+    transport.close();
+  });
+});
+
+describe("an open that never settles", () => {
+  /** A transport whose first socket is asked for and then neither opens nor closes. */
+  async function stuck() {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", FakeSocket);
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ ticket: "tkt_1" })));
+    const states: string[] = [];
+    const transport = connect({
+      device,
+      since: 0,
+      onEvent: () => {},
+      onState: (state) => states.push(state),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(opened).toHaveLength(1);
+    return { transport, states, first: opened[0] as FakeSocket };
+  }
+
+  it("is given up on when the app comes back long after, and the next begun at once", async () => {
+    // Locked mid-dial: the socket being opened never says what became of it. Every wake found an
+    // open under way and left it, and the phone tried nothing for hours (2 November 2026).
+    const { transport, states, first } = await stuck();
+    transport.wake();
+    await vi.advanceTimersByTimeAsync(0);
+    // Within its time it is left to finish.
+    expect(opened).toHaveLength(1);
+    vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
+    transport.wake();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(opened).toHaveLength(2);
+    expect(first.closed).toBe(true);
+    expect(states).toEqual(["connecting", "closed", "connecting"]);
+    (opened[1] as FakeSocket).onopen?.();
+    expect(states).toEqual(["connecting", "closed", "connecting", "open"]);
+    transport.close();
+  });
+
+  it("is given up on by itself after its time, with nothing to wake it", async () => {
+    const { transport, states, first } = await stuck();
+    await vi.advanceTimersByTimeAsync(OPEN_MS - 1000);
+    expect(opened).toHaveLength(1);
+    // The sweep after its time gives up on it; the next follows the backoff's first second.
+    await vi.advanceTimersByTimeAsync(5000 + 1000);
+    expect(first.closed).toBe(true);
+    expect(opened).toHaveLength(2);
+    expect(states).toEqual(["connecting", "closed", "connecting"]);
+    transport.close();
+  });
+
+  it("lets go of what the open given up on brings late, so the device has one socket", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", FakeSocket);
+    let late: ((response: Response) => void) | undefined;
+    vi.stubGlobal("fetch", (url: string) => {
+      if (url === "/v1/socket-tickets" && late === undefined) {
+        return new Promise<Response>((resolve) => {
+          late = resolve;
+        });
+      }
+      return Promise.resolve(new Response(JSON.stringify({ ticket: "tkt_2" })));
+    });
+    const states: string[] = [];
+    const transport = connect({
+      device,
+      since: 0,
+      onEvent: () => {},
+      onState: (s) => states.push(s),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    // The ticket's answer is on its way when the phone is locked; nothing is open yet.
+    expect(opened).toHaveLength(0);
+    vi.setSystemTime(Date.now() + OPEN_MS);
+    transport.wake();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(opened).toHaveLength(1);
+    (opened[0] as FakeSocket).onopen?.();
+    // The first ticket comes after all: its socket is nobody's, and is closed.
+    late?.(new Response(JSON.stringify({ ticket: "tkt_1" })));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(opened).toHaveLength(2);
+    expect((opened[1] as FakeSocket).closed).toBe(true);
+    expect((opened[0] as FakeSocket).closed).toBe(false);
+    expect(states).toEqual(["connecting", "closed", "connecting", "open"]);
+    transport.close();
+  });
+
+  it("gives up on a tunnel's socket greeted and never opened, and opens a new tunnel", async () => {
+    // The phone's way (ADR 0253): the socket is greeted, and so ready, before it opens. Locked
+    // before the server took it, it was neither open nor closed, nor ever heard from.
+    let take: () => void = () => undefined;
+    const home = await fakeServer(ticketAndFacts({ status: "off", url: null, key: null }), {
+      echo: false,
+      takesAfter: new Promise<void>((resolve) => {
+        take = resolve;
+      }),
+    });
+    vi.stubGlobal("WebSocket", socketsOf(home));
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("plain fetch");
+    });
+    const states: string[] = [];
+    const transport = connect({
+      device: {
+        deviceId: "dev_locked",
+        serverUrl: "http://192.168.1.20:4431",
+        serverKey: home.serverKey,
+      } as unknown as Device,
+      since: 0,
+      onEvent: () => {},
+      onState: (state) => states.push(state),
+    });
+    await vi.waitFor(() => expect(home.sockets).toEqual(["/v1/ws"]));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + OPEN_MS);
+    transport.wake();
+    take();
+    await vi.waitFor(() => expect(states).toContain("open"));
+    expect(home.opened).toEqual([
+      "ws://192.168.1.20:4431/v1/tunnel",
+      "ws://192.168.1.20:4431/v1/tunnel",
+    ]);
+    expect(states).toEqual(["connecting", "closed", "connecting", "open"]);
+    transport.close();
+  });
+
+  it("holds a write the tunnel turned away unsent until the next socket is open, then sends it", async () => {
+    const { transport, first } = await stuck();
+    let asks = 0;
+    vi.stubGlobal("fetch", async (url: string) => {
+      if (url !== "/v1/invites") return new Response(JSON.stringify({ ticket: "tkt_2" }));
+      asks += 1;
+      if (asks === 1) throw new TunnelClosedError(undefined, { sent: false });
+      return new Response(JSON.stringify({ invite_id: "inv_1" }));
+    });
+    const made = postJson(device, "/v1/invites", { role: "member" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(asks).toBe(1);
+    vi.setSystemTime(Date.now() + OPEN_MS);
+    transport.wake();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(first.closed).toBe(true);
+    (opened[1] as FakeSocket).onopen?.();
+    expect(await made).toEqual({ invite_id: "inv_1" });
+    expect(asks).toBe(2);
     transport.close();
   });
 });

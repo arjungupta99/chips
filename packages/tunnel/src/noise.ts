@@ -53,14 +53,20 @@ export class TunnelError extends Error {
  * The tunnel closed under a request, or before it was asked: the server went (`server_gone`), the
  * phone's network did, the relay let go. Nothing was wrong with the request, and the same request
  * through the next tunnel is answered, so a reader may ask it again there (ADR 0179).
+ *
+ * `sent` says which. A request the tunnel closed under had gone, and may have been done; one asked
+ * of a tunnel closed already went nowhere, so even a write may go through the next.
  */
 export class TunnelClosedError extends TunnelError {
   override readonly name: string = "TunnelClosedError";
   /** Why, as the relay or the wire said it; nothing when the tunnel was closed already. */
   readonly reason: string | undefined;
-  constructor(reason?: string) {
+  /** Whether the request had gone into the tunnel when it closed. */
+  readonly sent: boolean;
+  constructor(reason?: string, options: { readonly sent?: boolean } = {}) {
     super(reason === undefined ? "The tunnel is closed." : `The tunnel closed: ${reason}.`);
     this.reason = reason;
+    this.sent = options.sent ?? true;
   }
 }
 

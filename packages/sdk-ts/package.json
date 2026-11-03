@@ -1,6 +1,6 @@
 {
   "name": "@chipschat/harness",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The Agent Connect client for a harness you control: connect, start runs, log steps, ask, and hear what people say back.",
   "license": "Apache-2.0",
   "homepage": "https://chipschat.ai/connect/sdk/",
@@ -9,6 +9,7 @@
     "url": "git+https://github.com/arjungupta99/chips.git",
     "directory": "packages/sdk-ts"
   },
+  "bugs": "https://github.com/arjungupta99/chips/issues",
   "type": "module",
   "exports": {
     ".": {

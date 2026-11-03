@@ -649,7 +649,7 @@ function linkOnceChosen(deviceId: string, ms: number): Promise<Link> {
     };
     const timer = setTimeout(() => {
       choosing.get(deviceId)?.delete(wake);
-      reject(new TunnelClosedError("No tunnel to the server was open in time."));
+      reject(new TunnelClosedError("No tunnel to the server was open in time.", { sent: false }));
     }, ms);
     const waiting = choosing.get(deviceId) ?? new Set();
     waiting.add(wake);
@@ -871,4 +871,48 @@ async function askedAgain<T>(
   if (back || !(await reachedSince(deviceId, counted, waitMs - pause))) return undefined;
   const last = await ask();
   return typeof last === "object" ? last : undefined;
+}
+
+/**
+ * A write that waits for a link to take it. A write is not asked again once it has gone, since its
+ * first try may have been done (`readOnLink`), but one the tunnel refused before anything went was
+ * not done and not asked. That is every write in the first seconds after the phone comes back to
+ * Chips, while the tunnel it held is closed and the next is not yet open: "Make a link" said "The
+ * tunnel is closed." and made nothing (an iPhone, 2 November 2026). Such a write waits for the
+ * device to reach its server again, as a read does, and goes then, once. A tunnel that closed
+ * under it, or a connection that did not come back in time, says the connection dropped.
+ *
+ * `write` is handed the link to use, and signs afresh each time.
+ */
+export async function writeOnLink<T>(
+  device: { readonly deviceId: string },
+  write: (link: Link) => Promise<T>,
+  waitMs = REJOIN_MS,
+): Promise<T> {
+  const since = reaches.get(device.deviceId) ?? 0;
+  try {
+    return await write(linkFor(device));
+  } catch (error) {
+    if (!refusedUnsent(error)) throw inWords(error);
+  }
+  if (!(await reachedSince(device.deviceId, since, waitMs))) {
+    throw new ConnectionDropped("The connection dropped.");
+  }
+  try {
+    return await write(linkFor(device));
+  } catch (error) {
+    throw inWords(error);
+  }
+}
+
+/** A request the tunnel turned away before it went: nothing was asked of the server. */
+function refusedUnsent(error: unknown): boolean {
+  return error instanceof TunnelClosedError && !error.sent;
+}
+
+/** A closed tunnel as a person reads it; anything else as it was. */
+function inWords(error: unknown): unknown {
+  return error instanceof TunnelClosedError
+    ? new ConnectionDropped("The connection dropped.")
+    : error;
 }
