@@ -21,6 +21,7 @@
  */
 
 import type { Logger } from "@chipschat/platform";
+import { PUSH_WORDS } from "@chipschat/protocol";
 import type { Clock } from "../ports/clock.js";
 import type { DirectAskRegistry } from "../ports/direct-asks.js";
 import type { EventStore } from "../ports/event-store.js";
@@ -37,10 +38,7 @@ import type {
 } from "../ports/relay-switch.js";
 
 /** The push to the people a relay switch would cut off. It says nobody's name. */
-export const RELAY_ASK_WORDS = {
-  title: "The relay is going off",
-  body: "Go direct to keep reaching the server.",
-} as const;
+export const RELAY_ASK_WORDS = PUSH_WORDS.relayOff;
 
 /** How long the devices have to hear `relay.set` before the relay is let go. */
 export const TELL_MS = 2000;

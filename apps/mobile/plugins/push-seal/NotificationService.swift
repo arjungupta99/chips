@@ -12,6 +12,11 @@ import UserNotifications
  * in what iOS hands over. This reads the key from the keychain group the app shares
  * (`modules/push-seal`), opens the words and shows them: who said it, where, and what.
  *
+ * The key is the one the push's device has (`data.device_id`, this phone in that workspace), when
+ * it has one of its own; the phone's one key from before, only when it hasn't. A server holding
+ * that old key can't open, or seal words that open as, another workspace's push once that
+ * workspace has its own key (the stranger review, 4 November 2026).
+ *
  * Anything that doesn't open shows the server's fixed words for a message, whatever the push said
  * (SEC-29): anyone who can push to this phone through Expo could have written them, and they would
  * read as Chips's. A push sent without `mutable-content` never reaches here, so only Expo asking
@@ -58,24 +63,27 @@ class NotificationService: UNNotificationServiceExtension {
   private static func opened(_ info: [AnyHashable: Any]) -> Words? {
     // Expo puts a push's data under `body`; a push sent to APNs by hand may put it at the top.
     let data = info["body"] as? [String: Any] ?? [:]
+    let deviceId = (data["device_id"] ?? info["device_id"]) as? String
     guard let sealed = (data["sealed"] ?? info["sealed"]) as? String,
           let combined = Data(base64Encoded: sealed),
-          let key = SealKeychain.read(),
+          let key = SealKeychain.read(deviceId) ?? SealKeychain.read(nil),
           let box = try? AES.GCM.SealedBox(combined: combined),
           let plain = try? AES.GCM.open(box, using: SymmetricKey(data: key)) else { return nil }
     return try? JSONDecoder().decode(Words.self, from: plain)
   }
 }
 
-/** The key, read as the app's module keeps it (`modules/push-seal`): keep the two in step. */
+/** The keys, read as the app's module keeps them (`modules/push-seal`): keep the two in step. */
 enum SealKeychain {
-  static func read() -> Data? {
+  /** A device's own key, or with no device the phone's one key from before. */
+  static func read(_ deviceId: String?) -> Data? {
     guard let group = Bundle.main.object(forInfoDictionaryKey: "ChipsKeychainGroup") as? String
     else { return nil }
+    let account = deviceId.map { $0.isEmpty ? "seal-key" : "seal-key.\($0)" } ?? "seal-key"
     let query: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: "chat.chips.push-seal",
-      kSecAttrAccount as String: "seal-key",
+      kSecAttrAccount as String: account,
       kSecAttrAccessGroup as String: group,
       kSecReturnData as String: true,
       kSecMatchLimit as String: kSecMatchLimitOne,

@@ -66,3 +66,21 @@ Now the relay counts for Away from home only while the switch, as the device hea
 `awayHow`). And on the web, the Mac and the phone the card reads the facts again once the switch
 turns, after the server has done it (`relaySettled`, `RELAY_SETTLE_MS` 3 s), so turning it on
 ticks the step when the relay is up.
+
+## Addendum, 4 November 2026: a full server makes room for a place holding fewer of its sessions
+
+The relay holds at most 32 phones for one server, and at most 16 of them from one place (an
+address, or an IPv6 /64; SEC-12). A phone needs only the server's public key to be put through,
+and that key is in every QR and every invite link. So whoever holds it can take a server's 32
+sessions from two places and keep them by answering pings: an old invitee, a removed member, or
+anyone a link was forwarded to. Every phone of the server's own people was then told `busy` for
+as long as they liked. The stranger review of 4 November 2026 found this.
+
+Now a full server makes room. A phone from a place that holds fewer of the server's sessions than
+the fullest place does gets in, and the oldest session of the fullest place is ended
+(`made_room`). A phone from a place that already holds as many as any other is still told `busy`.
+To keep a server's own people out now takes more places than the server has sessions. Even then,
+each of their phones gets in by ending the oldest squatter, and has to be pushed out again.
+
+Nothing changes for a server whose sessions all come from its own people. The relay can't tell a
+person's phone from anyone else's, so the rule is about places, not people.

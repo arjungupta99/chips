@@ -216,13 +216,16 @@ export function createInvites(deps: InvitesDeps) {
   /**
    * Whether an invite is still good: not withdrawn; not past its expiry, nor older than 30 minutes
    * whatever it was made to last (ADR 0232), so a link made for a week before the limit stops too;
-   * not spent; and its space still taking people.
+   * not spent; and its space still taking people. Its age is judged `at` a time other than now
+   * for a request made from it, which is judged by when it was used, not by when its maker allowed
+   * it: an invite opened at its 25th minute and allowed at its 31st let nobody in, though its maker
+   * had said yes (the stranger review, 4 November 2026).
    */
-  async function goodNow(invite: InviteView): Promise<Answer<InviteView>> {
+  async function goodNow(invite: InviteView, at = deps.clock.nowMs()): Promise<Answer<InviteView>> {
     if (invite.revokedAt !== null) {
       return { ok: false, error: { kind: "revoked", message: "That invite was withdrawn." } };
     }
-    const nowMs = deps.clock.nowMs();
+    const nowMs = at;
     const tooOld = Date.parse(invite.createdAt) + MAX_INVITE_TTL_SECONDS * 1000 <= nowMs;
     if (Date.parse(invite.expiresAt) <= nowMs || tooOld) {
       return { ok: false, error: { kind: "expired", message: "That invite has expired." } };
@@ -258,19 +261,29 @@ export function createInvites(deps: InvitesDeps) {
   }
 
   /**
-   * Whether a link is still good for what it names. A workspace's link always is. A space's is
-   * withdrawn the first time it is found wanting, so its maker's list no longer offers it.
+   * Whether a link is still good for who made it and what it names. Its maker is still somebody
+   * who may make one: an owner another owner made a member kept every link they had handed out,
+   * each good for up to 30 minutes more (the stranger review, 4 November 2026). Then a
+   * workspace's link always is, and a space's while the space takes people. A link found wanting
+   * is withdrawn the first time, so its maker's list no longer offers it.
    */
   async function stillTaken(invite: InviteView): Promise<boolean> {
-    if (invite.spaceId === null || invite.revokedAt !== null) return true;
-    const why = await spaceRefusal(invite.workspaceId, invite.spaceId, invite.createdBy);
-    if (why === undefined) return true;
+    if (invite.revokedAt !== null || (await stillGood(invite))) return true;
     await deps.registry.revokeInvite({
       workspaceId: invite.workspaceId,
       inviteId: invite.id,
       at: deps.clock.nowIso(),
     });
     return false;
+  }
+
+  async function stillGood(invite: InviteView): Promise<boolean> {
+    const maker = await deps.readModels.participant(invite.workspaceId, invite.createdBy);
+    if (maker === undefined || maker.removed_at !== null || !mayInvite(maker.role ?? undefined)) {
+      return false;
+    }
+    if (invite.spaceId === null) return true;
+    return (await spaceRefusal(invite.workspaceId, invite.spaceId, invite.createdBy)) === undefined;
   }
 
   /**
@@ -562,10 +575,12 @@ export function createInvites(deps: InvitesDeps) {
       readonly workspaceId: string;
       readonly inviteId: string;
       readonly answer: Answered;
+      /** When the request was made from the invite: its life is judged then. */
+      readonly askedAt: string;
     }): Promise<Answer<RedeemedInvite>> {
       const found = await deps.registry.invite(request.workspaceId, request.inviteId);
       if (found === undefined) return { ok: false, error: NOT_VALID };
-      const invite = await goodNow(found);
+      const invite = await goodNow(found, Date.parse(request.askedAt));
       if (!invite.ok) return invite;
       const wrong = await wrongAnswer(invite.value, request.answer);
       if (wrong !== undefined) return { ok: false, error: wrong };

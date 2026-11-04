@@ -15,7 +15,7 @@ import { type ResponseOutput, TunnelClosedError, utf8 } from "@chipschat/tunnel"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Device } from "./device.js";
 import { LinkError, readOnLink } from "./link.js";
-import { fakeServer } from "./testing/fake-server.js";
+import { fakeServer, okJson } from "./testing/fake-server.js";
 import {
   connect,
   DEFAULT_SILENCE_MS,
@@ -26,10 +26,13 @@ import {
   putJson,
 } from "./transport.js";
 
+/** Every clock offset the transport set, by device, as `setClockOffset` was handed it. */
+const clockSet = vi.hoisted(() => [] as [string, number][]);
 vi.mock("./device.js", () => ({
   signRequest: async () => ({ "x-chips-device": "dev_1" }),
   endpoint: (_device: unknown, path: string) => path,
   socketOrigin: () => "ws://chips.test",
+  setClockOffset: (deviceId: string, offsetMs: number) => clockSet.push([deviceId, offsetMs]),
 }));
 
 /**
@@ -89,6 +92,7 @@ class FakeSocket {
 
 afterEach(() => {
   opened.length = 0;
+  clockSet.length = 0;
   linkFails.with = undefined;
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -626,6 +630,127 @@ describe("through the door on the server's own network (ADR 0191)", () => {
     const frames = home.heard.map((each) => JSON.parse(each) as { frame: string; since?: number });
     expect(frames.map((each) => each.frame)).toEqual(["hello", "subscribe"]);
     expect(frames[1]?.since).toBe(7);
+    transport.close();
+  });
+});
+
+describe("a server whose address on its network has changed (the stranger review, 4 November 2026)", () => {
+  const STORED = "http://192.168.1.20:4431";
+  const NOW = "http://192.168.1.31:4431";
+
+  /** A server whose door answers only at `NOW`, and which says it is there. */
+  async function movedServer() {
+    let key: string | null = null;
+    const home = await fakeServer(
+      async (input: { target: string }): Promise<ResponseOutput> => ({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: utf8(
+          JSON.stringify(
+            input.target === "/v1/server"
+              ? { relay: { status: "connected", url: "wss://relay.test", key }, public_url: NOW }
+              : { ticket: "tkt_1" },
+          ),
+        ),
+      }),
+      { echo: false },
+    );
+    key = home.serverKey;
+    vi.stubGlobal(
+      "WebSocket",
+      class {
+        constructor(url: string) {
+          // The door at the old address is somebody else's now, or nobody's.
+          home.door = url.startsWith(NOW.replace("http", "ws")) ? "answers" : "refuses";
+          // biome-ignore lint/correctness/noConstructorReturn: a constructor that is a factory
+          return home.factory(url);
+        }
+      },
+    );
+    return home;
+  }
+
+  it("on the relay, goes direct at the address the server says it is at now, and keeps it", async () => {
+    const home = await movedServer();
+    const kept: string[] = [];
+    const links: string[] = [];
+    const states: string[] = [];
+    const transport = connect({
+      device: {
+        deviceId: `dev_moved_${Math.random().toString(36).slice(2, 8)}`,
+        serverUrl: STORED,
+        serverKey: home.serverKey,
+        relayUrl: home.relay.url,
+      } as unknown as Device,
+      since: 0,
+      onEvent: () => {},
+      onState: (state) => states.push(state),
+      onLink: (kind) => links.push(kind),
+      onAddress: (url) => kept.push(url),
+    });
+    await vi.waitFor(() => expect(states).toContain("open"));
+    expect(links).toEqual(["relay"]);
+    // Once the server's facts, read through the relay, have said where it is now.
+    await vi.waitFor(async () => expect(await transport.goDirect()).toBe(true));
+    expect(links).toEqual(["relay", "tunnel"]);
+    expect(kept).toEqual([NOW]);
+    expect(home.opened.at(-1)).toBe(`${NOW.replace("http", "ws")}/v1/tunnel`);
+    transport.close();
+  });
+
+  it("with no relay, finds it on the network by its key, and keeps where it was found", async () => {
+    const home = await movedServer();
+    const kept: string[] = [];
+    const states: string[] = [];
+    const transport = connect({
+      device: {
+        deviceId: `dev_moved_${Math.random().toString(36).slice(2, 8)}`,
+        serverUrl: STORED,
+        serverKey: home.serverKey,
+      } as unknown as Device,
+      since: 0,
+      onEvent: () => {},
+      onState: (state) => states.push(state),
+      // Bonjour on a phone: another Chips first, which can't shake hands to this key, then ours.
+      findAddresses: async () => ["http://192.168.1.77:4431", NOW],
+      onAddress: (url) => kept.push(url),
+    });
+    await vi.waitFor(() => expect(states).toContain("open"));
+    expect(kept).toEqual([NOW]);
+    transport.close();
+  });
+
+  it("is sent nothing but a handshake at an address that doesn't hold its key", async () => {
+    const home = await movedServer();
+    const elsewhere = await fakeServer(okJson, { echo: false });
+    vi.stubGlobal(
+      "WebSocket",
+      class {
+        constructor(url: string) {
+          // Somebody else's Chips, found on the network, answers its door; ours is gone.
+          home.door = "refuses";
+          // biome-ignore lint/correctness/noConstructorReturn: a constructor that is a factory
+          return url.includes("192.168.1.77") ? elsewhere.factory(url) : home.factory(url);
+        }
+      },
+    );
+    const kept: string[] = [];
+    const states: string[] = [];
+    const transport = connect({
+      device: {
+        deviceId: `dev_moved_${Math.random().toString(36).slice(2, 8)}`,
+        serverUrl: STORED,
+        serverKey: home.serverKey,
+      } as unknown as Device,
+      since: 0,
+      onEvent: () => {},
+      onState: (state) => states.push(state),
+      findAddresses: async () => ["http://192.168.1.77:4431"],
+      onAddress: (url) => kept.push(url),
+    });
+    await vi.waitFor(() => expect(states).toContain("closed"));
+    expect(kept).toEqual([]);
+    expect(elsewhere.seen).toEqual([]);
     transport.close();
   });
 });
@@ -1190,6 +1315,46 @@ describe("an open that never settles", () => {
     (opened[1] as FakeSocket).onopen?.();
     expect(await made).toEqual({ invite_id: "inv_1" });
     expect(asks).toBe(2);
+    transport.close();
+  });
+});
+
+describe("a device whose clock is out (the stranger review, 4 November 2026)", () => {
+  it("sets its clock by the server's and tries again, rather than saying it was removed", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", FakeSocket);
+    const serverAhead = 10 * 60 * 1000;
+    const asked: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      asked.push(url);
+      if (url === "/v1/health") {
+        return Response.json({
+          status: "ok",
+          time: new Date(Date.now() + serverAhead).toISOString(),
+        });
+      }
+      if (clockSet.length === 0) {
+        const error = { code: "unauthorized", message: "Clocks apart.", refusal: "clock_skew" };
+        return Response.json({ error }, { status: 401 });
+      }
+      return Response.json({ ticket: "tkt_1" });
+    });
+    const states: string[] = [];
+    const transport = connect({
+      device,
+      since: 0,
+      onEvent: () => {},
+      onState: (state) => states.push(state),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(clockSet).toEqual([["dev_1", serverAhead]]);
+    expect(states).toEqual(["connecting", "closed"]);
+    // Asked again a moment later, signed by the server's clock: let in.
+    await vi.advanceTimersByTimeAsync(1000);
+    (opened[0] as FakeSocket).onopen?.();
+    expect(states).toEqual(["connecting", "closed", "connecting", "open"]);
+    // And then, as on any open, the server's facts (`learnRelay`).
+    expect(asked).toEqual(["/v1/socket-tickets", "/v1/health", "/v1/socket-tickets", "/v1/server"]);
     transport.close();
   });
 });

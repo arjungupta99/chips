@@ -4,20 +4,33 @@
  *
  * It speaks Expo's own shape, a list of messages in and one ticket per message out, so a server
  * posts here exactly as it would post to Expo. What it forwards is only a Chips push: to an Expo
- * push token, with a Chips push's fields and nothing else, at most 4 KiB each. A push carries no
- * words worth reading (ADR 0045), and the ones a phone shows are sealed to it (ADR 0158), so what
- * crosses here is what crossed Expo before.
+ * push token, with a Chips push's fields and nothing else, at most 4 KiB each, and in the clear
+ * only the fixed sentences every server says (`PUSH_WORDS`, ADR 0246's second addendum). A push
+ * carries no words worth reading (ADR 0045), and the ones a phone shows are sealed to it (ADR
+ * 0158), so what crosses here is what crossed Expo before. Anyone can post here, and with any
+ * words allowed anyone holding a phone's token could have put a sentence of their own on its lock
+ * screen as Chips, buttons and all.
+ *
+ * An entry that isn't a Chips push gets a ticket of its own, as Expo answers a message it won't
+ * send, and the rest go on: one made-up token among a room's phones used to spoil the request
+ * for everybody in it. A token that isn't an Expo push token is answered as a dead one, so the
+ * server that holds it forgets it.
  *
  * Limits keep the token from being anybody's to spend: one place (an address, an IPv6 address
- * by its /64) sends at most `PER_PLACE` a minute, and one phone is pushed at most `PER_PHONE` a
- * minute, past which its message comes back as Expo says it, `MessageRateExceeded`, unsent.
+ * by its /64) sends at most `PER_PLACE` a minute, a request the door can't read counted among
+ * them, and one phone is pushed at most `PER_PHONE` a minute, past which its message comes back as
+ * Expo says it, `MessageRateExceeded`, unsent. A minute holds the counts of `MOST_COUNTED` places
+ * and phones; past that the oldest is forgotten to make room, so a minute of made-up tokens costs
+ * a real phone its count, never its pushes.
  *
  * Nothing is kept or logged but how many: no token, word or id. When Expo refuses the relay's
  * token, servers are told `push_unavailable`, never a 401 or 403, which would tell a server its
- * own token was refused and stop it pushing until it restarted.
+ * own token was refused and stop it pushing until it restarted. The relay's `/health` says what
+ * became of the last pushes it sent on, so a monitor can tell whoever runs it.
  */
 
 import { type ChipsConfig, EXPO_PUSH, type Logger } from "@chipschat/platform";
+import { isExpoPushToken, isPushWords } from "@chipschat/protocol";
 
 /** One place's pushes in a minute: a household's or an office's servers, busy. */
 export const PER_PLACE = 300;
@@ -31,13 +44,15 @@ export const MOST_MESSAGE_BYTES = 4096;
 const MOST_COUNTED = 100_000;
 
 const WINDOW_MS = 60_000;
-const TIMEOUT_MS = 10_000;
+/**
+ * How long Expo gets. Less than a server gives the relay (ten seconds), so a server hears what
+ * became of its pushes before it gives up on them and gives the banner to the person's computer:
+ * at the same ten, a slow Expo buzzed the phone and the computer for one ask.
+ */
+const TIMEOUT_MS = 6000;
 
 /** What Expo answers a token it will not take. */
 const REFUSED = new Set([401, 403]);
-
-/** An Expo push token, which is all the Chips app registers. */
-const PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[^\]\s]{1,256}\]$/;
 
 const PRIORITIES = new Set(["default", "normal", "high"]);
 
@@ -52,6 +67,8 @@ export interface PushDoorOptions {
   readonly clock?: (() => number) | undefined;
   /** Injected so a test can answer without a socket. */
   readonly fetch?: typeof globalThis.fetch | undefined;
+  /** The places and phones a minute holds; `MOST_COUNTED` unless a test fills a smaller minute. */
+  readonly mostCounted?: number | undefined;
 }
 
 /** An answer, ready to write: its status and its JSON. */
@@ -60,9 +77,17 @@ export interface PushAnswer {
   readonly body: string;
 }
 
+/**
+ * What became of the last pushes the door sent on: `refused` when Expo turned down the token,
+ * `failing` when Expo didn't answer or didn't take them, `ready` from the start and again once
+ * Expo takes some. A request the door turns away itself changes nothing.
+ */
+export type DoorReadiness = "ready" | "refused" | "failing";
+
 export interface PushDoor {
   /** A request's body, and the place it came from, as `countedAs` names it. */
   readonly send: (body: string, place: string) => Promise<PushAnswer>;
+  readonly readiness: () => DoorReadiness;
 }
 
 type Message = Readonly<Record<string, unknown>> & { readonly to: string };
@@ -79,6 +104,21 @@ const LIMITED: Ticket = {
   status: "error",
   message: "This phone has had its pushes for the minute.",
   details: { error: "MessageRateExceeded" },
+};
+
+/** What Expo answers a token no phone holds, and so what a server forgets a token on. */
+const NOT_A_PHONE: Ticket = {
+  status: "error",
+  message: "That isn't a Chips phone's push token.",
+  details: { error: "DeviceNotRegistered" },
+};
+
+const NOT_A_CHIPS_PUSH: Ticket = { status: "error", message: "That isn't a Chips push." };
+
+const TOO_BIG: Ticket = {
+  status: "error",
+  message: "That push is bigger than a phone takes.",
+  details: { error: "MessageTooBig" },
 };
 
 /**
@@ -118,19 +158,22 @@ function isTtl(value: unknown): boolean {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
-/** A Chips push, with only the fields one has; or nothing, when it isn't one. */
-function messageOf(raw: unknown): Message | undefined {
-  if (!isObject(raw) || typeof raw["to"] !== "string" || !PUSH_TOKEN.test(raw["to"])) return;
-  const fits =
-    optional(raw["title"], isString) &&
-    optional(raw["body"], isString) &&
-    optional(raw["categoryId"], isString) &&
+/** Whether a push has a Chips push's fields, of their kinds, and its words. */
+function fits(raw: Readonly<Record<string, unknown>>): boolean {
+  return (
     optional(raw["priority"], (value) => PRIORITIES.has(value as string)) &&
     optional(raw["ttl"], isTtl) &&
     optional(raw["sound"], (value) => value === "default" || value === null) &&
     optional(raw["mutableContent"], (value) => typeof value === "boolean") &&
-    optional(raw["data"], isData);
-  if (!fits) return;
+    optional(raw["data"], isData) &&
+    isPushWords(raw)
+  );
+}
+
+/** A Chips push, with only the fields one has; or the ticket it gets in its place. */
+function messageOf(raw: unknown): Message | Ticket {
+  if (!isObject(raw) || !isExpoPushToken(raw["to"])) return NOT_A_PHONE;
+  if (!fits(raw)) return NOT_A_CHIPS_PUSH;
   const keep = [
     "title",
     "body",
@@ -143,12 +186,14 @@ function messageOf(raw: unknown): Message | undefined {
   ];
   const message: Record<string, unknown> = { to: raw["to"] };
   for (const field of keep) if (raw[field] !== undefined) message[field] = raw[field];
-  if (Buffer.byteLength(JSON.stringify(message)) > MOST_MESSAGE_BYTES) return;
+  if (Buffer.byteLength(JSON.stringify(message)) > MOST_MESSAGE_BYTES) return TOO_BIG;
   return message as Message;
 }
 
-/** The request's messages, every one a Chips push; or nothing, when any isn't. */
-function messagesOf(body: string): Message[] | undefined {
+const isMessage = (entry: Message | Ticket): entry is Message => "to" in entry;
+
+/** The request's entries, each a Chips push or its ticket; or nothing, when it isn't a list of pushes. */
+function entriesOf(body: string): (Message | Ticket)[] | undefined {
   let raw: unknown;
   try {
     raw = JSON.parse(body);
@@ -156,8 +201,7 @@ function messagesOf(body: string): Message[] | undefined {
     return;
   }
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > MOST_MESSAGES) return;
-  const messages = raw.map(messageOf);
-  return messages.every((message) => message !== undefined) ? messages : undefined;
+  return raw.map(messageOf);
 }
 
 /** Expo's ticket, with only what a server reads. */
@@ -173,7 +217,7 @@ function ticketOf(raw: unknown): Ticket {
 }
 
 /** A minute's counts, by key, forgotten as the next minute starts. */
-function createWindow(clock: () => number) {
+function createWindow(clock: () => number, room: number) {
   let minute = Math.floor(clock() / WINDOW_MS);
   const counts = new Map<string, number>();
   return {
@@ -185,7 +229,11 @@ function createWindow(clock: () => number) {
         counts.clear();
       }
       const had = counts.get(key);
-      if (had === undefined && counts.size >= MOST_COUNTED) return false;
+      if (had === undefined && counts.size >= room) {
+        // The oldest count goes, rather than this one being refused for want of room.
+        const oldest = counts.keys().next().value;
+        if (oldest !== undefined) counts.delete(oldest);
+      }
       if ((had ?? 0) + n > most) return false;
       counts.set(key, (had ?? 0) + n);
       return true;
@@ -196,10 +244,10 @@ function createWindow(clock: () => number) {
 export function createPushDoor(options: PushDoorOptions): PushDoor {
   const call = options.fetch ?? globalThis.fetch;
   const clock = options.clock ?? Date.now;
-  const places = createWindow(clock);
-  const phones = createWindow(clock);
-  /** Said once when Expo refuses the token, and again only after it has taken one since. */
-  let refusedSaid = false;
+  const room = options.mostCounted ?? MOST_COUNTED;
+  const places = createWindow(clock, room);
+  const phones = createWindow(clock, room);
+  let readiness: DoorReadiness = "ready";
 
   /** Expo's answer to what was sent, or the answer the server gets in its place. */
   async function post(messages: readonly Message[]): Promise<Response | PushAnswer> {
@@ -217,14 +265,15 @@ export function createPushDoor(options: PushDoorOptions): PushDoor {
     } catch (error) {
       const why = error instanceof Error ? error.message : "unreachable";
       options.logger.warn({ event: "push.unreachable", why }, "Expo's push service is unreachable");
+      readiness = "failing";
       return refusal(502, "push_failed", "The push service didn't answer.");
     }
   }
 
-  /** Expo refused the token: said once, and a server told the relay can't push now. */
+  /** Expo refused the token: said once while it stays so; a server told the relay can't push. */
   function refused(status: number): PushAnswer {
-    if (!refusedSaid) {
-      refusedSaid = true;
+    if (readiness !== "refused") {
+      readiness = "refused";
       options.logger.warn(
         { event: "push.refused", status },
         "Expo refused the relay's access token: no pushes go until CHIPS_PUSH_ACCESS_TOKEN is one it takes",
@@ -240,6 +289,7 @@ export function createPushDoor(options: PushDoorOptions): PushDoor {
     if (REFUSED.has(response.status)) return refused(response.status);
     if (!response.ok) {
       options.logger.warn({ event: "push.failed", status: response.status }, "push failed");
+      readiness = "failing";
       return refusal(502, "push_failed", "The push service didn't take the pushes.");
     }
     const data = await response.json().then(
@@ -247,27 +297,35 @@ export function createPushDoor(options: PushDoorOptions): PushDoor {
       () => undefined,
     );
     if (!Array.isArray(data) || data.length !== messages.length) {
+      readiness = "failing";
       return refusal(502, "push_failed", "The push service answered with tickets of its own.");
     }
-    refusedSaid = false;
+    readiness = "ready";
     return data.map(ticketOf);
   }
 
   return {
     async send(body, place) {
-      const messages = messagesOf(body);
-      if (messages === undefined) return NOT_A_PUSH;
-      if (!places.take(place, messages.length, PER_PLACE)) {
+      const entries = entriesOf(body);
+      if (entries === undefined) {
+        // Read and turned away, which costs the door too: counted as one push from there.
+        places.take(place, 1, PER_PLACE);
+        return NOT_A_PUSH;
+      }
+      if (!places.take(place, entries.length, PER_PLACE)) {
         return refusal(429, "busy", "Too many pushes from here this minute.");
       }
-      const allowed = messages.map((message) => phones.take(message.to, 1, PER_PHONE));
-      const sendable = messages.filter((_, index) => allowed[index]);
+      const allowed = entries.map((entry) =>
+        !isMessage(entry) || phones.take(entry.to, 1, PER_PHONE) ? entry : LIMITED,
+      );
+      const sendable = allowed.filter(isMessage);
       const sent = sendable.length === 0 ? [] : await forward(sendable);
       if (!Array.isArray(sent)) return sent;
       options.counted?.(sent.filter((ticket) => ticket.status === "ok").length);
       let next = 0;
-      const tickets = allowed.map((ok) => (ok ? (sent[next++] as Ticket) : LIMITED));
+      const tickets = allowed.map((entry) => (isMessage(entry) ? (sent[next++] as Ticket) : entry));
       return answer(200, { data: tickets });
     },
+    readiness: () => readiness,
   };
 }

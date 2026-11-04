@@ -147,7 +147,8 @@ describe("registering a phone", () => {
   });
 
   it("refuses a body that is missing a field, or names a platform it does not know", async () => {
-    for (const bad of [{ token: undefined }, { platform: "blackberry" }, { time_zone: "" }]) {
+    const tokens = [{ token: undefined }, { token: "x" }, { token: "ExponentPushToken[]" }];
+    for (const bad of [...tokens, { platform: "blackberry" }, { time_zone: "" }]) {
       const body = { ...registration(), ...bad };
       const { status } = await call("PUT", PATH, signed(ws.arjun, "PUT", PATH, body));
       expect(status, JSON.stringify(bad)).toBe(422);

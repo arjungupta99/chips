@@ -37,7 +37,7 @@ jest.mock("../prefs", () => ({
 
 const optional = jest.mocked(requireOptionalNativeModule);
 const put = jest.mocked(putJson);
-const DEVICE = {} as Parameters<typeof putJson>[0];
+const DEVICE = { deviceId: "dev_home" } as Parameters<typeof putJson>[0];
 const KEY = Buffer.alloc(32, 7).toString("base64");
 
 /** A fresh copy of the module, since it keeps what it found the first time it was asked. */
@@ -68,6 +68,26 @@ it("sends the key the extension opens words with", async () => {
     time_zone: expect.any(String),
     seal_key: KEY,
   });
+});
+
+it("sends each workspace's server the key of this phone's device there, and no other's", async () => {
+  const keys = new Map([
+    ["dev_home", Buffer.alloc(32, 1).toString("base64")],
+    ["dev_work", Buffer.alloc(32, 2).toString("base64")],
+  ]);
+  const sealKey = jest.fn((deviceId: string) => keys.get(deviceId) ?? null);
+  optional.mockReturnValue({ sealKey });
+  const register = load();
+  const work = { deviceId: "dev_work" } as Parameters<typeof putJson>[0];
+  await register.registerToken(DEVICE, "ExponentPushToken[one]");
+  await register.registerToken(work, "ExponentPushToken[one]");
+  expect(sealKey.mock.calls).toEqual([["dev_home"], ["dev_work"]]);
+  expect(
+    put.mock.calls.map(([device, , body]) => [device, (body as { seal_key?: string }).seal_key]),
+  ).toEqual([
+    [DEVICE, keys.get("dev_home")],
+    [work, keys.get("dev_work")],
+  ]);
 });
 
 it("sends no key from a build without the module, or a keychain that kept none", async () => {
@@ -140,6 +160,49 @@ describe("registering again as the app opens (ADRs 0157, 0158)", () => {
     );
     expect(mockSettings.get("push")).toBe("on");
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe("saying it again as the app opens (the stranger review, P-6)", () => {
+  const granted = { granted: true } as Awaited<
+    ReturnType<typeof Notifications.getPermissionsAsync>
+  >;
+  const withdraw = jest.mocked(deleteJson);
+  afterEach(() => withdraw.mockReset());
+
+  it("tells a workspace muted here, and every one when pushes are off, to stop again", async () => {
+    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValue(granted);
+    const muted = { deviceId: "dev_muted", muted: true } as Parameters<typeof putJson>[0];
+    const register = load();
+    await register.settleRegistration(muted, "on");
+    await register.settleRegistration(DEVICE, "off");
+    expect(withdraw.mock.calls).toEqual([
+      [muted, "/v1/me/push-token"],
+      [DEVICE, "/v1/me/push-token"],
+    ]);
+    expect(put).not.toHaveBeenCalled();
+    expect(Notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
+    expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it("registers one switched on and not muted, as before, and withdraws nothing", async () => {
+    jest.mocked(Notifications.getPermissionsAsync).mockResolvedValue(granted);
+    jest.mocked(Notifications.getExpoPushTokenAsync).mockResolvedValue({
+      type: "expo",
+      data: "ExponentPushToken[four]",
+    });
+    await load().settleRegistration(DEVICE, "on");
+    expect(put).toHaveBeenCalledWith(
+      DEVICE,
+      "/v1/me/push-token",
+      expect.objectContaining({ token: "ExponentPushToken[four]" }),
+    );
+    expect(withdraw).not.toHaveBeenCalled();
+  });
+
+  it("lets a withdraw that fails again throw, for the launch to try once more next time", async () => {
+    withdraw.mockRejectedValueOnce(new Error("no route to host"));
+    await expect(load().settleRegistration(DEVICE, "off")).rejects.toThrow("no route");
   });
 });
 

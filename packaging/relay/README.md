@@ -63,8 +63,15 @@ Steps 1–2 and 6 are done in the Hetzner and DNS dashboards, step 3 on the Mac,
    curl -s https://relay.chipschat.ai/health
    ```
 
-6. **A monitor.** An uptime check on `https://relay.chipschat.ai/health` every minute (UptimeRobot
-   or Better Stack, free tier), private while nothing else is public.
+6. **A monitor.** A keyword check on `https://relay.chipschat.ai/health` every few minutes
+   (UptimeRobot or Better Stack, free tier) that alerts when the page doesn't hold
+   `"pushes":"ready"`. That catches the relay down and the push door not sending. `pushes` says
+   what became of the last pushes the relay sent on:
+   - `ready`: Expo took them, or none have failed since the relay started;
+   - `refused`: Expo turned down `CHIPS_PUSH_ACCESS_TOKEN`. Put one it takes in
+     `/etc/chips-relay.env` and `systemctl restart chips-relay`;
+   - `failing`: Expo didn't answer or didn't take them. It clears with the next push Expo takes;
+   - `no_access_token`: the relay has no push door, because the env file has no token.
 
 ## Without a release
 

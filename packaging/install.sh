@@ -110,13 +110,31 @@ openssh_how() {
 }
 
 # Whether SHA256SUMS ($1) carries the release key's signature ($2). OpenSSH's ssh-keygen checks
-# it, 8.1 or later, which macOS and every current Linux have.
+# it, 8.1 or later, which macOS and every current Linux have. One older than that has no -Y, and
+# says so: that is said as itself, not as a release that isn't signed.
 signed() {
   command -v ssh-keygen >/dev/null 2>&1 || die "Checking the release's signature needs \
 ssh-keygen, which comes with OpenSSH.$(openssh_how)"
   printf '%s\n' "$SIGNER" > "$TMP/signers"
   ssh-keygen -Y verify -f "$TMP/signers" -I release@chipschat.ai -n chips-release -s "$2" \
-    < "$1" > /dev/null 2>&1
+    < "$1" > "$TMP/verified" 2>&1 && return 0
+  if grep -Eq -- "option -- '?Y'?" "$TMP/verified"; then
+    die "This machine's ssh-keygen is older than OpenSSH 8.1, and can't check the release's \
+signature. Install a newer OpenSSH, then run this again."
+  fi
+  return 1
+}
+
+# Whether version $1 comes before version $2, by their numbers: 1.0.9 before 1.0.10.
+older() {
+  awk -v a="$1" -v b="$2" 'BEGIN {
+    split(a, x, /[.+-]/); split(b, y, /[.+-]/)
+    for (i = 1; i <= 3; i++) {
+      if (x[i] + 0 < y[i] + 0) exit 0
+      if (x[i] + 0 > y[i] + 0) exit 1
+    }
+    exit 1
+  }'
 }
 
 sha256() {
@@ -152,10 +170,27 @@ else
   TARBALL="$TMP/$NAME.tar.gz"
 fi
 
+ASKED="$VERSION"
 case "$NAME" in
   chips-*-"$TARGET") VERSION=${NAME#chips-}; VERSION=${VERSION%-"$TARGET"} ;;
   *) die "$NAME is not a release for this machine ($TARGET)." ;;
 esac
+WAS=""
+[ -L "$LIB/current" ] && WAS=$(basename "$(readlink "$LIB/current")")
+
+# From the download host, what is installed is what was asked for. The signature says who made a
+# release, not which one it is, so whoever holds the host could serve an older signed release, with
+# the holes it had, under a newer version's name or as the latest. A version asked for is that
+# version; the latest is never older than the one here, unless it is asked for by its version.
+if [ -z "$FROM" ]; then
+  if [ "$ASKED" != latest ] && [ "$ASKED" != "$VERSION" ]; then
+    die "You asked for $ASKED, and the release there is $VERSION. Not installed."
+  fi
+  if [ "$ASKED" = latest ] && [ -n "$WAS" ] && older "$VERSION" "$WAS"; then
+    die "The latest release there is $VERSION, older than the $WAS here. Not installed. To go \
+back to it, run this again with --version $VERSION."
+  fi
+fi
 
 SUMS="$TMP/SHA256SUMS"
 [ -f "$SUMS" ] || SUMS="$(dirname "$TARBALL")/SHA256SUMS"
@@ -177,8 +212,6 @@ fi
 
 tar -xzf "$TARBALL" -C "$TMP"
 [ -x "$TMP/$NAME/bin/chips" ] || die "$NAME.tar.gz does not hold a Chips release."
-WAS=""
-[ -L "$LIB/current" ] && WAS=$(basename "$(readlink "$LIB/current")")
 mkdir -p "$LIB" "$BIN"
 rm -rf "${LIB:?}/$VERSION"
 mv "$TMP/$NAME" "$LIB/$VERSION"
@@ -233,4 +266,10 @@ if [ "$MODE" = connect ]; then
   exec "$BIN/chips" connect "$@" < /dev/null
 fi
 
-printf '\n  Next: chips up\n\n'
+# An upgrade leaves a server that was running on the release before until it starts again, which
+# `chips up` does when it finds one older than itself.
+if [ -n "$WAS" ] && [ "$WAS" != "$VERSION" ]; then
+  printf '\n  Next: chips up, which starts a server running here again on %s\n\n' "$VERSION"
+else
+  printf '\n  Next: chips up\n\n'
+fi

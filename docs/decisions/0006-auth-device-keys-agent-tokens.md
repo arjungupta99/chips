@@ -68,3 +68,23 @@ its ticket, made in that tunnel, and the server answers it and spends the ticket
 opens: no ticket crosses the network at all, and the round trip for one is gone. The request is
 the same `POST /v1/socket-tickets`, checked by the same route. A browser on the plain link, which
 cannot set headers on a WebSocket, asks for a ticket first as above.
+
+## Addendum, 4 November 2026: a device whose clock is out sets it by the server's
+
+A signature is refused when its time is more than five minutes from the server's. The refusal was
+plain `unauthorized`, the answer an unknown device gets. So a device whose clock was out heard
+what a removed device hears. The phone said it was "no longer paired", stopped trying, and pairing
+again led back to the same screen. That happens to a phone with its time set by hand, or to a
+server with no network clock: a Raspberry Pi without a battery clock starts at the time it was
+switched off. The stranger review of 4 November 2026 found this.
+
+Now:
+
+- The server checks the time before it looks the device up. For a time that far out it answers
+  `unauthorized` with `refusal: "clock_skew"`, whatever device the request names, so the answer
+  says nothing about which devices exist.
+- On that refusal, the device reads the server's time from `GET /v1/health` over the same link.
+  It keeps the difference for that device, signs by the server's clock from then on, and tries
+  again. A device the server doesn't know is still told so, as before.
+
+The window stays five minutes, so what bounds a replay is unchanged.

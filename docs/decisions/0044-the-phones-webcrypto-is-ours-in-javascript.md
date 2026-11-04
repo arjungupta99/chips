@@ -127,3 +127,13 @@ the file, and [ADR 0152](0152-a-large-file-through-the-relay-holds-neither-the-t
 puts the phone's own cipher behind `RuntimePrimitives`, as this said it would: CryptoKit and
 `javax.crypto` in a local module, one crossing each way rather than `expo-crypto`'s two. Signatures
 and key agreement stay in JavaScript.
+
+## Addendum, 4 November 2026: on an iPhone, all of it is native
+
+Signatures and key agreement followed, for a different reason than speed: the app tells App Store
+Connect its encryption is the operating system's, and on 1.0.0 X25519, Ed25519 and HMAC were not.
+[ADR 0277](0277-the-iphones-crypto-is-all-apples-operating-system.md) runs them in CryptoKit
+behind the same `Primitives`, with keys in the formats this package already kept, so a phone's
+existing key signs natively. This package is still the phone's `crypto.subtle`; on an iPhone it
+now only keeps the keys' books, and its JavaScript is the path for Android and any build without
+the module.

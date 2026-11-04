@@ -38,6 +38,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { openSqliteCache } from "../cache/sqlite";
 import { deviceStorage } from "../device/storage";
+import { findServers } from "../pairing/finder";
 import { phoneName } from "../pairing/usePairing";
 import { letGoOf } from "../spaces/erased";
 import { createFileService, type FileService } from "../spaces/files";
@@ -113,9 +114,25 @@ function wantedOf(devices: readonly Device[], front: readonly (string | undefine
  * A workspace's store, made: with the phone's own seams, or for the demo's device with the demo's
  * spread over them and its film's player beside it, started at `at`.
  */
+/**
+ * Where a workspace's server answers on this Wi-Fi now, by its id in the advert (ADR 0172): what
+ * the transport tries, held to the key the phone pinned, when the address it paired at has stopped
+ * answering and nothing else reaches the server.
+ */
+async function foundAt(workspaceId: string): Promise<string[]> {
+  const found = await findServers();
+  return found.filter((server) => server.workspaceId === workspaceId).map((server) => server.url);
+}
+
 function made(device: Device, at: DemoStartAt): Held {
   const files = createFileService(device);
-  const own = { device, deviceStorage, openCache: openSqliteCache, onErased: letGoOf };
+  const own = {
+    device,
+    deviceStorage,
+    openCache: openSqliteCache,
+    onErased: letGoOf,
+    findAddresses: foundAt,
+  };
   if (!isDemo(device)) return { store: createStore(own), files };
   // Named as it would pair: the demo's one device, in You's Devices.
   const demo = startDemo({ film: at.film, from: at.from, deviceName: phoneName() });

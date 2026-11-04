@@ -119,11 +119,33 @@ export async function serverHereChecks(here: Here, call: typeof fetch): Promise<
   }
   const push = pushCheck(health.pushes);
   return [
-    { check: "server here", health: "ok", detail: `Answers at ${local}.` },
+    runsThisRelease(local, here.release, health.version),
     await pageCheck(local, call),
     await reachCheck(here, health.relay, call),
     ...(push === undefined ? [] : [push]),
   ];
+}
+
+/**
+ * The server here, answering, and on this release: an upgrade by the install line puts a new
+ * release in place and leaves the server that was running as it was until it starts again (the
+ * stranger review, 4 November 2026).
+ */
+function runsThisRelease(
+  local: string,
+  release: Release | undefined,
+  running: string | undefined,
+): Finding {
+  if (release === undefined || running === undefined || running === release.version) {
+    return { check: "server here", health: "ok", detail: `Answers at ${local}.` };
+  }
+  return {
+    check: "server here",
+    health: "warn",
+    detail: `Answers at ${local}, on ${running}, while this chips is ${release.version}.`,
+    fix: "Run `chips up` to start the server again on this release.",
+    docs: DOCS,
+  };
 }
 
 /** Whether the server can push to a phone, as health says it here; nothing from an older one. */
@@ -153,11 +175,19 @@ function pushCheck(pushes: string | undefined): Finding | undefined {
 async function healthOf(
   url: string,
   call: typeof fetch,
-): Promise<{ readonly relay: RelayHealth; readonly pushes: string | undefined } | undefined> {
+): Promise<
+  | {
+      readonly relay: RelayHealth;
+      readonly pushes: string | undefined;
+      readonly version: string | undefined;
+    }
+  | undefined
+> {
   try {
     const response = await call(`${url}/v1/health`, { signal: AbortSignal.timeout(2000) });
     const body = (await response.json()) as {
       name?: unknown;
+      version?: unknown;
       relay?: { url?: unknown; status?: unknown } | null;
       pushes?: unknown;
     };
@@ -169,6 +199,7 @@ async function healthOf(
         connected: body.relay?.status === "connected",
       },
       pushes: typeof body.pushes === "string" ? body.pushes : undefined,
+      version: typeof body.version === "string" ? body.version : undefined,
     };
   } catch {
     return undefined;

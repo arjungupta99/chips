@@ -157,6 +157,21 @@ describe("the server on this machine", () => {
     });
   });
 
+  it("warns of a server here still on the release before this one, and says chips up", async () => {
+    const before = (async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/v1/health") return Response.json({ name: "chipsd", version: "0.1.9" });
+      return new Response("<div id=root>");
+    }) as typeof fetch;
+    const [server] = await serverHereChecks({ ...here, upHasRun: false }, before);
+    expect(server).toMatchObject({
+      check: "server here",
+      health: "warn",
+      detail: "Answers at http://127.0.0.1:4431, on 0.1.9, while this chips is 0.2.0.",
+    });
+    expect(server?.fix).toContain("chips up");
+  });
+
   it("says nothing about a server here when this machine's device is paired elsewhere", async () => {
     expect(await serverHereChecks({ ...here, serverExpectedHere: false }, machine({}))).toEqual([]);
   });

@@ -96,7 +96,8 @@ on his iPhone; a JavaScript bundle swap cannot.
 - **ADR 0044's addendum is superseded for AES-GCM.** Its finding stands for `expo-crypto` (two
   crossings are slower than JavaScript); the module here is one crossing. Signatures and key
   agreement stay in JavaScript: 4–5 ms and 11–13 ms, once per request or tunnel, are not the
-  problem.
+  problem. **On an iPhone they moved to this module too** (4 November 2026), for App Store Connect's
+  export compliance rather than speed: [ADR 0277](0277-the-iphones-crypto-is-all-apples-operating-system.md).
 - **The pacing needs the socket to report `bufferedAmount`.** Node's WebSocket does (checked on
   Node 26, which 4431 runs, and on 22.22.2, which a release bundles). A socket that does not report it reads as an empty backlog, and a
   body is then paced only by the channel's own queue — which is the behaviour before this, no

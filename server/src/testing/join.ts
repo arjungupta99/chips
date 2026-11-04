@@ -10,6 +10,7 @@ import { readableCode } from "../application/use-cases/pair-device.js";
 import {
   digestsMatch,
   hashHarnessToken,
+  joinCheck,
   keyCode,
   mintJoinSecret,
 } from "../infrastructure/auth/credentials.js";
@@ -37,7 +38,11 @@ export function joinRequestsOn(
     matches: digestsMatch,
     code: () => readableCode(),
     keyCode,
+    check: joinCheck,
     tell,
     serverKey: () => deps.relay.publicKey(),
   });
 }
+
+/** The server's halves of a Wi-Fi device's check (ADR 0278), for a test to play the device with. */
+export { joinCheck };

@@ -361,10 +361,14 @@ export {
   JOIN_WAITING_MAX,
   joinAsk,
   joinAsked,
+  joinCheckCode,
+  joinCheckText,
+  joinCommitText,
   joinedDevice,
   joinedHarness,
   joinKind,
   joinLink,
+  joinNonce,
   joinPending,
   joinRequestView,
   joinStartedBy,
@@ -538,6 +542,8 @@ export {
   START_PAGE,
   secretIn,
 } from "./project.js";
+export type { PushWords } from "./push.js";
+export { isExpoPushToken, isPushWords, PUSH_WORDS } from "./push.js";
 export type { RangeAnswer } from "./ranges.js";
 export { byteRange, contentRange } from "./ranges.js";
 export type { CandidateAddress, RelayErrorCode, RelayFrame, RelayFrameName } from "./relay.js";

@@ -336,3 +336,53 @@ or the door has failed; the first tunnel through is the link, and the other is c
 sent only the handshake. A door on the same network answers well inside the 250 ms, so at home the
 relay is not dialled. The door is still given up on after 1.5 s, and Only direct still dials the
 door alone.
+
+## Addendum, 4 November 2026: the key says which server, and the address is found again
+
+Decision 5 said: "A pinned key changes only by pairing again. A LAN address can move freely: the
+key says which server, the address only where." Nothing let the address move. A device kept the
+address it paired at for good. The stranger review of 4 November 2026 found what that costs:
+
+- A home router hands the server's computer a new address after a restart or a long absence, or
+  the server is a laptop that runs on another network. The phone's door then never answered.
+- With the relay on, the phone went through the relay, sitting at home, by way of Nuremberg.
+- With the relay off, which is where a new person starts (ADR 0245), the phone could not reach its
+  server at home at all, and nothing but pairing again brought it back.
+
+Now the transport tries other addresses when the stored one stops answering. Each is dialled at
+its door and held to the key the device pinned, so whatever else answers there is sent nothing
+but a handshake:
+
+- **On the relay**, the server's own word. `GET /v1/server`, read signed inside the tunnel, has
+  always said `public_url`, where the server tells other devices to reach it. When going direct
+  fails at the stored address, the transport tries that one.
+- **With nothing reaching the server**, the app looks for itself. On a phone that is Bonjour,
+  `_chips._tcp` filtered to adverts that carry this workspace's id (ADR 0172), at most once every
+  30 seconds while the reconnect goes round. Another Chips on the network answers its door and
+  fails the handshake.
+
+The first address that completes the handshake is the link, and it is kept with the device, so the
+next launch dials it first. A device without a key, and a browser the server served, are left as
+they were. The web and the Mac look for nothing themselves yet, and take what the server says
+when they are on the relay.
+
+## Addendum, 4 November 2026: the Mac looks too
+
+The address found again (the addendum above) came from two places: the server's signed
+`public_url`, which every app reads, and a Bonjour look, which only the phone made. So when the
+router gave the server a new address, Chips for Mac still lost it.
+
+Now the Mac app asks its shell's Bonjour look (`discover`) for the workspace's servers, the same
+way the phone does (`foundAt` in the web app's store). Each address it finds is tried only under
+the key the app pinned, and the one that answers is remembered.
+
+A browser has no way to look, and finds none. A page served by the server itself is at that
+server's address anyway, and moves only when the person opens the new one.
+
+## Addendum, 4 November 2026: asking on the Wi-Fi checks both keys (S-1, ADR 0278)
+
+Decision 5's third way in, asking on the Wi-Fi, no longer trusts the first answer. The code the
+phone shows and the person types is worked out by both ends from both keys and a nonce from each,
+the phone's committed to before it sees the server's ([ADR 0278](0278-a-phone-that-asks-on-the-wifi-works-its-code-out-with-the-server.md)).
+Somebody between the phone and the computer can no longer swap either key and have the screens
+agree. A typed code stays trust on first use, as open question 1 was answered.

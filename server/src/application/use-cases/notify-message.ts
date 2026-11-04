@@ -17,7 +17,7 @@
  */
 
 import type { Logger } from "@chipschat/platform";
-import { isAgentKind, messageIdOf } from "@chipschat/protocol";
+import { isAgentKind, messageIdOf, PUSH_WORDS } from "@chipschat/protocol";
 import { messageRecipients, type Phone } from "../../domain/index.js";
 import type { Clock } from "../ports/clock.js";
 import type { StoredEvent } from "../ports/event-store.js";
@@ -29,9 +29,9 @@ import { sayPushed } from "../pushed.js";
 import { lockScreenLine, sealTo } from "../seal.js";
 
 /** The words a push shows when nothing opens it. They say nothing of the message. */
-const FOR_YOU = "A message for you";
-const NEW = "A new message";
-const BODY = "Open Chips to read it.";
+const FOR_YOU = PUSH_WORDS.messageForYou.title;
+const NEW = PUSH_WORDS.message.title;
+const BODY = PUSH_WORDS.message.body;
 
 /** How much of the message the lock screen gets, sealed. */
 const WORDS = 240;

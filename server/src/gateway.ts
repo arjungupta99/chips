@@ -118,6 +118,7 @@ import { createAuthenticator } from "./infrastructure/auth/authenticator.js";
 import {
   digestsMatch,
   hashHarnessToken,
+  joinCheck,
   keyCode,
   mintHarnessToken,
   mintInviteToken,
@@ -1034,6 +1035,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     matches: digestsMatch,
     code: () => readableCode(),
     keyCode,
+    check: joinCheck,
     // An invite's request, collected: what redeeming the invite did, done now (ADR 0232).
     collectInvite: async (request) => {
       const { inviteId, publicKey } = request;
@@ -1043,6 +1045,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
       const collected = await invites.collect({
         workspaceId: request.workspaceId,
         inviteId,
+        askedAt: request.createdAt,
         answer: {
           displayName: request.name ?? "",
           publicKey,

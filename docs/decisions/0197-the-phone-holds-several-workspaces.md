@@ -284,3 +284,18 @@ word was "Build B: Scan beside Paste, with the heading Join another workspace."
   again.
 - **Where.** The same sheet opens from You's Workspace row, so Scan is there too. The web and the Mac
   are as they were: a computer has no camera to point at a phone.
+
+## Addendum, 4 November 2026: a muted workspace is told again to stop
+
+Turning a workspace's switch off, or pushes off for the whole phone, told each server once to
+forget this phone's push token. A server out of reach at that moment never heard: a workspace
+behind, or no signal. It kept the token and went on pushing to a phone that had said no, and
+nothing told it again. The launch's word to each server skipped a muted workspace altogether. The
+stranger review of 4 November 2026 found this.
+
+Now the launch tells every workspace this phone holds, once (`settleRegistration`):
+
+- one muted here, or every one when pushes are switched off, is told again to stop;
+- the rest are told where this phone is, as before.
+
+A server told to stop twice answers the same, so saying it again costs one request a launch.

@@ -171,6 +171,7 @@ export function registerOpenJoinRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps)
           machine: ask.machine,
           wants: ask.wants,
           publicKey: ask.public_key,
+          commit: ask.commit,
           countedAs: addressOf(c),
           ...askedFrom(c),
           url: addressFor(c, deps),
@@ -183,20 +184,31 @@ export function registerOpenJoinRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps)
       }
     });
     if (!asked.ok) refuse(asked.error);
-    const { request, secret, interval, expiresIn } = asked.value;
+    const { request, secret, interval, expiresIn, check } = asked.value;
     c.get("logger").info({ requestId: request.id, kind: request.kind }, "join requested");
     return c.json(
-      { request_id: request.id, secret, code: request.code, expires_in: expiresIn, interval },
+      {
+        request_id: request.id,
+        secret,
+        // A device that committed is handed the halves of its code instead (ADR 0278).
+        ...(request.code === null ? {} : { code: request.code }),
+        ...(check === undefined ? {} : { server_key: check.serverKey, nonce: check.nonce }),
+        expires_in: expiresIn,
+        interval,
+      },
       201,
     );
   });
 
   app.post("/v1/join/:id/redeem", async (c) => {
     const polled = await limiter.attempt(addressOf(c), async (wrong) => {
-      const secret = text(parse(await c.req.text()), "secret");
+      const body = parse(await c.req.text());
+      const secret = text(body, "secret");
       if (secret === undefined)
         throw new HttpError("invalid_event", "Send the request's `secret`.");
-      const polled = await deps.joinRequests.poll({ id: c.req.param("id"), secret });
+      // A device that committed sends its nonce with its polls, which makes its code (ADR 0278).
+      const nonce = text(body, "nonce");
+      const polled = await deps.joinRequests.poll({ id: c.req.param("id"), secret, nonce });
       if (!polled.ok && polled.error.kind === "unknown") wrong();
       return polled;
     });

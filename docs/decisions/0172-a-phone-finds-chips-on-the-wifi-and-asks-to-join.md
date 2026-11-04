@@ -51,3 +51,11 @@ Not yet seen to find a server. The emulator's network cannot see the Mac's Wi-Fi
 Android phone here. The module compiles (`:chips-finder:compileReleaseKotlin`), and a phone on the
 Wi-Fi is its first real test. Going live is an Android build (`pnpm phone:android`); iOS is
 unchanged.
+
+## Addendum, 4 November 2026: the code is worked out, not handed over (ADR 0278)
+
+Decision 3's code no longer comes from the server. The phone asks with a commitment to a nonce,
+the server answers with its key and a nonce of its own, and both ends work the code out from both
+keys and both nonces ([ADR 0278](0278-a-phone-that-asks-on-the-wifi-works-its-code-out-with-the-server.md)).
+The screens are as they were. A phone with this change says so and asks no further of a server
+that doesn't answer that way.

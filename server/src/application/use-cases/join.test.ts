@@ -4,6 +4,7 @@
  * from this network. The clock is the test's.
  */
 
+import { generateKeyPairSync } from "node:crypto";
 import { manualClock } from "@chipschat/platform";
 import {
   JOIN_CODE_SECONDS,
@@ -14,7 +15,8 @@ import {
 } from "@chipschat/protocol";
 import fc from "fast-check";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { joinRequestsOn } from "../../testing/join.js";
+
+import { joinCheck, joinRequestsOn } from "../../testing/join.js";
 import { createTestWorkspace, type TestWorkspace } from "../../testing/workspace.js";
 import type { Principal } from "../ports/identity.js";
 import { type AskInput, type JoinRequests, viewOf } from "./join.js";
@@ -204,6 +206,21 @@ describe("the guards", () => {
     expect(listed.ok && listed.value.length).toBe(5);
   });
 
+  it("keep strangers' asks from keeping out a link a person handed out", async () => {
+    // Five asks wait, as the test before left them, or as anybody on the Wi-Fi could leave them.
+    while ((await join.ask(ask())).ok);
+    expect((await join.ask(ask())).ok === false).toBe(true);
+    const link = await join.waitForLink({
+      kind: "invite",
+      workspaceId: ws.workspaceId,
+      askedOf: owner.participantId,
+      name: "Noor",
+      publicKey: KEY,
+      url: "http://127.0.0.1:4431",
+    });
+    expect(link.ok).toBe(true);
+  });
+
   it("show requests to owners and admins only", async () => {
     const { request } = await asked();
     const listed = await join.list(admin, ["waiting"]);
@@ -259,6 +276,88 @@ describe("the guards", () => {
       workspace_id: ws.workspaceId,
       server_key: await ws.gateway.deps.relay.publicKey(),
     } satisfies Partial<JoinedDevice>);
+  });
+});
+
+describe("a device that asks on the Wi-Fi with a commitment (S-1, ADR 0278)", () => {
+  const device = {
+    kind: "device" as const,
+    name: "iPhone 17",
+    wants: [],
+    fromAddr: "192.168.1.41",
+  };
+  const keyOf = () =>
+    generateKeyPairSync("ed25519")
+      .publicKey.export({ type: "spki", format: "der" })
+      .toString("base64");
+  const PHONE = keyOf();
+  const STRANGER = keyOf();
+
+  async function committed(publicKey: string, nonce: string) {
+    const answer = await asked({ ...device, publicKey, commit: joinCheck.commitOf(nonce) });
+    if (answer.check === undefined) throw new Error("no check");
+    return { ...answer, check: answer.check };
+  }
+
+  it("has no code until it sends the nonce it committed to, and then the one it works out", async () => {
+    const nonce = joinCheck.nonce();
+    const { request, secret, check } = await committed(PHONE, nonce);
+    expect(check.serverKey).toBe(await ws.gateway.deps.relay.publicKey());
+    expect(request.code).toBeNull();
+    const early = await join.allow({
+      principal: owner,
+      id: request.id,
+      capabilities: [],
+      code: "ABC-DEF",
+    });
+    expect(early.ok === false && early.error.message).toMatch(/hasn't shown its code yet/);
+
+    const other = await join.poll({ id: request.id, secret, nonce: joinCheck.nonce() });
+    expect(other.ok === false && other.error.kind).toBe("invalid");
+    const waiting = await join.poll({ id: request.id, secret, nonce });
+    expect(waiting.ok && "waiting" in waiting.value).toBe(true);
+
+    const code = joinCheck.code({
+      publicKey: PHONE,
+      serverKey: check.serverKey,
+      deviceNonce: nonce,
+      serverNonce: check.nonce,
+    });
+    // Sent again with every poll, it changes nothing.
+    await join.poll({ id: request.id, secret, nonce });
+    const allowed = await join.allow({ principal: owner, id: request.id, capabilities: [], code });
+    expect(allowed.ok).toBe(true);
+    const polled = await join.poll({ id: request.id, secret, nonce });
+    expect(polled.ok && !("waiting" in polled.value) && polled.value.kind).toBe("device");
+  });
+
+  it("shows somebody else's code when somebody between the phone and the computer swaps in their key", async () => {
+    // The phone committed to its nonce and works its code out with its own key. Somebody on the
+    // Wi-Fi passes the phone's commitment and nonce on, with their key in the request.
+    const nonce = joinCheck.nonce();
+    const { request, secret, check } = await committed(STRANGER, nonce);
+    await join.poll({ id: request.id, secret, nonce });
+    const onThePhone = joinCheck.code({
+      publicKey: PHONE,
+      serverKey: check.serverKey,
+      deviceNonce: nonce,
+      serverNonce: check.nonce,
+    });
+    // The person types what the phone shows, and lets nobody in.
+    const typed = await join.allow({
+      principal: owner,
+      id: request.id,
+      capabilities: [],
+      code: onThePhone,
+    });
+    expect(typed.ok === false && typed.error.kind).toBe("wrong_code");
+  });
+
+  it("leaves an older phone's ask as it was: handed a code to show", async () => {
+    const { request, check } = await asked({ ...device, publicKey: PHONE });
+    expect(check).toBeUndefined();
+    expect(request.code).toMatch(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
+    expect(request.checkCommit).toBeNull();
   });
 });
 

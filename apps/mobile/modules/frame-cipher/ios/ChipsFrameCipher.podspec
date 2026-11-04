@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
   s.name           = 'ChipsFrameCipher'
   s.version        = '1.0.0'
-  s.summary        = 'AES-GCM for the tunnel, in CryptoKit'
-  s.description    = 'Seals and opens a relay frame natively, in one synchronous call each way'
+  s.summary        = 'Crypto for the phone, in CryptoKit'
+  s.description    = 'AES-GCM, X25519, Ed25519 and HMAC-SHA-256 natively, one synchronous call each'
   s.license        = 'FSL-1.1-ALv2'
   s.author         = 'Chips'
   s.homepage       = 'https://github.com/arjungupta99/chips'

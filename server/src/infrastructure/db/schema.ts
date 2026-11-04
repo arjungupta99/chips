@@ -759,6 +759,10 @@ export interface JoinRequestsTable {
   role: "owner" | "admin" | "member" | "guest" | null;
   /** The device a pairing code was made to replace, signed out once this one pairs (ADR 0236). */
   replaces: string | null;
+  /** A Wi-Fi device's commitment to its nonce, base64url (ADR 0278); null otherwise. */
+  check_commit: string | null;
+  /** The nonce this server answered that device with (ADR 0278); null otherwise. */
+  check_nonce: string | null;
 }
 
 /** A harness's copy of an agent's context files, or of its own set (ADR 0134). */

@@ -11,6 +11,7 @@ import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createLogger } from "@chipschat/platform";
+import { PUSH_WORDS } from "@chipschat/protocol";
 import {
   connectThroughRelay,
   createAnswerer,
@@ -90,6 +91,7 @@ describe("chips-relay", () => {
       status: "ok",
       name: "chips-relay",
       version: "0.0.0",
+      pushes: "no_access_token",
       servers: 1,
       sessions: 0,
     });
@@ -97,6 +99,7 @@ describe("chips-relay", () => {
       status: "ok",
       name: "chips-relay",
       version: "0.0.0",
+      pushes: "no_access_token",
     });
 
     const phone = await connectThroughRelay({
@@ -434,13 +437,8 @@ describe("chips-relay", () => {
 describe("the push door (ADR 0246)", () => {
   const TOKEN = "ExponentPushToken[abcdefghijklmnopqrstuv]";
   const pushes = (count: number) =>
-    JSON.stringify(
-      Array.from({ length: count }, () => ({
-        to: TOKEN,
-        title: "Something for you",
-        body: "Open Chips.",
-      })),
-    );
+    JSON.stringify(Array.from({ length: count }, () => ({ to: TOKEN, ...PUSH_WORDS.message })));
+  const JSON_TYPE = { "content-type": "application/json" };
   /** Expo, standing in: a ticket for each push, and the token each request carried. */
   const expo = () => {
     const tokens: (string | null)[] = [];
@@ -497,9 +495,69 @@ describe("the push door (ADR 0246)", () => {
     });
     const response = await fetch(`http://127.0.0.1:${relay.port}/v1/push`, {
       method: "POST",
+      headers: JSON_TYPE,
       body: "x".repeat(600 * 1024),
     });
     expect(response.status).toBe(413);
+  });
+
+  it("takes pushes only as a server sends them, never as a page can be made to", async () => {
+    const upstream = expo();
+    const relay = await relayOnAnyPort({
+      push: {
+        accessToken: "app-token",
+        upstream: "https://expo.example/send",
+        fetch: upstream.fetch,
+      },
+    });
+    const asked = [
+      // A form or a `no-cors` fetch from any page: plain text, no preflight.
+      { "content-type": "text/plain" },
+      {},
+      // JSON from a page says the page's origin.
+      { ...JSON_TYPE, origin: "https://somewhere.example" },
+    ];
+    for (const headers of asked) {
+      const response = await fetch(`http://127.0.0.1:${relay.port}/v1/push`, {
+        method: "POST",
+        headers,
+        body: pushes(1),
+      });
+      expect(response.status, JSON.stringify(headers)).toBe(403);
+    }
+    expect(upstream.tokens).toEqual([]);
+  });
+
+  it("says on its health, to anybody, whether Expo took the pushes it was last given", async () => {
+    let status = 403;
+    const upstream = (async (_url: string | URL | Request, init?: RequestInit) => {
+      if (status !== 200) return new Response("no", { status });
+      const sent = JSON.parse(String(init?.body)) as unknown[];
+      return Response.json({ data: sent.map(() => ({ status: "ok", id: "t" })) });
+    }) as unknown as typeof globalThis.fetch;
+    const relay = await relayOnAnyPort({
+      push: { accessToken: "app-token", upstream: "https://expo.example/send", fetch: upstream },
+    });
+    const pushesNow = async () =>
+      (
+        (await (
+          await fetch(`http://127.0.0.1:${relay.port}/health`, {
+            headers: { "x-forwarded-for": "203.0.113.9" },
+          })
+        ).json()) as { pushes?: unknown }
+      ).pushes;
+    const send = () =>
+      fetch(`http://127.0.0.1:${relay.port}/v1/push`, {
+        method: "POST",
+        headers: JSON_TYPE,
+        body: pushes(1),
+      });
+    expect(await pushesNow()).toBe("ready");
+    expect((await send()).status).toBe(503);
+    expect(await pushesNow()).toBe("refused");
+    status = 200;
+    expect((await send()).status).toBe(200);
+    expect(await pushesNow()).toBe("ready");
   });
 
   it("has no push door without the app's token", async () => {

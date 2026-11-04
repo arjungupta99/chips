@@ -5,7 +5,7 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { WARN_AT } from "@chipschat/protocol";
+import { FIRST_PERSON_NAME, WARN_AT } from "@chipschat/protocol";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import type { ClientEvent, Directory } from "./events.js";
@@ -936,6 +936,27 @@ describe("people coming and going (JR-5, JR-6)", () => {
     expect(said(events, ARJUN)).toEqual(["Priya joined by your link"]);
     expect(said(events, PRIYA)).toEqual(["You joined by Arjun's link"]);
     expect(said(events, DEV)).toEqual(["Priya joined by Arjun's link"]);
+  });
+
+  it("says an owner, not You, for one still under the server's first name (JR-17)", () => {
+    // A server that could not read its person's name calls them "You" until they name themselves.
+    const unnamed = [
+      fixture("person.joined", 1, {
+        participant_id: ARJUN,
+        display_name: FIRST_PERSON_NAME,
+        role: "owner",
+      }),
+      ...people().slice(1),
+    ];
+    const byLink = fixture("membership.added", 6, {
+      participant_id: PRIYA,
+      participant_kind: "person",
+      invite_id: "inv_01K4ZQPX000000000000000001",
+      actor: { kind: "person", id: ARJUN },
+    });
+    expect(said([...unnamed, byLink], PRIYA)).toEqual(["You joined by an owner's link"]);
+    expect(said([...unnamed, byLink], ARJUN)).toEqual(["Priya joined by your link"]);
+    expect(said([...unnamed, added(6, DEV)], DEV)).toEqual(["An owner added you"]);
   });
 
   it("says who took whom out, who left, and who was removed from the workspace", () => {

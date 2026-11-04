@@ -40,7 +40,7 @@ import {
   onReceived,
   onResponse,
   platform,
-  refreshRegistration,
+  settleRegistration,
   showBadge,
   silenceInForeground,
 } from "./register";
@@ -67,21 +67,20 @@ export function usePushSetup(): void {
  * 0157) and the key it seals words to (ADR 0158), when the person switched pushes on. A phone that
  * turned it on before either existed would otherwise never send them; one whose turning on the
  * server never took is registered now (`refreshRegistration`). Every workspace this phone holds is
- * told, the one in front and those behind it, but one muted here (ADR 0197).
+ * told, the one in front and those behind it; one muted here (ADR 0197), or every one when pushes
+ * are switched off, is told again to stop (`settleRegistration`).
  */
 export function usePushRefresh(devices: readonly Device[]): void {
   const told = useRef(new Set<string>());
   useEffect(() => {
-    const fresh = devices.filter(
-      (device) => device.muted !== true && !told.current.has(device.deviceId),
-    );
+    const fresh = devices.filter((device) => !told.current.has(device.deviceId));
     if (fresh.length === 0) return;
     for (const device of fresh) told.current.add(device.deviceId);
     void readSetting(SETTINGS.push)
       .catch(() => undefined)
       .then((chosen) =>
         Promise.all(
-          fresh.map((device) => refreshRegistration(device, chosen).catch(() => undefined)),
+          fresh.map((device) => settleRegistration(device, chosen).catch(() => undefined)),
         ),
       )
       .catch(() => undefined);

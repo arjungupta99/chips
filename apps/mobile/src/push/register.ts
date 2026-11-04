@@ -139,21 +139,25 @@ export async function tokenForThisPhone(): Promise<
 }
 
 interface PushSeal {
-  /** The key, base64, made the first time; null when the keychain would not keep it. */
-  readonly sealKey: () => string | null;
+  /**
+   * The device's own key, base64, made the first time it is asked for; null when the keychain
+   * would not keep it.
+   */
+  readonly sealKey: (deviceId: string) => string | null;
 }
 
 let seal: PushSeal | null | undefined;
 
 /**
  * The key the server seals an agent's words to (ADR 0158), kept in the keychain group the app's
- * notification extension reads (`modules/push-seal`). None on Android, on the web, and in a build
- * made before the module: those phones are pushed fixed words.
+ * notification extension reads (`modules/push-seal`). One for each device, this phone in one
+ * workspace, so a server holds only its own (the stranger review, 4 November 2026). None on
+ * Android, on the web, and in a build made before the module: those phones are pushed fixed words.
  */
-export function sealKey(): string | undefined {
+export function sealKey(deviceId: string): string | undefined {
   seal ??= Platform.OS === "ios" ? requireOptionalNativeModule<PushSeal>("ChipsPushSeal") : null;
   try {
-    return seal?.sealKey() ?? undefined;
+    return seal?.sealKey(deviceId) ?? undefined;
   } catch {
     return undefined;
   }
@@ -166,7 +170,7 @@ export function sealKey(): string | undefined {
 export async function registerToken(device: Device, token: string): Promise<void> {
   const where = platform();
   if (where === undefined || isDemo(device)) return;
-  const key = sealKey();
+  const key = sealKey(device.deviceId);
   await putJson(device, "/v1/me/push-token", {
     token,
     platform: where,
@@ -204,6 +208,23 @@ export async function refreshRegistration(
 export async function unregisterToken(device: Device): Promise<void> {
   if (isDemo(device)) return;
   await deleteJson(device, "/v1/me/push-token");
+}
+
+/**
+ * Say again, as the app opens, what this phone wants from a workspace's server: its pushes, when
+ * the person switched them on and the workspace isn't muted here (`refreshRegistration`); none,
+ * when either is off. Turning a switch off tells each server once, and one out of reach that
+ * moment (a workspace behind, no signal) kept the token and went on pushing to a phone that had
+ * said no, with nothing to tell it again (the stranger review, 4 November 2026). A server told to
+ * stop twice answers the same.
+ */
+export async function settleRegistration(
+  device: Device,
+  chosen: string | undefined,
+): Promise<void> {
+  if (platform() === undefined || isDemo(device)) return;
+  if (chosen === "off" || device.muted === true) await unregisterToken(device);
+  else await refreshRegistration(device, chosen);
 }
 
 /**

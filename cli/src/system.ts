@@ -51,6 +51,17 @@ export async function health(url: string): Promise<Health> {
   }
 }
 
+/** The version the Chips at an address says it is, or nothing when it says none or can't be read. */
+export async function runningVersion(url: string): Promise<string | undefined> {
+  try {
+    const response = await fetch(`${url}/v1/health`, { signal: AbortSignal.timeout(2000) });
+    const body = (await response.json()) as { name?: unknown; version?: unknown };
+    return body.name === "chipsd" && typeof body.version === "string" ? body.version : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Tailscale's own CLI, on the PATH or inside the Mac app. */
 const TAILSCALE = ["tailscale", "/Applications/Tailscale.app/Contents/MacOS/Tailscale"];
 
@@ -189,6 +200,7 @@ export function systemUpDeps(machine: Machine, release: Release | undefined): Up
     app: command === undefined ? undefined : appHolding(command[0]),
     uid: process.getuid?.() ?? 0,
     health,
+    runningVersion,
     networks,
     readFile: readText,
     writeFile: writeText,

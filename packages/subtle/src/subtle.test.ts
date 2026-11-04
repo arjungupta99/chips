@@ -109,6 +109,102 @@ describe("what the runtime may do itself", () => {
     );
   });
 
+  it("hands the curves and HMAC to the runtime, with the bytes its keys hold", async () => {
+    const pair = (fill: number) => ({
+      secretKey: new Uint8Array(32).fill(fill),
+      publicKey: new Uint8Array(32).fill(fill + 1),
+    });
+    const x25519 = {
+      generate: vi.fn(async () => pair(1)),
+      derive: vi.fn(async () => new Uint8Array(32).fill(5)),
+    };
+    const ed25519 = {
+      generate: vi.fn(async () => pair(3)),
+      sign: vi.fn(async () => new Uint8Array(64).fill(6)),
+      verify: vi.fn(async () => true),
+    };
+    const hmacSha256 = {
+      sign: vi.fn(async () => new Uint8Array(32).fill(4)),
+      verify: vi.fn(async () => false),
+    };
+    const { subtle } = createWebCrypto({ x25519, ed25519, hmacSha256 });
+
+    // A pair the runtime made is kept as its bytes: PKCS#8 wraps the private key's, raw is the public.
+    const agreeing = (await subtle.generateKey({ name: "X25519" }, true, [
+      "deriveBits",
+    ])) as CryptoKeyPair;
+    const pkcs8 = new Uint8Array(await subtle.exportKey("pkcs8", agreeing.privateKey));
+    expect(pkcs8.slice(16)).toEqual(new Uint8Array(32).fill(1));
+    expect(new Uint8Array(await subtle.exportKey("raw", agreeing.publicKey))).toEqual(
+      new Uint8Array(32).fill(2),
+    );
+    const peer = await subtle.importKey("raw", raw(32), { name: "X25519" }, true, []);
+    expect(
+      new Uint8Array(
+        await subtle.deriveBits({ name: "X25519", public: peer }, agreeing.privateKey, 256),
+      ),
+    ).toEqual(new Uint8Array(32).fill(5));
+    expect(x25519.derive).toHaveBeenCalledWith(new Uint8Array(32).fill(1), raw(32));
+
+    const signing = (await subtle.generateKey({ name: "Ed25519" }, false, [
+      "sign",
+      "verify",
+    ])) as CryptoKeyPair;
+    expect(
+      new Uint8Array(await subtle.sign({ name: "Ed25519" }, signing.privateKey, raw(3))),
+    ).toEqual(new Uint8Array(64).fill(6));
+    expect(ed25519.sign).toHaveBeenCalledWith(new Uint8Array(32).fill(3), raw(3));
+    expect(await subtle.verify({ name: "Ed25519" }, signing.publicKey, raw(64), raw(3))).toBe(true);
+    expect(ed25519.verify).toHaveBeenCalledWith(new Uint8Array(32).fill(4), raw(64), raw(3));
+
+    const mac = await subtle.importKey("raw", raw(5), { name: "HMAC", hash: "SHA-256" }, false, [
+      "sign",
+      "verify",
+    ]);
+    expect(new Uint8Array(await subtle.sign("HMAC", mac, raw(2)))).toEqual(
+      new Uint8Array(32).fill(4),
+    );
+    expect(hmacSha256.sign).toHaveBeenCalledWith(raw(5), raw(2));
+    // The runtime's answer stands, even against what JavaScript would have said.
+    expect(await subtle.verify("HMAC", mac, new Uint8Array(32).fill(4), raw(2))).toBe(false);
+    expect(hmacSha256.verify).toHaveBeenCalledWith(raw(5), new Uint8Array(32).fill(4), raw(2));
+  });
+
+  it("calls a refused key agreement an OperationError and a signature that throws a false, either way", async () => {
+    const fixed = async () => ({ secretKey: raw(32), publicKey: raw(32) });
+    const refusing = createWebCrypto({
+      x25519: {
+        generate: fixed,
+        derive: async () => {
+          throw new Error("That public key gives no shared secret");
+        },
+      },
+      ed25519: {
+        generate: fixed,
+        sign: async () => raw(64),
+        verify: async () => {
+          throw new Error("malformed");
+        },
+      },
+    }).subtle;
+    for (const subtle of [shim.subtle, refusing]) {
+      const mine = (await subtle.generateKey({ name: "X25519" }, false, [
+        "deriveBits",
+      ])) as CryptoKeyPair;
+      // u = 0: a point of small order, whose every product is zero.
+      const zero = await subtle.importKey("raw", new Uint8Array(32), { name: "X25519" }, true, []);
+      await expect(
+        subtle.deriveBits({ name: "X25519", public: zero }, mine.privateKey, 256),
+      ).rejects.toMatchObject({ name: "OperationError" });
+    }
+    const signing = (await refusing.generateKey({ name: "Ed25519" }, false, [
+      "verify",
+    ])) as CryptoKeyPair;
+    expect(await refusing.verify({ name: "Ed25519" }, signing.publicKey, raw(64), raw(1))).toBe(
+      false,
+    );
+  });
+
   it("makes a v4 UUID from random bytes", () => {
     const uuid = shim.randomUUID();
     expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);

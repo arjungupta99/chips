@@ -370,6 +370,19 @@ export function rememberWentDirect(
 }
 
 /**
+ * Where the server answered when the stored address had stopped answering, through a door that
+ * shook hands to the device's key (the stranger review, 4 November 2026), kept with the device so
+ * the next launch dials it first.
+ */
+export function rememberAddress(
+  deviceId: string,
+  serverUrl: string,
+  storage: DeviceStorage = browserStorage,
+): Promise<Device | undefined> {
+  return amend(deviceId, { serverUrl }, storage);
+}
+
+/**
  * What the workspace is called now, as the server's hello says, kept with the device: it was
  * told the name once, when it paired, and a workspace renamed since would otherwise go on by its
  * old one here, and in the list of workspaces this device holds, until it paired again.
@@ -557,19 +570,29 @@ function waitsForAllow(answer: object): answer is WaitingOnTheWire {
 }
 
 /**
+ * The link a wait for an allow goes by, and how to get another when it drops: a tunnel through
+ * the relay is gone with the relay's restart, or the phone's move from one network to another,
+ * and the request it waited on lives on at the server. Whichever link the wait ended on is `link`.
+ */
+interface Reaching {
+  link: Link;
+  readonly again?: (() => Promise<Link>) | undefined;
+}
+
+/**
  * The device a door handed out: at once, or, for a link that asks (ADR 0232), once the person who
  * sent it allows it. Polled the way the door was reached, through the tunnel when it was one.
  */
 async function handedOut(
   answer: PairedOnTheWire | WaitingOnTheWire,
   serverUrl: string,
-  link: Link,
+  reaching: Reaching,
   wait: AllowWait | undefined,
 ): Promise<PairedOnTheWire> {
   if (!waitsForAllow(answer)) return answer;
   const now = wait?.now ?? Date.now;
   wait?.onWaiting({ code: answer.code, expiresAt: now() + answer.expires_in * 1000 });
-  return await untilAllowed(serverUrl, answer, link, wait);
+  return await untilAllowed(serverUrl, answer, reaching, wait);
 }
 
 /** An unauthenticated POST to one of the doors, with the failure as a `PairingError`. */
@@ -662,7 +685,10 @@ export async function pairDevice(
   /** For a code that asks (ADR 0232): what this device shows while the person allows it. */
   wait?: AllowWait,
 ): Promise<Device> {
-  const link = await establishLink({ serverUrl, ...reach });
+  const reaching: Reaching = {
+    link: await establishLink({ serverUrl, ...reach }),
+    again: () => establishLink({ serverUrl, ...reach }),
+  };
   const { pair, publicKey } = await newDeviceKey(storage);
   let paired: PairedOnTheWire;
   try {
@@ -671,15 +697,15 @@ export async function pairDevice(
       "/v1/pair",
       { code: code.trim().toUpperCase(), public_key: publicKey, name },
       "That pairing code is not valid.",
-      link,
+      reaching.link,
     );
-    paired = await handedOut(answer, serverUrl, link, wait);
+    paired = await handedOut(answer, serverUrl, reaching, wait);
   } catch (error) {
-    link.close();
+    reaching.link.close();
     throw error;
   }
   const device = await keep(paired, pair.privateKey, serverUrl, storage, reach);
-  const kept = await linkAfterPairing(device, link);
+  const kept = await linkAfterPairing(device, reaching.link);
   if (kept !== undefined) useLink(device.deviceId, kept);
   return device;
 }
@@ -743,7 +769,12 @@ export async function askToJoin(input: {
     "Chips there didn't take the request.",
   );
   input.onWaiting({ code: asked.code, expiresAt: now() + asked.expires_in * 1000 });
-  const polled = await untilAllowed(input.serverUrl, asked, directLink, { ...input, sleep });
+  const polled = await untilAllowed(
+    input.serverUrl,
+    asked,
+    { link: directLink },
+    { ...input, sleep, now },
+  );
   return await keep(polled, pair.privateKey, input.serverUrl, storage);
 }
 
@@ -751,22 +782,66 @@ export async function askToJoin(input: {
  * Poll a request until a person allows it, and answer what it was given: a device that asked over
  * the Wi-Fi, or one that used a link that asks (ADR 0232). Refused, run out or stopped, a
  * `PairingError`.
+ *
+ * A poll that doesn't get the server's word, because the network dropped, the server restarted
+ * or slept, or the relay did, is asked again, on a link dialled again when there is a way to: the
+ * request waits at the server for its whole life whatever happens to the device. The first such
+ * blip used to end the wait, and the person's Allow went to nobody (the stranger review, 4
+ * November 2026). Past the request's life it stops.
  */
 async function untilAllowed(
   serverUrl: string,
-  asked: { readonly request_id: string; readonly secret: string; readonly interval: number },
-  link: Link,
-  wait: Pick<AllowWait, "signal" | "sleep"> | undefined,
+  asked: {
+    readonly request_id: string;
+    readonly secret: string;
+    readonly interval: number;
+    readonly expires_in: number;
+  },
+  reaching: Reaching,
+  wait: Pick<AllowWait, "signal" | "sleep" | "now"> | undefined,
 ): Promise<PairedOnTheWire> {
   const sleep = wait?.sleep ?? ((ms: number) => new Promise((done) => setTimeout(done, ms)));
+  const now = wait?.now ?? Date.now;
+  const until = now() + asked.expires_in * 1000;
   let interval = asked.interval;
   for (;;) {
     await sleep(interval * 1000);
     if (wait?.signal?.aborted === true) throw new PairingError("Stopped asking.");
-    const polled = await pollJoin(serverUrl, asked.request_id, asked.secret, link);
+    const polled = await pollOrNot(serverUrl, asked, reaching.link);
+    if (polled === undefined) {
+      await dialAgain(reaching, now() >= until);
+      continue;
+    }
     if (!("interval" in polled)) return polled;
     interval = polled.interval ?? interval;
   }
+}
+
+const RAN_OUT = "Chips there didn't answer before the request ran out. Ask again.";
+
+/** One poll, or nothing when it didn't get the server's word: a refusal is still a refusal. */
+function pollOrNot(
+  serverUrl: string,
+  asked: { readonly request_id: string; readonly secret: string },
+  link: Link,
+): Promise<Awaited<ReturnType<typeof pollJoin>> | undefined> {
+  return pollJoin(serverUrl, asked.request_id, asked.secret, link).catch((error: unknown) => {
+    if (error instanceof PairingError) throw error;
+    return undefined;
+  });
+}
+
+/**
+ * After a poll that got no word: a refusal once the request has `ranOut`, else the dropped link
+ * given up on and another dialled when there is a way to, the old one kept when there isn't.
+ */
+async function dialAgain(reaching: Reaching, ranOut: boolean): Promise<void> {
+  if (ranOut) throw new PairingError(RAN_OUT);
+  if (reaching.again === undefined) return;
+  const next = await reaching.again().catch(() => undefined);
+  if (next === undefined) return;
+  reaching.link.close();
+  reaching.link = next;
 }
 
 /** One poll of a device's request: wait again, or what it was given. Refused, a `PairingError`. */
@@ -786,6 +861,10 @@ async function pollJoin(
     error?: { message?: string };
   } & Partial<PairedOnTheWire>;
   if (response.status === 202) return { interval: body.interval };
+  // Not the server's word on the request: a proxy, or a server in trouble for a moment.
+  if (response.status >= 500 || response.status === 429) {
+    throw new Error(`The poll was answered ${response.status}.`);
+  }
   if (!response.ok || body.device_id === undefined) {
     throw new PairingError(body.error?.message ?? "Chips there didn't let this device in.");
   }
@@ -870,20 +949,26 @@ export async function joinByInvite(
   wait?: AllowWait,
 ): Promise<Device> {
   const { pair, publicKey } = await newDeviceKey(storage);
-  const link = via?.link ?? directLink;
+  const reaching: Reaching = {
+    link: via?.link ?? directLink,
+    again:
+      via?.serverKey === undefined
+        ? undefined
+        : () => establishLink({ serverUrl, serverKey: via.serverKey, relayUrl: via.relayUrl }),
+  };
   const answer = await knock<PairedOnTheWire | WaitingOnTheWire>(
     serverUrl,
     "/v1/invites/redeem",
     { token, display_name: displayName, public_key: publicKey, device_name: deviceName },
     "That invite is not valid.",
-    link,
+    reaching.link,
   );
-  const joined = await handedOut(answer, serverUrl, link, wait);
+  const joined = await handedOut(answer, serverUrl, reaching, wait);
   const device = await keep(joined, pair.privateKey, serverUrl, storage, {
     serverKey: via?.serverKey,
     relayUrl: via?.relayUrl,
   });
-  if (via !== undefined) useLink(device.deviceId, via.link);
+  if (via !== undefined) useLink(device.deviceId, reaching.link);
   return device;
 }
 
@@ -1127,6 +1212,20 @@ export function socketOrigin(device: Device): string {
  * device's own unless the caller has one in hand; a tunnel still to be chosen is waited for, so
  * what is signed is the tunnel the request will cross.
  */
+/**
+ * How far each device's server's clock is from this one's, by device id, once a server has said
+ * the device's clock is out (`clock_skew`): what a signature's time is set by from then on. A
+ * phone with its time set by hand, or a server with no network clock (a Raspberry Pi without one
+ * keeps the time it was switched off at), used to be refused every request and said the device
+ * had been removed (the stranger review, 4 November 2026). Kept for as long as the app runs.
+ */
+const clockOffsets = new Map<string, number>();
+
+/** The device's server's clock is `offsetMs` ahead of this one's (behind, when negative). */
+export function setClockOffset(deviceId: string, offsetMs: number): void {
+  clockOffsets.set(deviceId, Math.round(offsetMs));
+}
+
 export async function signRequest(
   device: Device,
   method: string,
@@ -1135,7 +1234,7 @@ export async function signRequest(
   link: Pick<Link, "handshakeHash"> = linkFor(device),
 ): Promise<Record<string, string>> {
   const handshakeHash = await link.handshakeHash?.();
-  const timestamp = Date.now();
+  const timestamp = Date.now() + (clockOffsets.get(device.deviceId) ?? 0);
   const bytes: Uint8Array<ArrayBuffer> =
     typeof body === "string" ? new TextEncoder().encode(body) : body;
   const digest = await crypto.subtle.digest("SHA-256", bytes);

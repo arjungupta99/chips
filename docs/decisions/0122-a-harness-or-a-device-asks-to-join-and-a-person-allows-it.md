@@ -123,3 +123,17 @@ so a device behind it is still told the public address. So is anything through t
 tunnel door, and any other machine. A link a person makes (`POST /v1/join/links`) still names the
 public address, since it is for a harness somewhere else. The rule is in
 `server/src/interfaces/http/arrived-at.ts`.
+
+## Addendum, 4 November 2026: an ask nobody handed a link for pushes once in ten minutes
+
+Anybody on the Wi-Fi can tap "Ask to join", and anybody holding the server's key can ask through
+the relay. Each ask pushed every owner and admin, with quiet hours not kept: five at a time, and
+five more as each ran out, all night if somebody wanted. The stranger review of 4 November 2026
+found this.
+
+Now a request nobody handed a link for pushes at most once in a request's ten minutes, for each
+workspace (`notify-join`).
+
+- The rest are still told on the socket.
+- They wait in the list with the first.
+- A link's request is asked of the person who handed the link out (ADR 0232), and always pushes.

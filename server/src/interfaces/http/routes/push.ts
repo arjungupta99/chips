@@ -12,6 +12,7 @@
  * registers, reads or removes another's.
  */
 
+import { isExpoPushToken } from "@chipschat/protocol";
 import type { Hono } from "hono";
 import type { Principal } from "../../../application/ports/identity.js";
 import type { PushPlatform } from "../../../application/ports/push.js";
@@ -19,9 +20,6 @@ import type { GatewayDeps, GatewayEnv } from "../context.js";
 import { HttpError } from "../errors.js";
 
 const PLATFORMS: readonly string[] = ["ios", "android"];
-
-/** Expo's own token, and long enough to hold an APNs or FCM one if a later sender wants it. */
-const MAX_TOKEN = 500;
 
 /** IANA zone names are short; this is room to spare. */
 const MAX_ZONE = 100;
@@ -64,8 +62,10 @@ function readRegistration(raw: string): Registration {
     throw new HttpError("invalid_event", "The body is not JSON.");
   }
   const { token, platform, time_zone: timeZone } = body;
-  if (typeof token !== "string" || token.length === 0 || token.length > MAX_TOKEN) {
-    throw new HttpError("invalid_event", "Send `token`: the one the push service issued.");
+  // An Expo push token and nothing else, which is all the app registers: one made-up token among
+  // a room's phones once spoilt the push relay's whole batch for everybody in it.
+  if (!isExpoPushToken(token)) {
+    throw new HttpError("invalid_event", "Send `token`: the Expo push token the phone was issued.");
   }
   if (typeof platform !== "string" || !PLATFORMS.includes(platform)) {
     throw new HttpError("invalid_event", "Send `platform`: `ios` or `android`.");

@@ -83,3 +83,29 @@ Tests: `tools/guardrails/install-script.test.ts` installs from a download host o
 copy of the script that trusts a test key, and refuses an unsigned release, one signed by another
 key, and one whose sums changed after signing; `release.test.ts` holds `SIGNER` to the principal
 and namespace signing uses.
+
+## Addendum, 4 November 2026: an upgrade runs, and the install line installs what was asked for
+
+The stranger review of 4 November 2026 found three gaps.
+
+1. **An upgrade left the old server running.** The install line moves `current` to the new
+   release, and the service runs through `current`, so its file doesn't change. `chips up` then
+   found Chips answering and said "already running". The old server ran until the next login,
+   reboot or crash, and a release's fixes reached nobody who upgraded. Now:
+   - `chips up` reads the running server's version from its health. When the server is another
+     release than this one and runs as Chips's own service, `chips up` starts it again, settings
+     as they were, and says "Started Chips again on 1.0.3 (it was 1.0.2)".
+   - `chips doctor` warns when the server here isn't on this release.
+   - After an upgrade, the install line's last line says `chips up` starts the server again on the
+     new version.
+2. **A signed release could be swapped for an older one.** The signature says who made a release,
+   not which release it is. Whoever holds the download host could serve an older signed release,
+   with the holes it had, under a newer version's name, or as the latest. Now, from the download
+   host:
+   - `--version X` installs X or nothing;
+   - the latest is never older than the release already here. Going back takes `--version`.
+3. **An old ssh-keygen read as an unsigned release.** OpenSSH before 8.1 (Debian 10, for one) has
+   no `-Y`. The script said "SHA256SUMS is not signed with Chips's release key", which reads like
+   tampering. Now it says that machine's ssh-keygen is too old to check a signature.
+
+`--from` is as it was: the person names the file, so they have chosen its version.

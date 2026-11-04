@@ -48,6 +48,11 @@ a minute from one address. It logs no token, sentence or id, and counts how many
 A server with the token, `CHIPS_PUSH_ACCESS_TOKEN`, posts to Expo itself, and `CHIPS_PUSH_URL`
 sends them anywhere else.
 
+The relay's `GET /health` says what became of the last notifications it passed on, as `pushes`:
+`ready`, `refused` when Expo turned down its token, `failing` when Expo didn't answer or didn't
+take them, or `no_access_token` when the relay has no push door. It changes only when Expo
+answers, so a relay nobody has pushed through yet says `ready`.
+
 ## Run one
 
 ```sh

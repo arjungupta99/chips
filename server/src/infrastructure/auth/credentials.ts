@@ -10,6 +10,7 @@
  */
 
 import { createHash, createPublicKey, randomBytes, timingSafeEqual, verify } from "node:crypto";
+import { joinCheckCode, joinCheckText, joinCommitText } from "@chipschat/protocol";
 
 /** Harness tokens are 256 bits, base64url, so they survive a header and a shell variable. */
 export const HARNESS_TOKEN_BYTES = 32;
@@ -67,6 +68,20 @@ export function keyCode(publicKey: string): string {
   const digest = createHash("sha256").update(Buffer.from(publicKey, "base64")).digest();
   return String(digest.readUInt32BE(0) % 1_000_000).padStart(6, "0");
 }
+
+/**
+ * The three halves of the check a device asking on the Wi-Fi shows (S-1, ADR 0278), as this server
+ * works them: a nonce of its own, a device's commitment read back from the nonce it sends, and the
+ * code from both keys and both nonces, the same as the device works out.
+ */
+export const joinCheck = {
+  nonce: (random: (size: number) => Buffer = randomBytes): string =>
+    random(32).toString("base64url"),
+  commitOf: (nonce: string): string =>
+    createHash("sha256").update(joinCommitText(nonce), "utf8").digest("base64url"),
+  code: (parts: Parameters<typeof joinCheckText>[0]): string =>
+    joinCheckCode(createHash("sha256").update(joinCheckText(parts), "utf8").digest()),
+};
 
 /** Constant-time equality for two hex digests of the same length. */
 export function digestsMatch(a: string, b: string): boolean {

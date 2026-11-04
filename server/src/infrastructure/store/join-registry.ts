@@ -45,16 +45,31 @@ function toRequest(row: JoinRequestsTable): JoinRequest {
     inviteId: row.invite_id,
     role: row.role,
     replaces: row.replaces,
+    checkCommit: row.check_commit,
+    checkNonce: row.check_nonce,
   };
 }
 
 /** A change as columns: only what it names. */
 function columnsOf(change: JoinChange): Partial<JoinRequestsTable> {
+  return { ...decisionColumns(change), ...requesterColumns(change) };
+}
+
+/** What a person's decision changes, and a device's code once it has one (ADR 0278). */
+function decisionColumns(change: JoinChange): Partial<JoinRequestsTable> {
   const columns: Partial<JoinRequestsTable> = {};
   if (change.state !== undefined) columns.state = change.state;
   if (change.capabilities !== undefined) columns.allowed_caps = JSON.stringify(change.capabilities);
   if (change.decidedBy !== undefined) columns.decided_by = change.decidedBy;
   if (change.decidedAt !== undefined) columns.decided_at = change.decidedAt;
+  if (change.pairAs !== undefined) columns.pair_as = change.pairAs;
+  if (change.code !== undefined) columns.code = change.code;
+  return columns;
+}
+
+/** What a link taken up says of who took it, and what redeeming made. */
+function requesterColumns(change: JoinChange): Partial<JoinRequestsTable> {
+  const columns: Partial<JoinRequestsTable> = {};
   if (change.name !== undefined) columns.name = change.name;
   if (change.software !== undefined) columns.software = change.software;
   if (change.machine !== undefined) columns.machine = change.machine;
@@ -62,7 +77,6 @@ function columnsOf(change: JoinChange): Partial<JoinRequestsTable> {
   if (change.harnessId !== undefined) columns.harness_id = change.harnessId;
   if (change.spaceId !== undefined) columns.space_id = change.spaceId;
   if (change.deviceId !== undefined) columns.device_id = change.deviceId;
-  if (change.pairAs !== undefined) columns.pair_as = change.pairAs;
   return columns;
 }
 
@@ -100,6 +114,8 @@ export function createJoinRegistry(db: Kysely<Database>): JoinRegistry {
           invite_id: request.inviteId,
           role: request.role,
           replaces: request.replaces,
+          check_commit: request.checkCommit,
+          check_nonce: request.checkNonce,
         })
         .execute();
     },
@@ -145,13 +161,14 @@ export function createJoinRegistry(db: Kysely<Database>): JoinRegistry {
       return rows.map(toRequest);
     },
 
-    async waitingCount(workspaceId, now) {
+    async waitingCount(workspaceId, now, among) {
       const row = await db
         .selectFrom("join_requests")
         .select((eb) => eb.fn.countAll<number>().as("waiting"))
         .where("workspace_id", "=", workspaceId)
         .where("state", "=", "waiting")
         .where("expires_at", ">", now)
+        .where("asked_of", among === "links" ? "is not" : "is", null)
         .executeTakeFirst();
       return Number(row?.waiting ?? 0);
     },

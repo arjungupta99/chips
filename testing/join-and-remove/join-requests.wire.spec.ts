@@ -7,8 +7,24 @@
  * N2 shows the owner's dialog for the same.
  */
 
+import { createHash, randomBytes } from "node:crypto";
 import { aName, expect, test } from "./support.ts";
 import { type Answer, newKey, plain, refusal, Wire } from "./wire.ts";
+
+/**
+ * The check a device that committed shows (ADR 0278), worked out here as a phone would, from the
+ * ADR's words rather than the protocol package: the SHA-256 of both keys and both nonces, its first
+ * thirty bits as six characters of the pairing alphabet.
+ */
+function checkCode(parts: readonly string[]): string {
+  const digest = createHash("sha256")
+    .update(["chips join check v1", ...parts].join("\n"), "utf8")
+    .digest();
+  const bits = digest.readUInt32BE(0) >>> 2;
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const six = [0, 1, 2, 3, 4, 5].map((i) => alphabet.charAt((bits >>> (25 - 5 * i)) & 31));
+  return `${six.slice(0, 3).join("")}-${six.slice(3).join("")}`;
+}
 
 let lan = 0;
 /** An address on the server's own network, as a device that may ask has: one each. */
@@ -70,6 +86,44 @@ test.afterEach(async () => {
   for (const request of waiting.requests as { request_id: string }[]) {
     await owner.call("DELETE", `/v1/join/${request.request_id}`);
   }
+});
+
+test("a device that commits to a nonce works its code out with the server, and the code from another key lets nobody in (ADR 0278)", async () => {
+  const owner = await Wire.owner();
+  const phone = newKey();
+  const from = onTheNetwork();
+  const nonce = randomBytes(32).toString("base64url");
+  const commit = createHash("sha256")
+    .update(`chips join commit v1\n${nonce}`, "utf8")
+    .digest("base64url");
+  // Somebody between the phone and the computer passes the phone's commitment on with their key.
+  const theirs = newKey();
+  const answer = await plain(
+    "POST",
+    "/v1/join",
+    { kind: "device", name: "iPhone 17", public_key: theirs.publicKey, commit },
+    from,
+  );
+  expect(answer.status, JSON.stringify(answer.body)).toBe(201);
+  expect(answer.body.code).toBeUndefined();
+  const serverKey = String(answer.body.server_key);
+  const serverNonce = String(answer.body.nonce);
+  const id = String(answer.body.request_id);
+  const secret = String(answer.body.secret);
+  const poll = () => plain("POST", `/v1/join/${id}/redeem`, { secret, nonce }, from);
+  expect((await poll()).status).toBe(202);
+  const codeOf = (publicKey: string) => checkCode([publicKey, serverKey, nonce, serverNonce]);
+  // The phone shows the code from its own key; typed, it lets nobody in.
+  const typed = await owner.call("POST", `/v1/join/${id}/allow`, { code: codeOf(phone.publicKey) });
+  expect([typed.status, refusal(typed)]).toEqual([422, "wrong_code"]);
+  // Only the code from the key in the request would, which no phone of the person's shows.
+  const allowed = await owner.call("POST", `/v1/join/${id}/allow`, {
+    code: codeOf(theirs.publicKey),
+  });
+  expect(allowed.status, JSON.stringify(allowed.body)).toBe(200);
+  const collected = await poll();
+  expect(collected.status).toBe(200);
+  expect(collected.body.server_key).toBe(serverKey);
 });
 
 test("a device is let in only with the code it shows, waits until then, and collects its key once", async () => {

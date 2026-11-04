@@ -49,6 +49,13 @@ export interface JoinRequest {
   readonly role: WorkspaceRole | null;
   /** The device a pairing code was made to replace, signed out once this one pairs (ADR 0236). */
   readonly replaces: string | null;
+  /**
+   * For a device that asked on the Wi-Fi with a commitment (S-1, ADR 0278): its commitment, and
+   * the nonce this server answered with. Its `code` is null until it sends the nonce it committed
+   * to, and then the one both ends work out. Null for every other request.
+   */
+  readonly checkCommit: string | null;
+  readonly checkNonce: string | null;
 }
 
 /** A request as it is first kept: what a redeem makes is not known yet. */
@@ -70,6 +77,8 @@ export interface JoinChange {
   readonly spaceId?: string | null;
   readonly deviceId?: string;
   readonly pairAs?: string | null;
+  /** The code a device's request shows, once it sent the nonce it committed to (ADR 0278). */
+  readonly code?: string;
 }
 
 export interface JoinRegistry {
@@ -82,8 +91,16 @@ export interface JoinRegistry {
   readonly secretHashOf: (id: string) => Promise<string | undefined>;
   /** A workspace's requests in these states, newest first. */
   readonly inStates: (workspaceId: string, states: readonly JoinState[]) => Promise<JoinRequest[]>;
-  /** Requests still waiting for a person, not yet past their expiry. */
-  readonly waitingCount: (workspaceId: string, now: string) => Promise<number>;
+  /**
+   * Requests still waiting for a person, not yet past their expiry: the `asks` nobody handed a
+   * link for (a harness's, a device's on the Wi-Fi), or the `links` a person handed out, which
+   * wait on that person (ADR 0232). Counted apart, so strangers' asks never keep out an invite.
+   */
+  readonly waitingCount: (
+    workspaceId: string,
+    now: string,
+    among: "asks" | "links",
+  ) => Promise<number>;
   /**
    * Change a request, only while it is in the state given and not past its expiry. Answers
    * whether it did, so two people deciding at once, or a decision and a redeem, are told apart

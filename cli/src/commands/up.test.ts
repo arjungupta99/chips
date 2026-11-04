@@ -125,6 +125,10 @@ describe("what chips up does, from what it found", () => {
     expect(planUp({ ...found, health: "chips", state: "ours" })).toBe("already-running");
     expect(planUp({ ...found, health: "chips", state: "ours", reachGiven: true })).toBe("service");
     expect(planUp({ ...found, health: "chips", state: "ours", changed: true })).toBe("service");
+    expect(planUp({ ...found, health: "chips", state: "ours", stale: true })).toBe("service");
+    expect(planUp({ ...found, health: "chips", state: "none", stale: true })).toBe(
+      "already-running",
+    );
     expect(planUp({ ...found, health: "chips", state: "none", reachGiven: true })).toBe(
       "already-running",
     );
@@ -573,6 +577,34 @@ describe("the settings a service keeps (the new-person sweep's finding 6)", () =
     expect(out.lines.join("\n")).toContain(
       "✓ Restarted Chips with its changed settings: CHIPS_FFMPEG",
     );
+  });
+
+  it("run again after the install line put a new release in place, starts the server again on it", async () => {
+    const before = written({ CHIPS_PUSH_ACCESS_TOKEN: "push-token" });
+    const here = world({
+      answers: ["chips"],
+      files: { [PLIST]: before },
+      runningVersion: async () => "0.1.9",
+    });
+    const out = scriptedConsole(true);
+    await up({ config, console: out, flags: flags({ interactive: true }), deps: here.deps });
+    expect(here.asked).toEqual([]);
+    expect(here.ran.map((command) => command[1])).toEqual(["enable", "bootout", "bootstrap"]);
+    // The same service, its settings as they were.
+    expect(serviceEnvironment(here.files[PLIST])).toEqual(serviceEnvironment(before));
+    expect(out.lines.join("\n")).toContain("✓ Started Chips again on 0.2.0 (it was 0.1.9)");
+    expect(out.lines.join("\n")).not.toContain("changed settings");
+  });
+
+  it("leaves a server running this release as it is", async () => {
+    const before = written({});
+    const here = world({
+      answers: ["chips"],
+      files: { [PLIST]: before },
+      runningVersion: async () => "0.2.0",
+    });
+    await up({ config, console: scriptedConsole(true), flags: flags(), deps: here.deps });
+    expect(here.ran).toEqual([]);
   });
 
   it("carries what an earlier chips up was given into a new answer: the shell wins, and empty takes one out", async () => {

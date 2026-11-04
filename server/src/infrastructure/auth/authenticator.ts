@@ -20,6 +20,7 @@ import {
   bearerToken,
   digestsMatch,
   hashHarnessToken,
+  SIGNATURE_WINDOW_MS,
   verifyDeviceSignature,
 } from "./credentials.js";
 
@@ -207,6 +208,11 @@ export function createAuthenticator(options: AuthenticatorOptions): Authenticato
     const headers = deviceHeaders(attempt);
     if (headers === undefined) return { ok: false, reason: "malformed" };
     const { deviceId, at } = headers;
+    // The clock before the device: a device whose clock is out is told so, and so is anybody who
+    // signs with a time that far off, so the answer says nothing of which devices are here.
+    if (Math.abs(now() - at) > SIGNATURE_WINDOW_MS) {
+      return { ok: false, reason: "timestamp_out_of_range" };
+    }
 
     const row = await deviceRow(deviceId);
     if (row === undefined) return { ok: false, reason: "unknown_device" };

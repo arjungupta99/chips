@@ -139,6 +139,21 @@ export function pathOf(target: string | undefined): string | undefined {
 /** A push request's body: a hundred pushes of at most 4 KiB each, and their brackets. */
 const MOST_PUSH_BODY = 512 * 1024;
 
+/**
+ * Whether a push request is a server's, as a server's sender makes one: JSON, and no page's
+ * origin on it. A browser can be made to post plain text anywhere from any page it opens, which
+ * would make every visitor's browser a sender; JSON from a page needs a preflight this relay
+ * never answers, and a page's request says its origin.
+ */
+function fromAServer(request: IncomingMessage): boolean {
+  const type = (request.headers["content-type"] ?? "").split(";")[0]?.trim().toLowerCase();
+  return type === "application/json" && request.headers.origin === undefined;
+}
+
+const NOT_A_SERVER = JSON.stringify({
+  error: { code: "forbidden", message: "Pushes come from a Chips server, as JSON." },
+});
+
 /** A request's body as text, or nothing when it was bigger than `most` or never finished. */
 function bodyOf(request: IncomingMessage, most: number): Promise<string | undefined> {
   return new Promise((resolve) => {
@@ -257,6 +272,12 @@ export async function startRelay(options: RelayOptions): Promise<RunningRelay> {
 
   /** A server's pushes, sent on with the app's token; the answer written as the door gave it. */
   const push = async (door: PushDoor, request: IncomingMessage, response: ServerResponse) => {
+    if (!fromAServer(request)) {
+      request.resume();
+      response.writeHead(403, { "content-type": "application/json" });
+      response.end(NOT_A_SERVER);
+      return;
+    }
     const body = await bodyOf(request, MOST_PUSH_BODY);
     const sent =
       body === undefined
@@ -282,14 +303,16 @@ export async function startRelay(options: RelayOptions): Promise<RunningRelay> {
   };
 
   /**
-   * Alive, and which release, for a monitor and for whoever deploys it. How many servers and
-   * phones it carries is said only on the box itself, not to a stranger (SEC-28).
+   * Alive, which release, and whether the push door's last pushes went, for a monitor and for
+   * whoever deploys it. How many servers and phones it carries is said only on the box itself,
+   * not to a stranger (SEC-28).
    */
   const health = (request: IncomingMessage) =>
     JSON.stringify({
       status: "ok",
       name: "chips-relay",
       version: options.version ?? "0.0.0",
+      pushes: pushDoor?.readiness() ?? "no_access_token",
       ...(fromThisBox(request) ? switchboard.stats() : {}),
     });
 

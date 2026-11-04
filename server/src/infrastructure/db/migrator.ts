@@ -65,6 +65,7 @@ import * as contextReadNote from "./migrations/0055-context-read-note.js";
 import * as sessionRuleStarts from "./migrations/0056-session-rule-starts.js";
 import * as pinnedSpaces from "./migrations/0057-pinned-spaces.js";
 import * as harnessJobs from "./migrations/0058-harness-jobs.js";
+import * as joinCheck from "./migrations/0059-join-check.js";
 import type { Database } from "./schema.js";
 
 /** A migration is written against the schema of its own moment, not today's `Database`. */
@@ -137,6 +138,7 @@ export const MIGRATIONS: readonly Migration[] = [
   sessionRuleStarts,
   pinnedSpaces,
   harnessJobs,
+  joinCheck,
 ];
 
 export interface MigrationResult {

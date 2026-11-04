@@ -91,3 +91,27 @@ are as they came. The server's own unsealed pushes, to a phone with no key, read
 sent without `mutable-content` never reaches the extension, and the decision's and the other fixed
 pushes are sent that way, so only Expo asking for the server's access token keeps a stranger's words
 off the lock screen there; that is Arjun's half of SEC-29.
+
+## Addendum, 4 November 2026: a key for each workspace
+
+The phone made one key and registered it with every server it joined. So every one of those
+servers held the key that opens every other's sealed words, and could seal words that opened as
+another workspace's. The stranger review of 4 November 2026 found this.
+
+Now the phone makes a key for each device, which is this phone in one workspace. It does this the
+first time it registers with that workspace's server (`sealKey(deviceId)`, kept as
+`seal-key.<device id>` in the shared keychain group). Each server holds only its own.
+
+- **The extension** opens a push with the key of the push's device (`data.device_id`) when that
+  device has one. Only when it has none does it use the phone's one key from before. A server
+  still holding the old key therefore can't open, or seal words that open as, the push of a
+  workspace that has its own key.
+- **Moving over:** each server gets its key at the phone's next registration, which every launch
+  makes (`settleRegistration`).
+- **One that doesn't reach its server:** if the phone makes a workspace's key but that server
+  can't be reached, the server's pushes show the fixed words until a launch reaches it.
+
+Nothing changes on the server, which seals to whatever key the phone registered.
+
+The seal binds no extra data (AAD). Once each server holds only its own key, a box sealed under
+one workspace's key opens under no other.

@@ -31,6 +31,7 @@ import {
   rememberRelay,
   rememberWorkspaceName,
   requestOptionsFromJson,
+  setClockOffset,
   setDeviceMuted,
   signRequest,
   socketOrigin,
@@ -103,6 +104,20 @@ describe("a signed request (ADR 0006; ADR 0191, decision 6)", () => {
     expect(headers["x-chips-signed"]).toBeUndefined();
     expect(await verify(headers, ["POST", "/v1/events?x=1", digest])).toBe(true);
     expect(await verify(headers, ["POST", "/v1/events?x=1", digest, "ab".repeat(32)])).toBe(false);
+  });
+
+  it("signs by its server's clock once the server said the two are apart", async () => {
+    const { paired, verify } = await signer();
+    const empty = hex(await crypto.subtle.digest("SHA-256", new Uint8Array()));
+    setClockOffset("dev_1", -15 * 60 * 1000);
+    try {
+      const headers = await signRequest(paired, "GET", "/v1/devices", "", directLink);
+      const said = Number(headers["x-chips-timestamp"]);
+      expect(Math.abs(said - (Date.now() - 15 * 60 * 1000))).toBeLessThan(1000);
+      expect(await verify(headers, ["GET", "/v1/devices", empty])).toBe(true);
+    } finally {
+      setClockOffset("dev_1", 0);
+    }
   });
 
   it("names the tunnel's handshake hash as a fifth line inside one, and says so", async () => {
@@ -1005,6 +1020,57 @@ describe("askToJoin", () => {
     const odd = await ask("not-a-key");
     expect(odd.device.serverKey).toBeUndefined();
     expect(odd.stored.serverKey).toBeUndefined();
+  });
+
+  it("keeps waiting through a dropped poll or a server away for a moment, until the request runs out", async () => {
+    let clock = 0;
+    const answers: (Response | Error)[] = [
+      new Response(JSON.stringify(asked), { status: 201 }),
+      new TypeError("Network request failed"),
+      new Response("Bad Gateway", { status: 502 }),
+      new Response(JSON.stringify({ state: "waiting" }), { status: 202 }),
+      new Response(JSON.stringify(joined), { status: 200 }),
+    ];
+    vi.stubGlobal("fetch", async () => {
+      const next = answers.shift() as Response | Error;
+      if (next instanceof Error) throw next;
+      return next;
+    });
+    const device = await askToJoin({
+      serverUrl: SERVER,
+      name: "iPhone",
+      storage: memory(),
+      onWaiting: () => undefined,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+      now: () => clock,
+    });
+    vi.unstubAllGlobals();
+    expect(device.deviceId).toBe("dev_phone");
+
+    // Never answered again: it stops once the request has run out, and says so.
+    const gone = [new Response(JSON.stringify(asked), { status: 201 })];
+    vi.stubGlobal("fetch", async () => {
+      const next = gone.shift();
+      if (next === undefined) throw new TypeError("Network request failed");
+      return next;
+    });
+    clock = 0;
+    await expect(
+      askToJoin({
+        serverUrl: SERVER,
+        name: "iPhone",
+        storage: memory(),
+        onWaiting: () => undefined,
+        sleep: async (ms) => {
+          clock += ms;
+        },
+        now: () => clock,
+      }),
+    ).rejects.toThrow("ran out");
+    expect(clock).toBeGreaterThanOrEqual(asked.expires_in * 1000);
+    vi.unstubAllGlobals();
   });
 
   it("says why when a person doesn't allow it", async () => {

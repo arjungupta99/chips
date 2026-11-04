@@ -28,7 +28,7 @@ import {
   presenceFrame,
 } from "@chipschat/protocol";
 import type { Device } from "./device.js";
-import { endpoint, signRequest, socketOrigin } from "./device.js";
+import { endpoint, setClockOffset, signRequest, socketOrigin } from "./device.js";
 import type { ClientEvent } from "./events.js";
 import {
   DEFAULT_PROBE_MS,
@@ -45,7 +45,6 @@ import {
   reached,
   reachNamedBy,
   readOnLink,
-  relayNamedBy,
   relayVerdict,
   servedThisPage,
   useLink,
@@ -85,14 +84,35 @@ export const CLOSE_PERSON_REMOVED = 4003;
 /** The server's close for a socket it did not let in: no good ticket, or an ask it refused. */
 const CLOSE_UNAUTHORIZED = 4001;
 
-/** Whether a refusal of the ticket says the person was removed, rather than the key unknown. */
-async function refusedAsRemoved(response: { json: () => Promise<unknown> }): Promise<boolean> {
+/**
+ * A device whose clock is too far from its server's: the server said `clock_skew`, and this
+ * device now signs by the server's clock. Worth another try at once, unlike an unknown device.
+ */
+export class ClockSkewError extends Error {
+  override readonly name = "ClockSkewError";
+}
+
+/** What a refusal of the ticket says beyond `unauthorized`: the person removed, a clock out. */
+async function refusalOf(response: { json: () => Promise<unknown> }): Promise<unknown> {
   try {
     const body = (await response.json()) as { error?: { refusal?: unknown } } | null;
-    return body?.error?.refusal === "person_removed";
+    return body?.error?.refusal;
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+/**
+ * Set this device's clock by its server's, read from the server's health over the link the
+ * refusal came by: halfway through the read is when the server said its time.
+ */
+async function setClockBy(device: Device, link: Link): Promise<void> {
+  const sent = Date.now();
+  const response = await link.fetch(endpoint(device, "/v1/health"));
+  const received = Date.now();
+  const body = (await response.json().catch(() => undefined)) as { time?: unknown } | undefined;
+  const at = typeof body?.time === "string" ? Date.parse(body.time) : Number.NaN;
+  if (Number.isFinite(at)) setClockOffset(device.deviceId, at - (sent + received) / 2);
 }
 
 /** The server's answer to one client event: it was appended, at this sequence number. */
@@ -232,6 +252,17 @@ export interface TransportOptions {
    */
   readonly onFirstKey?: ((named: NamedReach) => void) | undefined;
   /**
+   * Where this device's server answers on the network now, as the app finds it for itself
+   * (Bonjour on a phone, by the workspace's id): tried, held to the device's key, when the stored
+   * address stops answering. Absent, only what the server last named is tried.
+   */
+  readonly findAddresses?: (() => Promise<readonly string[]>) | undefined;
+  /**
+   * The server answered at another address than the stored one, through a door that shook hands
+   * to the device's key: for keeping it with the device, so the next launch dials it first.
+   */
+  readonly onAddress?: ((url: string) => void) | undefined;
+  /**
    * Resume from here. The store passes the cursor its cache recorded — the `seq` it holds
    * everything up to — and never the highest `seq` it happens to hold (ADR 0049).
    */
@@ -321,8 +352,13 @@ async function ticketedSocket(device: Device, link: Link): Promise<LinkSocket> {
   // 401 and 403 are the server saying this credential is not one of its own. Everything else —
   // a 500, a proxy, no network at all — is worth another try in a moment.
   if (response.status === 401 || response.status === 403) {
-    if (await refusedAsRemoved(response)) {
+    const refusal = await refusalOf(response);
+    if (refusal === "person_removed") {
       throw new PersonRemovedError("This device's person was removed from the workspace.");
+    }
+    if (refusal === "clock_skew") {
+      await setClockBy(device, link);
+      throw new ClockSkewError("This device's clock was off the server's, and is set by it now.");
     }
     throw new UnknownDeviceError("This server does not know this device.");
   }
@@ -333,6 +369,27 @@ async function ticketedSocket(device: Device, link: Link): Promise<LinkSocket> {
 }
 
 type Frame = Record<string, unknown>;
+
+/**
+ * The first of `addresses` whose door shakes hands to `key`, and where it is; nothing when none
+ * does. `except` is the address already tried, and an address named twice is dialled once.
+ */
+async function firstDoor(
+  addresses: readonly (string | undefined)[],
+  key: string,
+  except: string | undefined,
+): Promise<{ readonly address: string; readonly door: Link } | undefined> {
+  const tried = new Set([except]);
+  for (const address of addresses) {
+    if (address === undefined || tried.has(address)) continue;
+    tried.add(address);
+    const door = await doorLink(address, key, { timeoutMs: DEFAULT_PROBE_MS }).catch(
+      () => undefined,
+    );
+    if (door !== undefined) return { address, door };
+  }
+  return undefined;
+}
 
 /** Decision 5's sixty seconds, from the client's side. */
 export const DEFAULT_SILENCE_MS = 60_000;
@@ -349,6 +406,8 @@ export const OPEN_MS = 30_000;
  * a phone that came home, or turned Tailscale on, goes direct within this without a reconnect.
  */
 export const DIRECT_CHECK_MS = 120_000;
+/** How often the app is asked where the server is on the network while nothing reaches it. */
+export const LOOK_EVERY_MS = 30_000;
 
 export function connect(options: TransportOptions): Transport {
   /** The device as this transport reaches it: the relay its server named since, once it has. */
@@ -385,6 +444,8 @@ export function connect(options: TransportOptions): Transport {
   let timer: ReturnType<typeof setTimeout> | undefined;
   /** When this client last heard anything at all, including a ping. */
   let lastHeard = Date.now();
+  /** Where the server last said it is on a network, inside a tunnel to its key (`learnRelay`). */
+  let namedAddress: string | undefined;
   const silenceMs = options.silenceMs ?? DEFAULT_SILENCE_MS;
   const outbox = createOutbox();
 
@@ -587,8 +648,11 @@ export function connect(options: TransportOptions): Transport {
    * not a stranger's (SEC-28).
    */
   const learnRelay = async (link: Link) => {
-    const named = await signedFacts(device, link, relayNamedBy);
-    if (named === undefined || closed) return;
+    const reach = await signedFacts(device, link, reachNamedBy);
+    if (reach === undefined || closed) return;
+    namedAddress = reach.address;
+    if (reach.relayUrl === undefined) return;
+    const named = { url: reach.relayUrl, serverKey: reach.serverKey };
     const verdict = relayVerdict(device, named);
     if (verdict === "keep") return;
     if (verdict === "refuse") {
@@ -623,13 +687,71 @@ export function connect(options: TransportOptions): Transport {
   };
 
   /**
+   * The server at an address other than the stored one, which has stopped answering: where it
+   * last said it is, and where the app finds it now, each dialled at its door and held to the
+   * key this device pinned, so whatever else answers there is sent nothing but a handshake. A
+   * home router hands the server's computer a new address, a laptop runs it on another network,
+   * and a phone paired at the old one was lost at home, the relay off, for good (the stranger
+   * review, 4 November 2026). The first that shakes hands is the link, and its address is kept.
+   *
+   * On the relay, what the server said is enough: it knows its own address. With nothing to reach
+   * it by, the app looks (`look`), at most once in `LOOK_EVERY_MS`, since the reconnect behind it
+   * comes round every few seconds.
+   */
+  const moved = async (look: boolean): Promise<Link | undefined> => {
+    const key = device.serverKey;
+    if (key === undefined || servedThisPage(device.serverUrl ?? "")) return undefined;
+    const found = look ? await lookAround() : [];
+    const reached = await firstDoor([namedAddress, ...found], key, device.serverUrl);
+    if (reached === undefined) return undefined;
+    if (closed) {
+      reached.door.close();
+      return undefined;
+    }
+    device = { ...device, serverUrl: reached.address };
+    options.onAddress?.(reached.address);
+    return reached.door;
+  };
+
+  /** The door at the stored address, or at where the server moved to; a refusal when neither. */
+  const doorNow = async (address: string, key: string): Promise<Link> => {
+    try {
+      return await doorLink(address, key, { timeoutMs: DEFAULT_PROBE_MS });
+    } catch (error) {
+      const door = await moved(false);
+      if (door === undefined) throw error;
+      return door;
+    }
+  };
+
+  let lookedAt = Number.NEGATIVE_INFINITY;
+  /** Where the app finds the server on the network now; nothing when it looked a moment ago. */
+  const lookAround = async (): Promise<readonly string[]> => {
+    if (options.findAddresses === undefined || Date.now() - lookedAt < LOOK_EVERY_MS) return [];
+    lookedAt = Date.now();
+    return await options.findAddresses().catch(() => []);
+  };
+
+  /** The link that reaches the server now, or the door at where it has moved to on its network. */
+  const reachNow = async (): Promise<Link> => {
+    try {
+      return await establishLink(device);
+    } catch (error) {
+      if (!(error instanceof LinkError) || error.reason !== "unreachable") throw error;
+      const door = await moved(true);
+      if (door === undefined) throw error;
+      return door;
+    }
+  };
+
+  /**
    * The socket for the `mine`th open, on the link this connection goes by from then; or nothing
    * once that open has been given up on (`unstuck`), when what it brings is nobody's and is let go.
    */
   const dial = async (on: Link | undefined, mine: number): Promise<LinkSocket | undefined> => {
     const ask = asksInOpen;
     device = await withFirstKey(device, options.onFirstKey);
-    const link = on ?? (await establishLink(device));
+    const link = on ?? (await reachNow());
     if (mine !== attempt) {
       link.close();
       return undefined;
@@ -737,7 +859,7 @@ export function connect(options: TransportOptions): Transport {
     moving = true;
     let door: Link | undefined;
     try {
-      door = await doorLink(may.address, may.key, { timeoutMs: DEFAULT_PROBE_MS });
+      door = await doorNow(may.address, may.key);
       const ws = await openSocket(device, door, asksInOpen);
       const opened = await new Promise<boolean>((resolve) => {
         ws.onopen = () => resolve(true);

@@ -35,6 +35,11 @@ import * as expoCrypto from "expo-crypto";
 installWebCrypto({ random: (out) => expoCrypto.getRandomValues(out) });
 ```
 
+The pieces a runtime may pass are `random`, `sha256`, `aesGcm`, `x25519`, `ed25519` and
+`hmacSha256` (`Primitives` in `src/subtle.ts`). The iPhone passes all six
+(`apps/mobile/src/runtime/install.ts`), so there every cryptographic operation is the operating
+system's and this package only keeps the keys' books (ADR 0277).
+
 `installWebCrypto` leaves a real `crypto.subtle` alone: it is a fallback, never a replacement.
 
 ## Invariants
@@ -46,6 +51,7 @@ installWebCrypto({ random: (out) => expoCrypto.getRandomValues(out) });
 | A device signature made here verifies the way the server verifies it. | `src/interop.test.ts`, "the device signature, as the server checks it" |
 | A key does only what it was made for, a key made unexportable stays unexportable, and an algorithm this package does not have is refused by name rather than approximated. | `src/subtle.test.ts` |
 | Native primitives are used when they are given, and the JavaScript path when they are not. | `src/subtle.test.ts`, "what the runtime may do itself" |
+| A native X25519, Ed25519 or HMAC is handed the bytes the shim's keys hold, so a key made by either path works on the other: a phone paired with keys made here signs in CryptoKit unchanged (ADR 0277). | `src/subtle.test.ts`; `apps/mobile/src/runtime/cryptokit.vitest.ts`, the phone's CryptoKit against this and Node |
 
 ## What it is not
 

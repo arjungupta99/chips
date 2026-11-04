@@ -3,8 +3,8 @@
  * decide, the refusals a connector can act on, and the frame an owner's socket hears.
  */
 
-import { generateKeyPairSync } from "node:crypto";
-import { parseJoinLink } from "@chipschat/protocol";
+import { createHash, generateKeyPairSync, randomBytes } from "node:crypto";
+import { joinCheckCode, joinCheckText, joinCommitText, parseJoinLink } from "@chipschat/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import {
@@ -388,6 +388,70 @@ describe("a device asks from the network, and its code is typed to allow it (SEC
     const statuses: number[] = [];
     for (let i = 0; i < 6; i += 1) statuses.push((await open("POST", "/v1/join", {})).status);
     expect(statuses).toEqual([422, 422, 422, 422, 422, 429]);
+  });
+});
+
+describe("a device that commits works its code out with the server (S-1, ADR 0278)", () => {
+  it("is handed the server's key and nonce for a code, sends its nonce, and is allowed by that code", async () => {
+    const { port } = await ws.gateway.listen();
+    const door = `http://127.0.0.1:${port}`;
+    const key = generateKeyPairSync("ed25519")
+      .publicKey.export({ type: "spki", format: "der" })
+      .toString("base64");
+    const nonce = randomBytes(32).toString("base64url");
+    const commit = createHash("sha256").update(joinCommitText(nonce)).digest("base64url");
+    const asked = await fetch(`${door}/v1/join`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "device", name: "iPhone 17", public_key: key, commit }),
+    });
+    expect(asked.status).toBe(201);
+    const answer = (await asked.json()) as Record<string, string>;
+    // No code handed over: the halves of one, which the phone works out as the server does.
+    expect(answer).not.toHaveProperty("code");
+    expect(answer["server_key"]).toBe(await ws.gateway.deps.relay.publicKey());
+    expect(answer["nonce"]).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    const code = joinCheckCode(
+      createHash("sha256")
+        .update(
+          joinCheckText({
+            publicKey: key,
+            serverKey: answer["server_key"] ?? "",
+            deviceNonce: nonce,
+            serverNonce: answer["nonce"] ?? "",
+          }),
+        )
+        .digest(),
+    );
+    const { request_id, secret } = answer;
+    const poll = (body: Record<string, unknown>) =>
+      fetch(`${door}/v1/join/${request_id}/redeem`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ secret, ...body }),
+      });
+
+    // Before the nonce, there is no code to type.
+    const early = await as(ws.arjun, "POST", `/v1/join/${request_id}/allow`, {
+      capabilities: [],
+      code,
+    });
+    expect(early.status).toBe(422);
+    // A nonce it never committed to is refused.
+    expect((await poll({ nonce: randomBytes(32).toString("base64url") })).status).toBe(422);
+    expect((await poll({ nonce })).status).toBe(202);
+
+    const allowed = await as(ws.arjun, "POST", `/v1/join/${request_id}/allow`, {
+      capabilities: [],
+      code: code.toLowerCase(),
+    });
+    expect(allowed.status).toBe(200);
+    const redeemed = await poll({ nonce });
+    expect(redeemed.status).toBe(200);
+    expect(await redeemed.json()).toMatchObject({
+      kind: "device",
+      server_key: answer["server_key"],
+    });
   });
 });
 

@@ -141,6 +141,22 @@ export function relayVerdict(
 export interface NamedReach {
   readonly serverKey: string;
   readonly relayUrl?: string | undefined;
+  /**
+   * Where the server says another device reaches it on a network now (`public_url`): what a
+   * device whose stored address has stopped answering tries next, held to the key it pinned.
+   */
+  readonly address?: string | undefined;
+}
+
+/** An address a server names for itself, as an origin on http or https; nothing for anything else. */
+function addressOf(named: unknown): string | undefined {
+  if (typeof named !== "string") return undefined;
+  try {
+    const url = new URL(named);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.origin : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -157,13 +173,19 @@ export async function reachNamedBy(
   try {
     const response = await link.fetch(serverUrl, init);
     if (!response.ok) return undefined;
-    const facts = (await response.json()) as { relay?: { url?: unknown; key?: unknown } };
+    const facts = (await response.json()) as {
+      relay?: { url?: unknown; key?: unknown };
+      public_url?: unknown;
+    };
     const { url, key } = facts.relay ?? {};
     const parsed = serverKeyShape.safeParse(key);
     if (!parsed.success) return undefined;
-    return typeof url === "string" && url !== ""
-      ? { serverKey: parsed.data, relayUrl: url }
-      : { serverKey: parsed.data };
+    const address = addressOf(facts.public_url);
+    return {
+      serverKey: parsed.data,
+      ...(typeof url === "string" && url !== "" ? { relayUrl: url } : {}),
+      ...(address === undefined ? {} : { address }),
+    };
   } catch {
     return undefined;
   }

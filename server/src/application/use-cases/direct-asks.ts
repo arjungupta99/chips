@@ -16,7 +16,7 @@
  */
 
 import type { Logger } from "@chipschat/platform";
-import { type DirectAskView, shareLinkOf } from "@chipschat/protocol";
+import { type DirectAskView, PUSH_WORDS, shareLinkOf } from "@chipschat/protocol";
 import type { Clock } from "../ports/clock.js";
 import type { DirectAsk, DirectAskRegistry } from "../ports/direct-asks.js";
 import type { Principal } from "../ports/identity.js";
@@ -29,15 +29,9 @@ import { sayPushed } from "../pushed.js";
 
 /** The sentences each push carries. None says who. */
 export const DIRECT_PUSH_WORDS = {
-  asked: {
-    title: "A guest wants to connect directly",
-    body: "Share your server with them in Tailscale.",
-  },
-  shared: { title: "Your server is shared with you", body: "Open Chips to go direct." },
-  direct: {
-    title: "Connected directly",
-    body: "A guest you shared your server with is direct now.",
-  },
+  asked: PUSH_WORDS.directAsked,
+  shared: PUSH_WORDS.directShared,
+  direct: PUSH_WORDS.directDone,
 } as const;
 
 /** A day: an ask nobody has answered by then is still worth answering, and stays. */

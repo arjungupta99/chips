@@ -21,6 +21,7 @@ import {
   CLOSE_PEER_GONE,
   createSwitchboard,
   type End,
+  MADE_ROOM,
   type Peer,
   SERVERS_PER_ADDRESS,
   SESSIONS_PER_ADDRESS,
@@ -299,6 +300,32 @@ describe("a phone at the switchboard", () => {
     const nextBlock = await throughPhone(six.board, six.key, "2001:db8:1:3::1");
     expect(nextBlock.peer.last()?.frame).toBe("connected");
     expect(six.board.stats().sessions).toBe(SESSIONS_PER_ADDRESS + 1);
+  });
+
+  it("makes room in a full server for a place holding fewer of its sessions (the stranger review)", async () => {
+    // Whoever holds the key fills the server from two places, and holds on.
+    const server = await listedServer(createSwitchboard({ maxSessionsPerServer: 4 }));
+    const squatters = [];
+    for (const address of ["192.0.2.1", "192.0.2.1", "198.51.100.9", "198.51.100.9"]) {
+      squatters.push(await throughPhone(server.board, server.key, address));
+    }
+    // The owner's phone, from a third place, gets in, and the oldest squatter goes.
+    const owner = await throughPhone(server.board, server.key, "203.0.113.50");
+    expect(owner.peer.last()?.frame).toBe("connected");
+    expect(squatters[0]?.peer.closedWith).toEqual([CLOSE_PEER_GONE, MADE_ROOM]);
+    expect(server.peer.texts).toContainEqual(
+      expect.objectContaining({ frame: "close", reason: MADE_ROOM }),
+    );
+    // Coming back, the squatter is refused: its place holds no fewer than the fullest.
+    const back = await throughPhone(server.board, server.key, "198.51.100.9");
+    expect(back.peer.last()).toMatchObject({ frame: "error", code: "busy" });
+    // The owner's second device gets in too, and then the owner's place holds its share.
+    const tablet = await throughPhone(server.board, server.key, "203.0.113.50");
+    expect(tablet.peer.last()?.frame).toBe("connected");
+    const third = await throughPhone(server.board, server.key, "203.0.113.50");
+    expect(third.peer.last()).toMatchObject({ frame: "error", code: "busy" });
+    expect(owner.peer.closedWith).toBeUndefined();
+    expect(server.board.stats().sessions).toBe(4);
   });
 
   it("lists only so many servers from one address, an open relay's limit (ADR 0245)", async () => {

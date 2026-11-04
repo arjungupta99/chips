@@ -342,6 +342,75 @@ describe("install.sh", () => {
     expect(existsSync(join(home, ".local", "bin", "chips"))).toBe(false);
   });
 
+  it("installs the version asked for and no other, whatever the host serves under its name", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    const { script, key } = trustingOwnKey(home);
+    // An older release's signed files, put up where 0.3.0's belong.
+    const { base, sums } = host(home, "0.2.0");
+    sign(key, sums);
+    execFileSync("mv", [
+      join(home, "host", "download", "v0.2.0"),
+      join(home, "host", "download", "v0.3.0"),
+    ]);
+    const ran = run(script, { CHIPS_DOWNLOAD_BASE: base }, home, "--version", "0.3.0", "--no-path");
+    expect(ran.status).not.toBe(0);
+    expect(ran.stderr).toContain("You asked for 0.3.0, and the release there is 0.2.0.");
+    expect(existsSync(join(home, ".local", "bin", "chips"))).toBe(false);
+  });
+
+  it("never takes an older release as the latest over a newer one here, unless asked by version", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    const { script, key } = trustingOwnKey(home);
+    install(home, "--from", fakeRelease(join(home, "here"), "0.10.0"), "--no-path");
+    const { base, sums } = host(home, "0.9.0");
+    sign(key, sums);
+    const back = run(script, { CHIPS_DOWNLOAD_BASE: base }, home, "--no-path");
+    expect(back.status).not.toBe(0);
+    expect(back.stderr).toContain("The latest release there is 0.9.0, older than the 0.10.0 here.");
+    const lib = join(home, ".local", "lib", "chips");
+    expect(readlinkSync(join(lib, "current"))).toBe(join(lib, "0.10.0"));
+    // Asked for by its version, it is what the person wants.
+    const asked = run(
+      script,
+      { CHIPS_DOWNLOAD_BASE: base },
+      home,
+      "--version",
+      "0.9.0",
+      "--no-path",
+    );
+    expect(asked.status, asked.stderr).toBe(0);
+    expect(readlinkSync(join(lib, "current"))).toBe(join(lib, "0.9.0"));
+  });
+
+  it("says chips up starts the server again after an upgrade", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    install(home, "--from", fakeRelease(join(home, "a"), "0.2.0"), "--no-path");
+    const ran = install(home, "--from", fakeRelease(join(home, "b"), "0.3.0"), "--no-path");
+    expect(ran.stdout).toContain(
+      "Next: chips up, which starts a server running here again on 0.3.0",
+    );
+    const again = install(home, "--from", fakeRelease(join(home, "c"), "0.3.0"), "--no-path");
+    expect(again.stdout).toContain("Next: chips up\n");
+  });
+
+  it("says an ssh-keygen too old to check a signature is too old, not that the release isn't signed", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    const { script, key } = trustingOwnKey(home);
+    const { base, sums } = host(home, "0.2.0");
+    sign(key, sums);
+    const bin = withoutSshKeygen(home);
+    // OpenSSH 7.9's, as Debian 10 has it.
+    writeFileSync(
+      join(bin, "ssh-keygen"),
+      "#!/bin/sh\necho \"ssh-keygen: invalid option -- 'Y'\" >&2\necho 'usage: ssh-keygen [-q] [-b bits]' >&2\nexit 1\n",
+      { mode: 0o755 },
+    );
+    const ran = run(script, { CHIPS_DOWNLOAD_BASE: base, PATH: bin }, home, "--no-path");
+    expect(ran.status).not.toBe(0);
+    expect(ran.stderr).toContain("ssh-keygen is older than OpenSSH 8.1");
+    expect(ran.stderr).not.toContain("not signed with Chips's release key");
+  });
+
   it("says how to get ssh-keygen where it's missing, in this machine's package manager's words", () => {
     const home = mkdtempSync(join(tmpdir(), "chips-install-"));
     const { script, key } = trustingOwnKey(home);

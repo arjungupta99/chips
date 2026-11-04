@@ -8,15 +8,16 @@
  * AES-GCM from `@noble/ciphers`, SHA-256 and HMAC from `@noble/hashes`.
  *
  * Nothing shared changes shape, and the tunnel's own suite run against this is the proof that it
- * is the same interface (`conformance.test.ts`). Where a runtime has native primitives —
- * `expo-crypto` has random bytes, SHA and AES-GCM — they are passed in and used; the JavaScript
- * path is what the tests run under Node, and what a runtime falls back to. ADR 0044.
+ * is the same interface (`conformance.test.ts`). Where a runtime has native primitives they are
+ * passed in and used — the iPhone passes every one, from `expo-crypto` and CryptoKit (ADRs 0152,
+ * 0277); the JavaScript path is what the tests run under Node, and what a runtime falls back to.
+ * ADR 0044.
  */
 
 import { createSubtle, type Primitives } from "./subtle.js";
 
 export type { ShimKey } from "./keys.js";
-export type { Primitives } from "./subtle.js";
+export type { PairBytes, Primitives } from "./subtle.js";
 
 /** Random bytes, from the runtime if it has them and from `Math.random` never. */
 function randomFor(

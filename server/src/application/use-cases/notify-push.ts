@@ -21,6 +21,7 @@
  */
 
 import type { Logger } from "@chipschat/platform";
+import { PUSH_WORDS } from "@chipschat/protocol";
 import type { Phone, PushAsk, RoomMember } from "../../domain/index.js";
 import { pushRecipients } from "../../domain/index.js";
 import type { Clock } from "../ports/clock.js";
@@ -30,12 +31,11 @@ import type { PushMessage, PushRegistry, PushSender, PushTicket } from "../ports
 import type { ApprovalView, ReadModels } from "../ports/read-models.js";
 import { sayPushed } from "../pushed.js";
 
-/** The two words a push carries. Neither says anything about the ask. */
-const TITLE = "A decision is waiting";
-const BODY = "Approve or deny from here.";
-
-/** The buttons the phone registered under this name: Approve (with Face ID) and Deny. */
-const CATEGORY = "decision";
+/**
+ * The two sentences a push carries, neither saying anything about the ask, and the buttons the
+ * phone registered under the decision's name: Approve (with Face ID) and Deny.
+ */
+const { title: TITLE, body: BODY, categoryId: CATEGORY } = PUSH_WORDS.decision;
 
 /** Longest a push is worth delivering, when the ask has no expiry of its own. */
 const DEFAULT_TTL_SECONDS = 3600;

@@ -4,6 +4,7 @@
  */
 
 import { createLogger, defaultConfig, EXPO_PUSH } from "@chipschat/platform";
+import { PUSH_WORDS } from "@chipschat/protocol";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPushDoor,
@@ -22,8 +23,7 @@ const UPSTREAM = "https://expo.example/push/send";
 function push(to = TOKEN, extra: Record<string, unknown> = {}) {
   return {
     to,
-    title: "Something for you",
-    body: "Open Chips to see it.",
+    ...PUSH_WORDS.message,
     priority: "high",
     ttl: 600,
     sound: "default",
@@ -45,7 +45,12 @@ function expo(status = 200) {
   return { fetch: fetch as unknown as typeof globalThis.fetch, posts };
 }
 
-function door(fetch: typeof globalThis.fetch, clock = () => 0, counted?: (n: number) => void) {
+function door(
+  fetch: typeof globalThis.fetch,
+  clock = () => 0,
+  counted?: (n: number) => void,
+  mostCounted?: number,
+) {
   return createPushDoor({
     accessToken: "app-token",
     upstream: UPSTREAM,
@@ -53,6 +58,7 @@ function door(fetch: typeof globalThis.fetch, clock = () => 0, counted?: (n: num
     fetch,
     clock,
     counted,
+    mostCounted,
   });
 }
 
@@ -86,29 +92,100 @@ describe("the push door", () => {
     expect(upstream.posts[0]?.body[0]).toEqual(push());
   });
 
-  it("refuses anything that isn't a list of Chips pushes, and sends none of it", async () => {
+  it("refuses anything that isn't a list of pushes, and sends none of it", async () => {
     const upstream = expo();
     const d = door(upstream.fetch);
-    const refused = [
-      "not json",
-      {},
-      [],
-      [push("not-a-token")],
-      [push(TOKEN, { title: 7 })],
-      [push(TOKEN, { data: { n: 1 } })],
-      [push(TOKEN, { priority: "urgent" })],
-      [push(TOKEN, { ttl: -1 })],
-      [push(TOKEN, { data: { sealed: "x".repeat(MOST_MESSAGE_BYTES) } })],
-      Array.from({ length: MOST_MESSAGES + 1 }, () => push()),
-      // One bad push spoils the request: a server never sends one.
-      [push(), push("ExponentPushToken[]")],
-    ];
+    const refused = ["not json", {}, [], Array.from({ length: MOST_MESSAGES + 1 }, () => push())];
     for (const body of refused) {
       const answer = await d.send(typeof body === "string" ? body : JSON.stringify(body), "p");
       expect(answer.status).toBe(400);
       expect(JSON.parse(answer.body).error.code).toBe("bad_request");
     }
     expect(upstream.posts).toHaveLength(0);
+  });
+
+  it("answers each entry that isn't a Chips push with a ticket of its own, and sends the rest", async () => {
+    const upstream = expo();
+    const d = door(upstream.fetch);
+    const wrong = [
+      push(TOKEN, { title: 7 }),
+      push(TOKEN, { data: { n: 1 } }),
+      push(TOKEN, { priority: "urgent" }),
+      push(TOKEN, { ttl: -1 }),
+    ];
+    const answer = await send(d, [push(), ...wrong]);
+    expect(answer.status).toBe(200);
+    const [sent, ...refused] = JSON.parse(answer.body).data;
+    expect(sent).toEqual({ status: "ok", id: "t0" });
+    expect(refused).toEqual(wrong.map(() => ({ status: "error", message: expect.any(String) })));
+    expect(upstream.posts).toEqual([expect.objectContaining({ body: [push()] })]);
+  });
+
+  it("sends on only Chips's own words, so nobody's sentence reaches a lock screen as Chips", async () => {
+    const upstream = expo();
+    const d = door(upstream.fetch);
+    const decision = push(TOKEN, PUSH_WORDS.decision);
+    const madeUp = [
+      push(TOKEN, { title: "Chips", body: "Your key ran out. Pair again at evil.example" }),
+      // Fixed words, but with the decision's buttons on them.
+      push(TOKEN, { categoryId: "decision" }),
+      // One of Chips's titles with somebody else's body, and a title on its own.
+      push(TOKEN, { body: "Tap to see it." }),
+      { to: TOKEN, title: PUSH_WORDS.message.title },
+      // Nothing to show, which no server sends.
+      { to: TOKEN, data: { device_id: "dev_1" } },
+    ];
+    const answer = await send(d, [decision, ...madeUp]);
+    const tickets = JSON.parse(answer.body).data as { status: string }[];
+    expect(tickets.map((ticket) => ticket.status)).toEqual(["ok", ...madeUp.map(() => "error")]);
+    expect(upstream.posts.flatMap((post) => post.body)).toEqual([decision]);
+  });
+
+  it("sends every sentence a server says", async () => {
+    const upstream = expo();
+    const d = door(upstream.fetch);
+    const all = Object.values(PUSH_WORDS).map((words, index) =>
+      push(`ExponentPushToken[phone${index}]`, words),
+    );
+    const tickets = JSON.parse((await send(d, all)).body).data as { status: string }[];
+    expect(tickets.every((ticket) => ticket.status === "ok")).toBe(true);
+  });
+
+  it("answers a token that isn't a phone's as dead, so its server forgets it", async () => {
+    const upstream = expo();
+    const answer = await send(door(upstream.fetch), [
+      push(),
+      push("not-a-token"),
+      push("ExponentPushToken[]"),
+    ]);
+    const [sent, ...dead] = JSON.parse(answer.body).data;
+    expect(sent.status).toBe("ok");
+    for (const ticket of dead) expect(ticket.details).toEqual({ error: "DeviceNotRegistered" });
+    expect(upstream.posts[0]?.body).toEqual([push()]);
+  });
+
+  it("answers a push too big for a phone as Expo does", async () => {
+    const answer = await send(door(expo().fetch), [
+      push(TOKEN, { data: { sealed: "x".repeat(MOST_MESSAGE_BYTES) } }),
+    ]);
+    expect(JSON.parse(answer.body).data[0].details).toEqual({ error: "MessageTooBig" });
+  });
+
+  it("forgets the oldest count when a minute is full, never refusing a phone for want of room", async () => {
+    const d = door(expo().fetch, () => 0, undefined, 10);
+    // A minute filled with made-up phones from places of their own.
+    for (let n = 0; n < 10; n += 1) {
+      await send(d, [push(`ExponentPushToken[madeup${n}]`)], `198.51.100.${n}`);
+    }
+    const answer = await send(d, [push()]);
+    expect(answer.status).toBe(200);
+    expect(JSON.parse(answer.body).data[0].status).toBe("ok");
+  });
+
+  it("counts a request it can't read against the place it came from", async () => {
+    const d = door(expo().fetch);
+    for (let sent = 0; sent < PER_PLACE; sent += 1) await d.send("not json", "203.0.113.7");
+    expect((await send(d, [push()])).status).toBe(429);
   });
 
   it("pushes one phone at most PER_PHONE times a minute, saying so as Expo would", async () => {
@@ -162,6 +239,38 @@ describe("the push door", () => {
     }
     const failed = await send(door(expo(500).fetch), [push()]);
     expect(failed.status).toBe(502);
+  });
+
+  it("says whether the pushes it was last given went, for the relay's health", async () => {
+    let status = 200;
+    let reachable = true;
+    const fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      if (!reachable) throw new Error("connect ECONNREFUSED");
+      if (status !== 200) return new Response("no", { status });
+      const body = JSON.parse(String(init?.body)) as unknown[];
+      return Response.json({ data: body.map(() => ({ status: "ok", id: "t" })) });
+    }) as unknown as typeof globalThis.fetch;
+    const d = door(fetch);
+    expect(d.readiness()).toBe("ready");
+    status = 403;
+    await send(d, [push()]);
+    expect(d.readiness()).toBe("refused");
+    // A request it turns away itself is no news about Expo.
+    await send(d, "not a push");
+    expect(d.readiness()).toBe("refused");
+    status = 200;
+    await send(d, [push()]);
+    expect(d.readiness()).toBe("ready");
+    status = 500;
+    await send(d, [push()]);
+    expect(d.readiness()).toBe("failing");
+    status = 200;
+    reachable = false;
+    await send(d, [push()]);
+    expect(d.readiness()).toBe("failing");
+    reachable = true;
+    await send(d, [push()]);
+    expect(d.readiness()).toBe("ready");
   });
 
   it("trusts no answer from Expo that isn't a ticket for each push", async () => {

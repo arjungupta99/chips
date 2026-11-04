@@ -14,8 +14,12 @@
  * come back before its old socket has timed out. A relay given a list of keys lists those and
  * no others. A phone that asks for a key nobody holds is told so and closed. A server holds at
  * most a fixed number of phones, and only so many of them from any one address, since a server's
- * key is in every QR and anyone holding it may ask for that server (SEC-12). Every frame carries
- * a version; a newer peer's frame is read by the fields this version knows.
+ * key is in every QR and anyone holding it may ask for that server (SEC-12). And a server that
+ * is full makes room for a phone from a place holding fewer of its sessions than another does,
+ * by ending the oldest session of the place holding most: whoever holds the key, an old invite's
+ * or a removed member's, could otherwise fill a server's sessions from two addresses and keep
+ * its own people out of it for as long as they liked. Every frame carries a version; a newer
+ * peer's frame is read by the fields this version knows.
  *
  * And one rule about speed: the relay holds what one end sends until the other end takes it, and
  * it holds only so much. Past a few megabytes waiting for a peer, whoever is sending to it stops
@@ -136,6 +140,8 @@ const MIB = 1024 * 1024;
 const DEFAULT_FLOW = { pauseAt: 4 * MIB, resumeAt: 1 * MIB, dropAt: 16 * MIB };
 /** The socket close code for a frame the relay would not take. */
 const CLOSE_POLICY = 1008;
+/** Why a session ends when its server was full and a phone from a place with fewer came. */
+export const MADE_ROOM = "made_room";
 
 interface ServerConn {
   readonly peer: Peer;
@@ -157,6 +163,23 @@ interface ClientConn {
 
 type ServeFrame = Extract<RelayFrame, { frame: "serve" }>;
 type ConnectFrame = Extract<RelayFrame, { frame: "connect" }>;
+
+/**
+ * The session to end so a phone from `place` gets in a full server: the oldest of the place
+ * holding most of its sessions, when that place holds more than `place` does; else nothing, and
+ * the phone is told the server is busy. The oldest, so a phone that has squatted longest goes
+ * first and the one that just came stays.
+ */
+function roomFor(sessions: ReadonlyMap<string, ClientConn>, place: string): ClientConn | undefined {
+  const counts = new Map<string, number>();
+  for (const session of sessions.values()) {
+    counts.set(session.place, (counts.get(session.place) ?? 0) + 1);
+  }
+  const most = Math.max(0, ...counts.values());
+  if (most <= (counts.get(place) ?? 0)) return undefined;
+  // In the order they came, so the first found is the oldest.
+  return [...sessions.values()].find((session) => counts.get(session.place) === most);
+}
 
 function frame(text: RelayFrame): string {
   return JSON.stringify(text);
@@ -362,8 +385,12 @@ export function createSwitchboard(options: SwitchboardOptions = {}): Switchboard
       return;
     }
     if (server.sessions.size >= limit) {
-      refuse(client.peer, "busy", "That server has as many phones as this relay holds for it.");
-      return;
+      const room = roomFor(server.sessions, client.place);
+      if (room === undefined) {
+        refuse(client.peer, "busy", "That server has as many phones as this relay holds for it.");
+        return;
+      }
+      endSession(room, MADE_ROOM, { server: true, client: true });
     }
     const fromThere = [...server.sessions.values()].filter((other) => other.place === client.place);
     if (fromThere.length >= SESSIONS_PER_ADDRESS) {

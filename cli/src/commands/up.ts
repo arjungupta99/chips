@@ -89,6 +89,11 @@ export interface UpDeps {
   readonly app: string | undefined;
   readonly uid: number;
   readonly health: (url: string) => Promise<Health>;
+  /**
+   * The version the Chips answering at an address says it is, from its health; nothing when it
+   * says none. Absent, `chips up` doesn't ask, and a running Chips is as good as this one.
+   */
+  readonly runningVersion?: ((url: string) => Promise<string | undefined>) | undefined;
   readonly networks: () => Promise<Networks>;
   readonly readFile: (path: string) => string | undefined;
   readonly writeFile: (path: string, contents: string) => void;
@@ -140,13 +145,18 @@ export function planUp(found: {
   readonly reachGiven: boolean;
   /** Whether the settings it would write differ from those its running service has. */
   readonly changed: boolean;
+  /**
+   * Whether what runs is another release than this one: the install line put a new one in place
+   * and the server running is still the one before (the stranger review, 4 November 2026).
+   */
+  readonly stale?: boolean | undefined;
 }): UpPath {
   if (found.health === "other") return "port-taken";
   const canService = found.wantService && found.release && found.kind !== undefined;
   if (found.health === "chips") {
-    // Running already. A new `--reach`, or settings its file doesn't have, are reasons to rewrite
-    // a service of our own, and nothing else is.
-    const rewrite = found.reachGiven || found.changed;
+    // Running already. A new `--reach`, settings its file doesn't have, or another release
+    // running than this one are reasons to start a service of our own again, and nothing else is.
+    const rewrite = found.reachGiven || found.changed || found.stale === true;
     return canService && found.state === "ours" && rewrite ? "service" : "already-running";
   }
   if (!canService) return "foreground";
@@ -190,6 +200,10 @@ export async function up(options: UpOptions): Promise<Up> {
   const contents = file === undefined ? undefined : deps.readFile(file);
   const health = await deps.health(hereUrl(config.server.host, port));
   const found = foundService(options, contents, health);
+  const running =
+    health === "chips" ? await deps.runningVersion?.(hereUrl(config.server.host, port)) : undefined;
+  const stale =
+    deps.release !== undefined && running !== undefined && running !== deps.release.version;
 
   const path = planUp({
     health,
@@ -199,6 +213,7 @@ export async function up(options: UpOptions): Promise<Up> {
     release: deps.release !== undefined,
     reachGiven: flags.reach !== undefined,
     changed: found.changes.length > 0,
+    stale,
   });
   const refused = refusal(path, port, file);
   if (refused !== undefined) {
@@ -208,7 +223,8 @@ export async function up(options: UpOptions): Promise<Up> {
   const workspace = await prepare(path, options, found);
   if (workspace === undefined) return { ok: false, hold: false };
 
-  const started = await startOrFind(path, options, workspace.choice, kind, found);
+  const before = stale ? running : undefined;
+  const started = await startOrFind(path, options, workspace.choice, kind, found, before);
   if ("problem" in started) {
     out.err(started.problem);
     return { ok: false, hold: false };
@@ -277,6 +293,22 @@ function refusal(path: UpPath, port: number, file: string | undefined): string |
   ].join("\n");
 }
 
+/** Why a running service was started again: its changed settings, a new release, or both. */
+function whyStartedAgain(
+  found: Found,
+  release: Release | undefined,
+  before: string | undefined,
+): string[] {
+  const lines: string[] = [];
+  if (found.kept !== undefined && found.changes.length > 0) {
+    lines.push(`  ✓ Restarted Chips with its changed settings: ${found.changes.join(", ")}`);
+  }
+  if (before !== undefined && release !== undefined) {
+    lines.push(`  ✓ Started Chips again on ${release.version} (it was ${before})`);
+  }
+  return lines;
+}
+
 /** The server: started in this process, started as a service, or found running. */
 async function startOrFind(
   path: UpPath,
@@ -284,6 +316,8 @@ async function startOrFind(
   choice: Answer | undefined,
   kind: ServiceKind | undefined,
   found: Found,
+  /** The release that was running, when it wasn't this one. */
+  before?: string | undefined,
 ): Promise<Started | { readonly problem: string }> {
   const { config, console: out, flags, deps } = options;
   const say = (line: string) => {
@@ -295,9 +329,7 @@ async function startOrFind(
   if (path === "service" && choice !== undefined && kind !== undefined) {
     const started = await startService(config, deps, choice, kind, found.carried);
     if (!started.ok) return { problem: started.problem };
-    if (found.kept !== undefined) {
-      say(`  ✓ Restarted Chips with its changed settings: ${found.changes.join(", ")}`);
-    }
+    for (const line of whyStartedAgain(found, deps.release, before)) say(line);
     for (const line of await startsWhen(kind, deps)) say(line);
     const local = hereUrl(choice.host, config.server.port);
     return { ...askingServer(config, local, deps), service: kind };

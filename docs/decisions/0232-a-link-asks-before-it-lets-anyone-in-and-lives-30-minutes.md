@@ -113,3 +113,49 @@ with You's Decisions sheet open. Before: no Allow, none when the sheet closed, a
 second request with nothing open, until the app was started again. After: the Allow rises over the
 sheet, Don't allow leaves the sheet as it was under it, the sheet closes, a request with nothing
 open comes up at once, and the tabs answer after.
+
+## Addendum: strangers' asks and handed-out links wait apart (4 November 2026)
+
+Since this ADR, an invite or pairing code used through the relay makes a join request that waits
+for the person who handed it out. Those requests shared one limit with every other waiting
+request in the workspace: five (`JOIN_WAITING_MAX`), each living ten minutes. Anyone could fill
+that limit. On the same Wi-Fi it took five "Ask to join" taps; anywhere, it took five harness asks
+through the relay from someone holding the server's key, which every invitee has. Every invite
+and pairing code was then refused with "5 requests are waiting already" for ten minutes, again
+and again. The stranger review of 4 November 2026 found this.
+
+Now the two kinds are counted apart, by whether a person was asked (`asked_of`):
+
+- requests nobody handed a link for: a harness's ask, or a device's on the Wi-Fi;
+- requests made from a link a person handed out.
+
+Each kind has its own five. Strangers can still fill their own five, and an owner denies them as
+before. A link someone handed out always gets its request.
+
+## Addendum: an Allow reaches the device that asked (4 November 2026)
+
+The stranger review of 4 November 2026 found two ways an Allow went to nobody.
+
+- **The link's 30 minutes were counted to the Allow.** They should be counted to the use. An
+  invite was asked again whether it was good when its request was collected, so an invite opened
+  at its 25th minute and allowed at its 31st let nobody in. The joiner read "That invite has
+  expired" after its maker had said yes. Now an invite's life is judged at the moment its request
+  was made from it. Withdrawn, spent and a room that no longer takes people are still judged when
+  it is collected. A request lives its own ten minutes, so the longest a link can lead to someone
+  coming in is 40 minutes after it was made, and only on its maker's Allow.
+- **The joiner's wait ended on the first failed poll.** A network drop, a server restart or sleep,
+  or the relay going away for a moment all ended it, while the request waited on at the server.
+  Now a poll that doesn't get the server's word (no answer, a 5xx, a 429) is asked again until the
+  request runs out. When the wait went through a tunnel, a new link is dialled to the same key.
+  The server's refusals end the wait as before.
+
+## Addendum: a link stops when its maker may no longer make one (4 November 2026)
+
+Removing a person withdrew every link they had made. Making an owner a member withdrew none, so
+each link they had handed out stayed good for up to 30 minutes more, for a person who may no
+longer invite anybody. The stranger review of 4 November 2026 found this.
+
+Now a link is good only while its maker is here and may make one (an owner, ADR 0034). This is
+checked each time the link is looked at, opened, used or collected, beside the check that its
+space still takes people. A link found wanting is withdrawn, as a space's link already was, so
+making its maker an owner again does not bring it back.

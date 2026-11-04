@@ -407,9 +407,21 @@ async function admitGrant(
  * A credential turned away, as the wire hears it: `unauthorized` and nothing else, since telling
  * an unknown token from a revoked one would say whether a token had ever existed. Somebody removed
  * from the workspace is told so (ADR 0160), in words true too of somebody who deleted their own
- * account (ADR 0243): it is said only to a request their own key signed.
+ * account (ADR 0243): it is said only to a request their own key signed. A device whose clock is
+ * too far from this server's is told that too (`clock_skew`), whatever device it names, and sets
+ * its clock by the server's: it used to hear what an unknown device hears, and said it had been
+ * removed.
  */
 function refusedCredential(reason: AuthFailure): HttpError {
+  if (reason === "timestamp_out_of_range") {
+    return new HttpError(
+      "unauthorized",
+      "This device's clock and the server's are more than five minutes apart.",
+      undefined,
+      undefined,
+      "clock_skew",
+    );
+  }
   if (reason === "person_removed") {
     return new HttpError(
       "unauthorized",

@@ -92,3 +92,21 @@ describe("a device signature and the tunnel it arrived through (ADR 0191, decisi
     });
   });
 });
+
+describe("a device whose clock is out (the stranger review, 4 November 2026)", () => {
+  it("is told so, whatever device it names, before anything is looked up", async () => {
+    const tenMinutesOn = () => Date.now() + 10 * 60 * 1000;
+    const authenticator = createAuthenticator({ db: ws.db, now: tenMinutesOn });
+    const signed = ws.arjun.sign("GET", TARGET, "");
+    expect(await authenticator.authenticate(attemptOf(signed))).toEqual({
+      ok: false,
+      reason: "timestamp_out_of_range",
+    });
+    // A device nobody paired, with the same time, hears the same: nothing about who is here.
+    const stranger = { ...signed, "x-chips-device": "dev_01M00000000000000000000000" };
+    expect(await authenticator.authenticate(attemptOf(stranger))).toEqual({
+      ok: false,
+      reason: "timestamp_out_of_range",
+    });
+  });
+});

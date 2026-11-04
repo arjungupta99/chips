@@ -1,6 +1,11 @@
 /** The room itself: opened, retitled, closed, and who is in it. */
 
-import { DEFAULT_SPEND_CEILING_USD, dollars, eventIdOfMessage } from "@chipschat/protocol";
+import {
+  DEFAULT_SPEND_CEILING_USD,
+  dollars,
+  eventIdOfMessage,
+  FIRST_PERSON_NAME,
+} from "@chipschat/protocol";
 import { actorKind, type ClientEvent } from "../events.js";
 import { addLine, textLine } from "./lines.js";
 import {
@@ -295,10 +300,16 @@ function isPerson(id: string): boolean {
   return id.startsWith("usr_");
 }
 
-/** A person, as the reader says them: "You" or "you" for themselves, their name otherwise. */
+/**
+ * A person, as the reader says them: "You" or "you" for themselves, their name otherwise, and "An
+ * owner" for one still under the name the server first gave them, which is "You" (JR-17): read by
+ * anybody else, "You joined by You's link" named the wrong person twice.
+ */
 function who(state: Building, id: string, first: boolean): string {
   if (id === state.selfId) return first ? "You" : "you";
-  return state.people.get(id)?.displayName ?? "Somebody";
+  const name = state.people.get(id)?.displayName;
+  if (name === FIRST_PERSON_NAME) return first ? "An owner" : "an owner";
+  return name ?? "Somebody";
 }
 
 /** "You added Priya", "Arjun added you", "Arjun removed Priya": one person doing to another. */
@@ -328,7 +339,7 @@ function personAdded(
 
 /** "Priya Nair joined by your link", "… by Arjun's link", "You joined by Arjun's link" (ADR 0168). */
 function joinedByLink(state: Building, makerId: string, personId: string): string {
-  const whose = makerId === state.selfId ? "your" : `${who(state, makerId, true)}'s`;
+  const whose = makerId === state.selfId ? "your" : `${who(state, makerId, false)}'s`;
   return `${who(state, personId, true)} joined by ${whose} link`;
 }
 

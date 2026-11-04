@@ -27,6 +27,7 @@ const phone = (participantId: string, deviceId: string): PushToken => ({
 });
 
 function harness(phones: PushToken[]) {
+  const clock = manualClock(Date.parse("2026-10-05T21:00:00.000Z"));
   const sent: PushMessage[] = [];
   const asked: string[][] = [];
   const claimed = new Set<string>();
@@ -61,10 +62,10 @@ function harness(phones: PushToken[]) {
       },
       readiness: () => "ready",
     },
-    clock: manualClock(Date.parse("2026-10-05T21:00:00.000Z")),
+    clock,
     logger: createLogger({ level: "silent" }),
   });
-  return { notify, sent, asked };
+  return { notify, sent, asked, clock };
 }
 
 describe("a join request's push", () => {
@@ -86,6 +87,30 @@ describe("a join request's push", () => {
       // The request's id, and which of the phone's workspaces it is in (ADR 0197).
       expect(Object.keys(message.data)).toEqual(["device_id", "join_request_id"]);
     }
+  });
+
+  it("pushes asks nobody handed a link for once in ten minutes a workspace, and a link's always", async () => {
+    const { notify, sent, clock } = harness([phone("usr_owner", "dev_1")]);
+    // Five asks from the Wi-Fi in a minute: the first buzzes; the rest wait on the socket.
+    for (const id of ["jrq_a", "jrq_b", "jrq_c", "jrq_d", "jrq_e"]) {
+      await notify.waiting(WS, id);
+      clock.advance(10_000);
+    }
+    expect(sent.map((each) => each.data["join_request_id"])).toEqual(["jrq_a"]);
+    // Another workspace on the same server is its own.
+    await notify.waiting("ws_2", "jrq_f");
+    expect(sent).toHaveLength(2);
+    // A link the owner handed out is asked of them, and pushes whatever the strangers did.
+    await notify.waiting(WS, "jrq_link", "usr_owner");
+    expect(sent.map((each) => each.data["join_request_id"])).toEqual([
+      "jrq_a",
+      "jrq_f",
+      "jrq_link",
+    ]);
+    // Ten minutes after the first, the next ask pushes again.
+    clock.advance(10 * 60_000);
+    await notify.waiting(WS, "jrq_g");
+    expect(sent.at(-1)?.data["join_request_id"]).toBe("jrq_g");
   });
 
   it("sends nothing when nobody who decides has a phone, and never throws", async () => {

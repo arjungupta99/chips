@@ -278,7 +278,7 @@ describe("a link's 30 minutes (ADR 0232)", () => {
 
 describe("a link that asks (ADR 0232)", () => {
   it("waits for its maker, with nobody made, no device paired and the link not spent", async () => {
-    const { use, invites, devices, joined, waited } = harness();
+    const { use, invites, devices, joined, waited, clock } = harness();
     const issued = await use.create({ principal: ARJUN, role: "guest", asks: true });
     if (!issued.ok) throw new Error("not issued");
     const answer = { displayName: " Priya ", publicKey: KEY, deviceName: "Priya's iPhone" };
@@ -303,11 +303,44 @@ describe("a link that asks (ADR 0232)", () => {
     expect(invites[0]?.uses).toBe(0);
 
     // Collected once allowed: what redeeming did, done now, and the link spent.
-    const collected = await use.collect({ workspaceId: WS, inviteId: issued.value.id, answer });
+    const askedAt = new Date(clock.nowMs()).toISOString();
+    const collect = () =>
+      use.collect({ workspaceId: WS, inviteId: issued.value.id, answer, askedAt });
+    const collected = await collect();
     expect(collected.ok && collected.value).toMatchObject({ displayName: "Priya", role: "guest" });
     expect(invites[0]?.uses).toBe(1);
-    const again = await use.collect({ workspaceId: WS, inviteId: issued.value.id, answer });
+    const again = await collect();
     expect(again.ok === false && again.error.kind).toBe("spent");
+  });
+
+  it("lets in one its maker allowed after the link's 30 minutes, opened before them", async () => {
+    const { use, clock } = harness();
+    const issued = await use.create({ principal: ARJUN, role: "guest", asks: true });
+    if (!issued.ok) throw new Error("not issued");
+    const answer = { displayName: "Priya", publicKey: KEY, deviceName: "Priya's iPhone" };
+    // Opened at its 25th minute, and allowed at its 31st.
+    clock.advance(25 * 60 * 1000);
+    expect((await use.redeem({ token: issued.value.token, ...answer })).ok).toBe(true);
+    const askedAt = new Date(clock.nowMs()).toISOString();
+    clock.advance(6 * 60 * 1000);
+    const collected = await use.collect({
+      workspaceId: WS,
+      inviteId: issued.value.id,
+      answer,
+      askedAt,
+    });
+    expect(collected.ok).toBe(true);
+    // Opened after them, it is out, however its request came to be.
+    const issuedAgain = await use.create({ principal: ARJUN, role: "guest", asks: true });
+    if (!issuedAgain.ok) throw new Error("not issued");
+    clock.advance(31 * 60 * 1000);
+    const tooLate = await use.collect({
+      workspaceId: WS,
+      inviteId: issuedAgain.value.id,
+      answer,
+      askedAt: new Date(clock.nowMs()).toISOString(),
+    });
+    expect(tooLate.ok === false && tooLate.error.kind).toBe("expired");
   });
 
   it("refuses a wrong answer before anything waits", async () => {
@@ -374,6 +407,33 @@ describe("a link, before anyone has a name here", () => {
     if (!gone.ok) expect(gone.error.kind).toBe("revoked");
     // Withdrawing it twice, or something that is not an invite here, changes nothing.
     expect((await use.revoke({ principal: ARJUN, inviteId: again.value.id })).ok).toBe(false);
+  });
+
+  it("is withdrawn once its maker is an owner no longer, as when they are removed", async () => {
+    const people = [here(ARJUN.participantId, "Arjun", { role: "owner" })];
+    const { use, invites } = harness(people);
+    const issued = await use.create({ principal: ARJUN, role: "member" });
+    if (!issued.ok) throw new Error("not issued");
+    expect((await use.peek(issued.value.token)).ok).toBe(true);
+
+    // Another owner makes Arjun a member: the link Arjun handed out stops.
+    people[0] = here(ARJUN.participantId, "Arjun", { role: "member" });
+    expect(await use.peek(issued.value.token)).toMatchObject({
+      ok: false,
+      error: { kind: "revoked", message: "That invite was withdrawn." },
+    });
+    expect(
+      await use.redeem({
+        token: issued.value.token,
+        displayName: "Sam",
+        publicKey: KEY,
+        deviceName: "a",
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "revoked" } });
+    // Withdrawn for good, so making Arjun an owner again does not bring it back.
+    expect(invites[0]?.revokedAt).not.toBeNull();
+    people[0] = here(ARJUN.participantId, "Arjun", { role: "owner" });
+    expect((await use.peek(issued.value.token)).ok).toBe(false);
   });
 });
 

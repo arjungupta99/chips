@@ -101,6 +101,20 @@ export interface JoinRequestsDeps {
   /** The six digits a link's request shows, from the joining device's key (ADR 0232). */
   readonly keyCode: (publicKey: string) => string;
   /**
+   * The check a device asking on the Wi-Fi shows (S-1, ADR 0278): this server's nonce, a nonce's
+   * commitment, and the code from both keys and both nonces.
+   */
+  readonly check: {
+    readonly nonce: () => string;
+    readonly commitOf: (nonce: string) => string;
+    readonly code: (parts: {
+      readonly publicKey: string;
+      readonly serverKey: string;
+      readonly deviceNonce: string;
+      readonly serverNonce: string;
+    }) => string;
+  };
+  /**
    * Told of every change, to tell the people who may decide: the frame to their sockets, and for a
    * request that has just started waiting, a push. `to` is the one person a link's request is
    * asked of (ADR 0232); every owner and admin otherwise. Best effort: nothing it does is awaited.
@@ -128,6 +142,8 @@ export interface AskInput {
   readonly machine?: string | undefined;
   readonly wants?: readonly string[] | undefined;
   readonly publicKey?: string | undefined;
+  /** A device's commitment to its nonce (ADR 0278), for a code both ends work out. */
+  readonly commit?: string | undefined;
   /** The address it asked from, as people are shown it. */
   readonly fromAddr?: string | undefined;
   /** What it is counted as, for ten asks a minute. */
@@ -143,6 +159,8 @@ export interface Asked {
   readonly secret: string;
   readonly interval: number;
   readonly expiresIn: number;
+  /** For a device that committed (ADR 0278): this server's key and nonce, its code's halves. */
+  readonly check?: { readonly serverKey: string; readonly nonce: string } | undefined;
 }
 
 export type Polled = { readonly waiting: true; readonly interval: number } | Joined;
@@ -247,6 +265,13 @@ function refusedAllow(
   code: string | undefined,
 ): { ok: false; error: JoinRequestFailure } | undefined {
   if (state !== from) return state === "allowed" ? DECIDED : refusalFor(state);
+  // A device that committed has no code until it sends its nonce (ADR 0278), a moment after it asks.
+  if (request.kind === "device" && request.checkCommit !== null && request.code === null) {
+    return fail(
+      "wrong_code",
+      "The device hasn't shown its code yet. Wait a moment, and try again.",
+    );
+  }
   // A link's six digits are compared on the sheet, not typed (ADR 0232's A).
   return request.kind === "device" ? wrongCode(code, request.code) : undefined;
 }
@@ -656,6 +681,84 @@ export function createJoinRequests(deps: JoinRequestsDeps) {
     };
   }
 
+  /**
+   * The halves of a device's code this server holds (S-1, ADR 0278): its key and a nonce of its
+   * own, for a device that sent a commitment to a nonce of its. Nothing for any other ask, an older
+   * phone's included, which shows the code it is handed; nor on a server with no key to give.
+   */
+  async function checkFor(
+    input: AskInput,
+  ): Promise<{ readonly serverKey: string; readonly nonce: string } | undefined> {
+    if (input.kind !== "device" || input.commit === undefined || deps.serverKey === undefined) {
+      return undefined;
+    }
+    return { serverKey: await deps.serverKey(), nonce: deps.check.nonce() };
+  }
+
+  /**
+   * A device's nonce, sent with its poll (ADR 0278): the one it committed to makes its code, the
+   * same the device works out, and any other is refused. Once it has a code, or for a request that
+   * never committed, a nonce changes nothing.
+   */
+  async function reveal(request: JoinRequest, nonce: string | undefined): Promise<Answer<null>> {
+    const { checkCommit, checkNonce, publicKey } = request;
+    if (nonce === undefined || checkCommit === null || checkNonce === null || publicKey === null) {
+      return { ok: true, value: null };
+    }
+    if (request.code !== null) return { ok: true, value: null };
+    if (!deps.matches(deps.check.commitOf(nonce.trim()), checkCommit)) {
+      return fail("invalid", "That isn't the nonce this device committed to. Ask again.");
+    }
+    if (deps.serverKey === undefined) return { ok: true, value: null };
+    const code = deps.check.code({
+      publicKey,
+      serverKey: await deps.serverKey(),
+      deviceNonce: nonce.trim(),
+      serverNonce: checkNonce,
+    });
+    await deps.registry.change({ id: request.id, from: "waiting", now: now(), change: { code } });
+    return { ok: true, value: null };
+  }
+
+  /** A requester's request as it is first kept: a device that committed has no code yet. */
+  function requestFor(
+    input: AskInput,
+    workspaceId: string,
+    check: { readonly serverKey: string; readonly nonce: string } | undefined,
+  ): JoinRequest {
+    return {
+      id: deps.ids.next("join"),
+      workspaceId,
+      kind: input.kind,
+      // A device that committed works its code out with this server, once it sends its nonce.
+      code: check === undefined ? deps.code() : null,
+      name: line(input.name),
+      software: line(input.software),
+      machine: line(input.machine),
+      fromAddr: line(input.fromAddr),
+      wants: input.kind === "harness" ? granted(input.wants ?? [], undefined) : [],
+      publicKey: input.kind === "device" ? (input.publicKey ?? null) : null,
+      state: "waiting",
+      capabilities: [],
+      startedBy: "requester",
+      url: input.url,
+      decidedBy: null,
+      decidedAt: null,
+      createdAt: now(),
+      expiresAt: later(JOIN_CODE_SECONDS),
+      harnessId: null,
+      spaceId: null,
+      deviceId: null,
+      pairAs: null,
+      askedOf: null,
+      inviteId: null,
+      role: null,
+      replaces: null,
+      checkCommit: check === undefined ? null : (input.commit ?? null),
+      checkNonce: check?.nonce ?? null,
+    };
+  }
+
   return {
     /** `POST /v1/join`: somebody asks to join, with no credential. */
     async ask(input: AskInput): Promise<Answer<Asked>> {
@@ -664,41 +767,17 @@ export function createJoinRequests(deps: JoinRequestsDeps) {
       const workspace = await deps.readModels.anyPerson();
       if (workspace === undefined) return fail("unknown", "Nobody is here yet to let it in.");
       const { workspaceId } = workspace;
-      if ((await deps.registry.waitingCount(workspaceId, now())) >= JOIN_WAITING_MAX) {
+      // Strangers' asks have five places of their own: however many a stranger keeps waiting,
+      // a link a person handed out still gets its request (the stranger review, 4 November).
+      if ((await deps.registry.waitingCount(workspaceId, now(), "asks")) >= JOIN_WAITING_MAX) {
         return fail(
           "too_many",
           `${JOIN_WAITING_MAX} requests are waiting already. Ask again once one is decided.`,
         );
       }
       const minted = deps.mint();
-      const request: JoinRequest = {
-        id: deps.ids.next("join"),
-        workspaceId,
-        kind: input.kind,
-        code: deps.code(),
-        name: line(input.name),
-        software: line(input.software),
-        machine: line(input.machine),
-        fromAddr: line(input.fromAddr),
-        wants: input.kind === "harness" ? granted(input.wants ?? [], undefined) : [],
-        publicKey: input.kind === "device" ? (input.publicKey ?? null) : null,
-        state: "waiting",
-        capabilities: [],
-        startedBy: "requester",
-        url: input.url,
-        decidedBy: null,
-        decidedAt: null,
-        createdAt: now(),
-        expiresAt: later(JOIN_CODE_SECONDS),
-        harnessId: null,
-        spaceId: null,
-        deviceId: null,
-        pairAs: null,
-        askedOf: null,
-        inviteId: null,
-        role: null,
-        replaces: null,
-      };
+      const check = await checkFor(input);
+      const request = requestFor(input, workspaceId, check);
       await deps.registry.add({ ...request, secretHash: minted.hash });
       tell(request);
       return {
@@ -708,6 +787,7 @@ export function createJoinRequests(deps: JoinRequestsDeps) {
           secret: minted.secret,
           interval: JOIN_POLL_SECONDS,
           expiresIn: JOIN_CODE_SECONDS,
+          check,
         },
       };
     },
@@ -718,7 +798,8 @@ export function createJoinRequests(deps: JoinRequestsDeps) {
      * may be refused for was refused before this, by the invite or the pairing code.
      */
     async waitForLink(input: LinkAsk): Promise<Answer<LinkWait>> {
-      if ((await deps.registry.waitingCount(input.workspaceId, now())) >= JOIN_WAITING_MAX) {
+      const waiting = await deps.registry.waitingCount(input.workspaceId, now(), "links");
+      if (waiting >= JOIN_WAITING_MAX) {
         return fail(
           "too_many",
           `${JOIN_WAITING_MAX} requests are waiting already. Ask again in a few minutes.`,
@@ -752,6 +833,8 @@ export function createJoinRequests(deps: JoinRequestsDeps) {
         inviteId: input.inviteId ?? null,
         role: input.role ?? null,
         replaces: input.replaces ?? null,
+        checkCommit: null,
+        checkNonce: null,
       };
       await deps.registry.add({ ...request, secretHash: minted.hash });
       tell(request);
@@ -767,14 +850,23 @@ export function createJoinRequests(deps: JoinRequestsDeps) {
       };
     },
 
-    /** `POST /v1/join/:id/redeem`: the requester asks whether it was allowed, with its secret. */
-    async poll(input: { id: string; secret: string }): Promise<Answer<Polled>> {
+    /**
+     * `POST /v1/join/:id/redeem`: the requester asks whether it was allowed, with its secret, and a
+     * device that committed sends its nonce with it, which makes its code (ADR 0278).
+     */
+    async poll(input: {
+      id: string;
+      secret: string;
+      nonce?: string | undefined;
+    }): Promise<Answer<Polled>> {
       const [request, kept] = await Promise.all([
         deps.registry.byId(input.id),
         deps.registry.secretHashOf(input.id),
       ]);
       if (request === undefined || kept === undefined) return UNKNOWN;
       if (!deps.matches(deps.hash(input.secret.trim()), kept)) return UNKNOWN;
+      const revealed = await reveal(request, input.nonce);
+      if (!revealed.ok) return revealed;
       const state = stateAt(request, deps.clock.nowMs());
       if (state === "waiting")
         return { ok: true, value: { waiting: true, interval: JOIN_POLL_SECONDS } };
@@ -842,6 +934,8 @@ export function createJoinRequests(deps: JoinRequestsDeps) {
         inviteId: null,
         role: null,
         replaces: null,
+        checkCommit: null,
+        checkNonce: null,
       };
       await deps.registry.add({ ...request, secretHash: minted.hash });
       tell(request);

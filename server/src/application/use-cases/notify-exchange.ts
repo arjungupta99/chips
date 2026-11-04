@@ -11,7 +11,7 @@
  */
 
 import type { Logger } from "@chipschat/platform";
-import { exchangeFactsOf, isAgentKind } from "@chipschat/protocol";
+import { exchangeFactsOf, isAgentKind, PUSH_WORDS } from "@chipschat/protocol";
 import { inQuietHours } from "../../domain/index.js";
 import type { Clock } from "../ports/clock.js";
 import type { StoredEvent } from "../ports/event-store.js";
@@ -20,10 +20,7 @@ import type { PushMessage, PushRegistry, PushSender } from "../ports/push.js";
 import type { ReadModels } from "../ports/read-models.js";
 import { sayPushed } from "../pushed.js";
 
-const WORDS = {
-  held: { title: "Chips paused the agents", body: "Open the space to let them carry on." },
-  warning: { title: "The agents need a look", body: "They have been talking among themselves." },
-} as const;
+const WORDS = { held: PUSH_WORDS.held, warning: PUSH_WORDS.warning } as const;
 
 /** Longest such a push is worth delivering: after that, the room says it better. */
 const TTL_SECONDS = 1800;

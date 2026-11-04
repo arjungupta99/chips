@@ -9,10 +9,12 @@
  * phone is paired; and as `/runtime`, before it is — which matters, because none of this needs a
  * server, and the moment you most want a diagnostic is the moment pairing has not happened yet.
  *
- * Beyond `checks.ts`, which runs anywhere, three things can only be asked on a phone: whether the
- * Keychain round-trips a key, whether SQLite round-trips a row, and whether the phone's native
+ * Beyond `checks.ts`, which runs anywhere, some things can only be asked on a phone: whether the
+ * Keychain round-trips a key, whether SQLite round-trips a row, whether the phone's native
  * AES-GCM, which seals every relay frame, agrees with the JavaScript one byte for byte, and how
- * much faster it opens a megabyte of frames (`aes.ts`, ADR 0152).
+ * much faster it opens a megabyte of frames (`aes.ts`, ADR 0152), and whether its native X25519,
+ * Ed25519 and HMAC agree with JavaScript's too (`native.ts`, ADR 0277). Above them it says which
+ * of the primitives under `crypto.subtle` run natively here and which in JavaScript.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -21,9 +23,8 @@ import { thisDevice } from "../device/word";
 import { Screen } from "../ui/Screen";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE } from "../ui/tokens";
-import { nativeAesGcm } from "./aes";
 import { type Check, capabilities, responseFromBytes, type Timing, timings } from "./checks";
-import { usingShim } from "./install";
+import { primitives, usingShim } from "./install";
 import { platformChecks, platformTimings } from "./platform";
 
 interface Assembled {
@@ -54,10 +55,23 @@ export function Report({ back }: { readonly back?: (() => void) | undefined }) {
         <Text style={[styles.note, { color: palette.ink3 }]}>
           {!usingShim()
             ? "This runtime brought its own crypto.subtle, and it is being used."
-            : nativeAesGcm === undefined
-              ? "crypto.subtle is @chipschat/subtle, in JavaScript (ADR 0044)."
-              : `crypto.subtle is @chipschat/subtle, in JavaScript (ADR 0044), with ${thisDevice()}'s own AES-GCM for the relay's frames (ADR 0152).`}
+            : primitives().every((one) => one.native !== undefined)
+              ? `crypto.subtle is @chipschat/subtle (ADR 0044), and every primitive under it is ${thisDevice()}'s own (ADRs 0152, 0277).`
+              : "crypto.subtle is @chipschat/subtle (ADR 0044), and what runs each primitive under it is below."}
         </Text>
+
+        {!usingShim() ? null : (
+          <View style={styles.group}>
+            {primitives().map((one) => (
+              <View key={one.name} style={styles.row}>
+                <Text style={[styles.name, { color: palette.ink }]}>{one.name}</Text>
+                <Text style={[styles.ms, { color: palette.ink2 }]}>
+                  {one.native === undefined ? "JavaScript" : `native, ${one.native}`}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {report === undefined ? (
           <Text style={[styles.note, { color: palette.ink3 }]}>Running…</Text>
@@ -133,6 +147,9 @@ function say(report: Assembled): void {
   console.log(
     `CHIPS RUNTIME REPORT ${JSON.stringify({
       shim: usingShim(),
+      javascript: primitives()
+        .filter((one) => one.native === undefined)
+        .map((one) => one.name),
       failed,
       timings: Object.fromEntries(report.timings.map((one) => [one.name, one.ms])),
     })}`,

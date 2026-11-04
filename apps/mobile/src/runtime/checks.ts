@@ -6,8 +6,8 @@
  * report, so the first run asserts each one by name and the Runtime screen shows the answers.
  *
  * The timings matter more. Every signed request costs one Ed25519 signature and every relay
- * frame costs an AES-GCM seal. The signature is JavaScript (ADR 0044); the seal is the phone's
- * own cipher once `install.ts` has handed it over (ADR 0152), and `crypto.subtle` here is
+ * frame costs an AES-GCM seal. On an iPhone both are the phone's own once `install.ts` has handed
+ * them over (ADRs 0152, 0277), and JavaScript elsewhere (ADR 0044); `crypto.subtle` here is
  * whichever is installed. The plan's threshold: under about 50 ms a signature is fine, over about
  * 150 ms and a native module moves up the list. Nothing on this Mac can answer that — only a
  * real phone can — so this produces the number rather than an opinion.

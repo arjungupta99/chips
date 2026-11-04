@@ -6,8 +6,10 @@
  * HMAC-SHA-256 and AES-GCM with a caller's nonce and additional data. Everything else throws
  * `NotSupportedError` by name rather than doing something almost right.
  *
- * A runtime that can do a piece of this faster in native code passes it in as a `Primitives`
- * (see `index.ts`); nothing here changes shape when it does.
+ * A runtime that can do a piece of this in native code passes it in as a `Primitives` (see
+ * `index.ts`); nothing here changes shape when it does. The iPhone passes all of it: there, every
+ * call below that is cryptography is the operating system's, and what is left here is
+ * bookkeeping — which key may do what, and the DER prefixes of `der.ts` (ADR 0277).
  */
 
 import { gcm } from "@noble/ciphers/aes.js";
@@ -26,9 +28,46 @@ import {
   type ShimKey,
 } from "./keys.js";
 
-/** What a runtime may do faster than JavaScript. Every field is optional; the JS path is the default. */
+/** A curve's fresh pair as bytes: the private key (an X25519 scalar, an Ed25519 seed), the public. */
+export interface PairBytes {
+  readonly secretKey: Uint8Array;
+  readonly publicKey: Uint8Array;
+}
+
+/**
+ * What a runtime may do itself, natively: faster than JavaScript (AES-GCM, ADR 0152), or in the
+ * operating system's own crypto rather than the app's (X25519, Ed25519, HMAC, ADR 0277). Every
+ * field is optional; the JS path is the default. Keys cross as the bytes `keys.ts` holds, so a key
+ * made by one path is used by the other unchanged.
+ */
 export interface Primitives {
   readonly sha256?: ((data: Uint8Array) => Promise<Uint8Array>) | undefined;
+  readonly x25519?:
+    | {
+        readonly generate: () => Promise<PairBytes>;
+        /** Thirty-two bytes. Throws on a peer key that makes them all zero, as WebCrypto does. */
+        readonly derive: (privateKey: Uint8Array, publicKey: Uint8Array) => Promise<Uint8Array>;
+      }
+    | undefined;
+  readonly ed25519?:
+    | {
+        readonly generate: () => Promise<PairBytes>;
+        /** Sixty-four bytes; a runtime may randomize them (CryptoKit does), and any verifies. */
+        readonly sign: (privateKey: Uint8Array, data: Uint8Array) => Promise<Uint8Array>;
+        readonly verify: (
+          publicKey: Uint8Array,
+          signature: Uint8Array,
+          data: Uint8Array,
+        ) => Promise<boolean>;
+      }
+    | undefined;
+  readonly hmacSha256?:
+    | {
+        readonly sign: (key: Uint8Array, data: Uint8Array) => Promise<Uint8Array>;
+        /** Compares in constant time. */
+        readonly verify: (key: Uint8Array, mac: Uint8Array, data: Uint8Array) => Promise<boolean>;
+      }
+    | undefined;
   readonly aesGcm?:
     | {
         /** Ciphertext followed by the sixteen-byte tag, as WebCrypto returns it. */
@@ -81,6 +120,43 @@ export function createSubtle(primitives: Primitives = {}) {
   const digestBytes = async (data: Uint8Array): Promise<Uint8Array> =>
     primitives.sha256 === undefined ? sha256(data) : await primitives.sha256(data);
 
+  const newPair = async (curve: Curve): Promise<PairBytes> => {
+    if (curve === "X25519") {
+      return primitives.x25519 === undefined ? x25519.keygen() : await primitives.x25519.generate();
+    }
+    return primitives.ed25519 === undefined
+      ? ed25519.keygen()
+      : await primitives.ed25519.generate();
+  };
+
+  const sharedSecret = async (privateKey: Uint8Array, publicKey: Uint8Array) => {
+    try {
+      return primitives.x25519 === undefined
+        ? x25519.getSharedSecret(privateKey, publicKey)
+        : await primitives.x25519.derive(privateKey, publicKey);
+    } catch {
+      // A peer key of small order makes the secret all zeros, which everybody knows. Both paths
+      // refuse it, and WebCrypto calls that an `OperationError`.
+      throw subtleError("OperationError", "That public key gives no shared secret.");
+    }
+  };
+
+  const hmacSign = async (key: Uint8Array, data: Uint8Array): Promise<Uint8Array> =>
+    primitives.hmacSha256 === undefined
+      ? hmac(sha256, key, data)
+      : await primitives.hmacSha256.sign(key, data);
+
+  const ed25519Verify = async (key: Uint8Array, signature: Uint8Array, data: Uint8Array) => {
+    try {
+      return primitives.ed25519 === undefined
+        ? ed25519.verify(signature, data, key)
+        : await primitives.ed25519.verify(key, signature, data);
+    } catch {
+      // A malformed signature is a false, not a throw: that is what WebCrypto answers.
+      return false;
+    }
+  };
+
   return {
     async digest(algorithm: Named, data: Data): Promise<ArrayBuffer> {
       const name = nameOf(algorithm);
@@ -90,8 +166,7 @@ export function createSubtle(primitives: Primitives = {}) {
 
     async generateKey(algorithm: Named, extractable: boolean, usages: readonly string[]) {
       const curve = curveOf(algorithm, "generateKey");
-      const pair = curve === "X25519" ? x25519.keygen() : ed25519.keygen();
-      return newCurveKeys(curve, pair, extractable, usages);
+      return newCurveKeys(curve, await newPair(curve), extractable, usages);
     },
 
     async importKey(
@@ -130,7 +205,7 @@ export function createSubtle(primitives: Primitives = {}) {
       }
       mayBeUsedFor(key, "deriveBits");
       const peer = (algorithm as { public?: unknown }).public;
-      const secret = x25519.getSharedSecret(
+      const secret = await sharedSecret(
         bytesOf(key, "X25519", "private"),
         bytesOf(peer, "X25519", "public"),
       );
@@ -140,27 +215,29 @@ export function createSubtle(primitives: Primitives = {}) {
     async sign(algorithm: Named, key: ShimKey, data: Data): Promise<ArrayBuffer> {
       mayBeUsedFor(key, "sign");
       const name = nameOf(algorithm);
-      if (name === "HMAC") return buffer(hmac(sha256, bytesOf(key, "HMAC", "secret"), bytes(data)));
-      if (name === "Ed25519") {
-        return buffer(ed25519.sign(bytes(data), bytesOf(key, "Ed25519", "private")));
-      }
-      throw unsupported(`sign with \`${name}\``);
+      if (name === "HMAC")
+        return buffer(await hmacSign(bytesOf(key, "HMAC", "secret"), bytes(data)));
+      if (name !== "Ed25519") throw unsupported(`sign with \`${name}\``);
+      const seed = bytesOf(key, "Ed25519", "private");
+      return buffer(
+        primitives.ed25519 === undefined
+          ? ed25519.sign(bytes(data), seed)
+          : await primitives.ed25519.sign(seed, bytes(data)),
+      );
     },
 
     async verify(algorithm: Named, key: ShimKey, signature: Data, data: Data): Promise<boolean> {
       mayBeUsedFor(key, "verify");
       const name = nameOf(algorithm);
       if (name === "HMAC") {
-        const expected = hmac(sha256, bytesOf(key, "HMAC", "secret"), bytes(data));
-        return equal(expected, bytes(signature));
+        const secret = bytesOf(key, "HMAC", "secret");
+        if (primitives.hmacSha256 !== undefined) {
+          return await primitives.hmacSha256.verify(secret, bytes(signature), bytes(data));
+        }
+        return equal(hmac(sha256, secret, bytes(data)), bytes(signature));
       }
       if (name !== "Ed25519") throw unsupported(`verify with \`${name}\``);
-      try {
-        return ed25519.verify(bytes(signature), bytes(data), bytesOf(key, "Ed25519", "public"));
-      } catch {
-        // A malformed signature is a false, not a throw: that is what WebCrypto answers.
-        return false;
-      }
+      return await ed25519Verify(bytesOf(key, "Ed25519", "public"), bytes(signature), bytes(data));
     },
 
     async encrypt(algorithm: Named, key: ShimKey, data: Data): Promise<ArrayBuffer> {

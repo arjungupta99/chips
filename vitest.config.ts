@@ -60,6 +60,7 @@ export default defineConfig({
         "apps/mobile/src/device/**",
         "apps/mobile/src/cache/**",
         "apps/mobile/src/runtime/aes.ts",
+        "apps/mobile/src/runtime/native.ts",
         "apps/mobile/src/runtime/install.ts",
         "apps/mobile/src/runtime/boot.ts",
         "apps/mobile/src/runtime/platform.ts",

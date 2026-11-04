@@ -16,7 +16,7 @@ import {
   type Store,
   startDemo,
 } from "@chipschat/core";
-import { inDesktop } from "../../native.ts";
+import { type Desktop, desktop, inDesktop } from "../../native.ts";
 import { browserDeviceName } from "../browserName.ts";
 
 /** What the demo's store is made to play: a film from a chapter, or the film played whole. */
@@ -50,9 +50,30 @@ export interface MadeStore {
   readonly close: () => void;
 }
 
+/**
+ * Where the Mac finds a workspace's server on this network now: the shell's Bonjour look, for the
+ * transport to try, held to the key the app pinned, once the address it paired at stops answering
+ * and nothing else reaches the server. A server whose address the router changed was otherwise
+ * never found again; the phone looked, the Mac didn't (the stranger review, 4 November 2026). A
+ * browser has no such look, and finds none.
+ */
+export async function foundAt(
+  workspaceId: string,
+  shell: Promise<Desktop | undefined> = desktop(),
+): Promise<string[]> {
+  const mac = await shell.catch(() => undefined);
+  const found = (await mac?.discover().catch(() => [])) ?? [];
+  return found.filter((server) => server.workspace === workspaceId).map((server) => server.url);
+}
+
 export function makeStore(device: Device, run?: DemoRun | undefined): MadeStore {
-  // The Mac app opens a room's folder when the person asks from their phone (ADR 0225).
-  const usual = { device, folders: inDesktop() };
+  // The Mac app opens a room's folder when the person asks from their phone (ADR 0225), and looks
+  // for its server on the network when the address it knows stops answering.
+  const usual = {
+    device,
+    folders: inDesktop(),
+    ...(inDesktop() ? { findAddresses: (workspaceId: string) => foundAt(workspaceId) } : {}),
+  };
   if (!isDemo(device)) {
     const store = createStore(usual);
     return { store, close: () => store.close() };

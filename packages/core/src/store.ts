@@ -87,6 +87,7 @@ import { type Cache, cacheKey, openCache } from "./cache.js";
 import {
   type Device,
   type DeviceStorage,
+  rememberAddress,
   rememberOnlyDirect,
   rememberReach,
   rememberRelay,
@@ -1213,6 +1214,12 @@ export interface StoreOptions {
    */
   readonly onErased?: ((spaces: readonly Space[]) => void) | undefined;
   /**
+   * Where the server of a workspace answers on the network now, as the app finds it for itself
+   * (Bonjour on a phone): what the transport tries when the stored address stops answering and
+   * nothing else reaches the server. Absent, it tries only what the server last said.
+   */
+  readonly findAddresses?: ((workspaceId: string) => Promise<readonly string[]>) | undefined;
+  /**
    * Whether this app opens a room's folder, or runs its project, when another of the person's
    * devices asks (ADR 0225, ADR 0226): the Mac app's. Its socket then says `folders` in its hello,
    * and `onFolderAsk` hears each ask.
@@ -2162,6 +2169,11 @@ export function createStore(options: StoreOptions): Store {
         notify();
       },
       onRelay: (relay) => void rememberRelay(device.deviceId, relay, options.deviceStorage),
+      // Found at another address, held to its key: the next launch dials it first.
+      onAddress: (url) => void rememberAddress(device.deviceId, url, options.deviceStorage),
+      ...(options.findAddresses === undefined
+        ? {}
+        : { findAddresses: async () => (await options.findAddresses?.(device.workspaceId)) ?? [] }),
       // A first key, taken once by a device from before servers had keys (ADR 0191, Phase 3).
       onFirstKey: (named) => void rememberReach(device.deviceId, named, options.deviceStorage),
       // Not kept, not even for this session (SEC-2): said, so the person can pair again.

@@ -8,10 +8,17 @@
  * from where. The phone reads that over its own socket. Quiet hours are not kept: a request is
  * made because somebody is setting something up now, and it is gone in ten minutes. Nothing here
  * throws.
+ *
+ * An ask nobody handed a link for (a device's on the Wi-Fi, a harness's) pushes at most once in a
+ * request's ten minutes for each workspace. Anybody on the Wi-Fi, or anybody holding the server's
+ * key, can make one, and every one buzzed every owner's and admin's phone, all night: five at a
+ * time, and five more as each ran out (the stranger review, 4 November 2026). The rest are still
+ * told on the socket, and wait in the list with the first. A link's request, asked of the person
+ * who handed it out, always pushes.
  */
 
 import type { Logger } from "@chipschat/platform";
-import { JOIN_CODE_SECONDS } from "@chipschat/protocol";
+import { JOIN_CODE_SECONDS, PUSH_WORDS } from "@chipschat/protocol";
 import { administers } from "../../domain/index.js";
 import type { Clock } from "../ports/clock.js";
 import type { NotificationRegistry } from "../ports/notifications.js";
@@ -20,10 +27,7 @@ import type { ReadModels } from "../ports/read-models.js";
 import { sayPushed } from "../pushed.js";
 
 /** The two sentences a push carries. Neither says who asks. */
-export const JOIN_PUSH_WORDS = {
-  title: "Something asks to join",
-  body: "Check its code, then allow it or not.",
-} as const;
+export const JOIN_PUSH_WORDS = PUSH_WORDS.join;
 
 export interface NotifyJoinDeps {
   readonly readModels: Pick<ReadModels, "peopleIn">;
@@ -34,17 +38,35 @@ export interface NotifyJoinDeps {
   readonly logger: Logger;
 }
 
+/** How long after an unasked request's push another waits on the socket alone. */
+const UNASKED_EVERY_MS = JOIN_CODE_SECONDS * 1000;
+
 export function createNotifyJoin(deps: NotifyJoinDeps) {
+  /** When each workspace last pushed a request nobody handed a link for. */
+  const unaskedAt = new Map<string, number>();
+
+  /** Whether an unasked request may push now, keeping the time when it may. */
+  function unaskedMay(workspaceId: string): boolean {
+    const now = deps.clock.nowMs();
+    const last = unaskedAt.get(workspaceId);
+    if (last !== undefined && now - last < UNASKED_EVERY_MS) return false;
+    unaskedAt.set(workspaceId, now);
+    return true;
+  }
+
+  /** Who decides a request: the one person a link's asks, else every owner and admin. */
+  async function deciders(workspaceId: string, to: string | undefined): Promise<string[]> {
+    if (to !== undefined) return [to];
+    return (await deps.readModels.peopleIn(workspaceId))
+      .filter((person) => administers(person.role))
+      .map((person) => person.participant_id);
+  }
+
   async function tell(workspaceId: string, requestId: string, to?: string): Promise<void> {
     // A push that cannot go claims no banner: the person's computer raises it (ADR 0244).
     if (deps.sender.readiness() !== "ready") return;
-    const people =
-      to === undefined
-        ? (await deps.readModels.peopleIn(workspaceId))
-            .filter((person) => administers(person.role))
-            .map((person) => person.participant_id)
-        : [to];
-    const phones = await deps.push.forPeople(workspaceId, people);
+    if (to === undefined && !unaskedMay(workspaceId)) return;
+    const phones = await deps.push.forPeople(workspaceId, await deciders(workspaceId, to));
     const at = deps.clock.nowIso();
     const messages: PushMessage[] = [];
     for (const phone of phones) {

@@ -62,6 +62,57 @@ export function keyCodeShown(code: string): string {
   return keyCode.safeParse(code).success ? `${code.slice(0, 3)} ${code.slice(3)}` : code;
 }
 
+/**
+ * The check a device that asks on the Wi-Fi shows (S-1, ADR 0278). A code the server made and
+ * handed over could be handed on unchanged by whoever stands between the phone and the computer,
+ * with their own key in the request in place of the phone's: the person typed the code the phone
+ * showed, and let them in. So both ends work the code out, from both keys and a nonce from each,
+ * the device's committed to before it sees the server's: the SHA-256 of `joinCheckText`, its first
+ * thirty bits as six characters of the pairing alphabet. Somebody between them picks their key and
+ * nonce before they can know one of the two nonces, so their code matches one time in a billion.
+ */
+export const joinNonce = z.string().regex(/^[A-Za-z0-9_-]{43}$/, "32 bytes, base64url");
+
+/** The pairing alphabet: no 0, 1, I or O. */
+const CHECK_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** What a device's commitment is the SHA-256 of: its nonce, labelled. */
+export function joinCommitText(nonce: string): string {
+  return `chips join commit v1\n${nonce}`;
+}
+
+/** What the check is the SHA-256 of: both keys and both nonces, as the wire carries them. */
+export function joinCheckText(input: {
+  readonly publicKey: string;
+  readonly serverKey: string;
+  readonly deviceNonce: string;
+  readonly serverNonce: string;
+}): string {
+  return [
+    "chips join check v1",
+    input.publicKey,
+    input.serverKey,
+    input.deviceNonce,
+    input.serverNonce,
+  ].join("\n");
+}
+
+/** A check's digest as the code people compare and type, `ABC-234`: its first thirty bits. */
+export function joinCheckCode(digest: Uint8Array): string {
+  const bits =
+    (((digest[0] ?? 0) << 24) |
+      ((digest[1] ?? 0) << 16) |
+      ((digest[2] ?? 0) << 8) |
+      (digest[3] ?? 0)) >>>
+    2;
+  let out = "";
+  for (let i = 0; i < 6; i += 1) {
+    if (i === 3) out += "-";
+    out += CHECK_ALPHABET.charAt((bits >>> (25 - 5 * i)) & 31);
+  }
+  return out;
+}
+
 /** A code a request shows: a requester's to compare or type, or a link's six digits. */
 const requestCode = z.union([pairingCode, keyCode]);
 
@@ -148,6 +199,11 @@ export const joinAsk = z
       .regex(/^[A-Za-z0-9+/]{40,64}={0,2}$/)
       .optional()
       .describe("For a device: the public half of its Ed25519 key, SPKI DER, base64."),
+    commit: joinNonce
+      .optional()
+      .describe(
+        "For a device (S-1, ADR 0278): the SHA-256 of `joinCommitText` of a nonce it keeps, base64url. It sends the nonce with its first poll, once it holds the server's, and both ends work the code out.",
+      ),
   })
   .describe("A request to join.");
 export type JoinAsk = z.input<typeof joinAsk>;
@@ -156,7 +212,20 @@ export type JoinAsk = z.input<typeof joinAsk>;
 export const joinAsked = z.object({
   request_id: id("join"),
   secret: z.string().min(16).max(200).describe("The requester's alone: it polls with it."),
-  code: requestCode,
+  code: requestCode
+    .optional()
+    .describe("The code to show. Absent for a device that sent `commit`: it works its own out."),
+  server_key: z
+    .string()
+    .min(1)
+    .max(128)
+    .optional()
+    .describe(
+      "For a device that sent `commit`: the server's tunnel key, which the code is worked out from and the device pins once it is allowed (ADR 0191, 0278).",
+    ),
+  nonce: joinNonce
+    .optional()
+    .describe("For a device that sent `commit`: the server's nonce, for the code (ADR 0278)."),
   expires_in: z.int().positive().describe("Seconds until it expires."),
   interval: z.int().positive().describe("Seconds between polls."),
 });
