@@ -343,6 +343,23 @@ describe("a link that asks (ADR 0232)", () => {
     expect(tooLate.ok === false && tooLate.error.kind).toBe("expired");
   });
 
+  it("judges its life no later than now, whatever time the request says it was asked", async () => {
+    const { use, clock } = harness();
+    const issued = await use.create({ principal: ARJUN, role: "guest", asks: true });
+    if (!issued.ok) throw new Error("not issued");
+    const answer = { displayName: "Priya", publicKey: KEY, deviceName: "Priya's iPhone" };
+    expect((await use.redeem({ token: issued.value.token, ...answer })).ok).toBe(true);
+    // A dev server's join clock run ahead by a test of request expiry: the invite is judged as
+    // it is now, not at the forty minutes on that its request's time says.
+    const ahead = await use.collect({
+      workspaceId: WS,
+      inviteId: issued.value.id,
+      answer,
+      askedAt: new Date(clock.nowMs() + 40 * 60 * 1000).toISOString(),
+    });
+    expect(ahead.ok).toBe(true);
+  });
+
   it("refuses a wrong answer before anything waits", async () => {
     const { use, waited } = harness();
     const issued = await use.create({ principal: ARJUN, role: "guest", asks: true });

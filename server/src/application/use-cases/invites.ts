@@ -580,7 +580,11 @@ export function createInvites(deps: InvitesDeps) {
     }): Promise<Answer<RedeemedInvite>> {
       const found = await deps.registry.invite(request.workspaceId, request.inviteId);
       if (found === undefined) return { ok: false, error: NOT_VALID };
-      const invite = await goodNow(found, Date.parse(request.askedAt));
+      // Never judged later than now on the invite's own clock: a request's time is the join
+      // requests' clock, which a dev server may run ahead to try expiry (ADR 0232).
+      const asked = Date.parse(request.askedAt);
+      const now = deps.clock.nowMs();
+      const invite = await goodNow(found, Number.isNaN(asked) ? now : Math.min(asked, now));
       if (!invite.ok) return invite;
       const wrong = await wrongAnswer(invite.value, request.answer);
       if (wrong !== undefined) return { ok: false, error: wrong };

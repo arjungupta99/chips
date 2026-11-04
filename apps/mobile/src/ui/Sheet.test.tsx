@@ -279,6 +279,9 @@ describe("a sheet", () => {
     // and the sheet is drawn again: a square tapped on the room sheet's Media & files page as the
     // sheet glided to it measured 187 points high, and the picture flew from mid-screen.
     const back = onA({ width: 393, height: 852 });
+    // The spring's frames run on Jest's clock: on a slow machine the wall clock let one finish
+    // before the test had asked whether the sheet was at rest (public CI, 4 November 2026).
+    jest.useFakeTimers();
     try {
       const asks: (() => Promise<void>)[] = [];
       function Measures() {
@@ -307,7 +310,10 @@ describe("a sheet", () => {
         return () => at;
       };
       // The mock driver finishes a spring 16 ms on: time for it, and for the sheet to be drawn.
-      const springsEnd = () => act(() => new Promise<void>((done) => setTimeout(done, 50)));
+      const springsEnd = () =>
+        act(async () => {
+          await jest.advanceTimersByTimeAsync(50);
+        });
       // Arriving, it is not at rest; arrived, it is.
       const arrived = rested();
       await Promise.resolve();
@@ -332,6 +338,7 @@ describe("a sheet", () => {
       await Promise.resolve();
       expect(still()).toBe(true);
     } finally {
+      jest.useRealTimers();
       back();
     }
   });
