@@ -111,3 +111,21 @@ Consequences:
   send either way. Noted here, not closed.
 - A page's scripts on the web run from the server's page door, and on the Mac from the shell's
   own (ADR 0201 and its addendum).
+
+## Addendum, 3 November 2026: a page says the colour it is drawn on
+
+The phone's web view is drawn see-through, and it stood on white for every page, so a dark page
+pulled past its top or its foot showed a white band (Arjun, 3 November 2026: "The background behind
+dark HTML is also light, which looks off").
+
+A script put in the page as it starts (`GROUND_SCRIPT`) waits for it to load. It then reads the
+colour the page is drawn on: the root's background, or the body's, or the canvas's own for the
+page's colour scheme. It reads it again when the page turns light or dark. It says the colour by
+going to `chips-ground:r,g,b`, which never loads. `pageLoad` answers `ground` for it, tapped or not,
+on either platform, and the view stands on that colour. Until the page has said, the view stands on
+the app's own ground. A page made from Markdown is drawn on the ground it is given and says nothing.
+
+The view still has no bridge to the app. The library adds the script it runs at a document's end
+only with one, which is why this one goes in at the start. The page's own script can go to that
+address too, and all it can do is choose the colour shown past its own edges. `groundOfLink` reads
+three numbers from 0 to 255 and nothing else.

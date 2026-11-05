@@ -3,13 +3,14 @@
  * limits, and answers in Expo's shape, so a server reads it as it reads Expo.
  */
 
-import { createLogger, defaultConfig, EXPO_PUSH } from "@chipschat/platform";
+import { createLogger, defaultConfig, EXPO_PUSH, receiptsUrlOf } from "@chipschat/platform";
 import { PUSH_WORDS } from "@chipschat/protocol";
 import { describe, expect, it, vi } from "vitest";
 import {
   createPushDoor,
   MOST_MESSAGE_BYTES,
   MOST_MESSAGES,
+  MOST_RECEIPTS,
   PER_PHONE,
   PER_PLACE,
   pushDoorOf,
@@ -278,6 +279,94 @@ describe("the push door", () => {
       Response.json({ data: [{ status: "ok" }] })) as unknown as typeof globalThis.fetch;
     const answer = await send(door(fetch), [push(), push("ExponentPushToken[b]")]);
     expect(answer.status).toBe(502);
+  });
+
+  it("asks Expo for a server's receipts with the app's token, and answers only what a server reads", async () => {
+    const asked: { url: string; body: unknown; authorization: string | null }[] = [];
+    const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      asked.push({
+        url: String(url),
+        body: JSON.parse(String(init?.body)),
+        authorization: new Headers(init?.headers).get("authorization"),
+      });
+      return Response.json({
+        data: {
+          "aaaa-1": { status: "ok", extra: "kept by nobody" },
+          "bbbb-2": {
+            status: "error",
+            message: "gone",
+            details: { error: "DeviceNotRegistered", apns: "not ours" },
+          },
+          // Somebody else's, which Expo would never say: left out.
+          "cccc-3": { status: "ok" },
+        },
+      });
+    }) as unknown as typeof globalThis.fetch;
+    const answer = await door(fetch).receipts(
+      JSON.stringify({ ids: ["aaaa-1", "bbbb-2"] }),
+      "203.0.113.7",
+    );
+    expect(answer.status).toBe(200);
+    expect(JSON.parse(answer.body)).toEqual({
+      data: {
+        "aaaa-1": { status: "ok" },
+        "bbbb-2": { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } },
+      },
+    });
+    expect(asked).toEqual([
+      {
+        url: "https://expo.example/push/getReceipts",
+        body: { ids: ["aaaa-1", "bbbb-2"] },
+        authorization: "Bearer app-token",
+      },
+    ]);
+  });
+
+  it("asks for no receipts it can't name, and counts the asking against the place", async () => {
+    const upstream = expo();
+    const d = door(upstream.fetch);
+    const tooMany = Array.from({ length: MOST_RECEIPTS + 1 }, (_, i) => `id-${i}`);
+    for (const body of [
+      "not json",
+      JSON.stringify([]),
+      JSON.stringify({ ids: [] }),
+      JSON.stringify({ ids: tooMany }),
+      JSON.stringify({ ids: ["../send"] }),
+      JSON.stringify({ ids: [7] }),
+    ]) {
+      expect((await d.receipts(body, "198.51.100.4")).status, body).toBe(400);
+    }
+    expect(upstream.posts).toEqual([]);
+    // Six turned away, and the place's minute holds PER_PLACE: the rest of it is still there.
+    for (let i = 0; i < PER_PLACE - 6; i += 1) {
+      await d.receipts("x", "198.51.100.4");
+    }
+    const busy = await d.receipts(JSON.stringify({ ids: ["aaaa-1"] }), "198.51.100.4");
+    expect(busy.status).toBe(429);
+  });
+
+  it("tells a server the relay can't give receipts when Expo refuses its token", async () => {
+    const answer = await door(expo(401).fetch).receipts(
+      JSON.stringify({ ids: ["aaaa-1"] }),
+      "203.0.113.7",
+    );
+    expect(answer.status).toBe(503);
+    expect(JSON.parse(answer.body).error.code).toBe("push_unavailable");
+    const failed = await door(expo(500).fetch).receipts(
+      JSON.stringify({ ids: ["aaaa-1"] }),
+      "203.0.113.7",
+    );
+    expect(failed.status).toBe(502);
+  });
+
+  it("finds receipts beside Expo's send and beside a push relay's door", () => {
+    expect(receiptsUrlOf(EXPO_PUSH)).toBe("https://exp.host/--/api/v2/push/getReceipts");
+    expect(receiptsUrlOf("https://relay.chipschat.ai/v1/push")).toBe(
+      "https://relay.chipschat.ai/v1/push/receipts",
+    );
+    expect(receiptsUrlOf("http://127.0.0.1:5597/push/")).toBe(
+      "http://127.0.0.1:5597/push/receipts",
+    );
   });
 
   it("opens only on a relay with the token, and sends on to Expo unless told otherwise", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { brightGround, fromOklch, litGround, MARK_LIGHT, mixHex, toOklch } from "./lit";
-import { FACE_INK, ICON_GROUNDS, ICON_GROUNDS_BRIGHT, light } from "./tokens";
+import { dark, FACE_INK, ICON_GROUNDS, ICON_GROUNDS_BRIGHT, light } from "./tokens";
 
 describe("a lit ground", () => {
   it("goes there and back without moving", () => {
@@ -51,6 +51,14 @@ function contrast(a: string, b: string): number {
   const [high, low] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
   return (high + 0.05) / (low + 0.05);
 }
+
+describe("the chosen tab's ink", () => {
+  it("reads at 4.5:1 on its ground, surface3, in both themes", () => {
+    for (const palette of [light, dark]) {
+      expect(contrast(palette.accentInk, palette.surface3)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
 
 describe("the Bright grounds (ADR 0176)", () => {
   it("are each Soothing ground's sister, worked out by the one sum, index for index", () => {

@@ -7,6 +7,14 @@
 
 export type { ActContext } from "./act.js";
 export { act } from "./act.js";
+export {
+  historyRoomsWords,
+  pickableRooms,
+  ROOM_PICK_ROW,
+  type RoomPick,
+  roomPickWords,
+  staysFailedWords,
+} from "./agentCardWords.js";
 export type {
   EveryChoice,
   HeartbeatReads,
@@ -245,6 +253,9 @@ export type {
   UploadSource,
 } from "./attachments.js";
 export {
+  ALONE_TILE_HEIGHT,
+  ALONE_TILE_WIDTH,
+  aloneTile,
   attachmentFromWire,
   fetchAttachment,
   fetchAttachmentBytes,
@@ -265,6 +276,7 @@ export {
   pageUrl,
   projectPageUrl,
   sourceOf,
+  tileShape,
   UploadError,
   uploadFile,
   voiceNoteName,
@@ -319,14 +331,17 @@ export {
   CONNECT_WHERE,
   choiceKey,
   choiceName,
+  connectedHereLine,
   connectedNames,
   connectHead,
   connectingName,
   connectNote,
   connectSteps,
+  connectTileWords,
   copyOf,
   curlRedeem,
   fetchesBridge,
+  GALLERY_LEDE,
   HANDOFF_NOTE,
   harnessNamed,
   hereAlreadyWords,
@@ -345,10 +360,16 @@ export {
   linkStandIn,
   linkWaiting,
   makingSteps,
+  ownWayHeading,
+  RUN_IN_TERMINAL,
+  runsInTerminal,
+  STEPS_LABEL,
   sayOf,
   sdkLines,
   shellLine,
   stillWorks,
+  type WaitingLink,
+  waitingLink,
 } from "./connect.js";
 export type {
   AgentContext,
@@ -552,6 +573,14 @@ export {
   workspaceHarnesses,
 } from "./events.js";
 export {
+  FACE_GROUND_NAMES,
+  FACE_GROUND_ROWS,
+  FACE_PICKER_WORDS,
+  faceWords,
+  groundName,
+  whyFaceNotSaved,
+} from "./faceWords.js";
+export {
   FEEDBACK_ASK,
   FEEDBACK_FORM,
   FEEDBACK_ON_GITHUB,
@@ -617,6 +646,20 @@ export {
   tookWords,
 } from "./harnessJobs.js";
 export {
+  AGENTS_SHOWN,
+  asksValue,
+  budgetWords,
+  contextValue,
+  harnessRollup,
+  harnessRuns,
+  mayDoValue,
+  ownerValue,
+  REMOVED_HARNESS_NOTE,
+  RUN_STATE_WORDS,
+  runsWeekWords,
+  sendsValue,
+} from "./harnessPage.js";
+export {
   agentCountWords,
   type HarnessTile,
   harnessShelf,
@@ -636,8 +679,13 @@ export type {
   LinkWaitingWords,
 } from "./join.js";
 export {
+  ALLOW_WORDS,
   allowArgs,
+  askingName,
+  askingTitle,
   capabilityWords,
+  codeWords,
+  decidedWords,
   JOIN_STEPS,
   joinCardState,
   joinRequestOf,
@@ -773,6 +821,7 @@ export {
   capsDraft,
   capsFromDraft,
   capsSentence,
+  capsWords,
   changedCount,
   changeWords,
   countedWords,
@@ -831,6 +880,7 @@ export {
   roomLeadOf,
   routesIn,
   routeWords,
+  runGoing,
   runsBySession,
   sameLimits,
   sessionToAddress,
@@ -861,7 +911,20 @@ export {
   startersWords,
 } from "./newSpace.js";
 export type { Moment, Notice } from "./notifications.js";
-export { bucketOf, digestTitle, inQuietHours, momentOf, planNotices } from "./notifications.js";
+export {
+  agentsWords,
+  bucketOf,
+  DECIDE_WORDS,
+  digestTitle,
+  FYI_WORDS,
+  HEAR_WORDS,
+  inQuietHours,
+  momentOf,
+  planNotices,
+  quietSub,
+  quietWords,
+  REVIEW_WORDS,
+} from "./notifications.js";
 export { NOT_RIGHT_REASONS, notRight, notRightWords } from "./notRight.js";
 export type { Outbox, OutboxEvent } from "./outbox.js";
 export { createOutbox } from "./outbox.js";
@@ -876,6 +939,7 @@ export {
   enterSpaceAsking,
   guestElsewhereAsking,
   guestRefusal,
+  guestStandingWords,
   invitedByWords,
   invitedWords,
   inviteRowWords,
@@ -901,7 +965,6 @@ export {
   nobodyToAddWords,
   peopleOf,
   ROLE_MEANS,
-  ROLE_SHORT,
   ROLE_WORDS,
   roleChangeAsking,
   roleMeansFor,
@@ -912,6 +975,7 @@ export {
   spaceLinkAsking,
   spacesShared,
   standingInRoom,
+  standingWords,
   takeOutAsking,
 } from "./people.js";
 export {
@@ -970,10 +1034,14 @@ export {
   mayUnarchiveAgent,
   type Named,
   NO_PINS,
+  notTakenWords,
   pinAct,
   type RoomsToo,
   type RoomToo,
   roomGoesWith,
+  SPACE_ROW_ACT_WORDS,
+  type SpaceRowAct,
+  spaceRowActs,
   type Too,
 } from "./putAway.js";
 export { lostWords, serverHost } from "./reach.js";
@@ -1058,6 +1126,7 @@ export {
   roomStarted,
   roomTicked,
   STEADY_FRAME_MS,
+  THINKING_GRACE_MS,
 } from "./roomMotion.js";
 export {
   drawnRun,
@@ -1089,7 +1158,9 @@ export {
   addableAgents,
   addableKept,
   awaitsAgents,
+  CLOSED_FIELD_PLACEHOLDER,
   type Elsewhere,
+  FIELD_PLACEHOLDER,
   leadOf,
   mayChooseLead,
   mayFace,
@@ -1104,6 +1175,7 @@ export {
   type NoAgentNotice,
   noAgentNotice,
   type Reader,
+  ROOM_DROP_WORDS,
   type RoomAgents,
   roomAgents,
   roomName,
@@ -1154,11 +1226,14 @@ export { HINT_ROUND_MS, SEARCH_HINT } from "./searchHint.js";
 export {
   closesRun,
   type HitAuthor,
+  hitArchived,
   hitAuthor,
   hitPlace,
   hitWords,
   SEARCH_IN_ALL,
   SEARCH_LOOKS_AT,
+  SEARCH_LOOKS_AT_NAMES,
+  SEARCH_NOTHING_OPEN,
   SEARCH_SCOPES,
   type SearchFound,
   type SearchItem,
@@ -1234,6 +1309,7 @@ export {
   createStore,
   SNIPPET_CLOSE,
   SNIPPET_OPEN,
+  serverCantPush,
 } from "./store.js";
 export {
   capsule,
@@ -1278,6 +1354,17 @@ export {
   ServerRefused,
   UnknownDeviceError,
 } from "./transport.js";
+export {
+  dayLabel,
+  endsTurn,
+  GROUP_WITHIN_MS,
+  opensTurn,
+  type Place,
+  SEPARATOR_AFTER_MS,
+  separatorLabel,
+  type Turned,
+  turnsOf,
+} from "./turns.js";
 export type { DocumentKind, Universe } from "./universe.js";
 export {
   documentKind,
@@ -1295,7 +1382,9 @@ export {
   shownFiles,
   startName,
   startOf,
+  universeCalling,
   universeOf,
+  universeSeenAt,
 } from "./universe.js";
 export type {
   CarriedFile,
@@ -1366,6 +1455,7 @@ export {
   TAILSCALE_MACHINES,
   tailnetOf,
   tripWords,
+  WAY_VALUE,
   type Way,
   wayOf,
   wayTitle,

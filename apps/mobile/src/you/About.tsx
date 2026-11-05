@@ -30,13 +30,14 @@
 
 import type { ConnectionState, LinkKind } from "@chipschat/core";
 import Constants from "expo-constants";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { BUILD_COMMIT } from "../build";
 import { thisDevice } from "../device/word";
 import { keptBytes } from "../spaces/local";
 import { Group, GroupHeading, GroupRow, MARKED_INSET, RowMark } from "../ui/Group";
 import { AVATAR_HUES } from "../ui/tokens";
+import { useOpenPage, usePage } from "./pages";
 import { hostOf, sizeWords } from "./words";
 
 /**
@@ -96,14 +97,18 @@ export function About({
   /** The snapshot's `rekeyed` (SEC-2). */
   readonly rekeyed?: boolean | undefined;
 }) {
-  const router = useRouter();
+  const media = usePage("media");
+  const connectionPage = usePage("connection");
+  // Beside the list on an iPad, Media is let go of with You in view: the page open is said too.
+  const open = useOpenPage();
   const [kept, setKept] = useState<number | undefined>(undefined);
   // Again whenever You comes back into view: back from Media on this phone, or from a room whose
-  // photos were opened, the row says what is kept now.
+  // photos were opened, the row says what is kept now; and when another page opens beside it.
   useFocusEffect(
+    // biome-ignore lint/correctness/useExhaustiveDependencies: `open` is when to read again.
     useCallback(() => {
       keptBytes().then(setKept, () => setKept(undefined));
-    }, []),
+    }, [open]),
   );
 
   return (
@@ -115,7 +120,8 @@ export function About({
           value={kept === undefined ? "…" : sizeWords(kept)}
           mark={<RowMark icon="image" tint={AVATAR_HUES[6]} ink="#ffffff" />}
           accessibilityHint="What was opened here and is kept, by space, to let go of"
-          onPress={() => router.push("/media")}
+          onPress={media.onPress}
+          selected={media.selected}
           testID="about-media"
         />
         <GroupRow
@@ -129,7 +135,8 @@ export function About({
           {...connectionWords(connection, link, relayUrl, rekeyed)}
           mark={<RowMark icon="pulse" />}
           accessibilityHint="Which way this phone reaches the server, drawn, and how fast"
-          onPress={() => router.push("/connection")}
+          onPress={connectionPage.onPress}
+          selected={connectionPage.selected}
           testID="about-connection"
         />
         <GroupRow

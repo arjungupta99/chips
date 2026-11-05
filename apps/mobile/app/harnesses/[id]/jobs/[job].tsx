@@ -6,10 +6,11 @@
  */
 
 import type { Store } from "@chipschat/core";
-import { Redirect, Stack, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useFocusCount } from "../../../../src/context/useFocusCount";
 import { JobPage } from "../../../../src/harnesses/jobs/JobPage";
 import { useChips, useSnapshot } from "../../../../src/store/provider";
+import { BackToTabs } from "../../../../src/ui/backToTabs";
 import { useLayout } from "../../../../src/ui/layout";
 import { Screen } from "../../../../src/ui/Screen";
 
@@ -19,7 +20,7 @@ export default function JobScreen() {
   const { wide } = useLayout();
   if (paired === undefined) return null;
   if (wide) {
-    return <Redirect href={{ pathname: "/(tabs)/agents", params: { harness: id, job } }} />;
+    return <BackToTabs tab="/(tabs)/agents" params={{ harness: id, job }} />;
   }
   return (
     <One store={paired.store} selfId={paired.device.participantId} harnessId={id} jobId={job} />

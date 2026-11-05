@@ -48,6 +48,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { useChips } from "../store/provider";
+import type { SheetFrom } from "../ui/beside";
 import { lift, tap } from "../ui/haptics";
 import type { Rect } from "./geometry";
 import { lastAsked, remember, rememberAsked, remembered } from "./remembered";
@@ -56,8 +57,11 @@ import { type Stage, Window } from "./Window";
 interface NewSpace {
   /** Who may be asked, by name. None, and the room it makes is empty. */
   readonly harnesses: readonly Participant[];
-  /** Open the window out of the + at `from`, in the window's own points. */
-  readonly open: (from: Rect) => void;
+  /**
+   * Open the window out of the + at `from`, in the window's own points; given the + itself, the
+   * window follows it when the window turns.
+   */
+  readonly open: (from: Rect, plus?: SheetFrom) => void;
 }
 
 const NONE: NewSpace = { harnesses: [], open: () => undefined };
@@ -151,6 +155,7 @@ function Paired({
   const harnesses = useHarnesses(store, workspaceId);
   const router = useRouter();
   const [stage, setStage] = useState<Stage>({ kind: "closed" });
+  const [plus, setPlus] = useState<SheetFrom | undefined>(undefined);
   // What was typed and not sent: kept when the window folds away, and there the next time.
   const [draft, setDraft] = useState("");
   // Nothing tapped yet: the window's own pick, whoever was asked last.
@@ -184,10 +189,11 @@ function Paired({
   >(undefined);
   const sent = useRef<string | undefined>(undefined);
 
-  const open = useCallback((from: Rect) => {
+  const open = useCallback((from: Rect, at?: SheetFrom) => {
     if (busy.current) return;
     busy.current = true;
     tap();
+    setPlus(at);
     setStage({ kind: "open", from });
   }, []);
 
@@ -266,6 +272,7 @@ function Paired({
       {stage.kind === "closed" ? null : (
         <Window
           stage={stage}
+          plus={plus}
           harnesses={harnesses}
           picked={picked}
           empty={empty}

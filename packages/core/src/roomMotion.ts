@@ -35,6 +35,13 @@ export const ROOM_FADE_IN_MS = 200;
 export const ROOM_FADE_OUT_MS = 160;
 
 /**
+ * How long a run has to have been going before the room shows it: its thinking bubble, and on the
+ * Mac and the web its run panel too (ADR 0268 addendum). The beat that makes it a thought; a run
+ * over in less shows neither.
+ */
+export const THINKING_GRACE_MS = 800;
+
+/**
  * The most a frame moves a steady clock, the room's among them: a frame and a fifth at 60 Hz. A
  * frame that came late — a mount that took fifty milliseconds, a vsync missed — is that long a
  * pause, and the frame after it does not leap to where the wall clock says.

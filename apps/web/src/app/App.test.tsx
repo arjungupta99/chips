@@ -115,6 +115,12 @@ vi.mock("@chipschat/core", async (importOriginal) => {
 vi.mock("@tauri-apps/api/core", () => ({ invoke: async () => [] }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => undefined }));
 
+import {
+  chooseInWorkspaces,
+  frontWorkspace,
+  menuRows,
+  openWorkspaces,
+} from "../testing/workspaces.ts";
 import { App } from "./App.tsx";
 
 const home: Device = {
@@ -167,17 +173,10 @@ describe("the app over several workspaces", () => {
 
   it("switches between two, and mutes one from You", async () => {
     render(<App devices={[home, work]} />);
-    const picker = await screen.findByRole("combobox", { name: "Workspace" });
-    expect((picker as HTMLSelectElement).value).toBe("dev_1");
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: "dev_2" } });
-    });
+    expect(await frontWorkspace()).toBe("Home");
+    await chooseInWorkspaces("Northwind");
     await waitFor(() => expect(core.switched).toEqual(["dev_2"]));
-    await waitFor(() =>
-      expect((screen.getByRole("combobox", { name: "Workspace" }) as HTMLSelectElement).value).toBe(
-        "dev_2",
-      ),
-    );
+    await waitFor(async () => expect(await frontWorkspace()).toBe("Northwind"));
 
     fireEvent.click(screen.getByTestId("you"));
     await screen.findByRole("main", { name: "You" });
@@ -191,27 +190,17 @@ describe("the app over several workspaces", () => {
   it("names each as its server calls it now, not as it was paired (ADR 0193)", async () => {
     core.workspaceNames = { [home.deviceId]: "Primal" };
     const { unmount } = render(<App devices={[home, work]} />);
-    const picker = (await screen.findByRole("combobox", {
-      name: "Workspace",
-    })) as HTMLSelectElement;
-    expect([...picker.options].map((option) => option.textContent)).toEqual([
-      "Primal",
-      "Northwind",
-      "Watch Chips work…",
-    ]);
+    expect(menuRows(await openWorkspaces())).toEqual(["Primal", "Northwind", "Watch Chips work"]);
     unmount();
 
     // One behind by what its own store heard too: renamed and named back, the name kept with
     // the device can be the one in between (18 October 2026).
     core.workspaceNames = { [home.deviceId]: "Primal", [work.deviceId]: "Northwind Labs" };
     render(<App devices={[home, work]} />);
-    const again = (await screen.findByRole("combobox", {
-      name: "Workspace",
-    })) as HTMLSelectElement;
-    expect([...again.options].map((option) => option.textContent)).toEqual([
+    expect(menuRows(await openWorkspaces())).toEqual([
       "Primal",
       "Northwind Labs",
-      "Watch Chips work…",
+      "Watch Chips work",
     ]);
   });
 
@@ -230,17 +219,11 @@ describe("the app over several workspaces", () => {
         <App devices={[home, work]} />
       </StrictMode>,
     );
-    const picker = await screen.findByRole("combobox", { name: "Workspace" });
+    await frontWorkspace();
     await waitFor(() => expect(open()).toEqual(["dev_1", "dev_2"]));
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: "dev_2" } });
-    });
+    await chooseInWorkspaces("Northwind");
     await waitFor(() => expect(core.switched).toEqual(["dev_2"]));
-    await waitFor(() =>
-      expect((screen.getByRole("combobox", { name: "Workspace" }) as HTMLSelectElement).value).toBe(
-        "dev_2",
-      ),
-    );
+    await waitFor(async () => expect(await frontWorkspace()).toBe("Northwind"));
     expect(open()).toEqual(["dev_1", "dev_2"]);
   });
 
@@ -254,11 +237,10 @@ describe("the app over several workspaces", () => {
       onOpen: async () => () => undefined,
     };
     render(<App devices={[home]} desktop={desktop} />);
-    const picker = await screen.findByRole("combobox", { name: "Workspace" });
-    fireEvent.change(picker, { target: { value: "+" } });
+    await chooseInWorkspaces("Join another workspace");
     await screen.findByRole("heading", { name: "Find your server" });
     fireEvent.click(screen.getByTestId("pair-cancel"));
-    expect(await screen.findByRole("combobox", { name: "Workspace" })).toBeDefined();
+    expect(await frontWorkspace()).toBe("Home");
   });
 
   it("in the desktop window, an unpaired app finds a server first, never pairs itself", async () => {

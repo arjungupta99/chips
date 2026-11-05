@@ -28,6 +28,7 @@ export function advertise(input: {
     name: input.name,
     type: SERVICE_TYPE,
     port: input.port,
+    host: hostFor(input.workspaceId),
     txt: {
       workspace: input.workspaceId,
       version: input.version,
@@ -41,6 +42,18 @@ export function advertise(input: {
         service.stop?.(() => bonjour.destroy(() => resolve()));
       }),
   };
+}
+
+/**
+ * The name the service's addresses are answered under: the workspace's, never the machine's.
+ * `bonjour-service` is a second responder beside the system's, and left to itself it answers the
+ * machine's own name with every interface's address — a display's or AirDrop's link-local one
+ * too. The system takes that difference for another computer holding its name and renames
+ * itself (macOS: "Arjuns-Mac-mini-2.local", then -3, at each start of `chips serve`).
+ */
+export function hostFor(workspaceId: string): string {
+  const label = `chips-${workspaceId.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return `${label.slice(0, 63).replace(/-+$/, "")}.local`;
 }
 
 export interface FoundServer {

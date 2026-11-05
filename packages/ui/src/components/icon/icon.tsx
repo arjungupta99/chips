@@ -142,6 +142,15 @@ const PATHS = {
    * to go back over what it said, and a film's Watch again.
    */
   again: ["M9 14.5l-5-5 5-5", "M4 9.5h10.5a5.5 5.5 0 0 1 0 11H11"],
+  /**
+   * The marks on You's rows that the phone wears and the desktop lacked (ADR 0265), drawn as the
+   * phone draws them: the bell over banners, the open lock over Allowed always, the i over the
+   * version; and the key over passkeys, which the phone has no row for.
+   */
+  bell: ["M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0"],
+  unlock: ["M5.5 11h13v9.5h-13z", "M11.5 11V5.5a4 4 0 0 1 8 0v3"],
+  info: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 11v6M12 7.5v.5"],
+  key: ["M8 10.5a4 4 0 1 0 0 8a4 4 0 1 0 0-8z", "M10.9 11.6L19 3.5", "M16 6.5l2.5 2.5"],
 } as const;
 
 /**

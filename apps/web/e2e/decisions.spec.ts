@@ -6,7 +6,7 @@
  */
 
 import { expect, type Page, test } from "@playwright/test";
-import { demo, Harness, newApprovalId, newRunId, pair, runPanel } from "./support.ts";
+import { demo, Harness, newApprovalId, newRunId, openLog, pair, runPanel } from "./support.ts";
 
 /** The newest approval card in the space: the demo space is shared with every test. */
 const card = (page: Page) => page.getByRole("article", { name: /Approval/ }).last();
@@ -164,7 +164,7 @@ test("a question with a default is answered from its card in the room, and the h
 
     const question = page.getByRole("article", { name: /Question from/ }).last();
     await question.getByLabel(/26 September/).check();
-    await question.getByRole("button", { name: "Answer" }).click();
+    await question.getByRole("button", { name: "Send the answer" }).click();
 
     const answered = await harness.next("question.answered");
     expect(answered).toMatchObject({
@@ -221,8 +221,8 @@ test("the dial: at L1 a write asks; turned to L2, policy approves it on the spot
     expect(String(byPolicy["reason"])).toContain("L2");
     await expect(card(page)).toContainText("Approved by policy");
 
-    // The audit says so, in words.
-    await page.getByRole("button", { name: /Audit/ }).click();
+    // The workspace's log says so, in words.
+    await openLog(page);
     const audit = page.getByTestId("audit");
     await expect(audit).toContainText("Chips");
     await expect(audit).toContainText("approved tracker.write");

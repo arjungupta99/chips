@@ -68,6 +68,11 @@ const IPHONE = {
   insets: { top: 59, left: 0, right: 0, bottom: 34 },
 };
 
+// The window as the phone's too: Jest's own is 750 points across, an iPad's since ADR 0256.
+const jestWindow = Dimensions.get("window");
+beforeAll(() => Dimensions.set({ window: { width: 393, height: 852, scale: 3, fontScale: 1 } }));
+afterAll(() => Dimensions.set({ window: jestWindow }));
+
 function onAPhone(element: ReactElement): ReactElement {
   return <SafeAreaProvider initialMetrics={IPHONE}>{element}</SafeAreaProvider>;
 }

@@ -1,20 +1,28 @@
 /**
- * The workspace's part of You, for its owners and admins only (ADR 0034, ADR 0047, ADR 0085):
- * who is in it and as what, the invites that bring more, how big an attachment may be, and when
- * Chips steps in on agents talking to each other (ADR 0187), and what each harness is allowed
- * always (ADR 0195). It
- * sits under the workspace's own name, apart from the person's things above it, because it is
- * everyone's: a change here changes it for every person in the workspace.
+ * The workspace's part of You, for its owners and admins only (ADR 0034, ADR 0047, ADR 0085, ADR
+ * 0265): a group under the workspace's own name, apart from the person's things above it, because
+ * it is everyone's: a change here changes it for every person in the workspace. As on the phone,
+ * each row says what it is set to and opens what sets it: People, Invite someone (an owner's) and
+ * Relay (an owner's, where the server has one) open their pages beside the list, as does the
+ * workspace's log (ADR 0261); Connect a harness opens the Agents page with its dialog up; the
+ * attachment limits, when Chips steps in on agents talking to each other (ADR 0187) and what each
+ * harness is allowed always (ADR 0195) open as forms, on pages beside it too (ADR 0265's addendum).
+ *
+ * A person opens from People as their own page, as on the phone: what they can do, their role in
+ * the workspace and the link they came by, the spaces the reader shares with them, their devices,
+ * and New phone… and Remove… where the reader may (ADR 0209, ADR 0206, ADR 0160).
  */
 
 import {
   administers,
+  alwaysSummary,
   cameBy,
   cameByWords,
   canDo,
   capsDraft,
   capsFromDraft,
   capsSentence,
+  capsWords,
   type Directory,
   deviceKind,
   harnessesOf,
@@ -30,6 +38,7 @@ import {
   lastSeenOf,
   leftWords,
   lifeLeft,
+  limitsWords,
   linkEnding,
   liveInvites,
   mayInvite,
@@ -49,6 +58,7 @@ import {
   removePersonAsking,
   roleChangeAsking,
   roleChangeSees,
+  roleCountWords,
   rolesOffered,
   type SetRulesInput,
   SPACE_INVITE_ROLES,
@@ -62,7 +72,6 @@ import {
   usedInvites,
   type WorkspaceModel,
   type WorkspaceRole,
-  workspaceHarnesses,
 } from "@chipschat/core";
 import {
   CAP_KINDS,
@@ -74,15 +83,17 @@ import {
   type SpaceIcon,
 } from "@chipschat/protocol";
 import { Button } from "@chipschat/ui";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog.tsx";
 import { NotInDemo, useNotInDemo } from "../demo/NotInDemo.tsx";
 import { spaceAvatar } from "../Sidebar.tsx";
 import { dayWords, shortDayWords, untilWords } from "../time.ts";
-import { AllowedAlwaysCard } from "./AllowedAlways.tsx";
-import { Card, Choice, NameField, Problem, Row } from "./controls.tsx";
+import { AllowedAlwaysForm } from "./AllowedAlways.tsx";
+import { Choice, Problem } from "./controls.tsx";
 import { IssuedCodeView, KindMark, seenWords, usePairing } from "./Devices.tsx";
-import { ExchangeLimitsCard } from "./ExchangeLimits.tsx";
+import { ExchangeLimitsForm } from "./ExchangeLimits.tsx";
+import { FormPage } from "./Form.tsx";
+import { Group, HUES, ListRow, RowMark } from "./list.tsx";
 import {
   CanList,
   Face,
@@ -93,150 +104,227 @@ import {
   LifeRing,
   RoleTag,
 } from "./PeopleParts.tsx";
-import { RelayCard } from "./Relay.tsx";
-import type { LimitsService, PeopleService, RelayService } from "./services.ts";
+import type { YouPage } from "./pane.tsx";
+import type { LimitsService, PeopleService } from "./services.ts";
 import { useList } from "./useList.ts";
 
+/** The workspace's links, read for an owner: People says who came by which, Invite lists them. */
+export type Links = ReturnType<typeof useLinks>;
+
+/** Which form of the group's is up, and the row it grew out of. */
+type Open = { readonly form: "caps" | "talk" | "always"; readonly from: HTMLElement } | undefined;
+
 /**
- * The workspace's heading and its cards, or nothing for a member or a guest: People for owners and
- * admins, Invite someone for owners alone, Connect a harness, and the attachment limits. For an
- * owner the heading is the workspace's name to change, edited where it stands as Your name is
- * (ADR 0194).
+ * The workspace's heading and its rows, or nothing for a member or a guest. The heading is the
+ * workspace's name alone; an owner changes it from the Workspace row at the top (ADR 0194, as the
+ * phone has it since 20 October 2026).
  */
-export function Workspace(props: {
+export function WorkspaceGroup(props: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
-  /** Who is reading: their own invites say "you", and nobody removes themselves. */
   readonly selfId: string;
   readonly role: WorkspaceRole | undefined;
-  /** The workspace as a sentence names it, and as its heading does. */
-  readonly workspace: string;
   readonly heading: string;
-  /**
-   * Name the workspace again (ADR 0194): an owner's, for whom the heading is the field. Absent,
-   * the heading is only the name.
-   */
-  readonly onRename?: ((name: string) => Promise<void>) | undefined;
-  readonly busy: ReadonlySet<string>;
-  readonly people: PeopleService;
-  /** Whether the connection is open: the invites are read then, and again each time it opens. */
+  readonly links: Links;
   readonly connected: boolean;
   readonly limits: LimitsService | undefined;
-  /** Open the Agents page with Connect a harness up. Absent, no card. */
+  /** The page open beside the list, which its row wears the chosen ground for. */
+  readonly opened: YouPage | undefined;
+  readonly onOpen: (page: YouPage) => void;
+  /** The relay's row, an owner's where the server has a relay (ADR 0211): On or Off. */
+  readonly relay?: { readonly on: boolean } | undefined;
+  /** Open the Agents page with Connect a harness up. Absent, no row. */
   readonly onConnectHarness?: (() => void) | undefined;
-  /** Send a harness's rules changed (ADR 0195): Allowed always's card. Absent, no card. */
+  /** Whether the workspace's log has a row (ADR 0261). */
+  readonly log: boolean;
+  /** Send a harness's rules changed (ADR 0195): Allowed always's form. Absent, no row. */
   readonly onSetRules?: ((input: SetRulesInput) => void) | undefined;
-  readonly onChangeRole: (participantId: string, role: WorkspaceRole) => void;
-  /** Take a person out of the workspace (ADR 0160): resolves once the server has. */
-  readonly onRemovePerson: (participantId: string) => Promise<void>;
-  /** The faces this person chose for rooms, which a person's spaces wear (ADR 0209's addendum). */
-  readonly spaceIcons?: ReadonlyMap<string, SpaceIcon> | undefined;
-  /** Open a room from a person's spaces. Absent, the rooms are only listed. */
+  /** Opens an ask's space, from every ask so far on Allowed always (ADR 0255). */
   readonly onOpenSpace?: ((spaceId: string) => void) | undefined;
-  /** The relay switch, an owner's where the server has a relay (ADR 0211). Absent, no card. */
-  readonly relay?: RelayService | undefined;
 }) {
-  const links = useLinks(props.people, props.connected && mayInvite(props.role), props.directory);
+  const { model, directory, onConnectHarness } = props;
+  // In the demo, connecting a harness needs a server of your own (ADR 0213, point 7).
+  const setUp = useNotInDemo();
   if (!administers(props.role)) return null;
+  const people = peopleOf(model);
+  const invites = mayInvite(props.role);
+  const linksSaid =
+    props.links.items === undefined
+      ? undefined
+      : openLinksWords(liveInvites(props.links.items, Date.now()), Date.now());
+  const page = (which: YouPage) => ({
+    onOpen: () => props.onOpen(which),
+    selected: props.opened === which,
+  });
+  return (
+    <Group
+      heading={props.heading}
+      aside={<small>Owners and admins</small>}
+      label={props.heading}
+      testId="workspace"
+    >
+      <ListRow
+        label="People"
+        sub={roleCountWords(model)}
+        mark={<RowMark icon="user" tint={HUES.leaf} />}
+        trailing={
+          <FaceStack
+            directory={directory}
+            ids={people.map((each) => each.participantId)}
+            most={4}
+          />
+        }
+        {...page("people")}
+        testId="people-row"
+      />
+      {invites && (
+        <ListRow
+          label="Invite someone"
+          sub={linksSaid}
+          mark={<RowMark icon="mail" tint={HUES.teal} />}
+          {...page("invite")}
+          testId="invite-someone"
+        />
+      )}
+      {props.relay !== undefined && (
+        <ListRow
+          label="Relay"
+          value={props.relay.on ? "On" : "Off"}
+          mark={<RowMark icon="route" tint={HUES.violet} />}
+          {...page("relay")}
+          testId="relay-row-open"
+        />
+      )}
+      {onConnectHarness !== undefined && (
+        <ListRow
+          label="Connect a harness"
+          mark={<RowMark icon="terminal" tint={HUES.terminal} />}
+          trailing={setUp === undefined ? undefined : <NotInDemo onSetUp={setUp} />}
+          onOpen={setUp === undefined ? () => onConnectHarness() : undefined}
+          testId="connect-harness"
+        />
+      )}
+      <WorkspaceSettings
+        model={model}
+        directory={directory}
+        selfId={props.selfId}
+        limits={props.limits}
+        connected={props.connected}
+        onSetRules={props.onSetRules}
+        onOpenSpace={props.onOpenSpace}
+      />
+      {props.log && (
+        <ListRow
+          label="Workspace log"
+          mark={<RowMark icon="list" tint={HUES.blue} />}
+          {...page("log")}
+          testId="workspace-log"
+        />
+      )}
+    </Group>
+  );
+}
+
+/** The server's ceiling on an attachment, read each time the connection opens. */
+/**
+ * The workspace's settings that are a short form each, on a page beside the list:
+ * what may be attached, when Chips steps in on agents talking (ADR 0187), and Allowed always
+ * (ADR 0195).
+ */
+function WorkspaceSettings(props: {
+  readonly model: WorkspaceModel;
+  readonly directory: Directory;
+  readonly selfId: string;
+  readonly limits: LimitsService | undefined;
+  readonly connected: boolean;
+  readonly onSetRules: ((input: SetRulesInput) => void) | undefined;
+  readonly onOpenSpace: ((spaceId: string) => void) | undefined;
+}) {
+  const { model, directory, limits, onSetRules } = props;
+  const [open, setOpen] = useState<Open>(undefined);
+  const ceiling = useCeiling(limits, props.connected);
+  const gone = () => setOpen(undefined);
   return (
     <>
-      <div className="you-group-h">
-        {props.onRename === undefined ? (
-          <h2>{props.heading}</h2>
-        ) : (
-          <>
-            <h2 className="ui-visually-hidden">{props.heading}</h2>
-            <NameField
-              label="Workspace name"
-              name={props.heading}
-              rename={props.onRename}
-              className="you-workspace-name"
-              testId="workspace-name"
-            />
-          </>
-        )}
-        <span>Owners and admins</span>
-      </div>
-      <People {...props} invites={mayInvite(props.role) ? links.items : undefined} />
-      {mayInvite(props.role) && (
-        <InviteCard
-          service={props.people}
-          links={links}
-          model={props.model}
-          directory={props.directory}
-          selfId={props.selfId}
-          workspace={props.workspace}
+      {limits !== undefined && (
+        <>
+          <ListRow
+            label="Attachment limits"
+            value={capsWords(model.attachmentCaps, ceiling)}
+            mark={<RowMark icon="clip" tint={HUES.clay} />}
+            onOpen={(from) => setOpen({ form: "caps", from })}
+            testId="caps-row"
+          />
+          <ListRow
+            label="Messages between agents"
+            sub={limitsWords(model.exchangeLimits)}
+            mark={<RowMark icon="chat" tint={HUES.pink} />}
+            onOpen={(from) => setOpen({ form: "talk", from })}
+            testId="exchange-limits-row"
+          />
+        </>
+      )}
+      {onSetRules !== undefined && (
+        <ListRow
+          label="Allowed always"
+          value={alwaysSummary(model, directory)}
+          mark={<RowMark icon="unlock" tint={HUES.green} />}
+          onOpen={(from) => setOpen({ form: "always", from })}
+          testId="allowed-always-row"
         />
       )}
-      {props.relay !== undefined && props.role === "owner" && (
-        <RelayCard service={props.relay} directory={props.directory} selfId={props.selfId} />
-      )}
-      {props.onConnectHarness !== undefined && (
-        <ConnectHarness directory={props.directory} onConnect={props.onConnectHarness} />
-      )}
-      {props.limits !== undefined && (
-        <AttachmentCaps
-          caps={props.model.attachmentCaps}
-          service={props.limits}
-          connected={props.connected}
+      {open?.form === "caps" && limits !== undefined && (
+        <CapsForm
+          from={open.from}
+          caps={model.attachmentCaps}
+          ceiling={ceiling}
+          onSave={limits.set}
+          onGone={gone}
         />
       )}
-      {props.limits !== undefined && (
-        <ExchangeLimitsCard limits={props.model.exchangeLimits} onSave={props.limits.setExchange} />
+      {open?.form === "talk" && limits !== undefined && (
+        <ExchangeLimitsForm
+          from={open.from}
+          limits={model.exchangeLimits}
+          onSave={limits.setExchange}
+          onGone={gone}
+        />
       )}
-      {props.onSetRules !== undefined && (
-        <AllowedAlwaysCard
-          model={props.model}
-          directory={props.directory}
+      {open?.form === "always" && onSetRules !== undefined && (
+        <AllowedAlwaysForm
+          from={open.from}
+          model={model}
+          directory={directory}
           selfId={props.selfId}
-          onSetRules={props.onSetRules}
+          onSetRules={onSetRules}
+          onOpenSpace={props.onOpenSpace}
+          onGone={gone}
         />
       )}
     </>
   );
 }
 
-/**
- * Connect a harness, as the Agents page's button does (ADR 0185's addendum): it opens that page with
- * the dialog up, where the harness lands once it says hello. Arjun, 17 October 2026: "I do not expect
- * connect a harness to be use a whole lot, so let's keep it as the last tile. Also show it as an
- * option in the You section."
- */
-function ConnectHarness(props: { readonly directory: Directory; readonly onConnect: () => void }) {
-  const connected = workspaceHarnesses(props.directory).length;
-  // In the demo, connecting one needs a server of your own (ADR 0213, point 7).
-  const setUp = useNotInDemo();
-  return (
-    <Card
-      label="Harnesses"
-      testId="connect-harness"
-      title="Harnesses"
-      level={3}
-      aside={
-        setUp === undefined ? (
-          <Button onClick={props.onConnect}>Connect a harness</Button>
-        ) : (
-          <NotInDemo onSetUp={setUp} />
-        )
-      }
-    >
-      <p className="you-card-note">
-        {connected === 0
-          ? "None connected yet. Each one runs agents on a computer."
-          : `${connected} connected, each with its page on Agents.`}
-      </p>
-    </Card>
-  );
+function useCeiling(limits: LimitsService | undefined, connected: boolean): number | undefined {
+  const [ceiling, setCeiling] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (limits === undefined || !connected) return;
+    let live = true;
+    limits.ceiling().then(
+      (found) => {
+        if (live) setCeiling(found);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [limits, connected]);
+  return ceiling;
 }
 
-/**
- * Everyone in the workspace, the longest here first (ADR 0209): each row their face, the spaces
- * the reader shares with them and when they joined, and their role as a tag in its own colour, or
- * the picker for one the reader may change; filters over the list narrow it by role. A row opens
- * under itself to say what the person can and can't do, the link they came by, their devices and
- * when each was last seen, with New phone… and Remove… where the reader may.
- */
-function People(props: {
+/** What People and a person's page are drawn from. */
+export interface PeopleProps {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
@@ -246,49 +334,32 @@ function People(props: {
   readonly people: PeopleService;
   readonly connected: boolean;
   /** The workspace's links, an owner's to read: which one brought each person. */
-  readonly invites: readonly Invite[] | undefined;
+  readonly links: Links;
   readonly onChangeRole: (participantId: string, role: WorkspaceRole) => void;
   readonly onRemovePerson: (participantId: string) => Promise<void>;
   readonly spaceIcons?: ReadonlyMap<string, SpaceIcon> | undefined;
   readonly onOpenSpace?: ((spaceId: string) => void) | undefined;
-}) {
+}
+
+/**
+ * Everyone in the workspace, the longest here first (ADR 0209): each row their face, the spaces
+ * the reader shares with them and when they joined, and their role as a tag in its own colour;
+ * filters over the list narrow it by role. A row opens the person's page.
+ */
+export function PeoplePage(props: PeopleProps & { readonly onPerson: (id: string) => void }) {
   const { model, directory, selfId } = props;
   const people = peopleOf(model);
-  const owners = people.filter((each) => each.role === "owner").length;
   const chips = peopleFilters(people);
   const [filter, setFilter] = useState<PeopleFilter>("all");
   // A filter whose last person left falls back to everybody.
   const chosen = chips.some((each) => each.key === filter) ? filter : "all";
   const shown = people.filter((each) => inFilter(each, chosen));
-  // Whose row is open under itself.
-  const [open, setOpen] = useState<string | undefined>(undefined);
-  // Who is being asked about, while the dialog that asks first is up.
-  const [removing, setRemoving] = useState<PersonModel | undefined>(undefined);
-  // Whose new phone a code is up for (ADR 0206).
-  const [phoneFor, setPhoneFor] = useState<string | undefined>(undefined);
-  const [changing, setChanging] = useState<
-    { readonly person: PersonModel; readonly to: WorkspaceRole } | undefined
-  >(undefined);
-  const names = (ids: readonly string[]) => ids.map((id) => nameOf(directory, id));
   return (
-    <Card
-      label="People"
-      testId="people"
-      title="People"
-      level={3}
-      aside={
-        <span className="people-aside">
-          <FaceStack directory={directory} ids={people.map((each) => each.participantId)} />
-          <small>
-            {people.length} in {props.workspace}
-          </small>
-        </span>
-      }
-    >
+    <div className="you-page" data-testid="people">
       {chips.length > 2 && (
         <FilterChips label="Show" chips={chips} chosen={chosen} onChoose={setFilter} />
       )}
-      <ul className="you-list people-list">
+      <div className="you-gcard people-list">
         {shown.map((person) => (
           <PersonRow
             key={person.participantId}
@@ -296,49 +367,151 @@ function People(props: {
             model={model}
             directory={directory}
             selfId={selfId}
-            workspace={props.workspace}
-            reader={props.role}
-            invites={props.invites}
-            service={props.people}
-            connected={props.connected}
-            spaceIcons={props.spaceIcons}
-            onOpenSpace={props.onOpenSpace}
-            open={open === person.participantId}
-            onOpen={() => setOpen(open === person.participantId ? undefined : person.participantId)}
-            choices={rolesOffered(props.role, person, owners)}
-            busy={props.busy.has(person.participantId)}
-            onChange={(to) => setChanging({ person, to })}
-            onRemove={
-              mayRemovePerson(model, person.participantId, selfId)
-                ? () => setRemoving(person)
-                : undefined
-            }
-            onNewPhone={
-              mayPairFor(model, person.participantId, selfId)
-                ? () => setPhoneFor(person.participantId)
-                : undefined
-            }
+            onOpen={() => props.onPerson(person.participantId)}
           />
         ))}
-      </ul>
-      {phoneFor !== undefined && (
-        <NewPhone
-          key={phoneFor}
-          personId={phoneFor}
-          name={nameOf(directory, phoneFor)}
+      </div>
+      <p className="you-gfoot">
+        {people.length === 1 ? "1 person" : `${people.length} people`} in {props.workspace}.
+      </p>
+    </div>
+  );
+}
+
+function PersonRow(props: {
+  readonly person: PersonModel;
+  readonly model: WorkspaceModel;
+  readonly directory: Directory;
+  readonly selfId: string;
+  readonly onOpen: () => void;
+}) {
+  const { person, model, directory, selfId } = props;
+  const id = person.participantId;
+  const name = nameOf(directory, id);
+  const where = spacesLine(spacesShared(model, directory, id, selfId));
+  return (
+    <button
+      type="button"
+      className="you-lrow person-row"
+      onClick={props.onOpen}
+      data-testid="person-row"
+      data-participant={id}
+      data-role={person.role}
+    >
+      <Face directory={directory} id={id} size="sm" />
+      <span className="you-lrow-lab">
+        <span>{id === selfId ? selfLabel(name) : name}</span>
+        <small>
+          {where === undefined
+            ? seenWords("Joined", person.joinedAt)
+            : `${where} · ${seenWords("joined", person.joinedAt)}`}
+        </small>
+      </span>
+      <RoleTag role={person.role} />
+      <span className="you-chev" aria-hidden="true" />
+    </button>
+  );
+}
+
+/**
+ * A person's page (ADR 0209), as the phone pushes it from People: who they are and since when,
+ * what they can and can't do, their role here — the picker where the reader may change it — and
+ * the link they came by, the spaces the reader shares with them, their devices with Reconnect… and
+ * Sign out where the reader may, and New phone… and Remove….
+ */
+export function PersonPage(
+  props: PeopleProps & { readonly personId: string; readonly onGone: () => void },
+) {
+  const { model, directory, selfId, personId } = props;
+  const person = model.people[personId];
+  // Whose new phone a code is up for (ADR 0206).
+  const [phoneFor, setPhoneFor] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [changing, setChanging] = useState<WorkspaceRole | undefined>(undefined);
+  const { onGone } = props;
+  // Removed while their page was open, on this device or another: back to People.
+  useEffect(() => {
+    if (person === undefined) onGone();
+  }, [person, onGone]);
+  if (person === undefined) return null;
+  const self = personId === selfId;
+  const name = nameOf(directory, personId);
+  const busy = props.busy.has(personId);
+  const said = self ? "What you can do" : `What ${name} can do`;
+  const names = (ids: readonly string[]) => ids.map((id) => nameOf(directory, id));
+  const mayRemove = mayRemovePerson(model, personId, selfId);
+  const mayPair = mayPairFor(model, personId, selfId);
+  return (
+    <div
+      className="you-page person-page"
+      data-testid="person-details"
+      data-participant={personId}
+      data-role={person.role}
+    >
+      <PersonHead person={person} directory={directory} selfId={selfId} />
+      <h3 className="you-page-h">{said}</h3>
+      <div className="you-gcard person-can">
+        <CanList
+          lines={canDo(model, directory, personId, { selfId, workspace: props.workspace })}
+          directory={directory}
+          label={said}
+        />
+      </div>
+      <PersonStanding {...props} person={person} name={name} onChange={setChanging} />
+      <SharedSpaces
+        heading={self ? "Your spaces" : "Spaces you share"}
+        spaces={sharedSpaces(model, personId, selfId)}
+        directory={directory}
+        selfId={selfId}
+        icons={props.spaceIcons}
+        onOpen={props.onOpenSpace}
+      />
+      {!self && (
+        <TheirDevices
+          personId={personId}
+          name={name}
           service={props.people}
-          onDone={() => setPhoneFor(undefined)}
+          connected={props.connected && administers(props.role)}
+          reconnects={mayPair}
+          signsOut={maySignOutDevicesOf(model, personId, selfId)}
+        />
+      )}
+      {(mayPair || mayRemove) && (
+        <div className="person-actions">
+          {mayPair && (
+            <NewPhoneButton name={name} busy={busy} onNewPhone={() => setPhoneFor(true)} />
+          )}
+          {mayRemove && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="person-remove"
+              disabled={busy}
+              onClick={() => setRemoving(true)}
+              aria-label={`Remove ${name}…`}
+              data-testid="remove-person"
+            >
+              Remove from {props.workspace}…
+            </Button>
+          )}
+        </div>
+      )}
+      {phoneFor && (
+        <NewPhone
+          personId={personId}
+          name={name}
+          service={props.people}
+          onDone={() => setPhoneFor(false)}
         />
       )}
       {changing !== undefined && (
         <ConfirmDialog
           asking={(() => {
-            const id = changing.person.participantId;
-            const sees = roleChangeSees(model, directory, id, changing.to, selfId);
+            const sees = roleChangeSees(model, directory, personId, changing, selfId);
             return roleChangeAsking({
-              name: nameOf(directory, id),
-              to: changing.to,
-              yourself: id === selfId,
+              name,
+              to: changing,
+              yourself: self,
               sees: {
                 ...sees,
                 stops: names(sees.stops),
@@ -350,175 +523,101 @@ function People(props: {
           danger={false}
           onCancel={() => setChanging(undefined)}
           onConfirm={async () => {
-            props.onChangeRole(changing.person.participantId, changing.to);
+            props.onChangeRole(personId, changing);
             setChanging(undefined);
           }}
         />
       )}
-      {removing !== undefined && (
+      {removing && (
         <ConfirmDialog
           asking={removePersonAsking({
-            name: nameOf(directory, removing.participantId),
+            name,
             workspace: props.workspace,
-            harnesses: harnessesOf(directory, removing.participantId),
+            harnesses: harnessesOf(directory, personId),
           })}
           danger
           cancel="Keep"
           tooOld="Not removed: this server is older than the app, and cannot remove a person yet."
-          onCancel={() => setRemoving(undefined)}
+          onCancel={() => setRemoving(false)}
           onConfirm={async () => {
-            await props.onRemovePerson(removing.participantId);
-            setRemoving(undefined);
+            await props.onRemovePerson(personId);
+            setRemoving(false);
           }}
         />
       )}
-    </Card>
+    </div>
   );
 }
 
-function PersonRow(props: {
+/** Their face and name, since when and by whom, and their role's tag. */
+function PersonHead(props: {
   readonly person: PersonModel;
-  readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
-  readonly workspace: string;
-  readonly reader: WorkspaceRole | undefined;
-  readonly invites: readonly Invite[] | undefined;
-  readonly service: PeopleService;
-  readonly connected: boolean;
-  readonly spaceIcons?: ReadonlyMap<string, SpaceIcon> | undefined;
-  readonly onOpenSpace?: ((spaceId: string) => void) | undefined;
-  readonly open: boolean;
-  readonly onOpen: () => void;
-  readonly choices: readonly WorkspaceRole[];
-  readonly busy: boolean;
-  readonly onChange: (role: WorkspaceRole) => void;
-  /** Asks first, then takes them out of the workspace; absent where this reader may not. */
-  readonly onRemove?: (() => void) | undefined;
-  /** A code for their new phone (ADR 0206): an owner's, for somebody else. */
-  readonly onNewPhone?: (() => void) | undefined;
 }) {
-  const { person, model, directory, selfId } = props;
+  const { person, directory, selfId } = props;
   const id = person.participantId;
-  const self = id === selfId;
   const name = nameOf(directory, id);
-  const shared = spacesShared(model, directory, id, selfId);
-  const where = spacesLine(shared);
-  const details = useId();
   return (
-    <li
-      className={props.open ? "you-row person-row is-open" : "you-row person-row"}
-      data-testid="person-row"
-      data-participant={id}
-      data-role={person.role}
-    >
-      <button
-        type="button"
-        className="person-open"
-        aria-expanded={props.open}
-        aria-controls={details}
-        onClick={props.onOpen}
-        data-testid="person-open"
-      >
-        <Face directory={directory} id={id} size="sm" />
-        <span className="you-row-lab">
-          <span>{self ? selfLabel(name) : name}</span>
-          <small>
-            {where === undefined
-              ? seenWords("Joined", person.joinedAt)
-              : `${where} · ${seenWords("joined", person.joinedAt)}`}
-          </small>
-        </span>
-        <span className="person-chev" aria-hidden="true" />
-      </button>
-      {props.choices.length > 1 ? (
-        <span className={`role-pick you-role-${person.role}`}>
-          <Choice
-            label={`${name}'s role`}
-            value={person.role}
-            options={props.choices.map((role) => [role, ROLE_WORDS[role]] as const)}
-            disabled={props.busy}
-            onChange={props.onChange}
-          />
-        </span>
-      ) : (
-        <RoleTag role={person.role} />
-      )}
-      {props.open && <PersonDetails {...props} id={details} />}
-    </li>
-  );
-}
-
-/** What opens under a person's row: what they can do, how they came, their devices, and the acts. */
-function PersonDetails(props: Parameters<typeof PersonRow>[0] & { readonly id: string }) {
-  const { person, model, directory, selfId } = props;
-  const id = person.participantId;
-  const self = id === selfId;
-  const name = nameOf(directory, id);
-  const came = cameLine(person, props.invites, model, directory, selfId);
-  const said = self ? "What you can do" : `What ${name} can do`;
-  return (
-    <div className="person-details" id={props.id} data-testid="person-details">
-      <h4>{said}</h4>
-      <CanList
-        lines={canDo(model, directory, id, { selfId, workspace: props.workspace })}
-        directory={directory}
-        label={said}
-      />
-      <dl className="person-facts">
-        <dt>Joined</dt>
-        <dd>
-          {dayWords(person.joinedAt)}
+    <div className="person-head">
+      <Face directory={directory} id={id} size="lg" />
+      <span className="you-lrow-lab">
+        <b>{id === selfId ? selfLabel(name) : name}</b>
+        <small>
+          Joined {dayWords(person.joinedAt)}
           {person.invitedBy === undefined
             ? ""
             : ` · invited by ${invitedByWords(person.invitedBy, selfId, directory)}`}
-        </dd>
-        {came !== undefined && (
-          <>
-            <dt>Came by</dt>
-            <dd data-testid="person-came-by">{came}</dd>
-          </>
-        )}
-      </dl>
-      <SharedSpaces
-        heading={self ? "Your spaces" : "Spaces you share"}
-        spaces={sharedSpaces(model, id, selfId)}
-        directory={directory}
-        selfId={selfId}
-        icons={props.spaceIcons}
-        onOpen={props.onOpenSpace}
-      />
-      {!self && (
-        <TheirDevices
-          personId={id}
-          name={name}
-          service={props.service}
-          connected={props.connected && administers(props.reader)}
-          reconnects={mayPairFor(model, id, selfId)}
-          signsOut={maySignOutDevicesOf(model, id, selfId)}
-        />
-      )}
-      {(props.onNewPhone !== undefined || props.onRemove !== undefined) && (
-        <div className="person-actions">
-          {props.onNewPhone !== undefined && (
-            <NewPhoneButton name={name} busy={props.busy} onNewPhone={props.onNewPhone} />
-          )}
-          {props.onRemove !== undefined && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="person-remove"
-              disabled={props.busy}
-              onClick={props.onRemove}
-              aria-label={`Remove ${name}…`}
-              data-testid="remove-person"
-            >
-              Remove…
-            </Button>
-          )}
-        </div>
-      )}
+        </small>
+      </span>
+      <RoleTag role={person.role} />
     </div>
+  );
+}
+
+/**
+ * Their role here, the picker where the reader may change it and the word where not (the one
+ * owner's can't be), and the link they came by.
+ */
+function PersonStanding(
+  props: PeopleProps & {
+    readonly person: PersonModel;
+    readonly name: string;
+    readonly onChange: (role: WorkspaceRole) => void;
+  },
+) {
+  const { person, model, directory, selfId, name } = props;
+  const owners = peopleOf(model).filter((each) => each.role === "owner").length;
+  const choices = rolesOffered(props.role, person, owners);
+  const came = cameLine(person, props.links.items, model, directory, selfId);
+  return (
+    <>
+      <h3 className="you-page-h">In {props.workspace}</h3>
+      <div className="you-gcard">
+        <ListRow
+          label="Role"
+          trailing={
+            choices.length > 1 ? (
+              <span className={`role-pick you-role-${person.role}`}>
+                <Choice
+                  label={`${name}'s role`}
+                  value={person.role}
+                  options={choices.map((role) => [role, ROLE_WORDS[role]] as const)}
+                  disabled={props.busy.has(person.participantId)}
+                  onChange={props.onChange}
+                />
+              </span>
+            ) : (
+              <span className="you-lrow-val">{ROLE_WORDS[person.role]}</span>
+            )
+          }
+          testId="person-role"
+        />
+        {came !== undefined && (
+          <ListRow label="Came by" sub={<span data-testid="person-came-by">{came}</span>} />
+        )}
+      </div>
+    </>
   );
 }
 
@@ -811,7 +910,7 @@ const NO_SPACE = "";
  * The workspace's links, an owner's alone to read (ADR 0034's addendum of 14 October 2026), read
  * again when the people change: somebody joining spends a link or counts a use.
  */
-function useLinks(service: PeopleService, connected: boolean, directory: Directory) {
+export function useLinks(service: PeopleService, connected: boolean, directory: Directory) {
   const links = useList(service.invites, connected);
   const { reload } = links;
   const people = Object.values(directory).filter((each) => each.kind === "person").length;
@@ -849,16 +948,16 @@ function NewPhoneButton(props: {
 }
 
 /**
- * Invite someone; in the demo, where a link would bring nobody to a server of yours, the card says
+ * Invite someone's page; in the demo, where a link would bring nobody to a server of yours, it says
  * it is not in the demo, with the way to set up your own (ADR 0213, point 7).
  */
-function InviteCard(props: Parameters<typeof Invites>[0]) {
+export function InvitePage(props: Parameters<typeof Invites>[0]) {
   const setUp = useNotInDemo();
   if (setUp === undefined) return <Invites {...props} />;
   return (
-    <Card label="Invites" testId="invites" title="Invite someone" level={3}>
+    <div className="you-page" data-testid="invites">
       <NotInDemo onSetUp={setUp} />
-    </Card>
+    </div>
   );
 }
 
@@ -870,7 +969,7 @@ function InviteCard(props: Parameters<typeof Invites>[0]) {
  */
 function Invites(props: {
   readonly service: PeopleService;
-  readonly links: ReturnType<typeof useLinks>;
+  readonly links: Links;
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
@@ -907,98 +1006,96 @@ function Invites(props: {
   const room = titleOf(spaceId);
 
   return (
-    <Card
-      label="Invites"
-      testId="invites"
-      title="Invite someone"
-      level={3}
-      aside={<small data-testid="open-links">{openLinksWords(live, now)}</small>}
-    >
-      {unnamed && (
-        <p className="you-card-note" data-testid="name-first">
-          Give yourself a name first, at the top of this page: whoever opens your link sees who sent
-          it.
-        </p>
-      )}
-      <form
-        className="invite-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void act(async () => {
-            setIssued(await service.createInvite(role, uses === "once", spaceId));
-          });
-        }}
-      >
-        <div className="invite-choices">
-          <span className="invite-choice">
-            <span>As</span>
-            <Choice
-              label="Invite role"
-              value={role}
-              options={OFFERED.map((each) => [each, ROLE_WORDS[each]] as const)}
-              onChange={setRole}
-            />
-          </span>
-          {rooms.length > 0 && (
-            <span className="invite-choice">
-              <span>Into</span>
-              <Choice
-                label="Invite into"
-                value={spaceId ?? NO_SPACE}
-                options={[
-                  [NO_SPACE, "No space"] as const,
-                  ...rooms.map((each) => [each.id, spaceTitle(each, directory, selfId)] as const),
-                ]}
-                disabled={!placed}
-                onChange={setInto}
-              />
-            </span>
-          )}
-          <span className="invite-choice">
-            <span>Used</span>
-            <Choice label="Invite uses" value={uses} options={USES} onChange={setUses} />
-          </span>
-        </div>
-        {rooms.length > 0 && (
-          <p className="you-card-note" data-testid="invite-into-means">
-            {inviteIntoWords(role, room)}
+    <div className="you-page" data-testid="invites">
+      <div className="you-card invite-card">
+        {unnamed && (
+          <p className="you-card-note" data-testid="name-first">
+            Give yourself a name first, at the top of this page: whoever opens your link sees who
+            sent it.
           </p>
         )}
-        <InviteSeesView
-          model={model}
-          directory={directory}
-          workspace={props.workspace}
-          role={role}
-          spaceId={spaceId}
-          room={room}
-        />
-        <div className="invite-go">
-          <span className="you-card-note" data-testid="invite-uses-means">
-            {inviteUsesMeans(uses)}
-          </span>
-          <Button type="submit" className="you-gold" disabled={busy} data-testid="make-invite">
-            Make a link
-          </Button>
-        </div>
-      </form>
-      <Problem error={error} />
-      {issued !== undefined && (
-        <IssuedInviteView
-          key={issued.inviteId}
-          issued={issued}
-          busy={busy}
-          model={model}
-          directory={directory}
-          selfId={selfId}
-          workspace={props.workspace}
-          room={titleOf(issued.spaceId)}
-          onWithdraw={() => void withdraw(issued.inviteId)}
-          owner={myRole(model, selfId) === "owner"}
-        />
-      )}
+        <form
+          className="invite-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void act(async () => {
+              setIssued(await service.createInvite(role, uses === "once", spaceId));
+            });
+          }}
+        >
+          <div className="invite-choices">
+            <span className="invite-choice">
+              <span>As</span>
+              <Choice
+                label="Invite role"
+                value={role}
+                options={OFFERED.map((each) => [each, ROLE_WORDS[each]] as const)}
+                onChange={setRole}
+              />
+            </span>
+            {rooms.length > 0 && (
+              <span className="invite-choice">
+                <span>Into</span>
+                <Choice
+                  label="Invite into"
+                  value={spaceId ?? NO_SPACE}
+                  options={[
+                    [NO_SPACE, "No space"] as const,
+                    ...rooms.map((each) => [each.id, spaceTitle(each, directory, selfId)] as const),
+                  ]}
+                  disabled={!placed}
+                  onChange={setInto}
+                />
+              </span>
+            )}
+            <span className="invite-choice">
+              <span>Used</span>
+              <Choice label="Invite uses" value={uses} options={USES} onChange={setUses} />
+            </span>
+          </div>
+          {rooms.length > 0 && (
+            <p className="you-card-note" data-testid="invite-into-means">
+              {inviteIntoWords(role, room)}
+            </p>
+          )}
+          <InviteSeesView
+            model={model}
+            directory={directory}
+            workspace={props.workspace}
+            role={role}
+            spaceId={spaceId}
+            room={room}
+          />
+          <div className="invite-go">
+            <span className="you-card-note" data-testid="invite-uses-means">
+              {inviteUsesMeans(uses)}
+            </span>
+            <Button type="submit" className="you-gold" disabled={busy} data-testid="make-invite">
+              Make a link
+            </Button>
+          </div>
+        </form>
+        <Problem error={error} />
+        {issued !== undefined && (
+          <IssuedInviteView
+            key={issued.inviteId}
+            issued={issued}
+            busy={busy}
+            model={model}
+            directory={directory}
+            selfId={selfId}
+            workspace={props.workspace}
+            room={titleOf(issued.spaceId)}
+            onWithdraw={() => void withdraw(issued.inviteId)}
+            owner={myRole(model, selfId) === "owner"}
+          />
+        )}
+      </div>
       {live.length > 0 && (
-        <>
-          <h4 className="invite-h">Open links</h4>
+        <div className="you-card">
+          <h4 className="invite-h" data-testid="open-links">
+            Open links · {openLinksWords(live, now)}
+          </h4>
           <ul className="you-list">
             {live.map((invite) => {
               const ending = linkEnding(invite, now);
@@ -1033,10 +1130,10 @@ function Invites(props: {
               );
             })}
           </ul>
-        </>
+        </div>
       )}
       {used.length > 0 && (
-        <>
+        <div className="you-card">
           <h4 className="invite-h">Used</h4>
           <ul className="you-list" data-testid="used-links">
             {used.map((invite) => {
@@ -1062,97 +1159,91 @@ function Invites(props: {
               );
             })}
           </ul>
-        </>
+        </div>
       )}
-    </Card>
+    </div>
   );
 }
 
 /**
- * How big a photo, a video or a file may be here (ADR 0047): the caps in a sentence, and three
- * fields in megabytes. The server's ceiling is fetched each time the connection opens and named in
- * the sentence; a cap typed above it is refused here, with the words the server would use.
+ * How big a photo, a video or a file may be here (ADR 0047), as the phone's sheet sets it: three
+ * fields in megabytes, blank for the server's own, and the caps in a sentence under them. A cap
+ * typed above the server's ceiling is refused here, with the words the server would use, and the
+ * form stays up with them.
  */
-function AttachmentCaps(props: {
+function CapsForm(props: {
+  readonly from: HTMLElement;
   readonly caps: Caps;
-  readonly service: LimitsService;
-  readonly connected: boolean;
+  readonly ceiling: number | undefined;
+  readonly onSave: (caps: Caps) => void;
+  readonly onGone: () => void;
 }) {
-  const { caps, service, connected } = props;
-  const [ceiling, setCeiling] = useState<number | undefined>(undefined);
+  const { caps, ceiling } = props;
   const [draft, setDraft] = useState<Record<CapKind, string>>(() => capsDraft(caps));
   const [error, setError] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    if (!connected) return;
-    let live = true;
-    service.ceiling().then(
-      (found) => {
-        if (live) setCeiling(found);
-      },
-      () => undefined,
-    );
-    return () => {
-      live = false;
-    };
-  }, [service, connected]);
   // The server's word replaces the draft: what was saved, on any device, is what the fields show.
   useEffect(() => setDraft(capsDraft(caps)), [caps]);
-  const saved = capsDraft(caps);
-  const changed = CAP_KINDS.some((kind) => draft[kind] !== saved[kind]);
-
-  const save = () => {
+  const save = (): boolean => {
     const read = capsFromDraft(draft);
     if ("error" in read) {
       setError(read.error);
-      return;
+      return false;
     }
     const over = ceiling === undefined ? undefined : capsOverCeiling(read.caps, ceiling);
     if (over !== undefined) {
       setError(over);
-      return;
+      return false;
     }
-    setError(undefined);
-    service.set(read.caps);
+    props.onSave(read.caps);
+    return true;
   };
-
   return (
-    <Card label="Attachments" testId="attachment-caps" title="Attachment limits" level={3}>
-      {/* Our own words for a bad cap, not the browser's bubble: the server would say the same. */}
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          save();
-        }}
-      >
-        <Row
-          className="you-caps"
-          label="Photos, videos and files"
-          sub={<span data-testid="caps-words">{capsSentence(caps, ceiling)}</span>}
-        >
-          {CAP_KINDS.map((kind) => (
-            <label key={kind} className="you-mb">
-              <input
-                type="number"
-                min={1}
-                step="any"
-                aria-label={capitalised(CAP_WORDS[kind].many)}
-                placeholder={ceiling === undefined ? "–" : String(Math.round(ceiling / 1_048_576))}
-                value={draft[kind]}
-                onChange={(event) => setDraft({ ...draft, [kind]: event.target.value })}
-              />
-              MB
-            </label>
-          ))}
-          {changed && (
-            <Button type="submit" data-testid="save-caps">
-              Save
-            </Button>
+    <FormPage
+      title="Attachment limits"
+      from={props.from}
+      testId="attachment-caps"
+      focus=".you-mb input"
+      onSave={save}
+      onGone={props.onGone}
+    >
+      {() => (
+        <>
+          <div className="you-form-group">
+            {CAP_KINDS.map((kind) => (
+              <label key={kind} className="you-form-row you-mb">
+                <span>{capitalised(CAP_WORDS[kind].many)}</span>
+                <span className="you-mb-field">
+                  <input
+                    type="number"
+                    min={1}
+                    step="any"
+                    aria-label={capitalised(CAP_WORDS[kind].many)}
+                    placeholder={
+                      ceiling === undefined ? "–" : String(Math.round(ceiling / 1_048_576))
+                    }
+                    value={draft[kind]}
+                    onChange={(event) => {
+                      setDraft({ ...draft, [kind]: event.target.value });
+                      setError(undefined);
+                    }}
+                  />
+                  MB
+                </span>
+              </label>
+            ))}
+          </div>
+          {error === undefined ? (
+            <p className="you-form-foot" data-testid="caps-words">
+              {capsSentence(caps, ceiling)} Blank is the server's own limit.
+            </p>
+          ) : (
+            <p className="you-form-foot is-failed" role="alert" data-testid="caps-error">
+              {error}
+            </p>
           )}
-        </Row>
-      </form>
-      <Problem error={error} />
-    </Card>
+        </>
+      )}
+    </FormPage>
   );
 }
 

@@ -29,6 +29,8 @@ export interface SweepDeps {
   readonly searchIndex?: SearchIndex | undefined;
   /** Push tokens (M4.3), so a withdrawn phone's row does not sit in the table for ever. */
   readonly push?: Pick<PushRegistry, "pruneRevoked"> | undefined;
+  /** Pushes' receipts, asked for once due, so a deleted app's token is forgotten. */
+  readonly receipts?: { readonly check: () => Promise<number> } | undefined;
   /** Uploads (ADR 0052), so the pieces of one that stopped do not sit on the disk for ever. */
   readonly uploads?: { readonly abandon: (now: string) => Promise<number> } | undefined;
   /** Join requests (ADR 0122), so one past its expiry says so on every screen that shows it. */
@@ -46,6 +48,8 @@ export interface SweepResult {
   readonly indexed: number;
   /** Push tokens forgotten, their device having been withdrawn. */
   readonly forgotten: number;
+  /** Push tokens forgotten, their receipts saying no phone has them. */
+  readonly undeliverable: number;
   /** Unfinished uploads whose pieces were deleted, their slot having expired. */
   readonly abandoned: number;
   /** Join requests marked expired, never having been redeemed. */
@@ -65,6 +69,7 @@ export function createSweep(deps: SweepDeps) {
       pruned: (await deps.notifications?.prune(before)) ?? 0,
       indexed: (await deps.searchIndex?.drain()) ?? 0,
       forgotten: (await deps.push?.pruneRevoked()) ?? 0,
+      undeliverable: (await deps.receipts?.check()) ?? 0,
       abandoned: (await deps.uploads?.abandon(now)) ?? 0,
       joinsExpired: (await deps.joins?.expire()) ?? 0,
     };

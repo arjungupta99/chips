@@ -5,10 +5,11 @@
  * that is this phone's (`Push.tsx`), which You puts together (ADR 0085, 20 October 2026).
  *
  * Each row says what it is set to and opens a sheet that changes it; what a row is about is its
- * hint, and the sheet's to say. Saving is immediate and
- * optimistic, and a save the server refuses puts the setting back and says so under the card,
- * rather than leaving a screen that disagrees with the server. The settings are read again
- * whenever the app comes back to the front, so a change made on the desktop shows here.
+ * hint, and the sheet's to say. Beside the list on an iPad each opens the same as a page, which the
+ * row beside it follows as it changes (`pages.tsx`). Saving is immediate and optimistic, and a
+ * save the server refuses puts the setting back and says so under the card, rather than leaving a
+ * screen that disagrees with the server. The settings are read again whenever the app comes back
+ * to the front, so a change made on the desktop shows here.
  *
  * Review and FYI, which stood here until ADR 0085, are not: the server pushes a phone decisions
  * and messages, so on a phone they changed nothing at all. The desktop keeps them, where they do.
@@ -32,6 +33,7 @@ import { Sheet, SheetScroll } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { AVATAR_HUES, SPACE, TEXT } from "../ui/tokens";
 import { pushNote } from "./Push";
+import { SheetPage, useSheetPage, type YouPages } from "./pages";
 import { QuietTimes } from "./QuietTimes";
 import { SheetHead } from "./SheetHead";
 import { agentsWords, DECIDE_WORDS, HEAR_WORDS, quietSub, quietWords } from "./words";
@@ -131,11 +133,16 @@ export function useNotificationsGroup({
   /** A save was refused: its line stands under the card even when push has trouble of its own. */
   readonly failed: boolean;
   readonly overlays: ReactNode;
+  /** Beside the list, each sheet as a page. */
+  readonly pages: YouPages;
 } {
   const palette = usePalette();
   const { settings, save, error } = useNotificationSettings(store);
   const [open, setOpen] = useState<Open>(undefined);
   const close = () => setOpen(undefined);
+  const decidePage = useSheetPage("decisions", () => setOpen("decide"));
+  const quietPage = useSheetPage("quiet", () => setOpen("quiet"));
+  const agentsPage = useSheetPage("agents", () => setOpen("agents"));
   const rows = [
     guest ? null : (
       <GroupRow
@@ -144,7 +151,8 @@ export function useNotificationsGroup({
         accessibilityHint={DECIDE_SUB}
         value={DECIDE_WORDS[settings.decide]}
         mark={<RowMark icon="check" tint={palette.gold} ink="#231a00" />}
-        onPress={() => setOpen("decide")}
+        onPress={decidePage.onPress}
+        selected={decidePage.selected}
         testID="decisions-row"
       />
     ),
@@ -154,7 +162,8 @@ export function useNotificationsGroup({
       accessibilityHint={quietSub(settings.quiet)}
       value={quietWords(settings.quiet)}
       mark={<RowMark icon="moon" tint={AVATAR_HUES[5]} ink="#ffffff" />}
-      onPress={() => setOpen("quiet")}
+      onPress={quietPage.onPress}
+      selected={quietPage.selected}
       testID="quiet-row"
     />,
     harnesses.length === 0 ? null : (
@@ -164,7 +173,8 @@ export function useNotificationsGroup({
         accessibilityHint={AGENTS_SUB}
         value={agentsWords(harnesses, settings.harnesses)}
         mark={<RowMark icon="chip" tint={AVATAR_HUES[4]} ink="#ffffff" />}
-        onPress={() => setOpen("agents")}
+        onPress={agentsPage.onPress}
+        selected={agentsPage.selected}
         testID="agents-row"
       />
     ),
@@ -177,6 +187,8 @@ export function useNotificationsGroup({
         {error}
       </GroupFoot>
     );
+  const hear = (id: string, word: HarnessNotifications) =>
+    save({ ...settings, harnesses: { ...settings.harnesses, [id]: word } });
   const overlays = (
     <>
       <DecideSheet
@@ -199,13 +211,27 @@ export function useNotificationsGroup({
         onClose={close}
         harnesses={harnesses}
         chosen={settings.harnesses}
-        onChoose={(id, word) =>
-          save({ ...settings, harnesses: { ...settings.harnesses, [id]: word } })
-        }
+        onChoose={hear}
       />
     </>
   );
-  return { rows, foot, failed: error !== undefined, overlays };
+  // A choice beside the list stays on its page: the tick moves, and the row beside it says it, as
+  // Settings' own pages of choices stay. The sheet goes because it hides the row.
+  const pages: YouPages = {
+    decisions: guest ? undefined : (
+      <SheetPage title="Decisions" testID="decide-page">
+        <DecideBody chosen={settings.decide} onChoose={(decide) => save({ ...settings, decide })} />
+      </SheetPage>
+    ),
+    quiet: <QuietPage quiet={settings.quiet} onSave={(quiet) => save({ ...settings, quiet })} />,
+    agents:
+      harnesses.length === 0 ? undefined : (
+        <SheetPage title="Agents" testID="agents-page">
+          <AgentsBody harnesses={harnesses} chosen={settings.harnesses} onChoose={hear} />
+        </SheetPage>
+      ),
+  };
+  return { rows, foot, failed: error !== undefined, overlays, pages };
 }
 
 const DECIDE_CHOICES: readonly {
@@ -228,10 +254,25 @@ function DecideSheet({
   readonly chosen: NotificationSettings["decide"];
   readonly onChoose: (decide: NotificationSettings["decide"]) => void;
 }) {
-  const palette = usePalette();
   return (
     <Sheet open={open} onClose={onClose} testID="decide-sheet">
       <SheetHead title="Decisions" />
+      <DecideBody chosen={chosen} onChoose={onChoose} />
+    </Sheet>
+  );
+}
+
+/** What Decisions' sheet and page hold: the two choices, and what a decision and its push are. */
+function DecideBody({
+  chosen,
+  onChoose,
+}: {
+  readonly chosen: NotificationSettings["decide"];
+  readonly onChoose: (decide: NotificationSettings["decide"]) => void;
+}) {
+  const palette = usePalette();
+  return (
+    <>
       <Group>
         {DECIDE_CHOICES.map((choice) => (
           <GroupRow
@@ -255,7 +296,7 @@ function DecideSheet({
         answer it. These are yours on every device: the desktop's banners follow them too.
       </GroupFoot>
       <GroupFoot testID="push-note">{pushNote(platform() ?? "ios")}</GroupFoot>
-    </Sheet>
+    </>
   );
 }
 
@@ -288,6 +329,68 @@ function QuietSheet({
   return (
     <Sheet open={open} onClose={finish} testID="quiet-sheet">
       <SheetHead title="Quiet hours" />
+      <QuietBody quiet={quiet} draft={draft} onDraft={setDraft} />
+    </Sheet>
+  );
+}
+
+/** How long the wheel rests before the page saves what it says: once a turn, not once a notch. */
+export const QUIET_REST_MS = 600;
+
+/**
+ * Quiet hours as a page beside the list. There is no going for it to wait on, as the sheet waits:
+ * the page stays while the list beside it is used, and the row beside it should say what it says.
+ * So what is changed is saved once the wheel has rested, and anything not yet saved when the page
+ * goes is saved then.
+ */
+function QuietPage({
+  quiet,
+  onSave,
+}: {
+  readonly quiet: QuietHours | undefined;
+  readonly onSave: (quiet: QuietHours | undefined) => void;
+}) {
+  const [draft, setDraft] = useState(quiet);
+  // The window the page opened on, which the switch turned off and on again goes back to, as the
+  // sheet's does: by then what is saved may be off.
+  const [first] = useState(quiet);
+  // What was saved last, from here or before the page opened: a draft that matches saves nothing.
+  const saved = useRef(quiet);
+  // What a save reads when it comes: the draft and the save as they are by then.
+  const now = useRef({ draft, onSave });
+  now.current = { draft, onSave };
+  const flush = useCallback(() => {
+    const { draft: shown, onSave: send } = now.current;
+    if (JSON.stringify(shown) === JSON.stringify(saved.current)) return;
+    saved.current = shown;
+    send(shown);
+  }, []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each change of the draft waits again
+  useEffect(() => {
+    const rest = setTimeout(flush, QUIET_REST_MS);
+    return () => clearTimeout(rest);
+  }, [draft, flush]);
+  useEffect(() => flush, [flush]);
+  return (
+    <SheetPage title="Quiet hours" testID="quiet-page">
+      <QuietBody quiet={first} draft={draft} onDraft={setDraft} />
+    </SheetPage>
+  );
+}
+
+/** What Quiet hours' sheet and page hold: the switch, and once it is on the window and the rest. */
+function QuietBody({
+  quiet,
+  draft,
+  onDraft: setDraft,
+}: {
+  /** What is saved, which the switch turned on again goes back to. */
+  readonly quiet: QuietHours | undefined;
+  readonly draft: QuietHours | undefined;
+  readonly onDraft: (draft: QuietHours | undefined) => void;
+}) {
+  return (
+    <>
       <Group>
         <GroupRow
           label="Use quiet hours"
@@ -333,7 +436,7 @@ function QuietSheet({
           </GroupFoot>
         </View>
       )}
-    </Sheet>
+    </>
   );
 }
 
@@ -361,34 +464,61 @@ function AgentsSheet({
   readonly chosen: NotificationSettings["harnesses"];
   readonly onChoose: (id: string, word: HarnessNotifications) => void;
 }) {
-  const palette = usePalette();
   return (
     <Sheet open={open} onClose={onClose} sizing="bounded" cap={0.8} testID="agents-sheet">
       <SheetHead title="Agents" />
+      <AgentsBody harnesses={harnesses} chosen={chosen} onChoose={onChoose} inSheet />
+    </Sheet>
+  );
+}
+
+/**
+ * What Agents' sheet and page hold. On the sheet the harnesses scroll between the line over them
+ * and the one under them; a page scrolls whole.
+ */
+function AgentsBody({
+  harnesses,
+  chosen,
+  onChoose,
+  inSheet = false,
+}: {
+  readonly harnesses: readonly Agent[];
+  readonly chosen: NotificationSettings["harnesses"];
+  readonly onChoose: (id: string, word: HarnessNotifications) => void;
+  readonly inSheet?: boolean;
+}) {
+  const palette = usePalette();
+  const each = harnesses.map((harness) => (
+    <View key={harness.id} style={styles.agent}>
+      <View style={styles.agentName}>
+        <Avatar name={harness.name} kind="harness" size="sm" decorative />
+        <Text style={[styles.agentWords, { color: palette.ink }]}>{harness.name}</Text>
+      </View>
+      <Segmented
+        label={`Hear from ${harness.name}`}
+        options={PER_AGENT}
+        chosen={chosen[harness.id] ?? "all"}
+        onChoose={(value) => onChoose(harness.id, value as HarnessNotifications)}
+      />
+      <Text style={[styles.hear, { color: palette.ink3 }]}>
+        {HEAR_WORDS[chosen[harness.id] ?? "all"]}
+      </Text>
+    </View>
+  ));
+  return (
+    <>
       <Text style={[styles.lead, { color: palette.ink3 }]}>
         One choice per harness. It covers every agent that harness runs.
       </Text>
-      <SheetScroll style={styles.shrink} contentContainerStyle={styles.agents}>
-        {harnesses.map((harness) => (
-          <View key={harness.id} style={styles.agent}>
-            <View style={styles.agentName}>
-              <Avatar name={harness.name} kind="harness" size="sm" decorative />
-              <Text style={[styles.agentWords, { color: palette.ink }]}>{harness.name}</Text>
-            </View>
-            <Segmented
-              label={`Hear from ${harness.name}`}
-              options={PER_AGENT}
-              chosen={chosen[harness.id] ?? "all"}
-              onChoose={(value) => onChoose(harness.id, value as HarnessNotifications)}
-            />
-            <Text style={[styles.hear, { color: palette.ink3 }]}>
-              {HEAR_WORDS[chosen[harness.id] ?? "all"]}
-            </Text>
-          </View>
-        ))}
-      </SheetScroll>
+      {inSheet ? (
+        <SheetScroll style={styles.shrink} contentContainerStyle={styles.agents}>
+          {each}
+        </SheetScroll>
+      ) : (
+        <View style={styles.agents}>{each}</View>
+      )}
       <GroupFoot>Whatever you choose, its spaces still show everything it says.</GroupFoot>
-    </Sheet>
+    </>
   );
 }
 

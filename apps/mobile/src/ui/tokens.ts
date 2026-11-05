@@ -29,6 +29,12 @@ export interface Palette {
    * so not `amber`, though dark keeps the amber it wore before.
    */
   readonly accent: string;
+  /**
+   * The accent as words on a tile, the chosen tab on `surface3`: a step darker, the same hue,
+   * 4.9:1 there where the accent is 3.9:1. Dark's accent is 5.5:1 there already (the web's
+   * `--accent-ink`).
+   */
+  readonly accentInk: string;
   readonly blue: string;
   readonly blueInk: string;
   readonly blueSoft: string;
@@ -77,6 +83,7 @@ export const light: Palette = {
   goldDeep: "#7d5b00",
   goldSoft: "#fff3c3",
   accent: "#a06306",
+  accentInk: "#905400",
   blue: "#1d6aff",
   blueInk: "#1048ce",
   blueSoft: "#e6edff",
@@ -115,6 +122,7 @@ export const dark: Palette = {
   goldDeep: "#f7ce54",
   goldSoft: "#3c3005",
   accent: "#f38b00",
+  accentInk: "#f38b00",
   blue: "#5f91ff",
   blueInk: "#a9c1ff",
   blueSoft: "#19274c",
@@ -154,6 +162,7 @@ export const CSS_NAMES: Readonly<Record<keyof Palette, string>> = {
   goldDeep: "--gold-deep",
   goldSoft: "--gold-soft",
   accent: "--accent",
+  accentInk: "--accent-ink",
   blue: "--blue",
   blueInk: "--blue-ink",
   blueSoft: "--blue-soft",
@@ -234,48 +243,16 @@ export const ICON_GROUNDS = [
   "#32353c",
 ] as const;
 
-/** What VoiceOver calls each ground, by the same index. */
-export const ICON_GROUND_NAMES: readonly string[] = [
-  "Pink",
-  "Cyan",
-  "Terracotta",
-  "Teal",
-  "Blue",
-  "Violet",
-  "Orchid",
-  "Green",
-  "Sea",
-  "Ochre",
-  "Moss",
-  "Plum",
-  "Red",
-  "Orange",
-  "Slate",
-  "Brick",
-  "Olive",
-  "Graphite",
-  "Maroon",
-  "Espresso",
-  "Bronze",
-  "Forest",
-  "Deep teal",
-  "Navy",
-  "Aubergine",
-  "Wine",
-  "Ink",
-];
-
 /**
- * The grounds as the picker lays them out, by index: nine hues across (red, orange, gold, green,
- * teal, blue, violet, pink, grey) and three depths down (bright, mid, deep), so every colour is
- * in view at once and its darker sister is under it (option B of
- * `docs/proposals/space-colours-mocks.html`).
+ * What VoiceOver calls each ground, by the same index, and the order the picker lays them out in:
+ * nine hues across and three depths down, so every colour is in view at once and its darker sister
+ * is under it (option B of `docs/proposals/space-colours-mocks.html`). Core's, since the Mac and the
+ * web lay out and name the same colours (ADR 0272).
  */
-export const ICON_GROUND_ROWS: readonly (readonly number[])[] = [
-  [12, 13, 9, 7, 8, 1, 6, 0, 14],
-  [15, 2, 16, 10, 3, 4, 5, 11, 17],
-  [18, 19, 20, 21, 22, 23, 24, 25, 26],
-];
+export {
+  FACE_GROUND_NAMES as ICON_GROUND_NAMES,
+  FACE_GROUND_ROWS as ICON_GROUND_ROWS,
+} from "@chipschat/core";
 
 /**
  * The same grounds in the Bright theme (ADR 0176), by the same index: each one's sister, worked

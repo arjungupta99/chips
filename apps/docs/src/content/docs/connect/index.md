@@ -70,7 +70,8 @@ What a harness must do, at any level, for the room not to look wrong is on one p
 A harness's capabilities say what it takes. A person grants them, never the harness (ADR 0046):
 on the link that brings it in (**Agents → Connect a harness**), on its card later (**What it may do**),
 or with `chips declare <harness> <the whole list>`; `chips connect custom --capabilities a,b`
-grants them as it registers. A harness asking with a code names what it wants in `wants`, and the
+grants them as it registers. On the link's card, resting the pointer on a switch says in one
+sentence what it does. A harness asking with a code names what it wants in `wants`, and the
 person allows each.
 
 | Capability | What it promises | What Chips draws for it |

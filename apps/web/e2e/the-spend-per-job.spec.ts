@@ -42,7 +42,7 @@ test("a room's spend per job is set from the sheet, handed to the agent's turn, 
   await expect(page.getByRole("main", { name: "Space: Trials" })).toBeVisible();
   // Its sheet comes up on Add (ADR 0148): Reader, from In other rooms, moved here.
   const sheet = page.getByTestId("room-sheet");
-  await expect(sheet.getByTestId("room-sheet-add-done")).toBeVisible();
+  await expect(sheet.getByTestId("room-sheet-add-page")).toBeVisible();
   await sheet.getByTestId("room-sheet-other-rooms").click();
   await sheet.locator('[data-testid^="room-sheet-agent-"]', { hasText: "Reader" }).first().click();
   await sheet.getByTestId("room-sheet-move").click();

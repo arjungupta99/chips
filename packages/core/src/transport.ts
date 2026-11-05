@@ -26,6 +26,7 @@ import {
   type JoinRequestView,
   joinFrame,
   presenceFrame,
+  readFrame,
 } from "@chipschat/protocol";
 import type { Device } from "./device.js";
 import { endpoint, setClockOffset, signRequest, socketOrigin } from "./device.js";
@@ -231,6 +232,11 @@ export interface TransportOptions {
    * `folder_runs`, so the server sends these to this person's sockets alone.
    */
   readonly onRunState?: ((spaceId: string, run: HeldRun) => void) | undefined;
+  /**
+   * The person read further on another of their devices (ADR 0262): each room's new mark. Given,
+   * the hello says `reads`, so the server sends these to this person's sockets alone.
+   */
+  readonly onReads?: ((marks: Readonly<Record<string, number>>) => void) | undefined;
   /** Which way this socket reached the server: the door on its network, the relay, or plain (M4.1, ADR 0191). */
   readonly onLink?: ((kind: LinkKind) => void) | undefined;
   /**
@@ -533,6 +539,10 @@ export function connect(options: TransportOptions): Transport {
     const parsed = folderRunStateFrame.safeParse(received);
     if (parsed.success) options.onRunState?.(parsed.data.space_id, parsed.data.run);
   };
+  const onReadFrame = (received: Frame) => {
+    const parsed = readFrame.safeParse(received);
+    if (parsed.success) options.onReads?.(parsed.data.spaces);
+  };
   /** Every server frame but the ping, which needs the socket to answer on. */
   const handleFrame = (received: Frame): void => {
     switch (received["frame"]) {
@@ -563,6 +573,9 @@ export function connect(options: TransportOptions): Transport {
         break;
       case "folder.run_state":
         onRunStateFrame(received);
+        break;
+      case "read":
+        onReadFrame(received);
         break;
       default:
         break;
@@ -600,13 +613,15 @@ export function connect(options: TransportOptions): Transport {
         // each agent can answer, as it changes (ADR 0083); join requests, which the server
         // sends only to an owner's or admin's socket (ADR 0122); and on the Mac, the person's
         // asks from their other devices to open a room's folder (ADR 0225) or run its project, and
-        // anywhere, how a run of theirs on their Mac stands (ADR 0226).
+        // anywhere, how a run of theirs on their Mac stands (ADR 0226), and how far they read on
+        // another device (ADR 0262).
         accepts: [
           "events",
           "presence",
           "join",
           ...(options.onFolderAsk === undefined ? [] : ["folders"]),
           ...(options.onRunState === undefined ? [] : ["folder_runs"]),
+          ...(options.onReads === undefined ? [] : ["reads"]),
         ],
       }),
     );

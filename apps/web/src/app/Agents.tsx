@@ -1,8 +1,9 @@
 /**
- * The Agents page's own parts (ADR 0087, Phase 5): the sections of agents over the harnesses'
- * cards, and an agent's page — its card and its message history — which takes the middle column
- * with a way back, as the phone pushes it (the desktop pick of 30 September 2026). The run pane on
- * the right stays the run's.
+ * The Agents page's own parts (ADR 0087, Phase 5): the sections of agents under the harnesses'
+ * shelf, and an agent's page — its card, as the phone's (ADR 0270) — which takes the middle column
+ * with a way back, as the phone pushes it (the desktop pick of 30 September 2026). Its message
+ * history opens on a page of its own (`agent/AgentHistory.tsx`). The run pane on the right stays
+ * the run's.
  *
  * Which agents, in what order, the words under each, the card's facts and the history's stretches
  * are core's (`agentsTab`, `agentCard`, `agentHistory`), so the desktop and the phone say the same.
@@ -11,52 +12,51 @@
 import {
   type AgentCard,
   type AgentRow,
-  type AgentStay,
   type AgentsLook,
+  administers,
   agentArchiveAsking,
   agentCard,
   agentDeleteAsking,
-  agentHistory,
   agentsTab,
-  awayWords,
   belongsTo,
   type ConnectionState,
   type ContextReads,
   type Directory,
-  forkRoomTitle,
+  faceWords,
   guestAgentsWords,
   type HeartbeatReads,
+  historyRoomsWords,
   keepLeaving,
-  type Lane,
-  type Line,
   type ModelReads,
   mayOpenSpace,
   myRole,
   patientLook,
-  type Run,
-  roomName,
+  ROOM_PICK_ROW,
+  type RoomPick,
   type ShownAgents,
   type StayFact,
-  type Stretch,
   stayFact,
-  stretchDates,
   troubled,
   type WindowReads,
   type WorkspaceModel,
   waitingWords,
 } from "@chipschat/core";
 import type { SpaceIcon } from "@chipschat/protocol";
-import { Avatar, Button, ChipMark, Icon } from "@chipschat/ui";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { Avatar, ChipMark, Icon, LIBRARY_MARKS } from "@chipschat/ui";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { Fold, useArrivals } from "./Arrive.tsx";
+import { useStays } from "./agent/AgentHistory.tsx";
+import { RoomPickDialog } from "./agent/RoomPick.tsx";
+import type { AgentsService } from "./agent/service.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { ContextGroup } from "./context/ContextGroup.tsx";
 import type { ContextPage } from "./context/pages.ts";
-import type { FileService } from "./files.ts";
+import { GroupRow } from "./GroupRow.tsx";
 import { HeartbeatGroup } from "./heartbeat/HeartbeatGroup.tsx";
 import { LockRow } from "./LockRow.tsx";
 import { MainTag } from "./MainTag.tsx";
 import { ModelGroup } from "./model/ModelGroup.tsx";
-import { ReadOnlyRow } from "./SpaceView.tsx";
+import { Swap } from "./Swap.tsx";
 import { leavingProps, PickMark, pickProps } from "./select/PickParts.tsx";
 import type { Leaving, RowPick } from "./select/usePick.ts";
 import { relativeTime } from "./time.ts";
@@ -64,32 +64,7 @@ import { usePatience } from "./usePatience.ts";
 import { WindowGroup } from "./window/WindowGroup.tsx";
 import { reasonOf } from "./you/controls.tsx";
 
-/** What the page asks the store for, and does through it. */
-export interface AgentsService {
-  readonly stays: (agentId: string) => Promise<readonly AgentStay[]>;
-  /** Move an agent in a room to another; rejects with the server's reason. */
-  readonly move: (agentId: string, spaceId: string) => Promise<void>;
-  /** Ask its harness for a copy of it in a room (ADR 0087, Fork); rejects with the reason. */
-  readonly fork: (agentId: string, spaceId: string) => Promise<void>;
-  /** A new room, named as the copy will be, with a fork asked for in it; its id once asked. */
-  readonly forkRoom: (agentId: string, title: string) => Promise<string>;
-  /** Put a free agent in a room: any member's (rule 4). */
-  readonly put: (agentId: string, spaceId: string) => void;
-  /** A new room with a free agent in it, named after it; its id. */
-  readonly newRoom: (agentId: string, title: string) => string;
-  readonly refresh: () => Promise<void>;
-  /** Rename an agent, for everybody (ADR 0091); rejects with the server's reason. */
-  readonly rename: (agentId: string, name: string) => Promise<void>;
-  /** Archive an agent, or bring it back (ADR 0095); rejects with the server's reason. */
-  readonly archive: (agentId: string, archived: boolean) => Promise<void>;
-  /** Delete an agent, and its room with it when asked (ADR 0095); rejects with the reason. */
-  readonly remove: (agentId: string, options: { readonly deleteRoom: boolean }) => Promise<void>;
-  /**
-   * Lock an agent's changes, or let them go (ADR 0199): while they are locked, nobody renames,
-   * archives or deletes it. Rejects with the server's reason.
-   */
-  readonly lock: (agentId: string, locked: boolean) => Promise<void>;
-}
+export type { AgentsService };
 
 const RING: Readonly<Record<AgentRow["doing"], "working" | "waiting" | undefined>> = {
   working: "working",
@@ -99,21 +74,24 @@ const RING: Readonly<Record<AgentRow["doing"], "working" | "waiting" | undefined
 
 /**
  * One agent's row: face (ringed while it works), name, where it is, and when its room spoke. While
- * the page picks, a checkbox (ADR 0182).
+ * the page picks, a checkbox (ADR 0182). A harness's page lists its first five with it (ADR 0254).
  */
-function Row({
+export function AgentListRow({
   row,
   onOpen,
   pick,
+  arriving,
 }: {
   readonly row: AgentRow;
   readonly onOpen: (id: string) => void;
   readonly pick?: RowPick | undefined;
+  /** Come into a list already drawn: it grows into its place (`useArrivals`). */
+  readonly arriving?: boolean | undefined;
 }) {
   const waiting = waitingWords(row.held);
   const ring = RING[row.doing];
   return (
-    <li {...leavingProps(pick)}>
+    <li {...leavingProps(pick)} data-arrive={arriving === true ? "true" : undefined}>
       <button
         type="button"
         className="agent-row"
@@ -137,9 +115,12 @@ function Row({
           {row.lead && <MainTag name={row.name} icon={row.face} />}
         </span>
         <span className={row.free ? "agent-line agent-free" : "agent-line"}>
-          {row.doing === "working" && <span className="agent-working">Working · </span>}
-          {row.line}
-          {waiting !== undefined && <span className="agent-waiting">{waiting}</span>}
+          {/* Where it is and what it is doing crossfade as they change. */}
+          <Swap id={`${row.doing} ${row.line} ${waiting ?? ""}`} className="agent-line-words">
+            {row.doing === "working" && <span className="agent-working">Working · </span>}
+            {row.line}
+            {waiting !== undefined && <span className="agent-waiting">{waiting}</span>}
+          </Swap>
         </span>
         <span className="agent-when">{row.at === undefined ? "" : relativeTime(row.at)}</span>
       </button>
@@ -338,11 +319,17 @@ export function AgentSections({
   folds: told,
   pickOf,
   held = [],
+  harnessId,
+  words = "",
 }: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
   readonly onOpen: (agentId: string) => void;
+  /** One harness's agents alone: its page's See all (ADR 0254). */
+  readonly harnessId?: string | undefined;
+  /** What its field asks for: only the rows whose name or line has it, in any case. */
+  readonly words?: string | undefined;
   /** Which folds are open, where the page that picks keeps them (ADR 0182). */
   readonly folds?: Folds | undefined;
   /** What each row is told about picking, drawn in its run, while the page can pick. */
@@ -350,7 +337,7 @@ export function AgentSections({
   /** Rows archived, unarchived or deleted, held where they stood until they have gone. */
   readonly held?: readonly Leaving<AgentRow>[] | undefined;
 }) {
-  const tab = agentsTab(model, directory, selfId);
+  const tab = agentsTab(model, directory, selfId, { harnessId });
   const [archivedOpen, setArchived] = useState(false);
   const [elsewhereOpen, setElsewhere] = useState(false);
   const folds = told ?? {
@@ -359,10 +346,10 @@ export function AgentSections({
     onArchived: setArchived,
     onElsewhere: setElsewhere,
   };
-  const { archived, elsewhere } = folds;
+  const asked = words.trim().toLowerCase();
   const shown = (rows: readonly AgentRow[], run: string) =>
     keepLeaving(
-      rows,
+      rows.filter(foundBy(asked)),
       held.filter((each) => each.run === run),
     );
   const leads = shown(tab.leads, "leads");
@@ -370,11 +357,21 @@ export function AgentSections({
   const here = shown(tab.archived.here, "here");
   const away = shown(tab.archived.elsewhere, "elsewhere");
   const count = here.length + away.length;
-  // Under a guest's agents, whose they are (ADR 0196).
-  const foot = guestAgentsWords(model, directory, selfId, tab);
+  // A new agent grows into its place; one that moved from one run to another lands there instead.
+  const arriving = useArrivals(
+    [...tab.leads, ...tab.agents, ...tab.archived.here, ...tab.archived.elsewhere].map(
+      (each) => each.id,
+    ),
+  );
   // A row, drawn in its run (`agentRun`).
   const row = (run: string) => (each: AgentRow) => (
-    <Row key={each.id} row={each} onOpen={onOpen} pick={pickOf?.(each, run)} />
+    <AgentListRow
+      key={each.id}
+      row={each}
+      onOpen={onOpen}
+      pick={pickOf?.(each, run)}
+      arriving={arriving.has(each.id)}
+    />
   );
   return (
     <div className="agents-sections">
@@ -384,69 +381,136 @@ export function AgentSections({
           <ul className="agent-list">{leads.map(row("leads"))}</ul>
         </section>
       )}
-      <section aria-label="Agents">
-        <h2 className="agents-h">{`Agents · ${tab.agents.length}`}</h2>
-        {agents.length === 0 ? (
-          <p className="agents-empty">
-            {emptyWords(leads.length > 0, mayOpenSpace(myRole(model, selfId)))}
+      {asked !== "" && agents.length === 0 ? (
+        // Searching: only what it found, and a line when it found nothing at all.
+        leads.length === 0 && (
+          <p className="agents-empty" data-testid="all-agents-none">
+            {`No agent's name or space has “${words.trim()}” in it.`}
           </p>
-        ) : (
-          <ul className="agent-list">{agents.map(row("agents"))}</ul>
-        )}
-        {foot !== undefined && (
-          <p className="agents-empty" data-testid="agents-guest-foot">
-            {foot}
-          </p>
-        )}
-      </section>
-      {count > 0 && (
-        <section aria-label="Archived agents">
-          <button
-            type="button"
-            className="agents-fold"
-            aria-expanded={archived}
-            data-testid="archived-agents"
-            onClick={() => folds.onArchived(!archived)}
-          >
-            <span>{`Archived · ${count}`}</span>
-            <span>{archived ? "Hide" : "Show"}</span>
-          </button>
-          {archived && (
-            <>
-              <ul className="agent-list">{here.map(row("here"))}</ul>
-              {away.length > 0 && (
-                <button
-                  type="button"
-                  className="agents-fold"
-                  aria-expanded={elsewhere}
-                  data-testid="archived-elsewhere"
-                  onClick={() => folds.onElsewhere(!elsewhere)}
-                >
-                  <span>{`In spaces you're not in · ${away.length}`}</span>
-                  <span>{elsewhere ? "Hide" : "Show"}</span>
-                </button>
-              )}
-              {elsewhere && <ul className="agent-list">{away.map(row("elsewhere"))}</ul>}
-            </>
+        )
+      ) : (
+        <AgentsSection
+          count={asked === "" ? tab.agents.length : agents.length}
+          rows={agents.map(row("agents"))}
+          empty={emptyWords(
+            leads.length > 0,
+            mayOpenSpace(myRole(model, selfId)),
+            administers(myRole(model, selfId)),
           )}
-        </section>
+          foot={guestAgentsWords(model, directory, selfId, tab)}
+        />
+      )}
+      {count > 0 && asked === "" && (
+        <ArchivedFolds
+          folds={folds}
+          here={here.map(row("here"))}
+          away={away.map(row("elsewhere"))}
+        />
       )}
     </div>
   );
 }
 
-/** An agent's page: its card, then its message history, opening at the newest line. */
+/**
+ * The archived agents, folded: those in rooms the reader can read, and under them, folded again,
+ * those in rooms they're not in.
+ */
+function ArchivedFolds(props: {
+  readonly folds: Folds;
+  readonly here: readonly ReactNode[];
+  readonly away: readonly ReactNode[];
+}) {
+  const { folds } = props;
+  const { archived, elsewhere } = folds;
+  return (
+    <section aria-label="Archived agents">
+      <button
+        type="button"
+        className="agents-fold"
+        aria-expanded={archived}
+        data-testid="archived-agents"
+        onClick={() => folds.onArchived(!archived)}
+      >
+        <span>{`Archived · ${props.here.length + props.away.length}`}</span>
+        <span>{archived ? "Hide" : "Show"}</span>
+      </button>
+      <Fold open={archived}>
+        <ul className="agent-list">{props.here}</ul>
+        {props.away.length > 0 && (
+          <button
+            type="button"
+            className="agents-fold"
+            aria-expanded={elsewhere}
+            data-testid="archived-elsewhere"
+            onClick={() => folds.onElsewhere(!elsewhere)}
+          >
+            <span>{`In spaces you're not in · ${props.away.length}`}</span>
+            <span>{elsewhere ? "Hide" : "Show"}</span>
+          </button>
+        )}
+        <Fold open={elsewhere}>
+          <ul className="agent-list">{props.away}</ul>
+        </Fold>
+      </Fold>
+    </section>
+  );
+}
+
+/** Whether a row is one a search asks for: its name or where it is, in any case; any, unasked. */
+function foundBy(asked: string): (row: AgentRow) => boolean {
+  if (asked === "") return () => true;
+  return (row) => `${row.name} ${row.line}`.toLowerCase().includes(asked);
+}
+
+/**
+ * The Agents section: its count, its rows or what an empty one says, and under a guest's agents,
+ * whose they are (ADR 0196).
+ */
+function AgentsSection(props: {
+  readonly count: number;
+  readonly rows: readonly ReactNode[];
+  readonly empty: string;
+  readonly foot: string | undefined;
+}) {
+  return (
+    <section aria-label="Agents">
+      <h2 className="agents-h">{`Agents · ${props.count}`}</h2>
+      {props.rows.length === 0 ? (
+        <p className="agents-empty">{props.empty}</p>
+      ) : (
+        <ul className="agent-list">{props.rows}</ul>
+      )}
+      {props.foot !== undefined && (
+        <p className="agents-empty" data-testid="agents-guest-foot">
+          {props.foot}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * An agent's page: its card, as the phone draws it (ADR 0087, Phase 5; ADR 0270 brought the
+ * phone's card here). The face and the name, edited in place, with its harness under it; then on
+ * the left what it is — where it is, since when, what it is doing, Lock changes, its model and its
+ * heartbeat — and on the right what it holds — its context window, its files, its history and what
+ * may be done with it — or one after the other in a narrow pane. The whole card scrolls. Message
+ * history is a row that opens it on a page of its own (`agent/AgentHistory.tsx`); until ADR 0270 it
+ * stood under a card that did not scroll, in whatever height the card left it.
+ */
 export function AgentPage({
   agentId,
   model,
   directory,
   selfId,
-  files,
   faces,
   agents,
+  backLabel = "Agents",
   onBack,
   onOpenRoom,
   onOpenAgent,
+  onOpenHistory,
+  onOpenFace,
   context,
   heartbeats,
   windows,
@@ -457,13 +521,18 @@ export function AgentPage({
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
-  readonly files: FileService;
   readonly faces: ReadonlyMap<string, SpaceIcon> | undefined;
   readonly agents: AgentsService;
+  /** What its way back says: the page under it. */
+  readonly backLabel?: string | undefined;
   readonly onBack: () => void;
   readonly onOpenRoom: (spaceId: string) => void;
   /** Opens another agent's page: the one a copy was forked from. */
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
+  /** Opens its message history on a page of its own. */
+  readonly onOpenHistory: () => void;
+  /** Opens its face on a page of its own (ADR 0272), for whoever may change it. */
+  readonly onOpenFace?: (() => void) | undefined;
   /** Its context files, through the store (ADR 0134). Absent, the card has no Context group. */
   readonly context?: ContextReads | undefined;
   /** Its heartbeat, through the store (ADR 0143). Absent, the card has no Heartbeat group. */
@@ -475,149 +544,112 @@ export function AgentPage({
   /** Opens one of its files, or its harness's page (ADR 0135). */
   readonly onOpenContext?: ((page: ContextPage) => void) | undefined;
 }) {
-  const room = directory[agentId]?.room;
-  const [stays, setStays] = useState<readonly AgentStay[] | undefined>(undefined);
-  const [failed, setFailed] = useState<string | undefined>(undefined);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: read again when the agent moves.
-  useEffect(() => {
-    let live = true;
-    agents.stays(agentId).then(
-      (read) => {
-        if (live) setStays(read);
-      },
-      (error: unknown) => {
-        if (live) setFailed(error instanceof Error ? error.message : "The server didn't say.");
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [agents, agentId, room]);
+  const { stays, failed } = useStays(agents, agentId, directory[agentId]?.room);
   const card = agentCard(model, directory, selfId, agentId);
-  const history = useMemo(
-    () => (stays === undefined ? [] : agentHistory(model, directory, agentId, stays)),
-    [stays, model, directory, agentId],
-  );
-  const scroller = useRef<HTMLDivElement>(null);
-  // Like a room, it opens at the newest line, and stays there while the rows find their heights —
-  // a row is laid out as it comes into view, so the history grows after it is drawn — until the
-  // reader scrolls it themselves.
-  useEffect(() => {
-    const box = scroller.current;
-    if (stays === undefined || box === null) return;
-    let following = true;
-    const pin = () => {
-      if (following) box.scrollTop = box.scrollHeight;
-    };
-    const stop = () => {
-      following = false;
-    };
-    pin();
-    const watch = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(pin);
-    if (box.firstElementChild !== null) watch?.observe(box.firstElementChild);
-    box.addEventListener("wheel", stop, { passive: true });
-    box.addEventListener("touchstart", stop, { passive: true });
-    box.addEventListener("keydown", stop);
-    return () => {
-      watch?.disconnect();
-      box.removeEventListener("wheel", stop);
-      box.removeEventListener("touchstart", stop);
-      box.removeEventListener("keydown", stop);
-    };
-  }, [stays]);
   // There from the card's first frame, with only its dates waiting on the server (`stayFact`).
   const stay = stayFact(card, stays, stays === undefined && failed === undefined);
-
   return (
     <main className="conv agent-page" aria-label={card.name}>
       <header className="conv-h">
         <div className="conv-h-t">
           <button type="button" className="agent-back" onClick={onBack}>
-            ‹ Agents
+            {`‹ ${backLabel}`}
           </button>
           <h1>{card.name}</h1>
         </div>
       </header>
-      <CardSection
-        agentId={agentId}
-        card={card}
-        stay={stay}
-        model={model}
-        directory={directory}
-        selfId={selfId}
-        agents={agents}
-        onOpenRoom={onOpenRoom}
-        onOpenAgent={onOpenAgent}
-        onDeleted={onBack}
-      >
-        <ModelGroup
-          reads={models}
-          model={model}
-          directory={directory}
-          agentId={agentId}
-          agentName={card.name}
-          selfId={selfId}
-          sayMissing
-        />
-        <HeartbeatGroup
-          reads={heartbeats}
-          model={model}
-          directory={directory}
-          agentId={agentId}
-          agentName={card.name}
-          selfId={selfId}
-        />
-        <WindowGroup
-          reads={windows}
-          model={model}
-          directory={directory}
-          agentId={agentId}
-          agentName={card.name}
-          selfId={selfId}
-          working={card.doing !== "idle"}
-        />
-        {onOpenContext !== undefined && (
-          <ContextGroup
-            reads={context}
-            model={model}
-            directory={directory}
-            agentId={agentId}
-            agentName={card.name}
-            selfId={selfId}
-            onOpen={onOpenContext}
-          />
-        )}
-      </CardSection>
-      <div className="agent-scroll" ref={scroller}>
-        <section className="agent-history" aria-label="Message history">
-          <h2 className="agents-h">Message history</h2>
-          {failed !== undefined && stays === undefined && <p className="agents-empty">{failed}</p>}
-          {card.forkedFrom !== undefined && (
-            <ForkedFrom
-              from={card.forkedFrom}
-              face={directory[card.forkedFrom.agentId]?.face}
-              at={stays?.[0]?.from}
-              onOpenAgent={onOpenAgent}
-            />
-          )}
-          {stays !== undefined && stays.length === 0 && (
-            <p className="agents-empty">
-              Nothing yet. What it's asked and what it answers will be here.
-            </p>
-          )}
-          {history.map((stretch, at) => (
-            <Stretched
-              // biome-ignore lint/suspicious/noArrayIndexKey: the stretches are in the log's order.
-              key={at}
-              stretch={stretch}
-              model={model}
-              directory={directory}
-              selfId={selfId}
-              files={files}
-              faces={faces}
-              onOpenRoom={onOpenRoom}
-            />
-          ))}
+      <div className="harnesses-body">
+        <section className="agent-sheet" aria-label="Card" data-testid="agent-card">
+          <div className="agent-hero">
+            <HeroFace card={card} onOpenFace={card.mayFace ? onOpenFace : undefined} />
+            <div className="agent-hero-words">
+              <CardName card={card} rename={(next) => agents.rename(agentId, next)} />
+              <div className="agent-card-sub" data-testid="agent-sub">
+                {card.sub}
+              </div>
+            </div>
+          </div>
+          <div className="hp-cols">
+            <div className="hp-col">
+              <Facts
+                card={card}
+                stay={stay}
+                owner={belongsTo(directory, agentId, selfId)}
+                onOpenRoom={onOpenRoom}
+                onOpenAgent={onOpenAgent}
+              />
+              <LockGroup agentId={agentId} card={card} agents={agents} />
+              {card.mayFace && onOpenFace !== undefined && (
+                <IconGroup name={card.name} face={card.face} onOpen={onOpenFace} />
+              )}
+              <ModelGroup
+                reads={models}
+                model={model}
+                directory={directory}
+                agentId={agentId}
+                agentName={card.name}
+                selfId={selfId}
+                sayMissing
+              />
+              <HeartbeatGroup
+                reads={heartbeats}
+                model={model}
+                directory={directory}
+                agentId={agentId}
+                agentName={card.name}
+                selfId={selfId}
+              />
+            </div>
+            <div className="hp-col">
+              <WindowGroup
+                reads={windows}
+                model={model}
+                directory={directory}
+                agentId={agentId}
+                agentName={card.name}
+                selfId={selfId}
+                working={card.doing !== "idle"}
+              />
+              {onOpenContext !== undefined && (
+                <ContextGroup
+                  reads={context}
+                  model={model}
+                  directory={directory}
+                  agentId={agentId}
+                  agentName={card.name}
+                  selfId={selfId}
+                  onOpen={onOpenContext}
+                />
+              )}
+              <section className="ctx" aria-label="History">
+                <div className="ctx-h">
+                  <h3 className="agents-h">History</h3>
+                </div>
+                <ul className="ctx-group">
+                  <GroupRow
+                    label="Message history"
+                    value={historyRoomsWords(stays)}
+                    onClick={onOpenHistory}
+                    testId="agent-history"
+                  />
+                </ul>
+                {failed !== undefined && stays === undefined && (
+                  <p className="ctx-foot">{failed}</p>
+                )}
+              </section>
+              <CardActs
+                agentId={agentId}
+                card={card}
+                model={model}
+                directory={directory}
+                selfId={selfId}
+                faces={faces}
+                agents={agents}
+                onOpenRoom={onOpenRoom}
+                onDeleted={onBack}
+              />
+            </div>
+          </div>
         </section>
       </div>
     </main>
@@ -625,21 +657,70 @@ export function AgentPage({
 }
 
 /**
- * Dates of the shape the server's will have, whose width the card's dates fact holds from its first
- * frame, so that the dates arriving move none of the facts after it (`.agent-fact-dates`). May is
- * the widest month's name, and the digits are tabular, so a date of this year never outgrows it;
- * one from another year, or a stay across two months, still does.
- */
-const DATES_SAMPLE: Readonly<Record<StayFact["word"], string>> = {
-  Since: "00 May",
-  "Was there": "00–00 May",
-};
-
-/**
  * The card's name: the field for anybody who may rename it, the name alone for a guest, and while
  * its changes are locked the name alone with a small padlock beside it, so whoever reads the card
  * sees why it will not edit (ADR 0199).
  */
+/**
+ * The face at the card's head, which changes it for whoever may (ADR 0089): a click opens its page,
+ * as the phone's tap opens its sheet. Anybody else sees it as it is.
+ */
+function HeroFace(props: {
+  readonly card: AgentCard;
+  readonly onOpenFace?: (() => void) | undefined;
+}) {
+  const { card } = props;
+  const face = (
+    <Avatar
+      name={card.name}
+      kind="agent"
+      size="lg"
+      icon={card.face}
+      {...(card.doing === "idle" ? {} : { status: card.doing })}
+    />
+  );
+  if (props.onOpenFace === undefined) return face;
+  return (
+    <button
+      type="button"
+      className="agent-hero-face"
+      aria-label={`${card.name}'s icon`}
+      title="Changes its icon"
+      data-testid="agent-face"
+      onClick={props.onOpenFace}
+    >
+      {face}
+    </button>
+  );
+}
+
+/**
+ * Its Icon section (ADR 0174, Arjun's A: "a special section"): the face at a row's size and what it
+ * wears, which opens the same page as the face. Only for whoever may change it.
+ */
+function IconGroup(props: {
+  readonly name: string;
+  readonly face: SpaceIcon | undefined;
+  readonly onOpen: () => void;
+}) {
+  return (
+    <section className="ctx" aria-label="Icon">
+      <div className="ctx-h">
+        <h3 className="agents-h">Icon</h3>
+      </div>
+      <ul className="ctx-group">
+        <GroupRow
+          label="Icon"
+          value={faceWords(props.face, (mark) => mark in LIBRARY_MARKS)}
+          face={<Avatar name={props.name} kind="agent" size="sm" icon={props.face} />}
+          onClick={props.onOpen}
+          testId="agent-icon"
+        />
+      </ul>
+    </section>
+  );
+}
+
 function CardName(props: {
   readonly card: AgentCard;
   readonly rename: (name: string) => Promise<void>;
@@ -732,232 +813,241 @@ function AgentName(props: {
 }
 
 /**
- * The card: its face and harness, where it is, since when, what it is doing, and what may be done;
- * then, for its harness's owner, the files it is built from (ADR 0135).
+ * Where it is, since when, what it is doing, and what waits, a row each as on the phone: its space,
+ * which opens; Since or Was there, whose dates wait on the server; what it was forked from, which
+ * opens that agent; Now; whose it is, when not the reader's (ADR 0196); and how many of its words
+ * wait, with who said them and where they go under the group (`heldNote`).
  */
-function CardSection({
-  agentId,
-  card,
-  stay,
-  model,
-  directory,
-  selfId,
-  agents,
-  onOpenRoom,
-  onOpenAgent,
-  onDeleted,
-  children,
-}: {
-  readonly agentId: string;
+function Facts(props: {
   readonly card: AgentCard;
   readonly stay: StayFact | undefined;
-  readonly model: WorkspaceModel;
-  readonly directory: Directory;
-  readonly selfId: string;
-  readonly agents: AgentsService;
+  readonly owner: string | undefined;
   readonly onOpenRoom: (spaceId: string) => void;
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
-  /** It was deleted from here (ADR 0095): the page steps back to the list. */
-  readonly onDeleted: () => void;
-  /** Beside the card's facts and acts, or under them in a narrow pane: its Context group (ADR 0135). */
-  readonly children?: ReactNode;
 }) {
+  const { card, stay, owner } = props;
+  const room = card.room;
   const from = card.forkedFrom;
-  const owner = belongsTo(directory, agentId, selfId);
   return (
-    <section className="agent-card" aria-label="Card" data-testid="agent-card">
-      <Avatar
-        name={card.name}
-        kind="agent"
-        size="lg"
-        icon={card.face}
-        {...(card.doing === "idle" ? {} : { status: card.doing })}
-      />
-      <div className="agent-card-words">
-        <CardName card={card} rename={(next) => agents.rename(agentId, next)} />
-        <div className="agent-card-sub" data-testid="agent-sub">
-          {card.sub}
-        </div>
-        <div className="agent-facts">
-          {card.room === undefined ? (
-            <span className="agent-fact">No space</span>
-          ) : card.room.readable ? (
-            <button
-              type="button"
-              className="agent-fact agent-fact-room"
-              data-testid="agent-room"
-              onClick={() => onOpenRoom(card.room?.spaceId as string)}
-            >
-              {card.room.name}
-              {card.room.archived ? " · archived" : ""} ›
-            </button>
-          ) : (
-            <span className="agent-fact" data-testid="agent-room">
-              {card.room.name}
-            </span>
-          )}
-          {stay !== undefined && (
-            <span className="agent-fact" data-testid="agent-stay">
-              {stay.word}{" "}
-              <span className="agent-fact-dates">
-                <span className="agent-fact-sample" aria-hidden="true">
-                  {DATES_SAMPLE[stay.word]}
-                </span>
-                <span data-testid="agent-stay-dates">{stay.dates}</span>
-              </span>
-            </span>
-          )}
-          {from !== undefined && (
-            <button
-              type="button"
-              className="agent-fact agent-fact-room"
-              data-testid="agent-forked-from"
-              disabled={onOpenAgent === undefined}
-              onClick={() => onOpenAgent?.(from.agentId)}
-            >
-              Forked from {from.name} ›
-            </button>
-          )}
-          <span className="agent-fact" data-testid="agent-now">
-            {card.now}
-          </span>
-          <Belongs owner={owner} />
-          {card.held > 0 && (
-            <span className="agent-fact agent-free" data-testid="agent-waiting">
-              {`${card.held} waiting`}
-            </span>
-          )}
-        </div>
-        <HeldNote note={card.heldNote} />
-        <Acts
-          agentId={agentId}
-          free={card.now === "Not in a space"}
-          mayMove={card.mayMove}
-          mayFork={card.mayFork}
-          opens={mayOpenSpace(myRole(model, selfId))}
-          name={card.name}
-          model={model}
-          directory={directory}
-          agents={agents}
-          onOpenRoom={onOpenRoom}
+    <section className="ctx agent-facts-group" aria-label="Where it is">
+      <ul className="ctx-group">
+        <GroupRow
+          label="Space"
+          value={room === undefined ? "None" : `${room.name}${room.archived ? " · archived" : ""}`}
+          onClick={room?.readable === true ? () => props.onOpenRoom(room.spaceId) : undefined}
+          testId="agent-room"
         />
-        {keeps(card) && (
-          <KeepActs
-            agentId={agentId}
-            card={card}
-            model={model}
-            directory={directory}
-            selfId={selfId}
-            agents={agents}
-            onDeleted={onDeleted}
+        {stay !== undefined && (
+          <GroupRow
+            label={stay.word}
+            // Empty while the server is asked, so the row is drawn once and nothing under it moves.
+            value={stay.dates ?? ""}
+            testId="agent-stay"
+            valueTestId="agent-stay-dates"
           />
         )}
-        {card.note !== undefined && <p className="agent-note">{card.note}</p>}
-      </div>
-      {/* Empty, as for anybody but the harness's owner, it is not drawn (`:empty`). */}
-      <div className="agent-card-side">{children}</div>
+        {from !== undefined && (
+          <GroupRow
+            label="Forked from"
+            value={from.name}
+            onClick={
+              props.onOpenAgent === undefined ? undefined : () => props.onOpenAgent?.(from.agentId)
+            }
+            testId="agent-forked-from"
+          />
+        )}
+        <GroupRow label="Now" value={card.now} testId="agent-now" />
+        {owner !== undefined && (
+          <GroupRow label="Belongs to" value={owner} testId="agent-belongs" />
+        )}
+        {card.held > 0 && (
+          <GroupRow
+            label="Waiting"
+            value={`${card.held} ${card.held === 1 ? "message" : "messages"}`}
+            testId="agent-waiting"
+          />
+        )}
+      </ul>
+      {card.heldNote !== undefined && (
+        <p className="ctx-foot" data-testid="agent-waiting-note">
+          {card.heldNote}
+        </p>
+      )}
     </section>
   );
 }
 
-/** Under the card's facts, what their "1 waiting" is: who said it, and where it goes (`heldNote`). */
-function HeldNote({ note }: { readonly note: string | undefined }) {
-  if (note === undefined) return null;
-  return (
-    <p className="agent-held" data-testid="agent-waiting-note">
-      {note}
-    </p>
-  );
-}
-
-/** Whether the card's foot has anything on it: Lock changes, Archive or Unarchive, or Delete…. */
-function keeps(card: AgentCard): boolean {
-  return card.mayLock || card.mayKeep || (card.archived && card.mayUnarchive);
-}
-
 /**
- * The card's foot: Lock changes over the buttons (ADR 0199), then archive or unarchive it, and
- * delete it (ADR 0095), the phone's swipe and card foot as buttons, asking first in the dialog the
- * room's panel uses — but Unarchive, which only puts it back. While its changes are locked core
- * offers neither Archive nor Delete, and the card's note says why; a locked agent that was
- * archived may still be unarchived.
+ * Lock changes (ADR 0199), in a group of its own under the facts, for whoever may archive or
+ * delete it: while it is on, nobody renames, archives or deletes it. A flip the server turns away
+ * goes back, and says why under it.
  */
-function KeepActs(props: {
+function LockGroup(props: {
   readonly agentId: string;
   readonly card: AgentCard;
-  readonly model: WorkspaceModel;
-  readonly directory: Directory;
-  readonly selfId: string;
   readonly agents: AgentsService;
-  readonly onDeleted: () => void;
 }) {
-  const { agentId, card, agents } = props;
-  const [asking, setAsking] = useState<"archive" | "delete" | undefined>(undefined);
-  const [failed, setFailed] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
-  const refused = (error: unknown) =>
-    setFailed(error instanceof Error ? error.message : "The server would not do it.");
-  const unarchive = () => {
-    setFailed(undefined);
-    agents.archive(agentId, false).catch(refused);
-  };
+  const [failed, setFailed] = useState<string | undefined>(undefined);
+  if (!props.card.mayLock) return null;
   const lock = async (locked: boolean) => {
     setFailed(undefined);
     setBusy(true);
     try {
-      await agents.lock(agentId, locked);
+      await props.agents.lock(props.agentId, locked);
       return true;
     } catch (error) {
-      refused(error);
+      setFailed(error instanceof Error ? error.message : "The server would not do it.");
       return false;
     } finally {
       setBusy(false);
     }
   };
   return (
-    <>
-      {card.mayLock && (
-        <ul className="ctx-group agent-lock">
-          <LockRow
-            locked={card.locked}
-            busy={busy}
-            onLock={lock}
-            testId="agent-lock"
-            switchTestId="agent-lock-switch"
+    <section className="ctx" aria-label="Lock changes">
+      <ul className="ctx-group agent-lock">
+        <LockRow
+          locked={props.card.locked}
+          busy={busy}
+          onLock={lock}
+          testId="agent-lock"
+          switchTestId="agent-lock-switch"
+        />
+      </ul>
+      {failed !== undefined && (
+        <p className="ctx-foot agent-failed" role="alert">
+          {failed}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Whether the card offers Archive or Unarchive: Unarchive for an archived one, locked or not. */
+function keepAct(card: AgentCard): "archive" | "unarchive" | undefined {
+  if (card.archived) return card.mayUnarchive ? "unarchive" : undefined;
+  return card.mayKeep ? "archive" : undefined;
+}
+
+/**
+ * What may be done with it, as the phone's card ends: Put it in a space, or Move it to another,
+ * and Fork it, where its harness makes copies, each opening the room picker grown out of its row;
+ * then Archive or Unarchive; and, apart and in red, Delete (ADR 0095). Neither Archive nor Delete
+ * while its changes are locked (ADR 0199), which the note under them says. Archive and Delete ask
+ * first, in the dialog the room's panel uses; Unarchive only puts it back.
+ */
+function CardActs(props: {
+  readonly agentId: string;
+  readonly card: AgentCard;
+  readonly model: WorkspaceModel;
+  readonly directory: Directory;
+  readonly selfId: string;
+  readonly faces: ReadonlyMap<string, SpaceIcon> | undefined;
+  readonly agents: AgentsService;
+  readonly onOpenRoom: (spaceId: string) => void;
+  readonly onDeleted: () => void;
+}) {
+  const { agentId, card, agents } = props;
+  const [picking, setPicking] = useState<{ mode: RoomPick; from: HTMLElement } | undefined>();
+  const [asking, setAsking] = useState<"archive" | "delete" | undefined>(undefined);
+  const [failed, setFailed] = useState<string | undefined>(undefined);
+  const keep = keepAct(card);
+  const moves = card.mayMove ? (card.now === "Not in a space" ? "put" : "move") : undefined;
+  if (moves === undefined && keep === undefined && card.note === undefined) return null;
+  const unarchive = () => {
+    setFailed(undefined);
+    agents
+      .archive(agentId, false)
+      .catch((error: unknown) =>
+        setFailed(error instanceof Error ? error.message : "The server would not do it."),
+      );
+  };
+  return (
+    <section className="ctx agent-acts-group" aria-label="What may be done">
+      <ActRows
+        moves={moves}
+        fork={card.mayFork}
+        keep={keep}
+        onPick={(mode, from) => setPicking({ mode, from })}
+        onKeep={keep === "unarchive" ? unarchive : () => setAsking("archive")}
+      />
+      {card.mayKeep && (
+        <ul className="ctx-group hp-apart">
+          <GroupRow
+            label="Delete"
+            tone="danger"
+            onClick={() => setAsking("delete")}
+            testId="delete-agent"
           />
         </ul>
       )}
-      <div className="agent-keep">
-        {card.archived && card.mayUnarchive && (
-          <Button size="sm" onClick={unarchive} data-testid="unarchive-agent">
-            Unarchive
-          </Button>
-        )}
-        {!card.archived && card.mayKeep && (
-          <Button size="sm" onClick={() => setAsking("archive")} data-testid="archive-agent">
-            Archive
-          </Button>
-        )}
-        {card.mayKeep && (
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={() => setAsking("delete")}
-            data-testid="delete-agent"
-          >
-            Delete…
-          </Button>
-        )}
-        {failed !== undefined && (
-          <p className="agent-failed" role="alert">
-            {failed}
-          </p>
-        )}
-      </div>
+      {failed !== undefined && (
+        <p className="ctx-foot agent-failed" role="alert">
+          {failed}
+        </p>
+      )}
+      {card.note !== undefined && <p className="ctx-foot agent-note">{card.note}</p>}
+      {picking !== undefined && (
+        <RoomPickDialog
+          mode={picking.mode}
+          from={picking.from}
+          agentId={agentId}
+          model={props.model}
+          directory={props.directory}
+          selfId={props.selfId}
+          faces={props.faces}
+          agents={agents}
+          onOpenRoom={props.onOpenRoom}
+          onClosed={() => {
+            picking.from.focus();
+            setPicking(undefined);
+          }}
+        />
+      )}
       {asking !== undefined && (
         <KeepAsking {...props} asking={asking} onDone={() => setAsking(undefined)} />
       )}
-    </>
+    </section>
+  );
+}
+
+/** Put or Move, and Fork, each opening the room picker; then Archive or Unarchive. */
+function ActRows(props: {
+  readonly moves: "put" | "move" | undefined;
+  readonly fork: boolean;
+  readonly keep: "archive" | "unarchive" | undefined;
+  readonly onPick: (mode: RoomPick, from: HTMLElement) => void;
+  readonly onKeep: () => void;
+}) {
+  const { moves, keep } = props;
+  if (moves === undefined && keep === undefined) return null;
+  return (
+    <ul className="ctx-group">
+      {moves !== undefined && (
+        <GroupRow
+          label={ROOM_PICK_ROW[moves]}
+          tone="accent"
+          onClick={(from) => props.onPick(moves, from)}
+          testId={`agent-${moves}`}
+        />
+      )}
+      {moves !== undefined && props.fork && (
+        <GroupRow
+          label={ROOM_PICK_ROW.fork}
+          tone="accent"
+          onClick={(from) => props.onPick("fork", from)}
+          testId="agent-fork"
+        />
+      )}
+      {keep !== undefined && (
+        <GroupRow
+          label={keep === "unarchive" ? "Unarchive" : "Archive"}
+          tone="accent"
+          onClick={props.onKeep}
+          testId={`${keep}-agent`}
+        />
+      )}
+    </ul>
   );
 }
 
@@ -997,268 +1087,18 @@ function KeepAsking(props: {
   );
 }
 
-type Act = "put" | "move" | "fork";
-
-/**
- * Move it, or put a free one in a room, and fork it where its harness makes copies (ADR 0087,
- * Fork): each a room picked from the reader's own, or for a free one or a copy a new one. Putting
- * one in a room is as moving it is, its harness's owner's or an owner's or admin's (ADR 0034's
- * addendum).
- */
-function Acts(props: {
-  readonly agentId: string;
-  readonly free: boolean;
-  readonly mayMove: boolean;
-  readonly mayFork: boolean;
-  /** Whether they may open a space, and so be offered a new room (ADR 0196). */
-  readonly opens: boolean;
-  readonly name: string;
-  readonly model: WorkspaceModel;
-  readonly directory: Directory;
-  readonly agents: AgentsService;
-  readonly onOpenRoom: (spaceId: string) => void;
-}) {
-  // Put in a room as it would be moved (ADR 0034's addendum): its harness's owner's, or an
-  // owner's or admin's.
-  const acts: Act[] = [
-    ...(props.mayMove ? [props.free ? ("put" as const) : ("move" as const)] : []),
-    ...(props.mayFork ? ["fork" as const] : []),
-  ];
-  if (acts.length === 0) return null;
-  return (
-    <div className="agent-acts-all">
-      {acts.map((act) => (
-        <RoomAct key={act} act={act} {...props} />
-      ))}
-    </div>
-  );
-}
-
-/** What each act says, and does with the room picked. */
-const ACT_WORDS: Readonly<
-  Record<Act, { readonly label: string; readonly button: string; readonly testId: string }>
-> = {
-  put: { label: "Put in a space", button: "Put it there", testId: "agent-put" },
-  move: { label: "Move to another space", button: "Move", testId: "agent-move" },
-  fork: { label: "Fork into a space", button: "Fork", testId: "agent-fork" },
-};
-
-function RoomAct(props: {
-  readonly act: Act;
-  readonly opens: boolean;
-  readonly agentId: string;
-  readonly name: string;
-  readonly model: WorkspaceModel;
-  readonly directory: Directory;
-  readonly agents: AgentsService;
-  readonly onOpenRoom: (spaceId: string) => void;
-}) {
-  const { act, agentId, model, directory, agents } = props;
-  const [target, setTarget] = useState("");
-  const [failed, setFailed] = useState<string | undefined>(undefined);
-  // One ask at a time: a second click while the first is on its way was a second room, a second
-  // ask and a second copy (agents review, finding 20).
-  const [busy, setBusy] = useState(false);
-  const here = directory[agentId]?.room;
-  const rooms = model.spaces
-    .filter(
-      (space) =>
-        space.state === "open" &&
-        space.kind !== "channel" &&
-        space.home !== true &&
-        space.parentSpaceId === undefined &&
-        space.id !== here,
-    )
-    .sort((a, b) => (b.lastActivityAt ?? "").localeCompare(a.lastActivityAt ?? ""));
-  const words = ACT_WORDS[act];
-  const go = async () => {
-    if (target === "" || busy) return;
-    setBusy(true);
-    setFailed(undefined);
-    try {
-      const title = act === "fork" ? forkRoomTitle(directory, agentId) : props.name;
-      props.onOpenRoom(await doAct(act, agents, agentId, title, target));
-    } catch (error) {
-      setFailed(error instanceof Error ? error.message : "The server would not do it.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="agent-acts">
-      <label className="agent-act-label">
-        {words.label}
-        <select
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          data-testid={words.testId}
-        >
-          <option value="">Choose a space…</option>
-          {props.opens && act === "put" && (
-            <option value="new">{`A new space with ${props.name}`}</option>
-          )}
-          {props.opens && act === "fork" && <option value="new">A new space with the copy</option>}
-          {rooms.map((space) => (
-            <option key={space.id} value={space.id}>
-              {roomName(model, space.id, directory)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <Button onClick={() => void go()} disabled={target === "" || busy}>
-        {words.button}
-      </Button>
-      {failed !== undefined && <p className="agent-failed">{failed}</p>}
-    </div>
-  );
-}
-
-/** Do an act into the room picked, or a new one, and say which room to open. */
-async function doAct(
-  act: Act,
-  agents: AgentsService,
-  agentId: string,
-  name: string,
-  target: string,
-): Promise<string> {
-  if (target === "new") {
-    return act === "fork" ? agents.forkRoom(agentId, name) : agents.newRoom(agentId, name);
-  }
-  if (act === "put") agents.put(agentId, target);
-  else if (act === "fork") await agents.fork(agentId, target);
-  else await agents.move(agentId, target);
-  return target;
-}
-
-/** Whose an agent is, when not the reader's (`belongsTo`, ADR 0196). */
-function Belongs({ owner }: { readonly owner: string | undefined }) {
-  if (owner === undefined) return null;
-  return (
-    <span className="agent-fact" data-testid="agent-belongs">
-      {`${owner}'s`}
-    </span>
-  );
-}
-
-/** The head of a copy's history: the agent it was forked from, and when; opens its page. */
-function ForkedFrom(props: {
-  readonly from: { readonly agentId: string; readonly name: string };
-  /** The original's own face, when one was chosen for it (ADR 0089). */
-  readonly face: SpaceIcon | undefined;
-  readonly at: string | undefined;
-  readonly onOpenAgent?: ((agentId: string) => void) | undefined;
-}) {
-  const { from, at } = props;
-  const when = at === undefined ? undefined : stretchDates(at, at).dates;
-  return (
-    <button
-      type="button"
-      className="agent-forked"
-      data-testid="forked-from"
-      disabled={props.onOpenAgent === undefined}
-      onClick={() => props.onOpenAgent?.(from.agentId)}
-    >
-      <Avatar name={from.name} kind="agent" size="sm" icon={props.face} />
-      <span className="agent-forked-words">
-        <span>
-          Forked from <strong>{from.name}</strong>
-        </span>
-        <span className="agent-forked-sub">
-          {when === undefined ? "" : `${when}. `}What it knew before then is in {from.name}'s
-          history.
-        </span>
-      </span>
-      <span className="agent-forked-chev">›</span>
-    </button>
-  );
-}
-
-/** One stretch: its divider, then its room's lines, or a room the reader isn't in as a count. */
-function Stretched(props: {
-  readonly stretch: Stretch;
-  readonly model: WorkspaceModel;
-  readonly directory: Directory;
-  readonly selfId: string;
-  readonly files: FileService;
-  readonly faces: ReadonlyMap<string, SpaceIcon> | undefined;
-  readonly onOpenRoom: (spaceId: string) => void;
-}) {
-  const { stretch, model } = props;
-  const { dates, ongoing } = stretchDates(stretch.from, stretch.to);
-  if (stretch.kind === "away") {
-    return (
-      <div className="agent-stretch">
-        <div className="agent-divider" data-testid="divider">
-          <span className="agent-divider-pill">{`A space you're not in · ${dates}${ongoing ? " now" : ""}`}</span>
-        </div>
-        <p className="agent-away" data-testid="away-count">
-          {awayWords(stretch.count)}
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="agent-stretch">
-      <div className="agent-divider" data-testid={stretch.now ? "divider-now" : "divider"}>
-        <button
-          type="button"
-          className={stretch.now ? "agent-divider-pill agent-now" : "agent-divider-pill"}
-          onClick={() => props.onOpenRoom(stretch.spaceId)}
-        >
-          <Avatar
-            name={stretch.name}
-            kind="person"
-            size="xs"
-            icon={props.faces?.get(stretch.spaceId)}
-          />
-          <b>{stretch.name}</b>
-          {` · ${dates}`}
-          {ongoing && <i> now</i>}
-          {stretch.archived && " · archived"}
-        </button>
-      </div>
-      {stretch.lines.length === 0 ? (
-        <p className="agent-away">Nothing said here yet.</p>
-      ) : (
-        <div className="msgs agent-lines">
-          {stretch.lines.map((line) => (
-            <ReadOnlyRow
-              key={line.id}
-              line={line}
-              lane={laneOf(model.lanes, line)}
-              run={runOf(model, line)}
-              faces={props.faces}
-              directory={props.directory}
-              selfId={props.selfId}
-              files={props.files}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function laneOf(lanes: readonly Lane[], line: Line): Lane | undefined {
-  return line.laneId === undefined ? undefined : lanes.find((lane) => lane.laneId === line.laneId);
-}
-
-function runOf(model: WorkspaceModel, line: Line): Run | undefined {
-  if (line.runId === undefined) return undefined;
-  for (const space of model.spaces) {
-    const run = space.runs.find((each) => each.runId === line.runId);
-    if (run !== undefined) return run;
-  }
-  return undefined;
-}
-
 /**
  * What the empty Agents section says. Under the Main agents listed above it, "No agents yet" said
  * the opposite of the page (the setup audit, 17 October 2026, M3): it says where more come from,
- * and the + only to whoever has one (ADR 0196).
+ * and the + only to whoever has one (ADR 0196). With none at all, an owner or admin is pointed at
+ * the shelf's Connect tile, as the phone's tab points them (ADR 0261).
  */
-export function emptyWords(mainAgents: boolean, opens = true): string {
-  if (!mainAgents) return "No agents yet. A harness's agents come when it connects.";
+export function emptyWords(mainAgents: boolean, opens = true, decides = false): string {
+  if (!mainAgents) {
+    return decides
+      ? "No agents yet. Connect a harness from the shelf, or allow one that asks."
+      : "No agents yet. A harness's agents come when it connects.";
+  }
   return opens
     ? "None besides the Main agents yet. The + makes more, and so does Add in a space."
     : "None besides the Main agents yet. Add in a space makes more.";

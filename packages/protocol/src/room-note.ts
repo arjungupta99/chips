@@ -255,6 +255,7 @@ export function renderRoomNote(
   news?: TakerNews,
   spend?: JobSpend,
   at?: string,
+  project?: boolean,
 ): string {
   const you = members.find((member) => member.participant_id === youId);
   const others = members.filter((member) => member.participant_id !== youId);
@@ -271,26 +272,40 @@ export function renderRoomNote(
     ...clockLines(members, at),
     ...(shared ? [...leadLines(members, youId), ...nowLines(members, youId, now)] : []),
     ...(spend === undefined ? [] : [spendWords(spend)]),
-    roomRules(members, youId),
+    roomRules(members, youId, project),
   ].join(" ");
 }
 
 /**
+ * Where people open a space's project (ADR 0227): asked where a file was, an agent sent Arjun to
+ * "the space's file list", which shows a page's source, not the page (2 November 2026).
+ */
+export const UNIVERSE_WORDS =
+  "People open the space's project with the Universe button at the top right of the space, so when someone asks where a file is, point them there.";
+
+/**
  * How the space works, the words a taker's note ends with (ADR 0250): that everyone here reads what
  * it writes, and beside other agents, what an @ does and when to answer NO_REPLY. They stay the same
- * from turn to turn while the space's agents do. Said with every turn, they were a quarter of what a
- * turn in a busy room carried, and in a session that keeps its turns they piled up, so `message.new`
- * carries them apart too (`room.rules`) for a harness to say once a session.
+ * from turn to turn while the space's agents do, and its project once it has one: where people
+ * open it (`UNIVERSE_WORDS`). Said with every turn, they were a quarter of what a turn in a busy room
+ * carried, and in a session that keeps its turns they piled up, so `message.new` carries them apart
+ * too (`room.rules`) for a harness to say once a session.
  */
-export function roomRules(members: readonly RoomMember[], youId: string): string {
+export function roomRules(
+  members: readonly RoomMember[],
+  youId: string,
+  project?: boolean,
+): string {
   const shared = members.some(
     (member) => member.participant_id !== youId && member.kind === "agent",
   );
-  if (!shared) return "Everyone here reads what you write.";
+  const universe = project === true ? [UNIVERSE_WORDS] : [];
+  if (!shared) return ["Everyone here reads what you write.", ...universe].join(" ");
   return [
     "Everyone here reads what you write; only those you @-mention act on it.",
     "To hand work to an agent or ask it something, @-mention it.",
     `If a message asks nothing of you now, as when it names a step that is yours later, answer ${NO_REPLY} and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting.`,
+    ...universe,
   ].join(" ");
 }
 
@@ -534,7 +549,7 @@ function kindOf(member: RoomMember): string {
  * The room as `message.new` carries it: the members, and a note for each who takes the turn; with
  * who has a turn going when Chips said (ADR 0104), what is news to each taker, what the job has
  * spent (ADR 0117), and each person's time at the instant it is sent (`at`, ADR 0157); and the
- * rules each note ends with (ADR 0250).
+ * rules each note ends with (ADR 0250), which say where Universe is in a space with a `project`.
  */
 export function roomNoteFor(
   members: readonly NoteMember[],
@@ -543,14 +558,18 @@ export function roomNoteFor(
   news?: Readonly<Record<string, TakerNews>>,
   spend?: JobSpend,
   at?: string,
+  project?: boolean,
 ): RoomNote {
   const listed = roomMembers(members);
   return {
     members: listed,
     notes: Object.fromEntries(
-      takers.map((taker) => [taker, renderRoomNote(listed, taker, now, news?.[taker], spend, at)]),
+      takers.map((taker) => [
+        taker,
+        renderRoomNote(listed, taker, now, news?.[taker], spend, at, project),
+      ]),
     ),
-    rules: Object.fromEntries(takers.map((taker) => [taker, roomRules(listed, taker)])),
+    rules: Object.fromEntries(takers.map((taker) => [taker, roomRules(listed, taker, project)])),
     ...(now === undefined ? {} : { working: [...now.working], idle: [...now.idle] }),
   };
 }

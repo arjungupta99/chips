@@ -31,7 +31,6 @@ import {
 import { Icon, type IconName } from "@chipschat/ui";
 import {
   type CSSProperties,
-  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -181,50 +180,6 @@ export function useStripRow(called: boolean): {
   const [open, setOpen] = useState(called);
   if (called && !open) setOpen(true);
   return { open, lead: came ? undefined : STRIP_LEAD_MS };
-}
-
-/**
- * Words that change where they stand: what was there fades out, what comes fades in rising three
- * pixels (`.swap-in`, `.swap-out`), both in the one grid cell so neither moves the other. Reduce
- * Motion changes them at once.
- */
-export function Swap({
-  id,
-  className,
-  children,
-}: {
-  readonly id: string;
-  readonly className: string;
-  readonly children: ReactNode;
-}) {
-  const [was, setWas] = useState<{ readonly id: string; readonly words: ReactNode }>({
-    id,
-    words: children,
-  });
-  const [going, setGoing] = useState<{ readonly id: string; readonly words: ReactNode }>();
-  if (was.id !== id) {
-    setGoing(was);
-    setWas({ id, words: children });
-  }
-  const changed = useRef(false);
-  if (going !== undefined) changed.current = true;
-  return (
-    <span className={`swap ${className}`}>
-      <span key={id} className={changed.current ? "swap-now swap-in" : "swap-now"}>
-        {children}
-      </span>
-      {going === undefined ? null : (
-        <span
-          key={`going:${going.id}`}
-          className="swap-out"
-          aria-hidden="true"
-          onAnimationEnd={() => setGoing(undefined)}
-        >
-          {going.words}
-        </span>
-      )}
-    </span>
-  );
 }
 
 /**

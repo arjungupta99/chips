@@ -11,6 +11,12 @@
  *   Mac opens in its own window, and the folder, in Finder (ADR 0225).
  *
  * What the space has is core's `readUniverse`, read again as the project moves on.
+ *
+ * Wider than a phone the sheet is a wide card (`Sheet`'s `wide`): the page takes the window's width,
+ * and the tabs stand in the head's line, what is a list kept to a reading width (Arjun, 3 November
+ * 2026: "want to be able to make use of ipad width"). The tab is named for the device: iPad on an
+ * iPad. A page drawn in the tab opens full screen from the head, over everything, as a page from a
+ * link does: from the words already read, so it is there at once.
  */
 
 import {
@@ -32,17 +38,27 @@ import {
   type Universe,
   withHtmlPolicy,
 } from "@chipschat/core";
-import { lazy, Suspense, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { toBase64 } from "../runtime/base64";
 import { Arrival } from "../ui/Arrival";
-import { Button } from "../ui/Button";
+import { Button, IconButton } from "../ui/Button";
 import { useGround } from "../ui/ground";
 import { Opens } from "../ui/growing";
 import { Icon } from "../ui/Icon";
+import { useLayout } from "../ui/layout";
 import { Segmented } from "../ui/Segmented";
 import { Sheet, SheetScroll } from "../ui/Sheet";
-import { CLOSE_ROOM } from "../ui/SheetClose";
+import { CLOSE, CLOSE_RISE, CLOSE_ROOM } from "../ui/SheetClose";
+import { useSplitSide } from "../ui/Split";
 import { usePalette, useScheme } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { UniverseMark, UniverseReading } from "../ui/UniverseMark";
@@ -60,6 +76,15 @@ const PageView = lazy(async () => ({
 }));
 
 type Tab = "phone" | "desktop";
+
+/** What the device's own tab is called: the phone's, or an iPad's. */
+const HERE = Platform.OS === "ios" && Platform.isPad ? "iPad" : "Phone";
+
+/** As wide as a list or a card of words stands in a wide sheet: a phone's, and a little more. */
+const READING = 560;
+
+/** Pages and Markdown read once for the project as it stands, by path: full screen opens at once. */
+type Kept = Map<string, string>;
 
 /**
  * A read the sheet waits on, made while it is up and again when what it reads changes. The sheet
@@ -140,8 +165,70 @@ function UniverseOf({
   const project = useMemo(() => projectActions(store, space.id, selfId), [store, space.id, selfId]);
   const head = space.project?.changes[0]?.commit ?? "";
   const read = useRead(() => readUniverse(store, space.id), `${space.id}:${head}`, open);
-  // A document opened from the page or the list: a page or Markdown over the sheet, anything else
-  // in Quick Look.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: what was read is the project's at `head`.
+  const kept = useMemo<Kept>(() => new Map(), [space.id, head]);
+  const { paged, setPaged, failed, setFailed, openFile } = useOpening(project);
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      onGone={() => {
+        setTab("phone");
+        setPaged(undefined);
+        setFailed(undefined);
+      }}
+      sizing="full"
+      wide
+      testID="universe-sheet"
+    >
+      <View style={styles.sheet}>
+        <Top
+          title={title}
+          tab={tab}
+          onTab={toDesktop === undefined ? undefined : setTab}
+          universe={read.value}
+          onFile={openFile}
+        />
+        {failed === undefined ? null : <Said words={failed} failed />}
+        {read.failed !== undefined ? (
+          <Said words={read.failed} failed />
+        ) : (
+          <Arrival
+            ready={read.value !== undefined}
+            waiting={<UniverseReading words="Reading the space…" />}
+          >
+            {read.value === undefined ? null : tab === "phone" ? (
+              <PhoneTab
+                universe={read.value}
+                project={project}
+                kept={kept}
+                live={open}
+                onFile={openFile}
+                onDesktop={toDesktop}
+              />
+            ) : (
+              <DesktopTab universe={read.value} project={project} />
+            )}
+          </Arrival>
+        )}
+      </View>
+      {paged === undefined ? null : (
+        <PageSheet
+          key={paged}
+          page={pageOf(paged, project, kept)}
+          onFile={openFile}
+          onClose={() => setPaged(undefined)}
+        />
+      )}
+    </Sheet>
+  );
+}
+
+/**
+ * A document opened from the page or the list: a page or Markdown over the sheet, anything else in
+ * Quick Look, or why it couldn't be.
+ */
+function useOpening(project: ProjectActions) {
   const [paged, setPaged] = useState<string | undefined>(undefined);
   const [failed, setFailed] = useState<string | undefined>(undefined);
   const openFile = (path: string) => {
@@ -156,89 +243,118 @@ function UniverseOf({
       .then(({ bytes, type }) => previewBytes(bytes, fileNameOf(path), type))
       .catch((error: unknown) => setFailed(error instanceof Error ? error.message : String(error)));
   };
-  return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      onGone={() => {
-        setTab("phone");
-        setPaged(undefined);
-        setFailed(undefined);
-      }}
-      sizing="full"
-      testID="universe-sheet"
-    >
-      <View style={styles.sheet}>
-        <Head title={title} />
-        <WhereTabs tab={tab} onTab={toDesktop === undefined ? undefined : setTab} />
-        {failed === undefined ? null : <Said words={failed} failed />}
-        {read.failed !== undefined ? (
-          <Said words={read.failed} failed />
-        ) : (
-          <Arrival
-            ready={read.value !== undefined}
-            waiting={<UniverseReading words="Reading the space…" />}
-          >
-            {read.value === undefined ? null : tab === "phone" ? (
-              <PhoneTab
-                universe={read.value}
-                project={project}
-                live={open}
-                onFile={openFile}
-                onDesktop={toDesktop}
-              />
-            ) : (
-              <DesktopTab universe={read.value} project={project} />
-            )}
-          </Arrival>
-        )}
-      </View>
-      {paged === undefined ? null : (
-        <PageSheet
-          key={paged}
-          page={pageOf(paged, project)}
-          onFile={openFile}
-          onClose={() => setPaged(undefined)}
-        />
-      )}
-    </Sheet>
-  );
+  return { paged, setPaged, failed, setFailed, openFile };
+}
+
+/** The start page or the one document, where the tab draws it as a page: what opens full screen. */
+function drawnStart(universe: Universe | undefined): string | undefined {
+  const documents = universe?.documents;
+  if (documents === undefined || !("start" in documents)) return undefined;
+  const kind = documentKind(documents.start);
+  return kind === "page" || kind === "markdown" ? documents.start : undefined;
 }
 
 /** A page or Markdown of the project, as the page sheet opens it. */
-function pageOf(path: string, project: ProjectActions) {
+function pageOf(path: string, project: ProjectActions, kept: Kept) {
   const markdown = documentKind(path) === "markdown";
   return {
     name: fileNameOf(path),
     mimeType: markdown ? "text/markdown" : "text/html",
-    read: textOf(path, project, markdown),
+    read: textOf(path, project, markdown, kept),
   };
 }
 
-/** A page built into one document, or Markdown's own words: what a view of it draws from. */
-function textOf(path: string, project: ProjectActions, markdown: boolean) {
-  return async (signal: AbortSignal) =>
-    markdown
+/**
+ * A page built into one document, or Markdown's own words: what a view of it draws from. Kept once
+ * read, so the same page opened again, full screen, is not asked for again.
+ */
+function textOf(path: string, project: ProjectActions, markdown: boolean, kept: Kept) {
+  return async (signal: AbortSignal) => {
+    const had = kept.get(path);
+    if (had !== undefined) return had;
+    const text = markdown
       ? new TextDecoder().decode((await project.file(path, undefined, signal)).bytes)
       : await project.page(path, undefined, signal);
+    kept.set(path, text);
+    return text;
+  };
 }
 
-/** Universe, with the space's name under it, clear of the sheet's X. */
-function Head({ title }: { readonly title: string }) {
+/** The head, and the tabs under it or, on a wide sheet, in its line where there are two. */
+function Top({
+  title,
+  tab,
+  onTab,
+  universe,
+  onFile,
+}: {
+  readonly title: string;
+  readonly tab: Tab;
+  readonly onTab: ((tab: Tab) => void) | undefined;
+  readonly universe: Universe | undefined;
+  readonly onFile: (path: string) => void;
+}) {
+  const { roomy } = useLayout();
+  // In a column of its own beside the room (ADR 0276) the tabs stand under the name, as on a phone:
+  // on its line they ran over the name and the X.
+  const column = useSplitSide() === "third";
+  const tabs = <WhereTabs tab={tab} onTab={onTab} />;
+  const inLine = roomy && !column && onTab !== undefined;
+  const whole = tab === "phone" ? drawnStart(universe) : undefined;
+  return (
+    <>
+      <Head
+        title={title}
+        tabs={inLine ? tabs : null}
+        onWhole={whole === undefined ? undefined : () => onFile(whole)}
+      />
+      {inLine ? null : tabs}
+    </>
+  );
+}
+
+/**
+ * Universe, with the space's name under it, clear of the sheet's X; on a wide sheet the tabs in the
+ * middle of its line; and at its end Full screen, while the tab draws a page.
+ */
+function Head({
+  title,
+  tabs,
+  onWhole,
+}: {
+  readonly title: string;
+  readonly tabs: ReactNode;
+  readonly onWhole: (() => void) | undefined;
+}) {
   const palette = usePalette();
   const on = useGround();
   return (
-    <View style={styles.head}>
-      <View style={[styles.mark, { backgroundColor: on.fill }]}>
-        <UniverseMark size={22} ink={palette.ink} ground={on.fill} />
+    <View style={styles.head} testID="universe-head">
+      <View style={styles.headStart}>
+        <View style={[styles.mark, { backgroundColor: on.fill }]}>
+          <UniverseMark size={22} ink={palette.ink} ground={on.fill} />
+        </View>
+        <View style={styles.named}>
+          <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>
+            Universe
+          </Text>
+          <Text numberOfLines={1} style={[styles.under, { color: palette.ink3 }]}>
+            {title}
+          </Text>
+        </View>
       </View>
-      <View style={styles.named}>
-        <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>
-          Universe
-        </Text>
-        <Text numberOfLines={1} style={[styles.under, { color: palette.ink3 }]}>
-          {title}
-        </Text>
+      {tabs === null ? null : <View style={styles.headTabs}>{tabs}</View>}
+      <View style={[styles.headEnd, tabs === null ? null : styles.headEndWide]}>
+        {onWhole === undefined ? null : (
+          <IconButton
+            icon="fullScreen"
+            label="Full screen"
+            tone="quiet"
+            size={CLOSE}
+            onPress={onWhole}
+            testID="universe-full-screen"
+          />
+        )}
       </View>
     </View>
   );
@@ -287,7 +403,7 @@ function WhereTabs({
       <Segmented
         label="Where it opens"
         options={[
-          { value: "phone", label: "Phone" },
+          { value: "phone", label: HERE },
           { value: "desktop", label: "Desktop" },
         ]}
         chosen={tab}
@@ -302,12 +418,14 @@ function WhereTabs({
 function PhoneTab({
   universe,
   project,
+  kept,
   live,
   onFile,
   onDesktop,
 }: {
   readonly universe: Universe;
   readonly project: ProjectActions;
+  readonly kept: Kept;
   /** The sheet is up: its document is read, and given up on when it closes. */
   readonly live: boolean;
   readonly onFile: (path: string) => void;
@@ -316,7 +434,9 @@ function PhoneTab({
 }) {
   const { documents } = universe;
   if (documents !== undefined && "start" in documents) {
-    return <Start path={documents.start} project={project} live={live} onFile={onFile} />;
+    return (
+      <Start path={documents.start} project={project} kept={kept} live={live} onFile={onFile} />
+    );
   }
   if (documents !== undefined) {
     return (
@@ -327,18 +447,20 @@ function PhoneTab({
     );
   }
   if (universe.program !== undefined) return <ProgramsOnMac onDesktop={onDesktop} />;
-  return <Said words="Nothing here opens on the phone yet." />;
+  return <Said words={`Nothing here opens on the ${HERE === "iPad" ? "iPad" : "phone"} yet.`} />;
 }
 
 /** The start page, or the one document, as the phone draws it. */
 function Start({
   path,
   project,
+  kept,
   live,
   onFile,
 }: {
   readonly path: string;
   readonly project: ProjectActions;
+  readonly kept: Kept;
   readonly live: boolean;
   readonly onFile: (path: string) => void;
 }) {
@@ -348,6 +470,7 @@ function Start({
       <Drawn
         path={path}
         project={project}
+        kept={kept}
         live={live}
         onFile={onFile}
         markdown={kind === "markdown"}
@@ -366,19 +489,21 @@ function Start({
 function Drawn({
   path,
   project,
+  kept,
   live,
   onFile,
   markdown,
 }: {
   readonly path: string;
   readonly project: ProjectActions;
+  readonly kept: Kept;
   readonly live: boolean;
   readonly onFile: (path: string) => void;
   readonly markdown: boolean;
 }) {
   const palette = usePalette();
   const scheme = useScheme();
-  const read = useRead(textOf(path, project, markdown), path, live);
+  const read = useRead(textOf(path, project, markdown, kept), path, live);
   const [drawn, setDrawn] = useState(false);
   const [failed, setFailed] = useState<string | undefined>(undefined);
   const html = useMemo(() => {
@@ -671,6 +796,17 @@ const styles = StyleSheet.create({
     paddingRight: CLOSE_ROOM,
     paddingBottom: SPACE.sm,
   },
+  headStart: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: SPACE.md },
+  // On a wide sheet the tabs stand in the middle of the line, the two ends sharing what is left.
+  headTabs: { width: 280 },
+  // Full screen beside the sheet's X, the two the same size on the X's line.
+  headEnd: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: -CLOSE_RISE,
+  },
+  headEndWide: { flex: 1 },
   mark: {
     width: 40,
     height: 40,
@@ -684,7 +820,13 @@ const styles = StyleSheet.create({
   tabs: { paddingVertical: SPACE.sm },
   said: { fontSize: TEXT.md, marginHorizontal: SPACE.xs, marginVertical: SPACE.sm },
   scroll: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
-  content: { gap: SPACE.md, paddingBottom: SPACE.lg },
+  content: {
+    gap: SPACE.md,
+    paddingBottom: SPACE.lg,
+    width: "100%",
+    maxWidth: READING,
+    alignSelf: "center",
+  },
   page: {
     flex: 1,
     minHeight: 0,
@@ -712,6 +854,9 @@ const styles = StyleSheet.create({
   rowWords: { flex: 1, minWidth: 0 },
   rowName: { fontSize: TEXT.md, fontWeight: "600" },
   programs: {
+    width: "100%",
+    maxWidth: READING,
+    alignSelf: "center",
     alignItems: "center",
     gap: SPACE.sm,
     padding: SPACE.lg,

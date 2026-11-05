@@ -311,7 +311,10 @@ as `harness`, so a brief that says "Jacobian leads" can be followed in a room wh
 agent is called ASCII Art; an agent named as its harness is, like `OpenClaw`, has none
 ([ADR 0101](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0101-an-agent-hands-work-to-another-of-its-harness.md)).
 A member no handle reaches, such as a one-letter name, has no `handle`. With no other agent in the room, the rules are only "Everyone here reads
-what you write." A `message.overheard` carries no `room`: it gives no turn.
+what you write." Once the space's project has had a push, the rules end with where people open it:
+"People open the space's project with the Universe button at the top right of the space, so when
+someone asks where a file is, point them there." A `message.overheard` carries no `room`: it gives
+no turn.
 
 A person whose phone Chips knows also carries `time_zone`, the IANA zone of the phone they
 registered last, and the note says their time as Chips hands the turn over, after the room's line:

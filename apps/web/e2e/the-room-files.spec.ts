@@ -106,7 +106,7 @@ test("a room's file crosses by its link, comes back as v2, and a change made fro
   await name.fill("Gallery");
   await name.press("Enter");
   await expect(page.getByRole("main", { name: "Space: Gallery" })).toBeVisible();
-  await expect(page.getByTestId("room-sheet-add-done")).toBeVisible();
+  await expect(page.getByTestId("room-sheet-add-page")).toBeVisible();
   await addMember(page, { id: scoutHere });
   await addMember(page, { moving: "Painter" });
   await expect((await sheetBack(page)).getByTestId("member")).toHaveCount(3);

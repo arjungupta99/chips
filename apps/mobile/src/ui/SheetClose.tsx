@@ -2,7 +2,8 @@
  * The way out of every sheet: an X at the top right, on the line the sheet's title stands on
  * (ADR 0169, Arjun's B, 15 October 2026: "All bottom sheets in Chips need to show a beautiful X
  * button on the top right"). `Sheet` draws it, so no sheet can be without one, and a sheet's head
- * leaves `CLOSE_ROOM` at its right for it.
+ * leaves `CLOSE_ROOM` at its right for it. On the iPhone Duo it stands in the column beside the
+ * sheet instead, where UIKit moves a sheet's own buttons (`closeInLane`).
  *
  * On iOS 26 and later it is a drop of the system's interactive glass, the material the room's
  * capsules and the composer's + are made of, which swells under a thumb as iOS's own glass
@@ -28,6 +29,7 @@ import { GlassView } from "expo-glass-effect";
 import { useMemo } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { TOUCH_TARGET } from "./Button";
+import type { Frame } from "./duo";
 import { useLiquid } from "./Glass";
 import { useGround } from "./ground";
 import { Icon } from "./Icon";
@@ -43,6 +45,26 @@ export const CLOSE_ROOM = CLOSE + SPACE.md;
  * first line that is a circle the X's size rises as far, and the two stand level.
  */
 export const CLOSE_RISE = 6;
+/** Where the X stands, moved from its place at the right of the title's line (`closeInLane`). */
+export interface CloseAt {
+  readonly right: number;
+  readonly top: number;
+}
+
+/**
+ * Where a phone's sheet puts its X on the iPhone Duo (ADR 0256, the mock's section 11): in the lane
+ * down the column UIKit stands its own buttons in, as UIKit moves a sheet's own buttons there, and
+ * never above the lane's top, where the status stands — the camera, the time and the battery. A
+ * sheet that rises above it has its X at the lane's top; a lower one on its title's line, in the
+ * lane. `lineRight` and `lineTop` are where the title's line ends and stands in the window, the
+ * sheet at rest.
+ */
+export function closeInLane(lane: Frame, lineRight: number, lineTop: number): CloseAt {
+  const middle = lane.x + lane.width / 2;
+  const top = lineTop - CLOSE_RISE;
+  return { right: lineRight - (middle + CLOSE / 2), top: -CLOSE_RISE + Math.max(0, lane.y - top) };
+}
+
 /** The mark inside it, and the ring around it. */
 const MARK = 16;
 const RING = CLOSE + 10;
@@ -71,6 +93,7 @@ export function SheetClose({
   onClose,
   onCloseButton,
   sheet,
+  at,
 }: {
   readonly motion: CloseMotion;
   /** The sheet may not be put away just now: a delete it asked for is under way. */
@@ -80,6 +103,8 @@ export function SheetClose({
   readonly onCloseButton: (() => void) | undefined;
   /** The sheet's own test id, which the X's is made from. */
   readonly sheet: string | undefined;
+  /** Somewhere else than the right of the title's line: the Duo's column (`closeInLane`). */
+  readonly at?: CloseAt | undefined;
 }) {
   return (
     <View style={styles.line} pointerEvents="box-none">
@@ -88,6 +113,7 @@ export function SheetClose({
         disabled={disabled}
         onPress={onCloseButton ?? onClose}
         testID={`${sheet ?? "sheet"}-close`}
+        at={at}
       />
     </View>
   );
@@ -98,11 +124,13 @@ function Close({
   disabled,
   onPress,
   testID,
+  at,
 }: {
   readonly motion: CloseMotion;
   readonly disabled: boolean;
   readonly onPress: () => void;
   readonly testID: string;
+  readonly at: CloseAt | undefined;
 }) {
   const palette = usePalette();
   const on = useGround();
@@ -138,7 +166,7 @@ function Close({
   return (
     <Animated.View
       pointerEvents="box-none"
-      style={[styles.at, { transform: [{ scale: look.grow }, { scale: look.pop }] }]}
+      style={[styles.at, at, { transform: [{ scale: look.grow }, { scale: look.pop }] }]}
     >
       <Ring first={look.first} second={look.second} shown={look.ring} color={palette.ink2} />
       {liquid ? (

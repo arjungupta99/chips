@@ -74,6 +74,7 @@ export function Person({
   personId,
   workspace,
   serverUrl,
+  onRemoved,
 }: {
   readonly store: Store;
   readonly selfId: string;
@@ -82,6 +83,8 @@ export function Person({
   readonly workspace: string;
   /** Where this phone reaches the server: a new phone's QR names it (ADR 0206). */
   readonly serverUrl?: string | undefined;
+  /** Where to go once they are taken out: back, unless beside You's list (ADR 0256). */
+  readonly onRemoved?: (() => void) | undefined;
 }) {
   const snapshot = useSnapshot(store);
   const router = useRouter();
@@ -91,7 +94,8 @@ export function Person({
   const [removing, setRemoving] = useState(false);
   const { busy, failed, setFailed, remove } = useRemove(store, personId, () => {
     setRemoving(false);
-    router.back();
+    if (onRemoved) onRemoved();
+    else router.back();
   });
   const { model, directory } = snapshot;
   const person = model.people[personId];

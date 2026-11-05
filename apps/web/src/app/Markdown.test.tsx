@@ -40,10 +40,10 @@ describe("a picture in a message", () => {
     drawn(`![truck](${TRUCK})`);
     const image = screen.getByAltText("truck");
     expect(image.hasAttribute("data-loading")).toBe(true);
-    expect(document.querySelector(".photo-loading")).not.toBeNull();
+    expect(image.getAttribute("data-decoded")).toBe("false");
     fireEvent.load(image);
     expect(image.hasAttribute("data-loading")).toBe(false);
-    expect(document.querySelector(".photo-loading")).toBeNull();
+    expect(image.getAttribute("data-decoded")).toBe("true");
   });
 
   it("says its words as a link when it will not load", () => {

@@ -129,23 +129,67 @@ export function cardAcross(
   return { x: (screenWidth - CARD_MOST) / 2, width: CARD_MOST };
 }
 
+/** Between the + and the card that hangs under it on an iPad: the mock's (ADR 0256). */
+export const HANG = 16;
+
+/**
+ * Where the card hangs on an iPad, whose + stands at the top of the window (ADR 0256, the mock's
+ * section 8): under the + it pours out of, across from the +'s middle as far as the screen's edges
+ * allow, as a popover hangs from its button, at `CARD_MOST` wide. In the middle at the foot, it
+ * poured out of a + at the top and down across the whole window to get there.
+ */
+export function cardUnder(
+  screenWidth: number,
+  edge: number,
+  plus: Rect,
+): {
+  readonly x: number;
+  readonly width: number;
+  readonly top: number;
+} {
+  const width = Math.min(CARD_MOST, screenWidth - 2 * edge);
+  const middle = plus.x + plus.width / 2;
+  const x = Math.min(Math.max(middle - width / 2, edge), screenWidth - edge - width);
+  return { x, width, top: plus.y + plus.height + HANG };
+}
+
+/**
+ * The card's top, `gap` above the keyboard as it rises, or above the screen's foot with none; on an
+ * iPad at `hang`, under the + (`cardUnder`), unless the keys would come over it there, when it
+ * stands on them as a phone's does.
+ */
+export function cardTop(
+  screenHeight: number,
+  lift: number,
+  gap: number,
+  height: number,
+  hang: number | undefined,
+): number {
+  "worklet";
+  const onKeys = screenHeight - lift - gap - height;
+  return hang === undefined ? onKeys : Math.min(hang, onKeys);
+}
+
 /**
  * Where a room made from the + will stand, which the window fills on a send before it dissolves
  * into it: the whole screen on a phone, and on a wide screen the half beside the list, which is
  * where the room opens there (`app/(tabs)/index.tsx`). Filling the whole iPad, the window left a
- * page the size of the screen to dissolve into a room a third narrower.
+ * page the size of the screen to dissolve into a room a third narrower. On the iPhone Duo the
+ * screen is the page beside its column, which starts at `x` when the column is on the left.
  */
 export function fillRect(
-  screen: { readonly width: number; readonly height: number },
+  screen: { readonly x?: number; readonly width: number; readonly height: number },
   list: number | undefined,
 ): Rect {
-  if (list === undefined) return { x: 0, y: 0, width: screen.width, height: screen.height };
-  return { x: list, y: 0, width: screen.width - list, height: screen.height };
+  const x = screen.x ?? 0;
+  if (list === undefined) return { x, y: 0, width: screen.width, height: screen.height };
+  return { x: x + list, y: 0, width: screen.width - list, height: screen.height };
 }
 
 /**
- * Where the window grows from when there is no + of this app's to measure: an iPad's, which is the
- * system's own button in a tab bar this app is not told the place of. Out of the top of the screen,
+ * Where the window grows from when there is no + of this app's to measure: an iPad's in a window
+ * too narrow for the gold one, which is the system's own button in a tab bar this app is not told
+ * the place of. Out of the top of the screen,
  * in the middle, where the bar stands over a regular width; a point, so it pours out of nothing.
  */
 export function topMiddle(screenWidth: number, top: number): Rect {

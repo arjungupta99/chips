@@ -1,9 +1,10 @@
 /**
- * When Chips steps in on agents talking to each other (ADR 0187): a card under the workspace's
- * heading, the phone's sheet laid out for a wide screen. Why it is there, then the stop, the
- * circles switch and the hold, each number four choices, Other and Never, the settings as one
- * sentence, and how Chips counts behind a disclosure. A hold picked at or under the stop takes the
- * stop down to fit; Save shows once the card says something new and whole.
+ * When Chips steps in on agents talking to each other (ADR 0187): the phone's sheet, as a form on a
+ * page beside You's list (ADR 0265 and its addendum). Why it is there, then the stop, the circles
+ * switch and the hold, each number four choices, Other and Never, the settings as one sentence,
+ * and how Chips counts behind a disclosure. A hold picked at or under the stop takes the stop down
+ * to fit; Save sends what the form says once it is whole, and an Other that is not stays up with
+ * why.
  */
 
 import {
@@ -22,15 +23,17 @@ import {
   stopFits,
 } from "@chipschat/core";
 import { DEFAULT_EXCHANGE_LIMITS, type ExchangeLimits } from "@chipschat/protocol";
-import { Button } from "@chipschat/ui";
 import { useEffect, useState } from "react";
-import { Card, Problem, Row, Segmented, Switch } from "./controls.tsx";
+import { Problem, Row, Segmented, Switch } from "./controls.tsx";
+import { FormPage } from "./Form.tsx";
 
 type Kind = "stop" | "hold";
 
-export function ExchangeLimitsCard(props: {
+export function ExchangeLimitsForm(props: {
+  readonly from: HTMLElement;
   readonly limits: ExchangeLimits;
   readonly onSave: (limits: ExchangeLimits) => void;
+  readonly onGone: () => void;
 }) {
   const { limits, onSave } = props;
   const [draft, setDraft] = useState<LimitsDraft>(() => limitsDraft(limits));
@@ -46,58 +49,48 @@ export function ExchangeLimitsCard(props: {
     );
 
   return (
-    <Card
-      label="Messages between agents"
-      testId="exchange-limits"
+    <FormPage
       title="Messages between agents"
-      level={3}
+      from={props.from}
+      testId="exchange-limits"
+      onSave={() => {
+        if (!("limits" in read)) return false;
+        if (ready) onSave(read.limits);
+        return true;
+      }}
+      onGone={props.onGone}
     >
-      <p className="you-card-note">{LIMITS_WHY}</p>
-      <form
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          if ("limits" in read && ready) onSave(read.limits);
-        }}
-      >
-        <LimitNumber kind="stop" draft={draft} onPick={pick} onType={type} />
-        <Row label={LIMITS_SETTINGS.circles.title} sub={LIMITS_SETTINGS.circles.words}>
-          <Switch
-            label={LIMITS_SETTINGS.circles.title}
-            checked={draft.circles}
-            onChange={(on) => setDraft({ ...draft, circles: on })}
-          />
-        </Row>
-        <LimitNumber kind="hold" draft={draft} onPick={pick} onType={type} />
-        <Row
-          className="you-row-more you-exchange-words"
-          label={
-            <span data-testid="exchange-words">
-              {limitsSentence("limits" in read ? read.limits : limits)}
-            </span>
-          }
-        >
-          {ready && (
-            <Button type="submit" data-testid="save-exchange-limits">
-              Save
-            </Button>
+      {() => (
+        <>
+          <p className="you-card-note">{LIMITS_WHY}</p>
+          <LimitNumber kind="stop" draft={draft} onPick={pick} onType={type} />
+          <Row label={LIMITS_SETTINGS.circles.title} sub={LIMITS_SETTINGS.circles.words}>
+            <Switch
+              label={LIMITS_SETTINGS.circles.title}
+              checked={draft.circles}
+              onChange={(on) => setDraft({ ...draft, circles: on })}
+            />
+          </Row>
+          <LimitNumber kind="hold" draft={draft} onPick={pick} onType={type} />
+          <p className="you-card-note you-exchange-words" data-testid="exchange-words">
+            {limitsSentence("limits" in read ? read.limits : limits)}
+          </p>
+          {"error" in read ? (
+            <Problem error={read.error} />
+          ) : (
+            foot.warn && <p className="you-card-note you-warn">{foot.text}</p>
           )}
-        </Row>
-      </form>
-      {"error" in read ? (
-        <Problem error={read.error} />
-      ) : (
-        foot.warn && <p className="you-card-note you-warn">{foot.text}</p>
+          <details className="you-how" data-testid="exchange-how">
+            <summary>How Chips counts</summary>
+            <ul>
+              {LIMITS_HOW.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </details>
+        </>
       )}
-      <details className="you-how" data-testid="exchange-how">
-        <summary>How Chips counts</summary>
-        <ul>
-          {LIMITS_HOW.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      </details>
-    </Card>
+    </FormPage>
   );
 }
 

@@ -12,6 +12,7 @@ import { type Directory, harnessOf, nameOf } from "./events.js";
 import type { PersonModel, Space, WorkspaceModel, WorkspaceRole } from "./model.js";
 import { administers, myRole, spaceTitle } from "./model.js";
 import type { Asking } from "./putAway.js";
+import { roomName } from "./rooms.js";
 import type { Invite } from "./store.js";
 import { withArticle } from "./welcome.js";
 
@@ -31,13 +32,30 @@ export function selfLabel(name: string): string {
   return name === FIRST_PERSON_NAME ? name : `${name} (you)`;
 }
 
-/** What each role may do, in the fewest words that tell them apart: a profile's line. */
-export const ROLE_SHORT: Readonly<Record<WorkspaceRole, string>> = {
-  owner: "invites, roles, everyone's devices and harnesses",
-  admin: "roles and removals, but no owner's; no invites",
-  member: "works in the spaces they're added to",
-  guest: "one space at most, and nothing else",
-};
+/**
+ * The line under your name at the top of You, on the phone and the desktop alike (ADR 0085): your
+ * role here, and where here is, "Owner · Demo"; the workspace alone while the role is unread.
+ */
+export function standingWords(role: WorkspaceRole | undefined, workspace: string): string {
+  return role === undefined ? workspace : `${ROLE_WORDS[role]} · ${workspace}`;
+}
+
+/**
+ * A guest's line under their name: the one space they are in and who let them in, "Guest in Japan
+ * trip · invited by Arjun" (ADR 0196). A workspace is a word a guest never needs. Nothing while
+ * they are in no space yet, and `standingWords` says it.
+ */
+export function guestStandingWords(
+  model: WorkspaceModel,
+  directory: Directory,
+  selfId: string,
+): string | undefined {
+  const space = model.spaces.find((each) => each.state === "open" && each.members.includes(selfId));
+  if (space === undefined) return undefined;
+  const invitedBy = model.people[selfId]?.invitedBy;
+  const by = invitedBy === undefined ? "" : ` · invited by ${nameOf(directory, invitedBy)}`;
+  return `Guest in ${roomName(model, space.id, directory)}${by}`;
+}
 
 /** What each role may do, as a sentence: under a role picked for an invite or a person. */
 export const ROLE_MEANS: Readonly<Record<WorkspaceRole, string>> = {

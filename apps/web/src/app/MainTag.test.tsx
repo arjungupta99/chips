@@ -59,7 +59,6 @@ describe("the Main tag (ADR 0145)", () => {
         spaceIcons={new Map([["spc_main", { icon: "atom", ground: 13 }]])}
         selectedSpaceId={undefined}
         tab="spaces"
-        personName="Arjun"
         selfId={ARJUN}
         onSelectTab={vi.fn()}
         onSelectSpace={vi.fn()}

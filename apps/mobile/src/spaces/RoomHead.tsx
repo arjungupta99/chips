@@ -21,8 +21,8 @@ import {
   spaceTitle,
 } from "@chipschat/core";
 import { useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Keyboard, Pressable, StyleSheet } from "react-native";
+import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Keyboard, Pressable, StyleSheet, type View } from "react-native";
 import { ArrivingTitle, Sweep } from "../newSpace/Naming";
 import { useDrawnUnderWindow, useUnderWindow } from "../newSpace/NewSpace";
 import { useNamed } from "../newSpace/useNamed";
@@ -30,7 +30,7 @@ import { useSnapshot } from "../store/provider";
 import { Capsule } from "../ui/Glass";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE } from "../ui/tokens";
-import { UniverseMark } from "../ui/UniverseMark";
+import { CallingMark } from "../ui/UniverseMark";
 import type { RoomPage } from "./RoomSheet";
 
 export type { RoomPage };
@@ -59,6 +59,8 @@ export interface Room {
     readonly opensOn: RoomPage;
     readonly show: (page?: RoomPage) => void;
     readonly close: () => void;
+    /** The name in the bar, which on an iPad the sheet opens beside when the name opened it. */
+    readonly from: RefObject<View | null>;
   };
 }
 
@@ -128,6 +130,7 @@ export function useRoom({
     setOpen(true);
   }, []);
   const close = useCallback(() => setOpen(false), []);
+  const from = useRef<View>(null);
   // A room made empty from the + comes up on its Add once the window that made it has gone, and
   // only the once (ADR 0148).
   useEffect(() => {
@@ -153,7 +156,7 @@ export function useRoom({
     named,
     held,
     drawn,
-    sheet: { open, opensOn, show, close },
+    sheet: { open, opensOn, show, close, from },
   };
 }
 
@@ -177,6 +180,7 @@ export function RoomName({
       accessibilityLabel={`${title}, who is here`}
       accessibilityHint="Shows who is in this space, and adds somebody to it"
       onPress={() => room.sheet.show()}
+      ref={room.sheet.from}
       testID="room-capsule"
     >
       {glassy ? (
@@ -191,31 +195,44 @@ export function RoomName({
   );
 }
 
-/** The mark is 22 points wide over a line's height; this brings its target up to Apple's 44. */
-const SLOP = { top: 11, bottom: 11, left: 11, right: 11 };
+/**
+ * The mark is 26 points wide (22 until Arjun's "the default icon size can be slightly larger", 3
+ * November 2026); this brings its target up to Apple's 44 across. It stands 44 high already.
+ */
+const SLOP = { top: 0, bottom: 0, left: 9, right: 9 };
 
 /**
  * Universe from the room's bar, at the top right (ADR 0227): what the space made, to read on the
- * phone and to open or run on the Mac. Only for a room that has a project.
+ * phone and to open or run on the Mac. Only for a room that has a project. While the project has a
+ * change the reader hasn't opened it at, it calls them (`calling`, `spaces/universeSeen.ts`).
  */
-export function UniverseButton({ onPress }: { readonly onPress: () => void }) {
+export function UniverseButton({
+  onPress,
+  calling,
+}: {
+  readonly onPress: () => void;
+  readonly calling?: string | undefined;
+}) {
   const palette = usePalette();
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Universe"
+      accessibilityLabel={calling === undefined ? "Universe" : "Universe, updated"}
       hitSlop={SLOP}
       onPress={onPress}
       style={({ pressed }) => [styles.universe, pressed ? styles.pressed : null]}
       testID="room-universe-button"
     >
-      <UniverseMark size={22} ink={palette.ink} ground={palette.bg} />
+      <CallingMark size={26} ink={palette.ink} ground={palette.bg} calling={calling} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  universe: { alignItems: "center", justifyContent: "center" },
+  // As high as the bar, so the mark has room to grow as it calls: the bar clips what it holds to
+  // the box it was given, and a 26-point box cut the lowest planet off (the simulator, 3 November
+  // 2026).
+  universe: { height: 44, alignItems: "center", justifyContent: "center" },
   pressed: { opacity: 0.5 },
   // The name's own capsule: the bar's title box, with the glass round it. The padding is what
   // makes it a capsule rather than a rectangle behind two lines of text — and in the system's

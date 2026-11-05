@@ -824,6 +824,9 @@ const ROWS: readonly Row[] = [
     path: "/v1/me/pinned-spaces/spc_01K4ZQPX000000000000000001",
     expect: people,
   },
+  // How far a person has read (ADR 0262): theirs, as the rooms they pinned are.
+  { method: "GET", route: "/v1/me/read", expect: people },
+  { method: "PUT", route: "/v1/me/read", body: { spaces: {} }, expect: people },
   // A room's lines (ADR 0088): a harness's read of a room it is in; a person reads the room. Scout
   // is in no room of this id, so past the door it hears `not_found`.
   {

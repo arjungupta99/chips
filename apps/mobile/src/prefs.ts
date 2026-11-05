@@ -61,6 +61,8 @@ export const SETTINGS = {
   picks: "picks",
   /** What was searched for here, newest first (`search/recent.ts`, ADR 0132). */
   recentSearches: "search.recent",
+  /** The change each space's Universe was last opened at here (`spaces/universeSeen.ts`). */
+  universeSeen: "universe.seen",
   /** The setup card put away, per paired device: `setup.hidden.<deviceId>` (ADR 0170). */
   setupHidden: "setup.hidden",
   /** Whether this phone has asked, once, to turn notifications on at an agent's ask (ADR 0170). */

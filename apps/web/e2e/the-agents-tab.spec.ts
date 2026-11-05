@@ -51,7 +51,7 @@ test("an agent's history is its rooms, and a room you're not in is a count", asy
     await name.fill("Attic");
     await name.press("Enter");
     await expect(page.getByRole("main", { name: "Space: Attic" })).toBeVisible();
-    await expect(page.getByTestId("room-sheet-add-done")).toBeVisible();
+    await expect(page.getByTestId("room-sheet-add-page")).toBeVisible();
     await addMember(page, { id: finch });
     await expect((await sheetBack(page)).getByTestId("member")).toHaveCount(2);
     await closeSheet(page);
@@ -68,8 +68,11 @@ test("an agent's history is its rooms, and a room you're not in is a count", asy
 
     await finchRow.click();
     await expect(page.getByRole("heading", { name: "Finch", level: 1 })).toBeVisible();
+    // Its history is a page of its own behind the card's row, as the phone's (ADR 0270).
+    await page.getByTestId("agent-history").click();
     await expect(page.getByTestId("away-count")).toHaveText("1 message in a space you're not in");
     await expect(page.getByRole("region", { name: "Message history" })).not.toContainText("Attic");
+    await page.getByRole("button", { name: "‹ Finch" }).click();
     await page.getByRole("button", { name: "‹ Agents" }).click();
 
     // Its default agent, named for the harness, in the untitled room it came with. Its card's
@@ -88,11 +91,14 @@ test("an agent's history is its rooms, and a room you're not in is a count", asy
     await expect(page.getByRole("heading", { name: "Wren", level: 1 })).toBeVisible();
     await expect(page.getByTestId("agent-stay")).toContainText("Since");
     await expect(page.getByTestId("agent-stay-dates")).toHaveText("");
+    // Read once the page has come and stopped moving (ADR 0275), so only the dates can move it.
+    await expect(page.locator(".turn[data-turn]")).toHaveCount(0);
     const before = await page.getByTestId("agent-now").boundingBox();
     answer();
     await expect(page.getByTestId("agent-stay-dates")).toHaveText(/^\d{1,2} [A-Z][a-z]{2}$/);
     expect(await page.getByTestId("agent-now").boundingBox()).toEqual(before);
     await page.unroute("**/v1/agents/*/stays");
+    await page.getByTestId("agent-history").click();
     const history = page.getByRole("region", { name: "Message history" });
     await expect(history.getByTestId("divider-now")).toBeVisible();
     await expect(history).toContainText("Wren, is the shed order in?");

@@ -21,7 +21,6 @@ import {
   type WorkspaceRole,
 } from "@chipschat/core";
 import { FIRST_PERSON_NAME } from "@chipschat/protocol";
-import { Button } from "@chipschat/ui";
 import { useEffect, useRef, useState } from "react";
 import { Segmented } from "../you/controls.tsx";
 import { InviteSeesView, IssuedInviteView } from "../you/PeopleParts.tsx";
@@ -45,7 +44,6 @@ export function InvitePage(props: {
   readonly withdraw: SpaceActions["withdrawInvite"];
   readonly workspace: string;
   readonly onBack: () => void;
-  readonly onDone: () => void;
 }) {
   const [role, setRole] = useState<WorkspaceRole>("guest");
   const [uses, setUses] = useState<"once" | "open">("once");
@@ -151,11 +149,6 @@ export function InvitePage(props: {
             owner={myRole(props.model, props.selfId) === "owner"}
           />
         )}
-      </div>
-      <div className="sheet-foot">
-        <Button className="sheet-done" onClick={props.onDone} data-testid="room-sheet-invite-done">
-          Done
-        </Button>
       </div>
     </form>
   );

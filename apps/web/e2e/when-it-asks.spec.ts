@@ -1,5 +1,5 @@
 /**
- * When it asks you (ADR 0195), end to end on the harness card: a harness asks, a person answers
+ * When it asks you (ADR 0195), end to end on the harness's page: a harness asks, a person answers
  * Always on the card, and the rule shows under Allowed always, by them, in that room, today. Its
  * switch turned off goes down the wire with the rule kept and `off`, and the next ask of its kind
  * comes back to the person; turned on, the rule lets it through again. Its × breaks it into dust,
@@ -22,6 +22,23 @@ import {
 
 /** The newest approval card in the room. */
 const card = (page: Page) => page.getByRole("article", { name: /Approval/ }).last();
+
+/**
+ * A harness's When it asks you: a page over its page (ADR 0254), which its tile on the Agents
+ * page's shelf opens (ADR 0266). Until then it stood on its card, under View all.
+ */
+const openAsking = async (page: Page, harness: string) => {
+  await page.getByRole("button", { name: /^Agents/ }).click();
+  await page
+    .getByTestId("harness-shelf")
+    .getByRole("button", { name: new RegExp(`^${harness}\\b`) })
+    .click();
+  await page.getByRole("main", { name: harness }).getByTestId("harness-asks-row").click();
+};
+
+/** What When it asks you holds, on its page. */
+const askingOf = (page: Page, harness: string) =>
+  page.getByRole("main", { name: `${harness}: When it asks you` }).getByTestId("asking");
 
 test("an Always shows under Allowed always, switches off and on, and goes into dust with Undo", async ({
   page,
@@ -103,10 +120,9 @@ test("an Always shows under Allowed always, switches off and on, and goes into d
     await harness.next("policy.updated");
     await letThrough();
 
-    // On its card, under Allowed always: by you, in its room, today.
-    await page.getByRole("button", { name: /^Agents/ }).click();
-    await page.getByRole("button", { name: "View all harnesses" }).click();
-    const asking = page.getByRole("region", { name: "Thistle" }).getByTestId("asking");
+    // On its When it asks you, under Allowed always: by you, in its room, today.
+    await openAsking(page, "Thistle");
+    const asking = askingOf(page, "Thistle");
     await expect(asking.getByTestId("asking-headline")).toHaveText(
       "Thistle decides when to ask. You decide the answer.",
     );
@@ -128,8 +144,7 @@ test("an Always shows under Allowed always, switches off and on, and goes into d
     await asksAgain();
 
     // On again: through, without asking.
-    await page.getByRole("button", { name: /^Agents/ }).click();
-    await page.getByRole("button", { name: "View all harnesses" }).click();
+    await openAsking(page, "Thistle");
     await toggle.click();
     expect(rules(await harness.next("policy.updated"))).toEqual([
       expect.not.objectContaining({ off: true }),
@@ -234,12 +249,8 @@ test("a command's Always remembers how each part starts, and lets through only c
     await expect(card(page).getByRole("button", { name: "Approve" })).toBeEnabled();
 
     // Under Allowed always, each start is a row of its own, named in code.
-    await page.getByRole("button", { name: /^Agents/ }).click();
-    await page.getByRole("button", { name: "View all harnesses" }).click();
-    const list = page
-      .getByRole("region", { name: "Bramble" })
-      .getByTestId("asking")
-      .getByTestId("asking-always");
+    await openAsking(page, "Bramble");
+    const list = askingOf(page, "Bramble").getByTestId("asking-always");
     await expect(list.locator(".always-words > code:first-child")).toHaveText([
       "node --check …",
       "echo ok …",
@@ -287,9 +298,8 @@ test("the dots open every ask, and an ask whole opens its space (ADR 0255)", asy
     await page.getByTestId("deny-form").getByRole("button", { name: "Deny" }).click();
     await harness.waitFor((frame) => answered(frame, no), "the no");
 
-    await page.getByRole("button", { name: /^Agents/ }).click();
-    await page.getByRole("button", { name: "View all harnesses" }).click();
-    const asking = page.getByRole("region", { name: "Sorrel" }).getByTestId("asking");
+    await openAsking(page, "Sorrel");
+    const asking = askingOf(page, "Sorrel");
     const dots = asking.getByTestId("asking-history");
     await expect(asking.getByTestId("asking-key")).toHaveText("1 yes1 no");
     await dots.click();

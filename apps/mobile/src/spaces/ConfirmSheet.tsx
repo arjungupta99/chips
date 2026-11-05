@@ -28,6 +28,7 @@ import {
   View,
 } from "react-native";
 import { Button } from "../ui/Button";
+import type { SheetFrom } from "../ui/beside";
 import { useGround } from "../ui/ground";
 import { Icon } from "../ui/Icon";
 import { CLOSE_ROOM, Sheet } from "../ui/Sheet";
@@ -54,6 +55,7 @@ export function ConfirmSheet({
   confirming,
   onConfirm,
   too,
+  from,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -68,6 +70,8 @@ export function ConfirmSheet({
    * the caller's.
    */
   readonly too?: Too | undefined;
+  /** What asked: on an iPad the sheet opens beside it. */
+  readonly from?: SheetFrom | undefined;
 }) {
   return (
     <Sheet
@@ -75,6 +79,7 @@ export function ConfirmSheet({
       onClose={confirming.busy ? () => undefined : onClose}
       closable={!confirming.busy}
       onGone={onGone}
+      from={from}
       testID="confirm-sheet"
     >
       <ConfirmBody

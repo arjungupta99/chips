@@ -5,8 +5,8 @@
 
 import { describe, expect, it } from "vitest";
 import type { Directory } from "../events.js";
-import { spaceById, spaceList, spaceTitle } from "./readers.js";
-import type { Line, Space, WorkspaceModel } from "./types.js";
+import { runGoing, spaceById, spaceList, spaceTitle } from "./readers.js";
+import type { Line, Run, Space, WorkspaceModel } from "./types.js";
 
 const DIRECTORY: Directory = {
   per_arjun: { id: "per_arjun", kind: "person", displayName: "Arjun" },
@@ -134,5 +134,21 @@ describe("a space by its id", () => {
     expect(spaceById(before, "a")?.title).toBe("Before");
     const after = { spaces: [space({ id: "a", title: "After" })] } as unknown as WorkspaceModel;
     expect(spaceById(after, "a")?.title).toBe("After");
+  });
+});
+
+describe("a run that is going", () => {
+  it("is one queued, running or waiting on someone; one done, failed or stopped is over", () => {
+    const going = (state: Run["state"]) => runGoing({ state } as Run);
+    expect(["queued", "running", "waiting"].map((state) => going(state as Run["state"]))).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(["done", "failed", "cancelled"].map((state) => going(state as Run["state"]))).toEqual([
+      false,
+      false,
+      false,
+    ]);
   });
 });

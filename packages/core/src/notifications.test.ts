@@ -2,7 +2,16 @@ import type { NotificationSettings } from "@chipschat/protocol";
 import { DEFAULT_NOTIFICATION_SETTINGS } from "@chipschat/protocol";
 import { describe, expect, it } from "vitest";
 import type { NeedsYouItem } from "./model.js";
-import { bucketOf, digestTitle, inQuietHours, momentOf, planNotices } from "./notifications.js";
+import {
+  agentsWords,
+  bucketOf,
+  digestTitle,
+  inQuietHours,
+  momentOf,
+  planNotices,
+  quietSub,
+  quietWords,
+} from "./notifications.js";
 
 const item = (overrides: Partial<NeedsYouItem>): NeedsYouItem => ({
   kind: "approval",
@@ -127,5 +136,39 @@ describe("quiet hours", () => {
     expect(moment.localMinutes).toBe(23 * 60 + 15);
     expect(moment.localDate).toBe("2026-09-08");
     expect(bucketOf("review", momentOf(new Date(2026, 0, 5, 7, 59)))).toBe("2026-01-05T07");
+  });
+});
+
+describe("what You's rows say of the settings (ADR 0265)", () => {
+  it("says quiet hours as their window, or Off", () => {
+    expect(quietWords(undefined)).toBe("Off");
+    // Said as the device says times: twelve-hour or twenty-four, whichever it keeps.
+    expect(quietWords({ from: "22:00", to: "07:00", breakthrough: "decide" })).toMatch(
+      /^(10:00\s?PM|22:00)–(7:00\s?AM|0?7:00)$/,
+    );
+  });
+
+  it("says under Quiet hours what gets through them", () => {
+    expect(quietSub(undefined)).toBe("Notifications can come at any hour");
+    expect(quietSub({ from: "22:00", to: "07:00", breakthrough: "decide" })).toBe(
+      "Only decisions get through",
+    );
+    expect(quietSub({ from: "22:00", to: "07:00", breakthrough: "none" })).toBe(
+      "Nothing gets through, not even decisions",
+    );
+  });
+
+  it("says what is turned down among the agents, by name when it is one", () => {
+    const agents = [
+      { id: "a", name: "Kit" },
+      { id: "b", name: "Lux" },
+      { id: "c", name: "Scout" },
+    ];
+    expect(agentsWords(agents, {})).toBe("Everything");
+    expect(agentsWords(agents, { a: "all" })).toBe("Everything");
+    expect(agentsWords(agents, { b: "none" })).toBe("Lux muted");
+    expect(agentsWords(agents, { b: "none", c: "none", a: "decide" })).toBe(
+      "2 muted, Kit decisions only",
+    );
   });
 });

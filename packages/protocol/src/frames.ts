@@ -19,6 +19,7 @@ import { jobChangeFrame } from "./harness-jobs.js";
 import { joinRequestView } from "./join.js";
 import { autonomyLevel, id, isoTimestamp } from "./primitives.js";
 import { heldRun } from "./project.js";
+import { readFrame } from "./read-marks.js";
 
 /** The client's half of the handshake. The server answers with a `hello` event. */
 /**
@@ -40,6 +41,7 @@ export const SERVER_EXTENSIONS = [
   "jobs",
   "folders",
   "folder_runs",
+  "reads",
 ] as const;
 export type ServerExtension = (typeof SERVER_EXTENSIONS)[number];
 
@@ -80,7 +82,7 @@ export const clientHelloFrame = z
       .max(32)
       .optional()
       .describe(
-        "Server frames beyond the base set this client understands, by the names in `SERVER_EXTENSIONS`. A name the server does not know is ignored rather than refused, so a client may name a frame a newer server sends and still be answered by an older one (ADR 0211, Phase 3). A client that says `events` is sent its replay in pages rather than one frame per event; one that says `presence` is sent an agent's state as it changes (ADR 0083); a harness's socket that says `restart` is sent `restart` when a person asks it to restart (ADR 0094); an owner's or admin's that says `join` is sent each join request as it changes (ADR 0122); a harness's that says `context` is sent `context.edit` when a person changes one of its context files (ADR 0134); a harness's that says `models` is sent `model.change` when a person changes an agent's model or effort (ADR 0140); a harness's that says `heartbeats` is sent `heartbeat.change` when a person switches an agent's heartbeat or changes how often it beats (ADR 0143); a harness's that says `context_windows` is sent `context_window.compact` and `context_window.change` when a person asks an agent to compact now or changes the limit it compacts itself at (ADR 0146); a harness's that says `jobs` is sent `job.change` when a person switches one of the jobs it runs on its own (ADR 0252); a person's that says `folders` is sent `folder.open` when they ask, from another of their devices, for a room's folder to be opened in Finder (ADR 0225), and `folder.run` when they ask for its project to be run or stopped there (ADR 0226); a person's that says `folder_runs` is sent `folder.run_state` when their Mac says how a run of theirs stands (ADR 0226); one that says nothing is sent what it was always sent, since an unknown frame is dropped in silence.",
+        "Server frames beyond the base set this client understands, by the names in `SERVER_EXTENSIONS`. A name the server does not know is ignored rather than refused, so a client may name a frame a newer server sends and still be answered by an older one (ADR 0211, Phase 3). A client that says `events` is sent its replay in pages rather than one frame per event; one that says `presence` is sent an agent's state as it changes (ADR 0083); a harness's socket that says `restart` is sent `restart` when a person asks it to restart (ADR 0094); an owner's or admin's that says `join` is sent each join request as it changes (ADR 0122); a harness's that says `context` is sent `context.edit` when a person changes one of its context files (ADR 0134); a harness's that says `models` is sent `model.change` when a person changes an agent's model or effort (ADR 0140); a harness's that says `heartbeats` is sent `heartbeat.change` when a person switches an agent's heartbeat or changes how often it beats (ADR 0143); a harness's that says `context_windows` is sent `context_window.compact` and `context_window.change` when a person asks an agent to compact now or changes the limit it compacts itself at (ADR 0146); a harness's that says `jobs` is sent `job.change` when a person switches one of the jobs it runs on its own (ADR 0252); a person's that says `folders` is sent `folder.open` when they ask, from another of their devices, for a room's folder to be opened in Finder (ADR 0225), and `folder.run` when they ask for its project to be run or stopped there (ADR 0226); a person's that says `folder_runs` is sent `folder.run_state` when their Mac says how a run of theirs stands (ADR 0226); a person's that says `reads` is sent `read` when they read further on another of their devices (ADR 0262); one that says nothing is sent what it was always sent, since an unknown frame is dropped in silence.",
       ),
     context: contextBudget
       .optional()
@@ -368,6 +370,7 @@ export const serverFrame = z
     folderOpenFrame,
     folderRunFrame,
     folderRunStateFrame,
+    readFrame,
     contextEditFrame,
     modelChangeFrame,
     heartbeatChangeFrame,
@@ -394,6 +397,7 @@ export const FRAME_NAMES = [
   "folder.open",
   "folder.run",
   "folder.run_state",
+  "read",
   "context.edit",
   "model.change",
   "heartbeat.change",

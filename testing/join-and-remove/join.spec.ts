@@ -19,6 +19,7 @@ import {
   openInvite,
   openLink,
   openYou,
+  openYouPage,
   personRow,
   test,
 } from "./support.ts";
@@ -59,13 +60,13 @@ test("a member joins by a single-use link, and the link is spent", async ({ page
       width,
     );
     await openYou(priya);
-    await expect(priya.getByTestId("my-role")).toHaveText(/^Member of Demo/);
+    await expect(priya.getByTestId("my-role")).toHaveText("Member · Demo");
 
     // The owner sees her, as a member, let in by him: "you", as he reads it, and by which link,
-    // in her row opened (ADR 0209).
+    // on her page (ADR 0209).
     const row = await openedRow(owner, name);
     await expect(row).toHaveAttribute("data-role", "member");
-    await expect(row.getByTestId("person-details")).toContainText("invited by you");
+    await expect(row).toContainText("invited by you");
     await expect(row.getByTestId("person-came-by")).toContainText("Your member link, made ");
   } finally {
     await context.close();
@@ -99,7 +100,7 @@ test("a guest joins, and is offered no space of their own", async ({ page, brows
     // A guest opens no space (ADR 0034): nothing offers one (JR-4).
     await expect(welcome.getByRole("button", { name: "Create a space" })).toHaveCount(0);
     await openYou(guest.page);
-    await expect(guest.page.getByTestId("my-role")).toHaveText(/^Guest of Demo/);
+    await expect(guest.page.getByTestId("my-role")).toHaveText("Guest · Demo");
     await expect(await personRow(owner, guest.name)).toHaveAttribute("data-role", "guest");
   } finally {
     await guest.context.close();
@@ -109,10 +110,10 @@ test("a guest joins, and is offered no space of their own", async ({ page, brows
 test("an open link lets two people in, and says how long it lasts", async ({ page, browser }) => {
   const owner = await asOwner(page);
   const url = await invite(owner, "member", "open");
-  // A week from now, as a date, never "until now" (JR-2).
+  // Thirty minutes from now, as a time of day (ADR 0232), never "until now" (JR-2).
   const issued = owner.getByTestId("issued-invite");
   await expect(issued).not.toContainText("until now");
-  await expect(issued).toContainText(/until [A-Z][a-z]+ \d{1,2}|until \d{1,2} [A-Z][a-z]+/);
+  await expect(issued).toContainText(/by several, until \d{1,2}:\d{2}/);
 
   // Other tests' open links stay on the list too: count this one's row by what it says.
   const twice = owner.getByTestId("invite-row").filter({ hasText: "used 2 times" });
@@ -133,7 +134,7 @@ test("an open link lets two people in, and says how long it lasts", async ({ pag
 
 test("a link lasts 30 minutes and says so, and says what the role may do", async ({ page }) => {
   const owner = await asOwner(page);
-  await openYou(owner);
+  await openYouPage(owner, "invite-someone");
   await owner.getByRole("combobox", { name: "Invite role" }).selectOption("guest");
   await expect(owner.getByTestId("invite-role-means")).toContainText(
     "A guest in no space sees nobody until somebody adds them to one.",

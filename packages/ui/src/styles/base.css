@@ -66,7 +66,8 @@ select {
      over any animation a component declares, which is exactly what !important is for. */
   *,
   *::before,
-  *::after {
+  *::after,
+  *::backdrop {
     animation: none !important;
     transition: none !important;
   }

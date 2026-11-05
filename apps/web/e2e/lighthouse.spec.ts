@@ -2,8 +2,8 @@
  * Phase 1 exit criterion: a Lighthouse accessibility score above 90 on the main screens. The
  * screens are states of one page, so this uses Lighthouse's flow API in snapshot mode on a
  * paired session with a run in it: the space with its run panel and an approval, Needs
- * you, Agents, and the audit. Chromium is Playwright's; Puppeteer drives it because that is what
- * Lighthouse's flow API takes.
+ * you, Agents, and the workspace's log. Chromium is Playwright's; Puppeteer drives it because
+ * that is what Lighthouse's flow API takes.
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -84,10 +84,11 @@ test("the main screens score above 90 on Lighthouse accessibility", async () => 
       risk: ["external_communication", "irreversible"],
       editable: true,
     });
-    await page.waitForFunction(
-      () => document.body.textContent?.includes("Waiting on you") === true,
-      { timeout: 30_000 },
-    );
+    // The approval's card, in the room. "Waiting on you" was the sidebar's harness row, which went
+    // on 3 November 2026 (ADR 0261's addendum).
+    await page.waitForSelector('article[aria-label^="Approval:"][data-decision="pending"]', {
+      timeout: 30_000,
+    });
 
     const flow = await startFlow(page, {
       name: "Chips, paired",
@@ -107,9 +108,16 @@ test("the main screens score above 90 on Lighthouse accessibility", async () => 
       () => document.querySelector('[data-testid="harness-shelf"]') !== null,
     );
     await flow.snapshot({ name: "Agents" });
-    await click(page, "Audit");
-    await page.waitForFunction(() => document.querySelector("table") !== null);
-    await flow.snapshot({ name: "Audit" });
+    // The workspace's log opens from You (ADR 0261).
+    await page.evaluate(() => document.querySelector<HTMLElement>('[data-testid="you"]')?.click());
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="workspace-log"]') !== null,
+    );
+    await page.evaluate(() =>
+      document.querySelector<HTMLElement>('[data-testid="workspace-log"]')?.click(),
+    );
+    await page.waitForFunction(() => document.querySelector(".you-page.audit") !== null);
+    await flow.snapshot({ name: "Workspace log" });
 
     const result = await flow.createFlowResult();
     const scores = result.steps.map((step) => ({

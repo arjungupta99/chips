@@ -24,6 +24,7 @@ import {
 } from "../events.js";
 import { plainWords } from "../markdown.js";
 import { readTaskBubble, type TaskBubble } from "../taskWords.js";
+import { TERMINAL } from "./state.js";
 import type {
   Approval,
   Lane,
@@ -878,6 +879,14 @@ export function spaceWorking(space: Space): boolean {
   if (space.run?.state === "running" || space.run?.state === "queued") return true;
   const last = space.lines.at(-1);
   return last !== undefined && readTaskBubble(last.text)?.thought !== undefined;
+}
+
+/**
+ * Whether a run is still going: queued, running, or waiting on someone. The desktop's run panel
+ * stands beside a room only then (ADR 0268); what an ended run did is asked of its reply.
+ */
+export function runGoing(run: Run): boolean {
+  return !TERMINAL.includes(run.state);
 }
 
 /**

@@ -97,6 +97,20 @@ it("doesn't ask while the server can't send them, and doesn't count it as asked 
   expect(writeSetting).not.toHaveBeenCalled();
 });
 
+it("asks while the server's last pushes didn't get through: that mends itself", async () => {
+  snapshot = waiting(1);
+  const failing = {
+    ...store,
+    serverFacts: async () => ({ pushes: "failing" }),
+  } as unknown as Store;
+  await render(
+    <SafeAreaProvider initialMetrics={IPHONE}>
+      <AskForPush store={failing} device={DEVICE} />
+    </SafeAreaProvider>,
+  );
+  expect(await screen.findByText("Hear when an agent needs you?")).toBeTruthy();
+});
+
 it("is put away by its X, as not now, and not asked again", async () => {
   snapshot = waiting(1);
   await render(asker());

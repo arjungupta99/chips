@@ -1,6 +1,6 @@
 {
   "name": "@chipschat/mobile",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "private": true,
   "description": "The Chips phone app: pair by QR, answer what needs you, and see the rooms.",
   "license": "FSL-1.1-ALv2",

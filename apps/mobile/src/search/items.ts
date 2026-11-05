@@ -14,18 +14,24 @@ import { hitWords, type SearchHit } from "@chipschat/core";
  * a moment (ADR 0133); a voice note and a step take none (core's `hitWords`).
  */
 export function hitHref(hit: SearchHit, searched = ""): string {
-  const at =
-    hit.kind === "receipt"
-      ? hit.runId === undefined
-        ? undefined
-        : `run:${hit.runId}`
-      : hit.lineId === undefined
-        ? undefined
-        : `line:${hit.lineId}`;
-  if (at === undefined) return `/spaces/${hit.spaceId}`;
-  const words = hitWords(hit, searched);
+  return spaceHref(hit.spaceId, hitAt(hit), hitWords(hit, searched));
+}
+
+/** Where in its room a hit lands: its line, or its run's closing line; nowhere for neither. */
+export function hitAt(hit: SearchHit): string | undefined {
+  if (hit.kind === "receipt") return hit.runId === undefined ? undefined : `run:${hit.runId}`;
+  return hit.lineId === undefined ? undefined : `line:${hit.lineId}`;
+}
+
+/** A room's route, at a line and with what was searched for, as far as they are said. */
+export function spaceHref(
+  spaceId: string,
+  at: string | undefined,
+  words: string | undefined,
+): string {
+  if (at === undefined) return `/spaces/${spaceId}`;
   const query = `at=${encodeURIComponent(at)}`;
   return words === undefined
-    ? `/spaces/${hit.spaceId}?${query}`
-    : `/spaces/${hit.spaceId}?${query}&words=${encodeURIComponent(words)}`;
+    ? `/spaces/${spaceId}?${query}`
+    : `/spaces/${spaceId}?${query}&words=${encodeURIComponent(words)}`;
 }

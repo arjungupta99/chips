@@ -156,6 +156,24 @@ describe("an ask's answer, in words (ADR 0255)", () => {
     expect(askRows(theas, directory, KIT, ARJUN, NOW)[0]?.where).toBe("Thea in Memory match again");
   });
 
+  it("lists every harness's asks when no harness is named, as You's Allowed always opens them", () => {
+    const ivy = "hrn_01K4ZQPX00000000000000000I";
+    const ivysRun = "run_01K4ZQPX00000000000000000I";
+    const two = buildModel([
+      fixture("space.created", 1),
+      fixture("run.started", 2),
+      fixture("run.started", 3, { run_id: ivysRun, actor: { kind: "harness", id: ivy } }),
+      ask(4, "A", { ts: at(0) }),
+      ask(5, "B", { ts: at(1), run_id: ivysRun }),
+    ]);
+    const both = { ...directory, [ivy]: { id: ivy, kind: "harness" as const, displayName: "Ivy" } };
+    expect(askRows(two, both, KIT, ARJUN, NOW).map((row) => row.approvalId)).toEqual([id("A")]);
+    expect(askRows(two, both, undefined, ARJUN, NOW).map((row) => row.approvalId)).toEqual([
+      id("B"),
+      id("A"),
+    ]);
+  });
+
   it("filters the yeses and the noes, and offers no filter when there is nothing to choose", () => {
     const rows = askRows(model, directory, KIT, ARJUN, NOW);
     expect(askFilters(rows).map((each) => each.label)).toEqual(["All 9", "Yes 5", "No 3"]);

@@ -26,8 +26,15 @@
  * off its own gestures, a sheet's pull among them (ADR 0175). A reader on a sheet says it while
  * the page stands off its top, so a drag down scrolls the page back rather than pulling the sheet
  * away (`TextReader`).
+ *
+ * The view is drawn see-through, so what shows past the page's edges — pulled past its top or its
+ * foot — is the ground the view stands on. For an HTML file that is the colour the page says it is
+ * drawn on (`GROUND_SCRIPT`), the app's own until it has said; it was white for every page, and a
+ * dark one showed a white band (Arjun, 3 November 2026). A page made from Markdown is drawn on the
+ * ground it is given.
  */
 
+import { useState } from "react";
 import {
   Linking,
   type NativeScrollEvent,
@@ -36,12 +43,13 @@ import {
   StyleSheet,
 } from "react-native";
 import { WebView, type WebViewProps } from "react-native-webview";
-import { fileOfLink, pageLoad } from "./page";
+import { usePalette } from "../ui/theme";
+import { fileOfLink, GROUND_SCRIPT, groundOfLink, pageLoad } from "./page";
 
 export function PageView({
   html,
   title,
-  ground = "#fff",
+  ground,
   keepsFinger,
   onScrolled,
   onReady,
@@ -50,7 +58,7 @@ export function PageView({
 }: {
   readonly html: string;
   readonly title: string;
-  /** What shows past the document's edges: white, as a page with no ground of its own has. */
+  /** What shows past the document's edges; without it, the colour the page says it is drawn on. */
   readonly ground?: string | undefined;
   /** Android: the page takes a finger before what holds it can (a sheet's pull). */
   readonly keepsFinger?: boolean | undefined;
@@ -64,6 +72,8 @@ export function PageView({
 }) {
   const platform = Platform.OS === "android" ? "android" : "ios";
   const ios = platform === "ios";
+  const palette = usePalette();
+  const [said, setSaid] = useState<string | undefined>(undefined);
   // The library types `onScroll` through a module of React Native's that this React Native no
   // longer has types for, so it reads as `undefined`. What arrives is a scroll view's event.
   const scrolls =
@@ -80,12 +90,16 @@ export function PageView({
       originWhitelist={["*"]}
       onShouldStartLoadWithRequest={(request) => {
         const decision = pageLoad(request, platform);
+        if (decision === "ground") setSaid(groundOfLink(request.url) ?? said);
         if (decision === "outside") void Linking.openURL(request.url).catch(() => undefined);
         const file = decision === "file" ? fileOfLink(request.url) : undefined;
         if (file !== undefined) onFile?.(file);
         return decision === "load";
       }}
       javaScriptEnabled
+      // At the document's start, not its end: the library adds what runs at the end only with a
+      // bridge to the app, which a page never has.
+      injectedJavaScriptBeforeContentLoaded={ground === undefined ? GROUND_SCRIPT : undefined}
       javaScriptCanOpenWindowsAutomatically={false}
       setSupportMultipleWindows={false}
       allowFileAccess={false}
@@ -111,7 +125,7 @@ export function PageView({
       onContentProcessDidTerminate={() => onFailed("The page stopped. Close it and open it again.")}
       onRenderProcessGone={() => onFailed("The page stopped. Close it and open it again.")}
       accessibilityLabel={title}
-      style={[styles.view, { backgroundColor: ground }]}
+      style={[styles.view, { backgroundColor: ground ?? said ?? palette.bg }]}
       testID="page-view"
     />
   );

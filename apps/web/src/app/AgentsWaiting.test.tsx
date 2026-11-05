@@ -23,6 +23,7 @@ function service(refresh: () => Promise<void>): AgentsService {
     archive: never,
     remove: never,
     lock: never,
+    face: never,
   };
 }
 

@@ -4,8 +4,8 @@
  * The same build runs in a browser and inside the Tauri window (M2.2), and everything Chips
  * does — the socket, the device key, the fold, what an approval means — is the page's either
  * way. This is the short list of things a native window can do that a tab cannot: find a server
- * on the network, put a number in the menu bar, ask a question in the notification centre, and
- * be opened by a link.
+ * on the network, put a number in the menu bar, ask a question in the notification centre, be
+ * opened by a link, and carry out what is chosen from its menus.
  *
  * In a browser every one of them is absent rather than broken: `desktop()` answers `undefined`,
  * callers carry on, and nothing here is loaded at all — the Tauri modules are behind a dynamic
@@ -143,6 +143,28 @@ export interface Desktop {
   readonly onDecision: (listen: (decision: Decision) => void) => Promise<() => void>;
   /** Each `chips://` link the shell was opened with, the one that launched it included. */
   readonly onOpen: (listen: (link: ChipsLink) => void) => Promise<() => void>;
+  /**
+   * The menus' commands the page can do now, and their names (ADR 0267): the shell dims the rest.
+   * A shell built before the menus has none, as a test's need not.
+   */
+  readonly setMenu?: ((standing: readonly MenuStanding[]) => Promise<void>) | undefined;
+  /** Each command chosen from the menus, or by its keys, by its id. */
+  readonly onMenu?: ((listen: (id: string) => void) => Promise<() => void>) | undefined;
+  /** Hand a web or mail link to the browser, from no click on the page (Help's Send Feedback…). */
+  readonly openLink?: ((url: string) => Promise<void>) | undefined;
+  /** How large the page is drawn (⌘+, ⌘−), now and each time that changes: 1 is actual size. */
+  readonly onZoom?: ((listen: (zoom: number) => void) => Promise<() => void>) | undefined;
+  /** Whether the window fills the screen, now and each time that changes. */
+  readonly onFullScreen?: ((listen: (full: boolean) => void) => Promise<() => void>) | undefined;
+  /** The page is drawn: a window waiting for it is shown now (ADR 0274). */
+  readonly drawn?: (() => Promise<void>) | undefined;
+}
+
+/** One of the menus' commands as the shell takes it (ADR 0267): its id, its name now, and whether it can be done. */
+export interface MenuStanding {
+  readonly id: string;
+  readonly title: string;
+  readonly enabled: boolean;
 }
 
 /** The minimum of Tauri this file uses, named so a test can pass its own. */
@@ -196,6 +218,16 @@ export function desktopWith(api: TauriApi): Desktop {
           decision: message.payload.decision as NotificationChoice,
         }),
       ),
+    setMenu: (standing) => api.invoke<void>("set_menu", { standing }),
+    onMenu: (listen) => api.listen<string>("chips://menu", (message) => listen(message.payload)),
+    openLink: (url) => api.invoke<void>("open_link", { url }),
+    onZoom: async (listen) => {
+      const stop = await api.listen<number>("chips://zoom", (message) => listen(message.payload));
+      listen(await api.invoke<number>("page_zoom").catch(() => 1));
+      return stop;
+    },
+    onFullScreen: (listen) => fullScreenWith(api, listen),
+    drawn: () => api.invoke<void>("drawn"),
     // The shell holds every link until the page takes it, because the one that launched the app
     // arrived before the page did. So the page takes what is waiting as it starts to listen, and
     // again each time it is told there is more; taking empties the shell, so each comes once.
@@ -211,6 +243,35 @@ export function desktopWith(api: TauriApi): Desktop {
       return stop;
     },
   };
+}
+
+/**
+ * Whether the window fills the screen, asked now and after each change of its size, which entering
+ * and leaving full screen are. One question at a time: a drag of the window's edge is many sizes.
+ */
+async function fullScreenWith(api: TauriApi, listen: (full: boolean) => void): Promise<() => void> {
+  let asking = false;
+  let again = false;
+  const ask = async () => {
+    if (asking) {
+      again = true;
+      return;
+    }
+    asking = true;
+    try {
+      do {
+        again = false;
+        listen(await api.invoke<boolean>("plugin:window|is_fullscreen"));
+      } while (again);
+    } catch {
+      // A window going away answers nothing; there is nothing to draw then either.
+    } finally {
+      asking = false;
+    }
+  };
+  const stop = await api.listen<unknown>("tauri://resize", () => void ask());
+  await ask();
+  return stop;
 }
 
 /** A run's lines, and its end, as the shell says them: each tagged with the run they are of. */

@@ -8,6 +8,7 @@
 
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { isNoReply } from "@chipschat/protocol";
 import SQLite from "better-sqlite3";
 import { Kysely, SqliteDialect } from "kysely";
 import type { Database } from "./schema.js";
@@ -55,6 +56,11 @@ export function openDatabase(options: ConnectionOptions): Connection {
   // The log is the truth and it is fsynced by the WAL checkpoint; NORMAL is the right trade
   // for a single-process server and roughly an order of magnitude faster on append.
   sqlite.pragma("synchronous = NORMAL");
+  // Whether words pass a turn (ADR 0105), for a query that leaves out what such a turn did: the
+  // protocol's own rule, so the server reads `NO_REPLY` as the clients and the fake do.
+  sqlite.function("no_reply", { deterministic: true }, (text: unknown) =>
+    isNoReply(text) ? 1 : 0,
+  );
 
   const db = new Kysely<Database>({ dialect: new SqliteDialect({ database: sqlite }) });
 

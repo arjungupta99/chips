@@ -68,7 +68,6 @@ type IdTable = (typeof ID_TABLES)[number];
 const ROOM_COLUMN: Partial<Record<ProjectionTable, string>> = {
   spaces: "id",
   memberships: "space_id",
-  read_state: "space_id",
   replacements: "space_id",
   pins: "space_id",
   harness_policy: "space_id",

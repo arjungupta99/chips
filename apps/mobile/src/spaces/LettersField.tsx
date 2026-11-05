@@ -14,6 +14,7 @@
  * than a face can (`faceLetters`): a third letter or a space does not go in.
  */
 
+import { FACE_PICKER_WORDS } from "@chipschat/core";
 import { faceLetters, lettersScale } from "@chipschat/protocol";
 import { type Ref, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -110,8 +111,8 @@ export function LettersField({
   return (
     <View style={[styles.row, { paddingHorizontal: inset }]}>
       <Pressable
-        accessibilityLabel="Letters"
-        accessibilityHint="Type one or two letters, or an emoji, for the face"
+        accessibilityLabel={FACE_PICKER_WORDS.letters}
+        accessibilityHint={FACE_PICKER_WORDS.lettersHint}
         onPress={() => field.current?.focus()}
         style={[
           styles.box,
@@ -139,7 +140,7 @@ export function LettersField({
         </View>
         <TextInput
           ref={field}
-          accessibilityLabel="Letters for the face"
+          accessibilityLabel={FACE_PICKER_WORDS.lettersField}
           testID="face-letters"
           value={typed}
           onChangeText={change}
@@ -150,7 +151,7 @@ export function LettersField({
             else save();
           }}
           onSubmitEditing={save}
-          placeholder="A letter or two, or an emoji"
+          placeholder={FACE_PICKER_WORDS.lettersPlaceholder}
           placeholderTextColor={palette.ink3}
           autoCapitalize="characters"
           autoCorrect={false}
@@ -164,7 +165,7 @@ export function LettersField({
         {shown ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Clear the letters"
+            accessibilityLabel={FACE_PICKER_WORDS.clearLetters}
             hitSlop={SPACE.sm}
             onPress={() => change("")}
             testID="face-letters-clear"

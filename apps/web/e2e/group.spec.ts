@@ -58,7 +58,7 @@ test("a room with two harnesses and two people, and the right person answers", a
     const room = page.getByRole("main", { name: "Space: Northwind" });
     await expect(room).toBeVisible();
     // Its sheet comes up on Add (ADR 0148); put away for now, the room takes the first message.
-    await expect(page.getByTestId("room-sheet-add-done")).toBeVisible();
+    await expect(page.getByTestId("room-sheet-add-page")).toBeVisible();
     await closeSheet(page);
     await page.getByRole("textbox", { name: /Message/ }).fill("Kicking off the Northwind check.");
     await page.getByRole("button", { name: "Send" }).click();

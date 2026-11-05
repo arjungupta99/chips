@@ -9,7 +9,9 @@
  */
 
 import { render, screen, userEvent } from "@testing-library/react-native";
-import { StyleSheet, Text } from "react-native";
+import type { ReactNode } from "react";
+import { Dimensions, StyleSheet, Text } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Avatar, avatarHue, ROW_AVATAR } from "./Avatar";
 import { Bar } from "./Bar";
 import { Button, IconButton } from "./Button";
@@ -18,7 +20,7 @@ import { Pane } from "./Pane";
 import { Pill, StatusPill } from "./Pill";
 import { Risk } from "./Risk";
 import { Segment } from "./Segment";
-import { Split } from "./Split";
+import { listWidth, Split } from "./Split";
 import { light } from "./tokens";
 
 describe("a button", () => {
@@ -205,6 +207,12 @@ describe("a card", () => {
   });
 });
 
+/** An iPad's window, as the root's safe-area provider says it. */
+const IPAD = {
+  frame: { x: 0, y: 0, width: 1024, height: 1366 },
+  insets: { top: 24, left: 0, right: 0, bottom: 20 },
+};
+
 describe("a split and a pane", () => {
   it("shows the list and what it opened side by side", async () => {
     await render(<Split list={<Text>the list</Text>} detail={<Text>the room</Text>} />);
@@ -215,12 +223,31 @@ describe("a split and a pane", () => {
     );
   });
 
+  it("says how wide the detail is on an iPad, the window less the list, and all of it with the list away (ADR 0256)", async () => {
+    const { width } = Dimensions.get("window");
+    const detail = () => screen.getByTestId("split-detail");
+    await render(<Split list={<Text>the list</Text>} detail={<Text>the room</Text>} />);
+    expect(detail()).toHaveStyle({ width: width - listWidth(width) });
+    expect(screen.getByText("the list")).toBeTruthy();
+    await screen.rerender(
+      <Split list={<Text>the list</Text>} detail={<Text>the room</Text>} away />,
+    );
+    expect(detail()).toHaveStyle({ width });
+    // Put away, the list is still drawn where it was read to, out of sight.
+    expect(screen.getByText("the list", { includeHiddenElements: true })).toBeTruthy();
+  });
+
   it("names what is open, and offers a way back only when there is somewhere to go", async () => {
     const back = jest.fn();
+    // A pane pads itself with the window's top (`useTabTop`), which the root's provider says.
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SafeAreaProvider initialMetrics={IPAD}>{children}</SafeAreaProvider>
+    );
     await render(
       <Pane title="Supplier email">
         <Text>words</Text>
       </Pane>,
+      { wrapper },
     );
     expect(screen.getByRole("header", { name: "Supplier email" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Back" })).toBeNull();

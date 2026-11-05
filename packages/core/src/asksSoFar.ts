@@ -208,26 +208,34 @@ function filterOf(approval: Approval): AskRow["filter"] {
   return resolved.decision === "denied" ? "no" : "yes";
 }
 
-/** Every ask of a harness's runs the reader can see, with its run and space, oldest first. */
+/**
+ * Every ask of a harness's runs the reader can see, with its run and space, oldest first; with no
+ * harness, every harness's, as You's Allowed always counts them (`workspaceAskHistory`).
+ */
 function asksWithRuns(
   model: WorkspaceModel,
   directory: Directory,
-  harnessId: string,
+  harnessId: string | undefined,
 ): readonly FoundAsk[] {
   return model.spaces
     .flatMap((space) =>
       space.runs
-        .filter((run) => harnessOf(directory, run.harnessId) === harnessId)
+        .filter(
+          (run) => harnessId === undefined || harnessOf(directory, run.harnessId) === harnessId,
+        )
         .flatMap((run) => run.approvals.map((approval) => ({ approval, run, spaceId: space.id }))),
     )
     .sort((a, b) => a.approval.askedAt.localeCompare(b.approval.askedAt));
 }
 
-/** The page's rows: every ask of a harness the reader can see, newest first. */
+/**
+ * The page's rows: every ask of a harness the reader can see, newest first. With no harness, every
+ * ask in the workspace: the page You's Allowed always opens from its dots.
+ */
 export function askRows(
   model: WorkspaceModel,
   directory: Directory,
-  harnessId: string,
+  harnessId: string | undefined,
   selfId: string | undefined,
   now: number = Date.now(),
 ): readonly AskRow[] {

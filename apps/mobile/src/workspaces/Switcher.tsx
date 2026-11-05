@@ -24,6 +24,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLeave } from "../device/leave";
+import { thisDevice } from "../device/word";
 import { PasteAction } from "../pairing/PasteAction";
 import { ScanSheet } from "../pairing/ScanSheet";
 import { NO_INVITE, NOT_AN_INVITE, usePasteInvite } from "../pairing/usePasteInvite";
@@ -385,7 +386,7 @@ function ListPage({
               <SheetRow
                 icon="trash"
                 label={`Remove ${demoName ?? ""}`}
-                hint="Its made-up spaces go from this phone"
+                hint={`Its made-up spaces go from ${thisDevice()}`}
                 testID="workspace-remove-demo"
                 onPress={onRemoveDemo}
               />

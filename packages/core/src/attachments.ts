@@ -65,6 +65,39 @@ export function inAlbum(attachment: Attachment): boolean {
   return hasThumbnail(attachment.mimeType) || hasPoster(attachment);
 }
 
+/** The tallest a tile alone in its album is drawn, at its own shape (the phone's figure 1). */
+export const ALONE_TILE_HEIGHT = 200;
+/** The widest a tile alone in its album is drawn: a thumbnail is a glance (Arjun, 20 September 2026). */
+export const ALONE_TILE_WIDTH = 240;
+
+/**
+ * A picture's own shape, within reason: no taller than 3:4, no wider than 1.8:1. The pictures a
+ * message draws in its words keep to the same shapes.
+ */
+export function tileShape(ratio: number): number {
+  return Math.min(Math.max(ratio, 3 / 4), 1.8);
+}
+
+/**
+ * How big a tile alone in its album is drawn, on both clients: its own shape within reason
+ * (`tileShape`), no taller than `ALONE_TILE_HEIGHT` and no wider than `ALONE_TILE_WIDTH`, so a
+ * landscape stops at 240 wide and a portrait at 200 tall. Said from what the server measured, so the
+ * room holds the tile at this size before its picture comes (ADR 0268 addendum).
+ */
+export function aloneTile(attachment: Attachment): {
+  readonly width: number;
+  readonly height: number;
+} {
+  const ratio =
+    attachment.width !== undefined && attachment.height !== undefined && attachment.height > 0
+      ? tileShape(attachment.width / attachment.height)
+      : kindOf(attachment.mimeType) === "video"
+        ? tileShape(16 / 9)
+        : 1;
+  const height = Math.min(ALONE_TILE_HEIGHT, Math.round(ALONE_TILE_WIDTH / ratio));
+  return { width: Math.round(height * ratio), height };
+}
+
 /**
  * A file that opens as a page (ADR 0059): an HTML document, as the server sniffed it, or a Markdown
  * file, which is made into one first (ADR 0123, `markdownPage`). On the phone in a web view that

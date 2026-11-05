@@ -1,14 +1,13 @@
 /**
  * Send feedback (ADR 0237), the phone's row and sheet (`apps/mobile/src/you/Feedback.tsx`) as a
- * card at the foot of You and a dialog. Chips takes feedback prompts, not pull requests, and a
- * prompt is an issue on the repository's form. The dialog offers the Main agent, which finds a
- * line asking for its help in its Main space's field, not sent, and GitHub, which opens the form
- * with this build filled in. Chips sends nothing either way. With no Main agent there is nothing to
- * choose, so the button opens GitHub itself.
+ * row of You's list and a page beside it (ADR 0265 and its addendum of 3 November 2026). Chips
+ * takes feedback prompts, not pull requests, and a prompt is an issue on the repository's form. The
+ * page offers the Main agent, which finds a line asking for its help in its Main space's field, not
+ * sent, and GitHub, which opens the form with this build filled in. Chips sends nothing either way.
+ * With no Main agent there is nothing to choose, so the row opens GitHub itself.
  *
- * GitHub opens from the click itself, not once the dialog has folded: a browser lets a page open
- * a tab only while a person's click is being handled, and so does the Mac's window, which hands
- * the link to the browser.
+ * GitHub opens from the click itself: a browser lets a page open a tab only while a person's click
+ * is being handled, and so does the Mac's window, which hands the link to the browser.
  */
 
 import {
@@ -23,10 +22,10 @@ import {
   feedbackLink,
   feedbackWithWords,
 } from "@chipschat/core";
-import { Button, Icon } from "@chipschat/ui";
-import { useRef, useState } from "react";
-import { GrowingDialog } from "../GrowingDialog.tsx";
-import { Card } from "./controls.tsx";
+import { Icon } from "@chipschat/ui";
+import { useState } from "react";
+import { FormPage } from "./Form.tsx";
+import { Group, ListRow, RowMark } from "./list.tsx";
 import { Face } from "./PeopleParts.tsx";
 
 /** Whether the shell offers the card: the switch, or a build made with `CHIPS_FEEDBACK=1`. */
@@ -40,7 +39,12 @@ export interface FeedbackService {
   readonly writeWith: (agent: FeedbackAgent) => void;
 }
 
-export function FeedbackCard(props: {
+/**
+ * Send feedback (ADR 0237), a row of its own under This computer, as on the phone: it opens the
+ * choice of writing it with the feedback agent or on GitHub, or GitHub at once where there is no
+ * agent to write it with.
+ */
+export function FeedbackRow(props: {
   readonly agent: FeedbackAgent | undefined;
   readonly directory: Directory;
   /** The version box's words: "Chips 0.0.0 · b888e96 · Mac". */
@@ -51,22 +55,16 @@ export function FeedbackCard(props: {
   const [from, setFrom] = useState<HTMLElement | null | undefined>(undefined);
   const github = () => service.openLink(feedbackLink(props.version));
   return (
-    <Card
-      label="Feedback"
-      testId="feedback"
-      title="Feedback"
-      aside={
-        <Button
-          onClick={(event) => (agent === undefined ? github() : setFrom(event.currentTarget))}
-          data-testid="feedback-row"
-        >
-          {FEEDBACK_ROW}
-        </Button>
-      }
-    >
-      <p className="you-card-note">{FEEDBACK_ROW_SUB}</p>
+    <Group label="Feedback" testId="feedback">
+      <ListRow
+        label={FEEDBACK_ROW}
+        sub={FEEDBACK_ROW_SUB}
+        mark={<RowMark icon="chat" tint="var(--gold)" ink="#231a00" />}
+        onOpen={(row) => (agent === undefined ? github() : setFrom(row))}
+        testId="feedback-row"
+      />
       {from !== undefined && agent !== undefined && (
-        <FeedbackDialog
+        <FeedbackPage
           from={from}
           agent={agent}
           directory={props.directory}
@@ -75,11 +73,11 @@ export function FeedbackCard(props: {
           onGone={() => setFrom(undefined)}
         />
       )}
-    </Card>
+    </Group>
   );
 }
 
-function FeedbackDialog(props: {
+function FeedbackPage(props: {
   readonly from: HTMLElement | null;
   readonly agent: FeedbackAgent;
   readonly directory: Directory;
@@ -87,68 +85,49 @@ function FeedbackDialog(props: {
   readonly onGitHub: () => void;
   readonly onGone: () => void;
 }) {
-  const [leaving, setLeaving] = useState(false);
-  // The room opens once the dialog has folded, so it isn't drawn under a dialog still going.
-  const then = useRef<(() => void) | undefined>(undefined);
-  const leave = (next?: () => void) => {
-    then.current = next;
-    setLeaving(true);
-  };
   return (
-    <GrowingDialog
+    <FormPage
+      title={FEEDBACK_TITLE}
       from={props.from}
-      labelledBy="feedback-title"
-      className="feedback-dialog"
-      testId="feedback-dialog"
+      testId="feedback-page"
       focus=".feedback-pick"
-      leaving={leaving}
-      onLeave={() => leave()}
-      onGone={() => {
-        props.onGone();
-        then.current?.();
-      }}
+      onGone={props.onGone}
     >
-      <div className="feedback-card">
-        <div className="model-head">
-          <h2 id="feedback-title">{FEEDBACK_TITLE}</h2>
-          <button
-            type="button"
-            className="new-space-close"
-            aria-label="Close"
-            onClick={() => leave()}
-          >
-            <Icon name="x" size={14} />
-          </button>
-        </div>
-        <div className="feedback-picks">
-          <button
-            type="button"
-            className="feedback-pick"
-            onClick={() => leave(props.onWriteWith)}
-            data-testid="feedback-agent"
-          >
-            <span aria-hidden="true">
-              <Face directory={props.directory} id={props.agent.id} size="sm" />
-            </span>
-            {feedbackWithWords(props.agent.name)}
-          </button>
-          <button
-            type="button"
-            className="feedback-pick"
-            onClick={() => {
-              props.onGitHub();
-              leave();
-            }}
-            data-testid="feedback-github"
-          >
-            <span className="feedback-pick-mark" aria-hidden="true">
-              <Icon name="globe" size={14} />
-            </span>
-            {FEEDBACK_ON_GITHUB}
-          </button>
-        </div>
-        <p className="feedback-note">{FEEDBACK_SENDS_NOTHING}</p>
-      </div>
-    </GrowingDialog>
+      {({ close }) => (
+        <>
+          <div className="feedback-picks">
+            <button
+              type="button"
+              className="feedback-pick"
+              onClick={() => {
+                close();
+                props.onWriteWith();
+              }}
+              data-testid="feedback-agent"
+            >
+              <span aria-hidden="true">
+                <Face directory={props.directory} id={props.agent.id} size="sm" />
+              </span>
+              {feedbackWithWords(props.agent.name)}
+            </button>
+            <button
+              type="button"
+              className="feedback-pick"
+              onClick={() => {
+                props.onGitHub();
+                close();
+              }}
+              data-testid="feedback-github"
+            >
+              <span className="feedback-pick-mark" aria-hidden="true">
+                <Icon name="globe" size={14} />
+              </span>
+              {FEEDBACK_ON_GITHUB}
+            </button>
+          </div>
+          <p className="feedback-note">{FEEDBACK_SENDS_NOTHING}</p>
+        </>
+      )}
+    </FormPage>
   );
 }

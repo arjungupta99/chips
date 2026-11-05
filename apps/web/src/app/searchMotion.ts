@@ -19,6 +19,15 @@
  *   top are laid out in full before anything is measured (`OPENED`), and where every row stands is
  *   read again whenever the list changes size. Measured on the guess, the rows under the new ones
  *   were moved from the wrong place and jumped once drawn (the browser, 17 October 2026).
+ * - **Where it was on the screen.** A change can move the whole list: the chips come under the
+ *   field with the first letter and go with the last, and a shorter list can scroll it back. A row
+ *   that stays, a row that goes and whatever else fades out over the list (`data-leaving`, the
+ *   backdrop) are each taken from where they were on the screen, not where they were in the list,
+ *   so nothing fading jumps with it (3 November 2026: "everything should have smooth transitions").
+ * - **Nothing found waits for the typing to pause** (`data-hold`): while a search is still to be
+ *   asked for, the line saying it found nothing arrives once typing has paused as long as the
+ *   messages wait to be asked for (`SEARCH_PAUSE_MS`), so a quick next letter takes it away before
+ *   it is seen rather than flashing it.
  *
  * A rise and a move are on UIKit's spring, the phone's, drawn here as CSS's `linear()` from core's
  * `springCurve`; a browser without `linear()` gets a Bézier close to it. With less motion asked
@@ -28,6 +37,7 @@
 import {
   arrivalDelay,
   SEARCH_ARRIVAL,
+  SEARCH_PAUSE_MS,
   type SearchItem,
   searchArrivals,
   springCurve,
@@ -68,6 +78,8 @@ interface Laid {
 interface Drawn {
   readonly items: readonly SearchItem[];
   readonly rows: ReadonlyMap<string, Laid>;
+  /** How far down the screen the list's top stood: the scrolling column's place, less its scroll. */
+  readonly at: number;
 }
 
 /** The list's rows by their key (`data-key`), with where each is laid out in the list. */
@@ -86,6 +98,12 @@ function rowsOf(list: HTMLElement): Drawn["rows"] {
     });
   }
   return rows;
+}
+
+/** How far down the screen the list's top stands, in the scrolling column's own terms. */
+function atOf(list: HTMLElement): number {
+  const scroller = list.parentElement;
+  return scroller === null ? 0 : scroller.offsetTop - scroller.scrollTop;
 }
 
 /** The part of the list the window shows, with a margin either side, in the list's own terms. */
@@ -121,7 +139,7 @@ export function useResultsMotion(
     const before = drawn.current;
     const arrivals = searchArrivals(before?.items, items);
     open(element, arrivals, opened);
-    const now: Drawn = { items, rows: rowsOf(element) };
+    const now: Drawn = { items, rows: rowsOf(element), at: atOf(element) };
     drawn.current = now;
     // A browser with no Web Animations (a test's document) draws the list as it is.
     if (before === undefined || typeof element.animate !== "function") return;
@@ -134,7 +152,9 @@ export function useResultsMotion(
     if (element === null || typeof ResizeObserver === "undefined") return;
     const watcher = new ResizeObserver(() => {
       const now = drawn.current;
-      if (now !== undefined) drawn.current = { items: now.items, rows: rowsOf(element) };
+      if (now !== undefined) {
+        drawn.current = { items: now.items, rows: rowsOf(element), at: atOf(element) };
+      }
     });
     watcher.observe(element);
     return () => watcher.disconnect();
@@ -151,6 +171,8 @@ function play(
 ): void {
   const inView = inViewOf(list);
   const less = lessMotion();
+  // How far the list itself moved on the screen: a row is taken from where it was seen.
+  const shift = before.at - now.at;
   for (const [key, row] of now.rows) {
     const order = arrivals.get(key);
     if (order !== undefined) {
@@ -158,9 +180,36 @@ function play(
       continue;
     }
     const was = before.rows.get(key);
-    if (!less && moved(was, row, inView)) move(row.element, was.top - row.top);
+    if (!less && moved(was, row, shift, inView)) move(row.element, was.top + shift - row.top);
   }
-  if (layer !== null) gone(layer, list.offsetTop, before, now, inView);
+  if (layer !== null) gone(layer, list.offsetTop + shift, before, now, inView);
+  if (list.parentElement !== null) hold(list.parentElement, shift);
+}
+
+/** What holds each fading thing over the list where it was seen, and how far from its place. */
+const holding = new WeakMap<Element, { readonly still: Animation; readonly by: number }>();
+
+/**
+ * Each thing over the list that is fading out (`data-leaving`, the backdrop) kept where it was seen
+ * while the list moves under it, until it is gone; one that stops fading is let go, back to where
+ * the list puts it.
+ */
+function hold(scroller: HTMLElement, shift: number): void {
+  for (const child of scroller.children) {
+    const held = holding.get(child);
+    if (!child.hasAttribute("data-leaving")) {
+      held?.still.cancel();
+      holding.delete(child);
+      continue;
+    }
+    if (shift === 0 || !(child instanceof HTMLElement) || typeof child.animate !== "function") {
+      continue;
+    }
+    const by = shift + (held?.by ?? 0);
+    held?.still.cancel();
+    const at = { transform: `translateY(${by}px)` };
+    holding.set(child, { still: child.animate([at, at], { duration: 1, fill: "forwards" }), by });
+  }
 }
 
 /** The rows a change dropped from where the window shows, each faded where it stood. */
@@ -176,13 +225,14 @@ function gone(
   }
 }
 
-/** Whether a row kept by a change has moved, where the window shows it before or after. */
+/** Whether a row kept by a change has moved on the screen, where the window shows it before or after. */
 function moved(
   was: Laid | undefined,
   row: Laid,
+  shift: number,
   inView: (top: number, height: number) => boolean,
 ): was is Laid {
-  if (was === undefined || Math.abs(was.top - row.top) < 0.5) return false;
+  if (was === undefined || Math.abs(was.top + shift - row.top) < 0.5) return false;
   return inView(was.top, was.height) || inView(row.top, row.height);
 }
 
@@ -220,9 +270,12 @@ function strengthOf(row: HTMLElement): number {
   return fade.effect?.getComputedTiming().progress ?? 0;
 }
 
-/** In on the wave: up from `rise` under its place, fading up, `order` beats after the first. */
+/**
+ * In on the wave: up from `rise` under its place, fading up, `order` beats after the first; a row
+ * held (`data-hold`) waits as long again as typing has to pause before the messages are asked for.
+ */
 function arrive(row: HTMLElement, order: number, less: boolean): void {
-  const delay = arrivalDelay(order);
+  const delay = arrivalDelay(order) + (row.dataset["hold"] === undefined ? 0 : SEARCH_PAUSE_MS);
   const fading = row.animate([{ opacity: 0 }, { opacity: 1 }], {
     duration: fadeMs,
     delay,
@@ -260,6 +313,9 @@ function leave(layer: HTMLElement, listTop: number, was: Laid): void {
   if (from <= 0.02) return;
   const ghost = was.element.cloneNode(true) as HTMLElement;
   ghost.removeAttribute("data-key");
+  // Unlit, and nameless: the arrows find a row by its id, and the copy is no row (ADR 0263).
+  ghost.removeAttribute("data-lit");
+  for (const named of ghost.querySelectorAll("[id]")) named.removeAttribute("id");
   ghost.inert = true;
   ghost.style.top = `${listTop + was.top}px`;
   ghost.style.left = `${was.left}px`;

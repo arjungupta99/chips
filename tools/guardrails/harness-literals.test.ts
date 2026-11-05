@@ -77,8 +77,16 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
     why: "the wire's kinds, the + asking a harness, and a harness's own context set (ADR 0134)",
   },
   "apps/web/src/app/Harnesses.tsx": {
-    count: 4,
-    why: `the Harnesses tab and the harness a new agent is asked of (ADR 0190); a file of a harness's own context set (ADR 0135); ${SHAPE}`,
+    count: 3,
+    why: `the harness a new agent is asked of (ADR 0190); a file of a harness's own context set (ADR 0135); ${SHAPE}`,
+  },
+  "apps/web/src/app/harness/HarnessPage.tsx": {
+    count: 1,
+    why: `a harness's page (ADR 0254, 0266): ${SHAPE}`,
+  },
+  "apps/web/src/app/harness/HarnessCards.tsx": {
+    count: 1,
+    why: `every harness's card under View all (ADR 0185, 0266): ${SHAPE}`,
   },
   "apps/web/src/app/HarnessShelf.tsx": {
     count: 1,
@@ -104,12 +112,12 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
   },
   "apps/web/src/app/Shell.tsx": { count: 1, why: "the + asking a harness into a room" },
   "apps/web/src/app/Sidebar.tsx": { count: 3, why: SHAPE },
-  "apps/web/src/app/SpaceView.tsx": { count: 8, why: `${SHAPE}; ${WORDS}; ${OUTLINE}` },
+  "apps/web/src/app/SpaceView.tsx": { count: 7, why: `${SHAPE}; ${WORDS}; ${OUTLINE}` },
   "apps/web/src/app/Waits.tsx": { count: 2, why: OUTLINE },
   "apps/web/src/app/you/Notifications.tsx": { count: 1, why: SHAPE },
   "apps/web/src/app/Join.tsx": {
-    count: 9,
-    why: `a harness asking to join, which has no agent yet (ADR 0122), told from a link's request (ADR 0232), the gallery's ways and the docs' cards (ADR 0171), the harness landing on the arrival (ADR 0190), and the harness here already, before a second is made (ADR 0248); ${SHAPE}`,
+    count: 10,
+    why: `a harness asking to join, which has no agent yet (ADR 0122), told from a link's request (ADR 0232), the gallery's ways and the docs' cards (ADR 0171), the same on the empty Agents page (ADR 0261), the harness landing on the arrival (ADR 0190), and the harness here already, before a second is made (ADR 0248); ${SHAPE}`,
   },
   "apps/mobile/src/harnesses/AskingMotion.tsx": {
     count: 2,

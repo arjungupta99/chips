@@ -152,6 +152,15 @@ function runsThisRelease(
 function pushCheck(pushes: string | undefined): Finding | undefined {
   if (pushes === undefined) return undefined;
   if (pushes === "ready") return { check: "push", health: "ok", detail: "Can push to phones." };
+  if (pushes === "failing") {
+    return {
+      check: "push",
+      health: "warn",
+      detail: "Its last pushes to phones didn't get through: the push service didn't take them.",
+      fix: "Each new push tries again, and phones see what needs them when Chips is open. Its log says why, as `push.not_sent`.",
+      docs: PUSH_DOCS,
+    };
+  }
   const refused = pushes === "refused";
   return {
     check: "push",

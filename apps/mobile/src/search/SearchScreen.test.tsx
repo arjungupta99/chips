@@ -1,11 +1,12 @@
 /**
  * The Search tab (ADR 0132): what typing finds, how messages are asked for, the chips, what a
  * search that cannot reach the server says, the recent searches, and where each result opens.
- * The search box that stood over Spaces had three of these tests; they live here now.
+ * The search box that stood over Spaces had three of these tests; they live here now. On an iPad, a
+ * result opens beside the results (ADR 0256); what stands there is `Found`'s, proven in its own.
  */
 
 import type { SearchHit, SearchInput, SearchPage, Snapshot, Space } from "@chipschat/core";
-import { SEARCH_PAUSE_MS } from "@chipschat/core";
+import { SEARCH_LOOKS_AT, SEARCH_LOOKS_AT_NAMES, SEARCH_PAUSE_MS } from "@chipschat/core";
 import {
   act,
   fireEvent,
@@ -14,6 +15,7 @@ import {
   within,
 } from "@testing-library/react-native";
 import type { ReactElement } from "react";
+import { Dimensions } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore } from "../testing/fixtures";
 import { resetRecentSearches } from "./recent";
@@ -29,11 +31,30 @@ const render = (element: ReactElement) =>
 
 const mockPushed: string[] = [];
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: (to: string) => mockPushed.push(to) }),
+  useRouter: () => ({ push: (to: string) => mockPushed.push(to), setParams: () => undefined }),
+  useLocalSearchParams: () => ({}),
   useNavigation: () => ({ addListener: () => () => undefined, isFocused: () => true }),
   useFocusEffect: (effect: () => void) => require("react").useEffect(effect, [effect]),
   useIsFocused: () => true,
 }));
+
+// Beside the results on an iPad: what was opened there, and whether anything is typed.
+jest.mock("./Found", () => {
+  const react = require("react");
+  const { Text } = require("react-native");
+  return {
+    SEARCH_OPEN: ["space", "at", "words", "agent", "history"],
+    Found: ({ opened, typed }: { opened: unknown; typed: boolean }) =>
+      react.createElement(Text, { testID: "found" }, JSON.stringify({ opened, typed })),
+  };
+});
+
+// A phone's window, but where an iPad's is said.
+const jestWindow = Dimensions.get("window");
+const PHONE = { width: 402, height: 874, scale: 3, fontScale: 1 };
+const IPAD = { width: 1376, height: 1032, scale: 2, fontScale: 1 };
+beforeAll(() => Dimensions.set({ window: PHONE }));
+afterAll(() => Dimensions.set({ window: jestWindow }));
 
 const mockSettings = new Map<string, string>();
 jest.mock("../prefs", () => ({
@@ -308,6 +329,25 @@ describe("the Search tab", () => {
     expect(within(screen.getByTestId("result-message-stp_1")).getByText(/step in/)).toBeTruthy();
   });
 
+  it("says a message was said in an archived space, and opens it to read all the same", async () => {
+    const base = state();
+    const old = space("sp_old", { title: "Old trip", state: "closed", members: [ME, KIT] });
+    const { asks } = await opened(
+      state({ model: { ...base.model, spaces: [...base.model.spaces, old] } }),
+    );
+    await type("chin");
+    await answer(asks, 0, {
+      hits: [hit({ spaceId: "sp_old", lineId: "ln_old" }), hit()],
+      nextCursor: null,
+    });
+    const archived = screen.getByTestId("result-message-ln_old");
+    expect(within(archived).getByText(/^Archived · /)).toBeTruthy();
+    expect(screen.getByLabelText(/in Old trip, archived$/)).toBeTruthy();
+    expect(within(screen.getByTestId("result-message-ln_1")).queryByText(/Archived/)).toBeNull();
+    await fireEvent.press(archived);
+    expect(mockPushed).toEqual(["/spaces/sp_old?at=line%3Aln_old&words=chin"]);
+  });
+
   it("still finds spaces and agents with the server out of reach, and says why messages aren't", async () => {
     const { store } = await opened(state({ connection: "closed" }));
     await type("chin");
@@ -336,6 +376,15 @@ describe("the Search tab", () => {
     await type("zebra crossing");
     await answer(asks, 0, { hits: [], nextCursor: null });
     expect(screen.getByText("Nothing for “zebra crossing”")).toBeTruthy();
+    expect(screen.getByText(SEARCH_LOOKS_AT.all)).toBeTruthy();
+  });
+
+  it("on one letter, says only the names were looked at", async () => {
+    await opened();
+    await type("z");
+    expect(screen.getByText("Nothing for “z”")).toBeTruthy();
+    expect(screen.getByText(SEARCH_LOOKS_AT_NAMES)).toBeTruthy();
+    expect(screen.queryByText(SEARCH_LOOKS_AT.all)).toBeNull();
   });
 });
 
@@ -364,6 +413,51 @@ describe("where a result opens", () => {
       "/spaces/sp_dinner?at=line%3Aln_1&words=chin",
       "/spaces/sp_dinner?at=run%3Arun_1",
     ]);
+  });
+});
+
+describe("beside the results on an iPad (ADR 0256)", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    Dimensions.set({ window: IPAD });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    Dimensions.set({ window: PHONE });
+  });
+
+  const found = () => JSON.parse(screen.getByTestId("found").props["children"]);
+
+  it("drifts the faces in the pane beside the results, not under the field", async () => {
+    await opened();
+    expect(found()).toEqual({ opened: {}, typed: false });
+    expect(screen.queryByTestId("search-backdrop")).toBeNull();
+    await type("chin");
+    expect(found().typed).toBe(true);
+  });
+
+  it("opens a message's room beside them, at its line with the words, and chooses its row", async () => {
+    const { asks } = await opened();
+    await type("chin");
+    await answer(asks, 0, { hits: [hit()], nextCursor: null });
+    await fireEvent.press(screen.getByTestId("result-message-ln_1"));
+    expect(mockPushed).toEqual([]);
+    expect(found().opened).toEqual({ space: "sp_dinner", at: "line:ln_1", words: "chin" });
+    expect(screen.getByTestId("result-message-ln_1")).toBeSelected();
+    expect(screen.getByTestId("result-space-sp_dinner")).not.toBeSelected();
+  });
+
+  it("opens a space and an agent beside them, each chosen in turn", async () => {
+    await opened();
+    await type("chin");
+    await fireEvent.press(screen.getByTestId("result-space-sp_tour"));
+    expect(found().opened).toEqual({ space: "sp_tour" });
+    expect(screen.getByTestId("result-space-sp_tour")).toBeSelected();
+    await fireEvent.press(screen.getByTestId(`result-agent-${TOUR}`));
+    expect(found().opened).toEqual({ agent: TOUR });
+    expect(screen.getByTestId(`result-agent-${TOUR}`)).toBeSelected();
+    expect(screen.getByTestId("result-space-sp_tour")).not.toBeSelected();
+    expect(mockPushed).toEqual([]);
   });
 });
 

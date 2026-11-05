@@ -486,8 +486,9 @@ async function heldBy(
 
 /**
  * The rows kept beside the log for the rooms, which no replay rebuilds: each person's face for
- * them, whether they hid them (ADR 0205) or pinned them (ADR 0240), which visit their messages go
- * to, and which device raised the banner for an ask in them.
+ * them, whether they hid them (ADR 0205) or pinned them (ADR 0240), how far they have read them
+ * (ADR 0262), which visit their messages go to, and which device raised the banner for an ask in
+ * them.
  */
 async function forgetRegistryRows(
   trx: Transaction<Database>,
@@ -495,7 +496,13 @@ async function forgetRegistryRows(
   spaceIds: readonly string[],
   asks: readonly string[],
 ): Promise<void> {
-  for (const table of ["space_icons", "hidden_spaces", "pinned_spaces", "session_pins"] as const) {
+  for (const table of [
+    "space_icons",
+    "hidden_spaces",
+    "pinned_spaces",
+    "read_state",
+    "session_pins",
+  ] as const) {
     await trx
       .deleteFrom(table)
       .where("workspace_id", "=", workspaceId)

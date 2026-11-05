@@ -122,13 +122,21 @@ async function approveAndFinish(page: Page): Promise<void> {
   await card.getByRole("button", { name: "Approve" }).click();
 
   // 4. The harness hears the decision and finishes.
-  // The panel goes final: no controls, and how long it took (no Done since ADR 0151).
-  await expect(runPanel.getByTestId("run-controls")).toHaveCount(0, { timeout: 20_000 });
-  await expect(runPanel.getByTestId("run-meta")).toContainText("took");
+  // The run is over and its panel goes: the room has the width (ADR 0268).
+  await expect(runPanel).toHaveCount(0, { timeout: 20_000 });
   await expect(card).toContainText("Approved by");
   await expect(card).toContainText("sent");
   await expect(page.getByText(SUMMARY).first()).toBeVisible();
-  await expect(runPanel.locator('.ui-timeline__item[data-status="done"]')).toHaveCount(4);
+  // What it did is asked of the line that closed it, as on the phone.
+  await page
+    .getByTestId("messages")
+    .locator(".msg", { hasText: SUMMARY })
+    .last()
+    .click({ button: "right" });
+  await expect(
+    page.getByTestId("line-menu").getByRole("menuitem", { name: "What the run did" }),
+  ).toContainText("4 steps");
+  await page.keyboard.press("Escape");
   await expectAccessible(page, "a finished run");
 }
 

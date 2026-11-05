@@ -83,7 +83,12 @@ export function ContextGroup({
   const open = (row: ContextRow) =>
     onOpen(
       row.opens === "harness_page"
-        ? { kind: "harness_page", harnessId: context.harnessId, flash: row.readsShared }
+        ? {
+            kind: "harness_part",
+            harnessId: context.harnessId,
+            part: "context",
+            flash: row.readsShared,
+          }
         : { kind: "file", owner, name: row.name, own: false },
     );
   const leftOut = notShownWords(context.notShown, context.harnessName, agentName);

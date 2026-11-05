@@ -1,11 +1,12 @@
 /**
- * The person's devices and passkeys, on You (ADR 0034, ADR 0085).
+ * The person's devices and passkeys, on You (ADR 0034, ADR 0085, ADR 0265).
  *
  * Devices answer one question — *which of these is still mine* — so each wears a mark for its
  * kind, says when it was last seen, and can be signed out from here; this one leads and cannot
- * be (its own Sign out is at the top of the screen), and those not seen for a month are folded
+ * be (its own Sign out is at the foot of the list), and those not seen for a month are folded
  * under one row that signs them all out at once, after asking. The order and the fold are
- * core's (`sortDevices`), shared with the phone.
+ * core's (`sortDevices`), shared with the phone. Pair another device, last, opens the code as a
+ * form, as the phone's Pair a computer opens its sheet.
  *
  * Passkeys are drawn only where one can work (Shell decides): a passkey is a browser's, on one
  * named address, so the desktop app and a bare IP address never show the card at all.
@@ -20,12 +21,14 @@ import {
 } from "@chipschat/core";
 import { Button } from "@chipschat/ui";
 import QRCode from "qrcode";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { browserDeviceName } from "../browserName.ts";
 import { ConfirmDialog } from "../ConfirmDialog.tsx";
 import { NotInDemo, useNotInDemo } from "../demo/NotInDemo.tsx";
 import { relativeTime } from "../time.ts";
-import { Card, Problem, reasonOf } from "./controls.tsx";
+import { Problem, reasonOf } from "./controls.tsx";
+import { FormPage } from "./Form.tsx";
+import { Group, ListRow, RowMark } from "./list.tsx";
 import type { IssuedCode, PeopleService } from "./services.ts";
 import { useList } from "./useList.ts";
 
@@ -45,25 +48,32 @@ export function Devices(props: {
 }) {
   const { service } = props;
   const { items, busy, error, act, reload } = useList(service.devices, props.connected);
-  const pairing = usePairing(service.issuePairingCode);
   const [now] = useState(() => Date.now());
+  const [pairing, setPairing] = useState<HTMLElement | null | undefined>(undefined);
+  // In the demo there is no server to pair a device with (ADR 0213, point 7).
+  const setUp = useNotInDemo();
   const { recent, stale } = sortDevices(items ?? [], now);
   return (
-    <Card label="Devices" testId="devices" title="Devices" aside={<PairButton pairing={pairing} />}>
-      <Problem error={error ?? pairing.error} />
-      {pairing.issued !== undefined && <IssuedCodeView issued={pairing.issued} qr={pairing.qr} />}
-      <ul className="you-list">
-        {recent.map((device) => (
-          <DeviceRow
-            key={device.deviceId}
-            device={device}
-            here={props.desktop ? "computer" : "browser"}
-            now={now}
-            busy={busy}
-            onSignOut={() => void act(() => service.revokeDevice(device.deviceId))}
-          />
-        ))}
-      </ul>
+    <Group
+      heading="Devices"
+      label="Devices"
+      testId="devices"
+      foot={error}
+      failed={error !== undefined}
+    >
+      {items === undefined && error === undefined && (
+        <ListRow label="Reading…" mark={<span className="you-mark is-blank" />} />
+      )}
+      {recent.map((device) => (
+        <DeviceRow
+          key={device.deviceId}
+          device={device}
+          here={props.desktop ? "computer" : "browser"}
+          now={now}
+          busy={busy}
+          onSignOut={() => void act(() => service.revokeDevice(device.deviceId))}
+        />
+      ))}
       {stale.length > 0 && (
         <StaleDevices
           devices={stale}
@@ -79,7 +89,26 @@ export function Devices(props: {
           }}
         />
       )}
-    </Card>
+      <ListRow
+        label="Pair another device"
+        tone="accent"
+        mark={<RowMark icon="plus" tint="var(--gold-soft)" ink="var(--accent)" />}
+        trailing={setUp === undefined ? undefined : <NotInDemo onSetUp={setUp} />}
+        onOpen={setUp === undefined ? setPairing : undefined}
+        bare
+        testId="issue-code"
+      />
+      {pairing !== undefined && (
+        <PairForm
+          from={pairing}
+          issueCode={service.issuePairingCode}
+          onGone={() => {
+            setPairing(undefined);
+            void reload();
+          }}
+        />
+      )}
+    </Group>
   );
 }
 
@@ -93,9 +122,9 @@ function DeviceRow(props: {
 }) {
   const { device } = props;
   return (
-    <li className="you-row" data-testid="device-row" data-current={device.current}>
+    <div className="you-lrow" data-testid="device-row" data-current={device.current}>
       <KindMark kind={deviceKind(device.name)} />
-      <span className="you-row-lab">
+      <span className="you-lrow-lab">
         <span>{device.name}</span>
         <small>
           {device.current
@@ -106,17 +135,24 @@ function DeviceRow(props: {
       {device.current ? (
         <span className="you-tag">This one</span>
       ) : (
-        <Button disabled={props.busy} onClick={props.onSignOut}>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={props.busy}
+          onClick={props.onSignOut}
+          aria-label={`Sign out ${device.name}`}
+        >
           Sign out
         </Button>
       )}
-    </li>
+    </div>
   );
 }
 
 /**
- * The devices not seen for a month, under one row: opened, each can be signed out; or all of
- * them at once, after asking, since a device signed out has to be paired again to come back.
+ * The devices not seen for a month, under one row, as the phone folds them: opened, each can be
+ * signed out; or all of them at once, after asking, since a device signed out has to be paired
+ * again to come back.
  */
 function StaleDevices(props: {
   readonly devices: readonly PairedDeviceRecord[];
@@ -130,23 +166,21 @@ function StaleDevices(props: {
   const count = props.devices.length;
   return (
     <div className="you-stale" data-testid="stale-devices">
-      <div className="you-row">
-        <button
-          type="button"
-          className="you-fold"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-          data-testid="stale-fold"
-        >
-          <span className="you-fold-chev" aria-hidden="true" />
-          {count} not seen in a month
-        </button>
-        <Button disabled={props.busy} onClick={() => setAsking(true)} data-testid="sign-out-stale">
-          Sign out all {count}
-        </Button>
-      </div>
+      <button
+        type="button"
+        className="you-lrow you-fold"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        data-testid="stale-fold"
+      >
+        <span className="you-mark is-blank" />
+        <span className="you-lrow-lab">
+          <span>{count} not seen in a month</span>
+        </span>
+        <span className="you-lrow-val">{open ? "Hide" : "Show"}</span>
+      </button>
       {open && (
-        <ul className="you-list">
+        <>
           {props.devices.map((device) => (
             <DeviceRow
               key={device.deviceId}
@@ -156,7 +190,16 @@ function StaleDevices(props: {
               onSignOut={() => props.onSignOut(device.deviceId)}
             />
           ))}
-        </ul>
+          <ListRow
+            label={`Sign out all ${count}`}
+            tone="danger"
+            mark={<span className="you-mark is-blank" />}
+            onOpen={() => setAsking(true)}
+            disabled={props.busy}
+            bare
+            testId="sign-out-stale"
+          />
+        </>
       )}
       {asking && (
         <ConfirmDialog
@@ -264,21 +307,48 @@ export function usePairing(issueCode: () => Promise<IssuedCode>): Pairing {
   return { issued, qr, busy, error, issue };
 }
 
-/** Pair another device…, in the card's head: the one warm button on the card. */
-function PairButton(props: { readonly pairing: Pairing }) {
-  const { pairing } = props;
-  // In the demo there is no server to pair a device with (ADR 0213, point 7).
-  const setUp = useNotInDemo();
-  if (setUp !== undefined) return <NotInDemo onSetUp={setUp} />;
+/**
+ * Pair another device, as the phone's Pair a computer sheet: a code is made as the form opens, with
+ * its QR for a phone's camera and its link for a computer, and Another code makes a fresh one.
+ */
+function PairForm(props: {
+  readonly from: HTMLElement | null;
+  readonly issueCode: () => Promise<IssuedCode>;
+  readonly onGone: () => void;
+}) {
+  const pairing = usePairing(props.issueCode);
+  const { issue } = pairing;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one code as the form opens
+  useEffect(() => {
+    void issue();
+  }, []);
   return (
-    <Button
-      className="you-gold"
-      disabled={pairing.busy}
-      onClick={() => void pairing.issue()}
-      data-testid="issue-code"
+    <FormPage
+      title="Pair another device"
+      from={props.from}
+      testId="pair-form"
+      onGone={props.onGone}
     >
-      {pairing.issued === undefined ? "Pair another device…" : "Another code"}
-    </Button>
+      {() => (
+        <>
+          <Problem error={pairing.error} />
+          {pairing.issued === undefined ? (
+            <p className="you-form-foot">{pairing.busy ? "Making a code…" : ""}</p>
+          ) : (
+            <IssuedCodeView issued={pairing.issued} qr={pairing.qr} />
+          )}
+          <p className="you-form-foot">
+            On a phone, open Chips and choose Scan a QR code. On a computer, open Chips and paste
+            the code, or send it the link.
+          </p>
+          <div className="you-form-actions">
+            <Button disabled={pairing.busy} onClick={() => void issue()}>
+              Another code
+            </Button>
+          </div>
+        </>
+      )}
+    </FormPage>
   );
 }
 
@@ -354,56 +424,62 @@ function ComputerLink(props: { readonly link: string; readonly relayed: boolean 
 
 /**
  * Passkeys: how a person comes back on a new browser without a code from this one. Theirs alone;
- * nobody else in the workspace can see or remove one.
+ * nobody else in the workspace can see or remove one. The web's own: no phone has them.
  */
 export function Passkeys(props: { readonly service: PeopleService; readonly connected: boolean }) {
   const { service } = props;
   const { items, busy, error, act } = useList(service.passkeys, props.connected);
   const live = (items ?? []).filter((each) => each.revokedAt === undefined);
   return (
-    <Card
+    <Group
+      heading="Passkeys"
       label="Passkeys"
       testId="passkeys"
-      title="Passkeys"
-      aside={
-        <Button
-          onClick={() => void act(() => service.addPasskey(browserDeviceName()))}
-          disabled={busy}
-          data-testid="add-passkey"
-        >
-          Add a passkey
-        </Button>
+      foot={
+        error ??
+        "How you come back in another browser without a code from this one. Yours alone: nobody else in the workspace can see or remove one."
       }
+      failed={error !== undefined}
     >
-      <p className="you-card-note">
-        How you come back in another browser without a code from this one. Yours alone: nobody else
-        in the workspace can see or remove it.
-      </p>
-      <Problem error={error} />
-      <ul className="you-list">
-        {live.map((passkey) => (
-          <li key={passkey.passkeyId} className="you-row" data-testid="passkey-row">
-            <span className="you-row-lab">
-              <span>{passkey.name}</span>
-              <small>
-                {seenWords("Made", passkey.createdAt)}
-                {passkey.lastUsedAt === undefined
-                  ? " · never used"
-                  : ` · ${seenWords("used", passkey.lastUsedAt)}`}
-              </small>
-            </span>
+      {live.map((passkey) => (
+        <ListRow
+          key={passkey.passkeyId}
+          label={passkey.name}
+          sub={`${seenWords("Made", passkey.createdAt)}${
+            passkey.lastUsedAt === undefined
+              ? " · never used"
+              : ` · ${seenWords("used", passkey.lastUsedAt)}`
+          }`}
+          mark={<RowMark icon="key" />}
+          trailing={
             <Button
+              size="sm"
+              variant="ghost"
               disabled={busy}
               onClick={() => void act(() => service.revokePasskey(passkey.passkeyId))}
             >
               Remove
             </Button>
-          </li>
-        ))}
-        {items !== undefined && live.length === 0 && (
-          <li className="you-row you-empty">None yet. A new browser needs a pairing code.</li>
-        )}
-      </ul>
-    </Card>
+          }
+          testId="passkey-row"
+        />
+      ))}
+      {items !== undefined && live.length === 0 && (
+        <ListRow
+          label="None yet"
+          sub="A new browser needs a pairing code."
+          mark={<RowMark icon="key" />}
+        />
+      )}
+      <ListRow
+        label="Add a passkey"
+        tone="accent"
+        mark={<RowMark icon="plus" tint="var(--gold-soft)" ink="var(--accent)" />}
+        onOpen={() => void act(() => service.addPasskey(browserDeviceName()))}
+        disabled={busy}
+        bare
+        testId="add-passkey"
+      />
+    </Group>
   );
 }

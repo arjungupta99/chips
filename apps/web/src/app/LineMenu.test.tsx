@@ -79,15 +79,55 @@ const nextFrame = () =>
   act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 
 describe("the line's menu", () => {
-  it("offers Not right? and every action the reader's standing allows, and no thumbs", () => {
+  it("offers, in the phone's order, Copy and every action the reader's standing allows, and no thumbs", () => {
     const { menu } = open();
     expect(labels(menu)).toEqual([
-      "Not right?",
-      "Pin to the top",
+      "Copy",
       "Edit",
+      "Pin",
+      "Not right?",
       "Delete for me",
       "Delete for everyone",
     ]);
+    // The quick actions, then a rule, then the rest (ADR 0200's capsule and card).
+    expect(menu.querySelectorAll(".line-menu-rule")).toHaveLength(1);
+  });
+
+  it("says who a Not right? goes to under it, and who said the line and when at its head", () => {
+    const { menu } = open({ name: "Scout", head: "Scout · Today 10:00 AM" });
+    expect(within(menu).getByRole("menuitem", { name: "Not right?" }).textContent).toContain(
+      "Tell Scout, and it tries again",
+    );
+    expect(within(menu).getByTestId("line-menu-head").textContent).toBe("Scout · Today 10:00 AM");
+  });
+
+  it("offers What the run did on the line that closed a run, its receipt's line under it", () => {
+    const onRunDid = vi.fn();
+    const { menu, onClose } = open({ runDid: "5 steps · 52s · ≈$0.42", onRunDid });
+    const item = within(menu).getByRole("menuitem", { name: "What the run did" });
+    expect(item.textContent).toContain("5 steps · 52s · ≈$0.42");
+    fireEvent.click(item);
+    expect(onRunDid).toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("copies the words as written, says Copied, and goes a beat later", async () => {
+    vi.useFakeTimers();
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    try {
+      const { menu, onClose } = open();
+      fireEvent.click(within(menu).getByRole("menuitem", { name: "Copy" }));
+      expect(writeText).toHaveBeenCalledWith("The PO is for the 12th.");
+      expect(within(menu).getAllByRole("menuitem")[0]?.textContent).toBe("Copied");
+      expect(onClose).not.toHaveBeenCalled();
+      await act(async () => {
+        vi.advanceTimersByTime(800);
+      });
+      expect(onClose).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("offers to take a pin down, and nothing about a thread the line has grown", () => {
@@ -97,12 +137,7 @@ describe("the line's menu", () => {
       pinned: true,
       onFeedback: undefined,
     });
-    expect(labels(menu)).toEqual([
-      "Unpin from the top",
-      "Edit",
-      "Delete for me",
-      "Delete for everyone",
-    ]);
+    expect(labels(menu)).toEqual(["Copy", "Edit", "Unpin", "Delete for me", "Delete for everyone"]);
   });
 
   it("deletes for the reader alone at once, since Undo is there after (ADR 0167)", () => {
@@ -247,13 +282,18 @@ describe("the line's menu", () => {
 });
 
 describe("whether there is a menu at all", () => {
-  it("is nothing when the line offers nothing and takes no feedback", () => {
-    expect(hasMenu(NONE, LINE, false)).toBe(false);
-    expect(hasMenu({ ...NONE, hide: true }, LINE, false)).toBe(true);
+  // A line with words always has Copy; one of files alone has only what the reader may do to it.
+  const FILES = { ...LINE, text: "" } as Line;
+
+  it("is nothing when a line of files alone offers nothing and takes no feedback", () => {
+    expect(hasMenu(NONE, FILES, false)).toBe(false);
+    expect(hasMenu({ ...NONE, hide: true }, FILES, false)).toBe(true);
+    expect(hasMenu(NONE, LINE, false)).toBe(true);
   });
 
-  it("is something for a thumb alone, and nothing for a thread somebody else started", () => {
-    expect(hasMenu(NONE, LINE, true)).toBe(true);
-    expect(hasMenu(NONE, { ...LINE, threadId: "spc_t" } as Line, false)).toBe(false);
+  it("is something for a Not right? alone, or a receipt, and nothing for a thread somebody else started", () => {
+    expect(hasMenu(NONE, FILES, true)).toBe(true);
+    expect(hasMenu(NONE, FILES, false, false, true)).toBe(true);
+    expect(hasMenu(NONE, { ...FILES, threadId: "spc_t" } as Line, false)).toBe(false);
   });
 });

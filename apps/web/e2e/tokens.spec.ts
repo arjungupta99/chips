@@ -22,8 +22,10 @@ test("a token is revoked from the app, and the harness stops speaking", async ({
   expect(token).toMatch(/^chips_at_/);
   // Exactly: a room whose last line starts "Done:" is a button too.
   await page.getByRole("button", { name: "Done", exact: true }).click();
-  // Every harness's card, under the shelf's View all (ADR 0185).
+  // Every harness's card, under the shelf's View all (ADR 0185), and Doomed bot's page from its
+  // card (ADR 0254), whose Connection group opens its tokens.
   await page.getByRole("button", { name: "View all harnesses" }).click();
+  await page.getByTestId("harnesses-list").getByRole("button", { name: "Doomed bot" }).click();
 
   // The harness is holding a socket when the token is withdrawn.
   const socket = new WebSocket(`${SERVER.replace("http", "ws")}/v1/ws?token=${token}`);
@@ -35,9 +37,10 @@ test("a token is revoked from the app, and the harness stops speaking", async ({
     socket.addEventListener("error", () => reject(new Error("the harness's socket failed")));
   });
 
-  const card = page.getByRole("region", { name: "Doomed bot" });
-  await card.getByTestId("tokens-open").click();
-  const row = card.getByTestId("token-row");
+  // Tokens is a row of its Connection group, opening a page over it (ADR 0273).
+  await page.getByRole("region", { name: "Doomed bot" }).getByTestId("harness-tokens-row").click();
+  const tokens = page.getByRole("main", { name: "Doomed bot: Tokens" });
+  const row = tokens.getByTestId("token-row");
   await expect(row).toHaveCount(1);
   // The list says what a token is, and never what it is: Chips holds only the digest.
   await expect(row).not.toContainText("chips_at_");

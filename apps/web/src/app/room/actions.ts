@@ -4,7 +4,7 @@
  */
 
 import type { IssuedInvite, RoomFileOf, WorkspaceRole } from "@chipschat/core";
-import type { JobSpend } from "@chipschat/protocol";
+import type { JobSpend, SpaceIcon } from "@chipschat/protocol";
 import type { ProjectActions } from "./Project.tsx";
 
 export interface SpaceActions {
@@ -94,4 +94,9 @@ export interface SpaceActions {
   readonly withdrawInvite: (inviteId: string) => Promise<void>;
   /** The workspace as a sentence names it, for what a link into this room says. */
   readonly workspace?: string | undefined;
+  /**
+   * The face the reader gives the room (ADR 0174), theirs alone, as the Icon page picks it;
+   * `undefined` is the default. Rejects with the server's reason. No Icon page without it.
+   */
+  readonly icon?: ((face: SpaceIcon | undefined) => Promise<void>) | undefined;
 }

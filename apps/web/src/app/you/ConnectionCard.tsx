@@ -1,8 +1,9 @@
 /**
  * Connection, on You on the web and the Mac (ADR 0211): which way this browser or this computer
- * reaches its server, how long a round trip takes, what the way means, and since when. The phone
- * says it on a page of its own, with the route drawn (`apps/mobile/src/you/ConnectionPage.tsx`);
- * the words are core's, so both say the same.
+ * reaches its server, how long a round trip takes, what the way means, and since when. As on the
+ * phone, it is a page of its own (`apps/mobile/src/you/ConnectionPage.tsx`), opened from the
+ * Connection row under This computer, which says the way in a word (ADR 0265); the words are
+ * core's, so both say the same.
  *
  * A browser on the server's own page has no relay to go through, and says so: "Direct, from this
  * browser". The Mac app reaches its server as the phone does, and moves off the relay by itself
@@ -13,11 +14,12 @@
  * server's health every five seconds, the middle of the last three.
  *
  * Phase 2: on the relay, an owner whose server is on a tailnet gets Go direct, the phone's guide
- * as a dialog (`GoDirectDialog`). The Mac gets Only direct, offered once it has reached its server
- * directly; a browser on the server's own page has no relay, so neither is drawn there.
+ * as a page in this one's place (`GoDirectPage`). The Mac gets Only direct, offered once it has
+ * reached its server directly; a browser on the server's own page has no relay, so neither is
+ * drawn there.
  *
  * Phase 3: somebody who is not an owner gets Go direct too, guided through an ask that an owner
- * share the server with them in Tailscale (`GoDirectDialog`'s `guest`). Their ask is read as the
+ * share the server with them in Tailscale (`GoDirectPage`'s `guest`). Their ask is read as the
  * card is drawn.
  *
  * Phase 4: an owner may turn the server's relay off. A computer that heard it and has lost the
@@ -48,8 +50,8 @@ import {
 } from "@chipschat/core";
 import { Button } from "@chipschat/ui";
 import { useEffect, useRef, useState } from "react";
-import { Card, Row, Switch } from "./controls.tsx";
-import { GoDirectDialog, type GuestAsk } from "./GoDirectDialog.tsx";
+import { Row, Switch } from "./controls.tsx";
+import { GoDirectPage, type GuestAsk } from "./GoDirectPage.tsx";
 
 /** How often the round trip is measured while the card is drawn. */
 export const TRIP_EVERY_MS = 5000;
@@ -87,7 +89,7 @@ export interface WayFacts {
   readonly relayOff?: RelayState | undefined;
 }
 
-export function ConnectionCard(props: { readonly way: WayFacts; readonly desktop: boolean }) {
+export function ConnectionPage(props: { readonly way: WayFacts; readonly desktop: boolean }) {
   const { way: facts } = props;
   const way = wayOf(facts.connection, facts.link);
   const connected = way === "relay" || way === "direct";
@@ -103,39 +105,41 @@ export function ConnectionCard(props: { readonly way: WayFacts; readonly desktop
     lostWords(way, machine, facts) ??
     wayWords(way, machine, facts.serverUrl, facts.relayed && !facts.onlyDirect);
   return (
-    <Card label="Connection" testId="connection" title="Connection">
-      <Row
-        label={
-          <span className="way-title" data-way={way} data-testid="connection-way">
-            {title}
-          </span>
-        }
-      >
-        {connected && (
-          <span className="way-trip" data-testid="connection-trip">
-            <b>{tripWords(trip)}</b> round trip
-          </span>
+    <div className="you-page" data-testid="connection">
+      <div className="you-card">
+        <Row
+          label={
+            <span className="way-title" data-way={way} data-testid="connection-way">
+              {title}
+            </span>
+          }
+        >
+          {connected && (
+            <span className="way-trip" data-testid="connection-trip">
+              <b>{tripWords(trip)}</b> round trip
+            </span>
+          )}
+        </Row>
+        {directNow && (
+          <p className="way-now" role="status" data-testid="connection-now">
+            {wentDirectWords(trip, before)}
+          </p>
         )}
-      </Row>
-      {directNow && (
-        <p className="way-now" role="status" data-testid="connection-now">
-          {wentDirectWords(trip, before)}
+        <p className="you-card-note" data-testid="connection-words">
+          {words}
         </p>
-      )}
-      <p className="you-card-note" data-testid="connection-words">
-        {words}
-      </p>
-      {tailnet !== undefined && (
-        <GoDirect
-          facts={facts}
-          machine={machine}
-          tailnet={tailnet}
-          offered={goDirectOffered(way, facts)}
-          trip={trip}
-        />
-      )}
-      {facts.relayed && <Relayed facts={facts} />}
-    </Card>
+        {tailnet !== undefined && (
+          <GoDirect
+            facts={facts}
+            machine={machine}
+            tailnet={tailnet}
+            offered={goDirectOffered(way, facts)}
+            trip={trip}
+          />
+        )}
+        {facts.relayed && <Relayed facts={facts} />}
+      </div>
+    </div>
   );
 }
 
@@ -193,7 +197,7 @@ function GoDirect(props: {
         </Row>
       )}
       {from !== undefined && (
-        <GoDirectDialog
+        <GoDirectPage
           from={from}
           machine={props.machine}
           tailnet={props.tailnet}

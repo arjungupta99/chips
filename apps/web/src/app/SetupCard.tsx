@@ -6,7 +6,8 @@
 
 import type { SetupStep, SetupStepId } from "@chipschat/core";
 import { Icon } from "@chipschat/ui";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { moving } from "./roomMoves.ts";
 
 /** What a step left to do does when it is pressed: nothing, for one there is nothing to press for. */
 export type SetupActions = Partial<Record<SetupStepId, () => void>>;
@@ -49,12 +50,13 @@ export function SetupCard(props: {
       </div>
       <div className="setup-bar" aria-hidden="true">
         {props.steps.map((step, index) => (
-          <i key={step.id} className={index < done ? "on" : ""} />
+          <i key={step.id} className={index < done ? "setup-seg on" : "setup-seg"} />
         ))}
       </div>
       <ul>
         {props.steps.map((step) => {
-          const act = step.done ? undefined : props.actions[step.id];
+          // A step that can't be done from here offers nothing to press, as on the phone.
+          const act = step.done || step.blocked === true ? undefined : props.actions[step.id];
           return (
             <li
               key={step.id}
@@ -103,6 +105,8 @@ function railPhase(now: RailPhase, theirs: boolean, all: boolean): RailPhase {
  * while it is on screen, "You're set up" for a moment before it folds away. A device that was set up
  * before it ever drew the card never draws it: what is left is first decided once the card is
  * `theirs`, when the directory that says whose it is (and which lines are an agent's hello) is in.
+ * Its × folds it away the same way, and puts it away once it has: it went in a frame, and the rooms
+ * under it jumped up.
  */
 export function SetupRail(props: {
   /** Core's `showsSetupCard`, read as if no step were done: whether the card is this person's here. */
@@ -113,6 +117,15 @@ export function SetupRail(props: {
 }) {
   const all = props.steps.every((step) => step.done);
   const [phase, setPhase] = useState<RailPhase>("unread");
+  const [hiding, setHiding] = useState(false);
+  // The rail's, which is new at each of its draws: the fold's timer is not started again for it.
+  const onHide = useRef(props.onHide);
+  onHide.current = props.onHide;
+  useEffect(() => {
+    if (!hiding) return;
+    const timer = setTimeout(() => onHide.current(), SET_UP_FOLDS_MS);
+    return () => clearTimeout(timer);
+  }, [hiding]);
   useEffect(() => {
     setPhase((now) => railPhase(now, props.theirs, all));
   }, [props.theirs, all]);
@@ -129,8 +142,12 @@ export function SetupRail(props: {
   }, [phase]);
   if (!props.theirs || phase === "unread" || phase === "gone") return null;
   return (
-    <div className={phase === "folding" ? "setup-fold gone" : "setup-fold"}>
-      <SetupCard steps={props.steps} actions={props.actions} onHide={props.onHide} />
+    <div className={phase === "folding" || hiding ? "setup-fold gone" : "setup-fold"}>
+      <SetupCard
+        steps={props.steps}
+        actions={props.actions}
+        onHide={() => (moving() ? setHiding(true) : onHide.current())}
+      />
     </div>
   );
 }

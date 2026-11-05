@@ -38,6 +38,7 @@ when, not which surface they were looking at.
 
 Ignoring the banner denies nothing. The approval stays at the foot of its space until somebody
 answers it or it reaches its expiry, which is what the harness asked for when it raised it.
+Clicking the banner itself, rather than a button, opens the space it is waiting in.
 
 :::note[The app has to be a real app for this]
 macOS attributes a notification to an application bundle. A development build run outside a
@@ -48,20 +49,44 @@ than failing quietly. Use the built app.
 ## The menu bar
 
 The icon carries how many things are waiting on you — everything to decide, and what you have
-not yet read of the rest — and nothing when nothing is waiting. Its menu opens the window, turns
-**Open at Login** on or off, and quits. Closing the window keeps the app in the menu bar, so the
-count and the banners carry on; **Quit** ends it.
+not yet read of the rest — and nothing when nothing is waiting. The Dock icon carries the same
+count. Its menu opens the window, turns **Open at Login** on or off, and quits. Closing the window
+keeps the app in the Dock and the menu bar, so the count and the banners carry on, and clicking the
+Dock icon brings the window back; **Quit** ends it.
 
 On a Mac that runs the server itself (the login service `chips up` installs), the icon is that
-server's: it shows while the server answers and goes about 15 seconds after it stops, and the menu
-says *Chips is running on this Mac*. The app opens at login there, with the icon and no window;
-**Open Chips**, or opening the app from Finder or Spotlight, brings the window. Until the window
-has been opened once, an app opened at login sends no banners and keeps no count. On a Mac whose
-server is somewhere else, the icon is there for as long as the app runs.
+server's: it is drawn while the server answers and greys about 15 seconds after it stops, and the
+menu says *Chips is running on this Mac* or *Chips is not answering on this Mac*. The app opens at
+login there, with the icon and no window; **Open Chips**, or opening the app from Finder or
+Spotlight, brings the window. Until the window has been opened once, an app opened at login sends
+no banners and keeps no count. On a Mac whose server is somewhere else, the icon is always drawn.
 
-If that server has stopped, opening Chips for Mac starts it again: the app starts its login
-service the way `chips up` does, and the icon comes back once it answers. This undoes `chips
-down` on that Mac. A server that is running but slow to answer is left alone.
+If that server has stopped, **Open Chips** or opening Chips for Mac starts it again: the app starts
+its login service the way `chips up` does, and the icon is drawn again once it answers. This undoes
+`chips down` on that Mac. A server that is running but slow to answer is left alone.
+
+## Menus and keys
+
+The menus hold what the iPad's do, with the same keys, and dim what the screen in front can't do:
+
+| Keys | What they do |
+| --- | --- |
+| ⌘1, ⌘2, ⌘3, ⌘4 | Spaces, Agents, Search, You |
+| ⌘, | Settings, which is You |
+| ⌘N | A new space, from the sidebar's + |
+| ⇧⌘F | Search, with the caret in its field |
+| ⌥↑, ⌥↓ | The space above or below the one open, as the sidebar lists them, while Spaces is in front |
+| ⌘=, ⌘−, ⌘0 | The page larger, smaller, or back to its actual size, kept between launches |
+
+⌥↑ and ⌥↓ work with the caret in a space's message field too. **Help › Send Feedback…** opens the
+feedback form on GitHub with this build filled in.
+
+The window comes back where you left it, as large as it was, and opens once Chips is drawn in
+it. Its traffic lights stand over the sidebar; drag the strip along the top of the window to move
+it, and double-click it to zoom.
+
+A file dragged onto a space is added to its message, ready to send, as the paper clip adds one. A
+file let go anywhere else in the window is refused.
 
 ## Several workspaces
 

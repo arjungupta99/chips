@@ -284,6 +284,16 @@ async function twoRooms(): Promise<void> {
     })
     .execute();
   await db
+    .insertInto("read_state")
+    .values({
+      workspace_id: WS,
+      participant_id: ARJUN,
+      space_id: CHESS,
+      last_read_seq: 3,
+      updated_at: "2026-11-03T00:00:00.000Z",
+    })
+    .execute();
+  await db
     .insertInto("notification_claims")
     .values({
       workspace_id: WS,
@@ -351,6 +361,7 @@ describe("erasing a space", () => {
     expect(await db.selectFrom("space_icons").selectAll().execute()).toEqual([]);
     expect(await db.selectFrom("hidden_spaces").selectAll().execute()).toEqual([]);
     expect(await db.selectFrom("pinned_spaces").selectAll().execute()).toEqual([]);
+    expect(await db.selectFrom("read_state").selectAll().execute()).toEqual([]);
     expect(await db.selectFrom("notification_claims").selectAll().execute()).toEqual([]);
     // Search has nothing of it: the index is rebuilt from what is left, and finds what is left.
     await drainSearchIndex(db);

@@ -52,6 +52,17 @@ const SAYING: Partial<Readonly<Record<EmptyList, Saying>>> = {
   },
 };
 
+/**
+ * Can't reach the server, on a device that knows no relay: it reaches the server only on its
+ * network, since the relay isn't on (ADR 0245; the phone's `CLOSED_NO_RELAY`).
+ */
+const CLOSED_NO_RELAY: Saying = {
+  title: "Can't reach your server",
+  words:
+    "Chips reaches it only on the server's own network, because the relay isn't on. At home, check that the computer Chips runs on is awake. Away, an owner can turn on the relay at home: You → Workspace → Relay.",
+  retry: true,
+};
+
 export function NoRooms(props: {
   readonly empty: EmptyList;
   readonly server: string | undefined;
@@ -63,12 +74,15 @@ export function NoRooms(props: {
   readonly onNewSpace: ((from: HTMLElement | null) => void) | undefined;
   /** For somebody let in by an invite: core's `welcomeFor`. */
   readonly welcome?: Welcome | undefined;
+  /** This device knows a relay to reach the server through when it is away from it. */
+  readonly relay?: boolean | undefined;
 }) {
   if (props.empty === "none" && props.welcome !== undefined)
     return <Welcomed welcome={props.welcome} onNewSpace={props.onNewSpace} />;
   if (props.empty === "none")
     return <Nothing harnesses={props.harnesses} onNewSpace={props.onNewSpace} />;
-  const saying = SAYING[props.empty];
+  const saying =
+    props.empty === "closed" && props.relay === false ? CLOSED_NO_RELAY : SAYING[props.empty];
   if (saying === undefined) return <Pane look="quiet" />;
   return (
     <Pane look={props.empty}>
@@ -87,8 +101,15 @@ export function NoRooms(props: {
 
 /** The pane itself: the room's place, named for a screen reader as the room's would be. */
 function Pane(props: { readonly look: string; readonly children?: ReactNode }) {
+  // Quiet, it is the room's place a moment before the room: Chips for Mac's window waits for it to
+  // pass before it is shown (ADR 0274).
   return (
-    <main className="conv conv-none none" aria-label="Space" data-testid={`no-rooms-${props.look}`}>
+    <main
+      className="conv conv-none none"
+      aria-label="Space"
+      data-testid={`no-rooms-${props.look}`}
+      data-window-waits={props.children === undefined ? "" : undefined}
+    >
       <h1 className="ui-visually-hidden">Space</h1>
       {props.children === undefined ? null : (
         <div className="none-in" aria-live="polite">

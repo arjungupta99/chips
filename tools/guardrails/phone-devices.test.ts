@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { coreDeviceRowOf, shipRoute } from "../phone/devices.mjs";
+import { coreDeviceRowOf, deviceMeant, shipRoute } from "../phone/devices.mjs";
 
 const list = (
   state: string,
@@ -13,6 +13,21 @@ const list = (
 My iPhone 17          My-iPhone-17.coredevice.local        11111111-2222-3333-4444-555555555555   ${state}   iPhone 17 (iPhone18,3)
 Ada?s Apple Watch     Adas-AppleWatch.coredevice.local     66666666-7777-8888-9999-AAAAAAAAAAAA   ${state}   Apple Watch Series 9 (Watch7,2)
 `;
+
+/** A row of Xcode 27's list, each cell padded to its column. */
+const row = (cells: string[]) =>
+  cells.map((cell, index) => cell.padEnd([22, 11, 45, 21, 27, 9][index] ?? 0)).join("");
+const HEAD = [
+  row(["Name", "Hostname", "Identifier", "State", "Model", "Reality"]),
+  row([
+    "-".repeat(19),
+    "-".repeat(8),
+    "-".repeat(42),
+    "-".repeat(18),
+    "-".repeat(24),
+    "-".repeat(9),
+  ]),
+];
 
 describe("the iPhone as CoreDevice lists it", () => {
   it("is out of reach while it is away", () => {
@@ -31,18 +46,8 @@ describe("the iPhone as CoreDevice lists it", () => {
   it("reads Xcode 27's list, where a phone has no hostname and its id says (UDID)", () => {
     // As `devicectl list devices` printed it on 2 November 2026, with Xcode 27.2: the empty
     // hostname left the identifier where the hostname was, and the state was taken for the id.
-    const row = (cells: string[]) =>
-      cells.map((cell, index) => cell.padEnd([22, 11, 45, 21, 27, 9][index] ?? 0)).join("");
     const xcode27 = [
-      row(["Name", "Hostname", "Identifier", "State", "Model", "Reality"]),
-      row([
-        "-".repeat(19),
-        "-".repeat(8),
-        "-".repeat(42),
-        "-".repeat(18),
-        "-".repeat(24),
-        "-".repeat(9),
-      ]),
+      ...HEAD,
       row([
         "My iPhone 17",
         "",
@@ -78,6 +83,47 @@ describe("the iPhone as CoreDevice lists it", () => {
       state: "",
       reachable: true,
     });
+  });
+});
+
+describe("the device a command means", () => {
+  // As Xcode listed them on 3 November 2026, once Arjun's iPad was paired: the iPad first.
+  const iPad = { name: "AG iPad Pro 2", os: "26.6", udid: "00008132-000805E93C29001C" };
+  const iPhone = { name: "AG iPhone 17", os: "27.0.1", udid: "00008150-000168E13410C01C" };
+  const both = [
+    ...HEAD,
+    row([
+      "AG iPad Pro 2",
+      "",
+      `${iPad.udid} (UDID)`,
+      "available (paired)",
+      "iPad Pro 13-inch (M4) (iPad16,5)",
+      "physical",
+    ]),
+    row([
+      "AG iPhone 17",
+      "",
+      `${iPhone.udid} (UDID)`,
+      "available (paired)",
+      "iPhone 17 (iPhone18,3)",
+      "physical",
+    ]),
+  ].join("\n");
+
+  it("is the iPhone when none is named, though Xcode lists the iPad first", () => {
+    expect(deviceMeant([iPad, iPhone], undefined, both)).toBe(iPhone);
+  });
+
+  it("is the one named, by its name or its id", () => {
+    expect(deviceMeant([iPad, iPhone], "AG iPad Pro 2", both)).toBe(iPad);
+    expect(deviceMeant([iPad, iPhone], iPad.udid, both)).toBe(iPad);
+    expect(deviceMeant([iPad, iPhone], "Someone else's iPhone", both)).toBeUndefined();
+  });
+
+  it("is the first listed when no iPhone is, or CoreDevice says nothing", () => {
+    expect(deviceMeant([iPad], undefined, both)).toBe(iPad);
+    expect(deviceMeant([iPad, iPhone], undefined, "")).toBe(iPad);
+    expect(deviceMeant([], undefined, both)).toBeUndefined();
   });
 });
 

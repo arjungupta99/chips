@@ -57,6 +57,9 @@
   /* the accent: what a tap lands on — the chosen tab, Cancel, a tick, a sheet's action. Not a
      status, so it is not --amber, though dark keeps the amber it wore before (ADR 0192) */
   --accent: #a06306;
+  /* the accent as words on a tile (the chosen tab on --surface-3): a step darker, the same hue,
+     4.9:1 there where the accent is 3.9:1. Dark's accent is 5.5:1 there already. */
+  --accent-ink: #905400;
 
   /* status: working, needs you, blocked, done, idle — always with a word beside them */
   --blue: #1d6aff;
@@ -213,6 +216,7 @@
   --gold-deep: #f7ce54;
   --gold-soft: #3c3005;
   --accent: #f38b00;
+  --accent-ink: #f38b00;
   --blue: #5f91ff;
   --blue-ink: #a9c1ff;
   --blue-soft: #19274c;
@@ -256,6 +260,7 @@
   --gold-deep: #7d5b00;
   --gold-soft: #fff3c3;
   --accent: #a06306;
+  --accent-ink: #905400;
   --blue: #1d6aff;
   --blue-ink: #1048ce;
   --blue-soft: #e6edff;
@@ -374,6 +379,7 @@
     --gold-deep: #f7ce54;
     --gold-soft: #3c3005;
     --accent: #f38b00;
+    --accent-ink: #f38b00;
     --blue: #5f91ff;
     --blue-ink: #a9c1ff;
     --blue-soft: #19274c;

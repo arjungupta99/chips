@@ -28,9 +28,11 @@ import {
   newAgentName,
   newestFilesOf,
   type Space,
+  spaceFace,
   spaceTitle,
   takeOutAsking,
   type WorkspaceModel,
+  whoIsHere,
 } from "@chipschat/core";
 import type { JobSpend, SpaceIcon } from "@chipschat/protocol";
 import { type CSSProperties, useCallback, useEffect, useId, useRef, useState } from "react";
@@ -41,9 +43,10 @@ import { useRoomFiles } from "../RoomFiles.tsx";
 import { spaceAvatar } from "../Sidebar.tsx";
 import { AddPage, type Asked, ElsewherePage, MovePage, NewAgentPage } from "./Adding.tsx";
 import type { SpaceActions } from "./actions.ts";
+import { IconPage } from "./IconPage.tsx";
 import { InvitePage } from "./InvitePage.tsx";
 import { ProjectPages } from "./Project.tsx";
-import { Failed, Pages } from "./parts.tsx";
+import { Failed, Pages, SheetClose } from "./parts.tsx";
 import { MediaFilesPage } from "./RoomMedia.tsx";
 import { LeadPage, SpendPage } from "./Settings.tsx";
 import { UniversePage } from "./Universe.tsx";
@@ -61,6 +64,7 @@ export type Page =
   | { readonly kind: "move"; readonly agentId: string }
   | { readonly kind: "project" }
   | { readonly kind: "universe" }
+  | { readonly kind: "icon" }
   | { readonly kind: "change"; readonly commit: string }
   | { readonly kind: "file"; readonly path: string };
 
@@ -85,9 +89,10 @@ export interface RoomSheetProps {
   readonly from: HTMLElement | null;
   /**
    * The page it comes up on: its first, or Add, for a room waiting for agents (ADR 0148), or
-   * Universe, from the four rings at the header's right (ADR 0227).
+   * Universe, from the four rings at the header's right (ADR 0227), or Icon, from Change icon on
+   * the room's row in the rail (ADR 0264's addendum).
    */
-  readonly opensOn: "who" | "add" | "project" | "universe";
+  readonly opensOn: "who" | "add" | "project" | "universe" | "icon";
   /** A change to open on instead, from under the reply that made it (ADR 0222). */
   readonly opensChange?: string | undefined;
   /** Gone, the fold finished. */
@@ -189,7 +194,22 @@ export function RoomSheet(props: RoomSheetProps) {
         withdraw={actions.withdrawInvite}
         workspace={actions.workspace ?? "the workspace"}
         onBack={() => go({ kind: "add" })}
-        onDone={leave}
+      />
+    );
+  // The face the reader gives the room (ADR 0264's addendum): pressed at the head, or asked for
+  // from the rail's Change icon.
+  const { icon } = actions;
+  const onIcon = icon === undefined ? undefined : () => go({ kind: "icon" });
+  const iconPage = () =>
+    icon === undefined ? null : (
+      <IconPage
+        titleId={titleId}
+        title={props.title}
+        hint={whoIsHere(space, directory)}
+        kind={spaceFace(space, directory).kind}
+        chosen={props.icon}
+        save={icon}
+        onBack={() => go({ kind: "who" })}
       />
     );
   const common = {
@@ -225,6 +245,7 @@ export function RoomSheet(props: RoomSheetProps) {
             onMoveBack={(agentId) => void work(() => actions.move(agentId), putAway)}
             onLock={(locked) => work(() => actions.lock(locked))}
             onRenaming={onRenaming}
+            onIcon={onIcon}
             onPage={(kind) => go({ kind })}
             onPutAway={(kind) => setAsking({ kind })}
             onTakeOut={(participantId) => setAsking({ kind: "takeout", participantId })}
@@ -235,7 +256,6 @@ export function RoomSheet(props: RoomSheetProps) {
             // Pinned or let go, the sheet stays: the room is still in the rail, in a new place
             // (ADR 0240).
             onPin={(now) => void work(() => actions.pin(now))}
-            onClose={leave}
           />
         );
       case "lead":
@@ -260,6 +280,8 @@ export function RoomSheet(props: RoomSheetProps) {
             }
           />
         );
+      case "icon":
+        return iconPage();
       case "universe":
         return (
           <UniversePage
@@ -310,7 +332,6 @@ export function RoomSheet(props: RoomSheetProps) {
             onNew={() => go({ kind: "new" })}
             onElsewhere={() => go({ kind: "elsewhere" })}
             onInvite={onInvite}
-            onDone={leave}
           />
         );
       case "invite":
@@ -395,7 +416,9 @@ export function RoomSheet(props: RoomSheetProps) {
         style={place}
       >
         <div className="sheet-card" tabIndex={-1}>
-          <Pages page={pageKey(page)}>{view(page)}</Pages>
+          <SheetClose.Provider value={leave}>
+            <Pages page={pageKey(page)}>{view(page)}</Pages>
+          </SheetClose.Provider>
           {failed !== undefined && <Failed words={failed} />}
         </div>
       </GrowingDialog>

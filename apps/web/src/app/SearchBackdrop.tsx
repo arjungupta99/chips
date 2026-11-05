@@ -18,11 +18,13 @@
  * - **Behind, never in the way.** Hidden from screen readers, not a target for the pointer, and
  *   drawn at a third of its strength; it thins out to nothing just under the field.
  * - **Gone once you type**, fading as the results come in its place (`leaving`, ADR 0189), and back
- *   when the field is empty.
+ *   when the field is empty. Gone, it is kept out of sight with its faces still (`resting`), as the
+ *   phone keeps its own, so it comes back without being drawn afresh: drawn again from nothing, its
+ *   faces and their silhouettes held the frames as the field emptied (3 November 2026).
  * - **Still with less motion asked for**: each face and its glow stand where the round begins.
- * - **The faces hold while it is shown.** Which space or agent is in which place is taken when it
- *   appears, so a room that moves to the top of the list while you watch does not change every
- *   face at once.
+ * - **The faces hold while Search is open.** Which space or agent is in which place is taken when
+ *   it first appears, so a room that moves to the top of the list while you watch does not change
+ *   every face at once.
  */
 
 import {
@@ -71,6 +73,7 @@ export function SearchBackdrop({
   selfId,
   spaceIcons,
   leaving = false,
+  resting = false,
 }: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
@@ -78,6 +81,8 @@ export function SearchBackdrop({
   readonly spaceIcons: ReadonlyMap<string, SpaceIcon>;
   /** Something has been typed: it fades away, the faces it wears held as they were. */
   readonly leaving?: boolean;
+  /** Faded away while something is typed: out of sight, its faces still. */
+  readonly resting?: boolean;
 }) {
   const worn = useHeldLenders(model, directory, selfId);
   if (worn.length === 0) return null;
@@ -87,6 +92,7 @@ export function SearchBackdrop({
       style={SWAYING}
       aria-hidden="true"
       data-leaving={leaving ? "" : undefined}
+      data-resting={resting ? "" : undefined}
       data-testid="search-backdrop"
     >
       <Silhouettes />

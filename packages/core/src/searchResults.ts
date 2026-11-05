@@ -9,7 +9,8 @@
  * - **Messages** come from the server, so they also have its states: two placeholder rows the
  *   first time, a line when the server can't be reached or the ask failed, and a row while the
  *   next page comes. A hit in a room this client no longer has is left out.
- * - **Nothing at all** found says so, and what search looks at.
+ * - **Nothing at all** found says so, and what search looks at: in All with one letter, the names
+ *   alone, since messages are searched from two letters on.
  *
  * Pure: a page hands it what was found (`findSpaces`, `findAgents`, `messageSearch`) and draws
  * what comes back. Each client draws the rows its own way, and says the same words in them.
@@ -81,6 +82,8 @@ export type SearchItem =
       readonly key: string;
       readonly text: string;
       readonly scope: SearchScope;
+      /** What the search looked at, said under the line (`SEARCH_LOOKS_AT`, or the names alone). */
+      readonly looksAt: string;
     };
 
 export interface SearchFound {
@@ -106,7 +109,18 @@ export function searchItems(found: SearchFound): readonly SearchItem[] {
     ...(scope === "all" || scope === "agents" ? agentItems(found.agents, scope === "all") : []),
     ...(scope === "all" || scope === "messages" ? messageItems(found, scope === "all") : []),
   ];
-  return items.length > 0 ? items : [{ kind: "nothing", key: "nothing", text: found.text, scope }];
+  return items.length > 0 ? items : [nothing(found)];
+}
+
+/**
+ * Nothing found, and what was looked at. In All before the messages are asked for (one letter),
+ * only the names were: it says so rather than that everything said was searched.
+ */
+function nothing(found: SearchFound): SearchItem {
+  const { scope, text } = found;
+  const namesAlone = scope === "all" && found.online && found.messages.status === "idle";
+  const looksAt = namesAlone ? SEARCH_LOOKS_AT_NAMES : SEARCH_LOOKS_AT[scope];
+  return { kind: "nothing", key: "nothing", text, scope, looksAt };
 }
 
 function recentItems(recent: readonly string[]): readonly SearchItem[] {
@@ -215,6 +229,19 @@ export const SEARCH_LOOKS_AT: Readonly<Record<SearchScope, string>> = {
   messages: "Messages are everything said in the spaces you're in, voice notes too.",
 };
 
+/** Under nothing found in All with one letter typed: the names were looked at, not the messages. */
+export const SEARCH_LOOKS_AT_NAMES =
+  "Spaces and agents are found by their names. Messages are found from two letters on.";
+
+/**
+ * Beside the results on a wide window, with something typed and nothing opened yet (ADR 0256 on
+ * the iPad, `search/Found.tsx`; ADR 0269 on the Mac and the web).
+ */
+export const SEARCH_NOTHING_OPEN = {
+  title: "Nothing open",
+  words: "Choose a result on the left.",
+} as const;
+
 /**
  * Who a titled room is with, for the line under its name: the others in it, two by name. A room
  * with no title is already named after them.
@@ -295,6 +322,17 @@ export function hitPlace(
     space.parentSpaceId === undefined ? undefined : spaceById(model, space.parentSpaceId);
   if (parent === undefined) return spaceTitle(space, directory, selfId);
   return `${spaceTitle(parent, directory, selfId)} · thread`;
+}
+
+/**
+ * Whether a hit was said in an archived space, or in a thread off one: still found and opened, to
+ * read, and its row says so (Arjun, 3 November 2026).
+ */
+export function hitArchived(space: Space, model: WorkspaceModel): boolean {
+  if (space.state === "closed") return true;
+  const parent =
+    space.parentSpaceId === undefined ? undefined : spaceById(model, space.parentSpaceId);
+  return parent?.state === "closed";
 }
 
 /**

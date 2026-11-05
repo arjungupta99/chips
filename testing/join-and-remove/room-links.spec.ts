@@ -18,7 +18,7 @@ import {
   openInvite,
   openLink,
   openSpace,
-  openYou,
+  openYouPage,
   personRow,
   roomInvite,
   roomLines,
@@ -123,7 +123,7 @@ test("a room's link goes with its room", async ({ page, browser }) => {
   const url = await roomInvite(owner);
   await closeSheet(owner);
   // The owner's open links name the room it brings people into.
-  await openYou(owner);
+  await openYouPage(owner, "invite-someone");
   await expect(owner.getByTestId("invite-row").filter({ hasText: `into ${title}` })).toHaveCount(1);
 
   // Archived, the room takes its link with it.
@@ -138,6 +138,6 @@ test("a room's link goes with its room", async ({ page, browser }) => {
   } finally {
     await context.close();
   }
-  await openYou(owner);
+  await openYouPage(owner, "invite-someone");
   await expect(owner.getByTestId("invite-row").filter({ hasText: `into ${title}` })).toHaveCount(0);
 });

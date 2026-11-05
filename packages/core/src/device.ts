@@ -15,7 +15,12 @@
  * there could be several sits under the pointer's old name and is moved on first read.
  */
 
-import { serverKey as serverKeyShape } from "@chipschat/protocol";
+import {
+  joinCheckCode,
+  joinCheckText,
+  joinCommitText,
+  serverKey as serverKeyShape,
+} from "@chipschat/protocol";
 import { cacheKey } from "./cacheKey.js";
 import {
   directLink,
@@ -737,10 +742,18 @@ export interface JoinWaiting {
 
 /**
  * Ask the Chips at `serverUrl` to let this device in (ADR 0122's device request), from the same
- * network: a phone that found it on the Wi-Fi. The server answers with a code, which this device
- * shows and the computer shows too; a person allows it there, and this device collects its
- * credential, and the server's key beside it, which it pins (ADR 0191, decision 5). No code is
- * typed. Stops with a `PairingError` when it is refused or runs out, and when `signal` is aborted.
+ * network: a phone that found it on the Wi-Fi. This device shows a code, a person types it on the
+ * computer to allow it there, and this device collects its credential, and the server's key
+ * beside it, which it pins (ADR 0191, decision 5). Stops with a `PairingError` when it is refused
+ * or runs out, and when `signal` is aborted.
+ *
+ * The code is worked out here and at the server, never handed over (S-1, ADR 0278): this device
+ * asks with a commitment to a nonce, the server answers with its key and a nonce of its own, this
+ * device sends its nonce with its first poll, and both ends hash both keys and both nonces. A code
+ * the server handed over could be handed on by whoever sits between the phone and the computer,
+ * with their key in the request; this one, they'd match one time in a billion. A server that
+ * answers without its halves is an older one, or somebody making it look so: this device doesn't
+ * ask that way, and says to update it or scan its QR code.
  */
 export async function askToJoin(input: {
   readonly serverUrl: string;
@@ -756,26 +769,56 @@ export async function askToJoin(input: {
   const sleep = input.sleep ?? ((ms: number) => new Promise((done) => setTimeout(done, ms)));
   const now = input.now ?? Date.now;
   const { pair, publicKey } = await newDeviceKey(storage);
+  const nonce = toBase64url(crypto.getRandomValues(new Uint8Array(32)).buffer);
   const asked = await knock<{
     request_id: string;
     secret: string;
-    code: string;
+    server_key?: string;
+    nonce?: string;
     expires_in: number;
     interval: number;
   }>(
     input.serverUrl,
     "/v1/join",
-    { kind: "device", name: input.name, public_key: publicKey },
+    {
+      kind: "device",
+      name: input.name,
+      public_key: publicKey,
+      commit: await sha256(joinCommitText(nonce)),
+    },
     "Chips there didn't take the request.",
   );
-  input.onWaiting({ code: asked.code, expiresAt: now() + asked.expires_in * 1000 });
+  const serverKey = asked.server_key;
+  if (serverKey === undefined || asked.nonce === undefined) throw new PairingError(TOO_OLD);
+  const code = joinCheckCode(
+    fromBase64url(
+      await sha256(
+        joinCheckText({ publicKey, serverKey, deviceNonce: nonce, serverNonce: asked.nonce }),
+      ),
+    ),
+  );
+  // The nonce goes before the code is shown, so the server has the code by the time it is typed.
+  const waiting = { ...asked, nonce };
+  await pollOrNot(input.serverUrl, waiting, directLink);
+  input.onWaiting({ code, expiresAt: now() + asked.expires_in * 1000 });
   const polled = await untilAllowed(
     input.serverUrl,
-    asked,
+    waiting,
     { link: directLink },
     { ...input, sleep, now },
   );
+  // The key the code was worked out from is the key pinned, or nothing is.
+  if (polled.server_key !== serverKey) throw new PairingError(KEY_CHANGED);
   return await keep(polled, pair.privateKey, input.serverUrl, storage);
+}
+
+const TOO_OLD =
+  "Chips on that computer is too old to ask from here. Update it, or scan the QR code it shows.";
+const KEY_CHANGED = "That computer answered with another key than it asked with. Ask again.";
+
+/** The SHA-256 of some words, base64url. */
+async function sha256(text: string): Promise<string> {
+  return toBase64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
 }
 
 /**
@@ -796,6 +839,8 @@ async function untilAllowed(
     readonly secret: string;
     readonly interval: number;
     readonly expires_in: number;
+    /** A device that committed (ADR 0278): the nonce it sends with every poll. */
+    readonly nonce?: string | undefined;
   },
   reaching: Reaching,
   wait: Pick<AllowWait, "signal" | "sleep" | "now"> | undefined,
@@ -822,10 +867,14 @@ const RAN_OUT = "Chips there didn't answer before the request ran out. Ask again
 /** One poll, or nothing when it didn't get the server's word: a refusal is still a refusal. */
 function pollOrNot(
   serverUrl: string,
-  asked: { readonly request_id: string; readonly secret: string },
+  asked: {
+    readonly request_id: string;
+    readonly secret: string;
+    readonly nonce?: string | undefined;
+  },
   link: Link,
 ): Promise<Awaited<ReturnType<typeof pollJoin>> | undefined> {
-  return pollJoin(serverUrl, asked.request_id, asked.secret, link).catch((error: unknown) => {
+  return pollJoin(serverUrl, asked, link).catch((error: unknown) => {
     if (error instanceof PairingError) throw error;
     return undefined;
   });
@@ -847,14 +896,18 @@ async function dialAgain(reaching: Reaching, ranOut: boolean): Promise<void> {
 /** One poll of a device's request: wait again, or what it was given. Refused, a `PairingError`. */
 async function pollJoin(
   serverUrl: string,
-  requestId: string,
-  secret: string,
+  asked: {
+    readonly request_id: string;
+    readonly secret: string;
+    readonly nonce?: string | undefined;
+  },
   link: Link,
 ): Promise<{ readonly interval: number | undefined } | PairedOnTheWire> {
-  const response = await link.fetch(`${serverUrl}/v1/join/${requestId}/redeem`, {
+  const { secret, nonce } = asked;
+  const response = await link.fetch(`${serverUrl}/v1/join/${asked.request_id}/redeem`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ secret }),
+    body: JSON.stringify(nonce === undefined ? { secret } : { secret, nonce }),
   });
   const body = (await response.json().catch(() => ({}))) as {
     interval?: number;

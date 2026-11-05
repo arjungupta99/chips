@@ -10,7 +10,13 @@
  * turns pushes on and sets that room to every message.
  */
 
-import type { Device, Snapshot, Space, Store } from "@chipschat/core";
+import {
+  type Device,
+  type Snapshot,
+  type Space,
+  type Store,
+  serverCantPush,
+} from "@chipschat/core";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { readSetting, SETTINGS, writeSetting } from "../prefs";
@@ -43,7 +49,7 @@ async function turnOn(store: Store, device: Device, room: Space | undefined): Pr
 /**
  * Whether to ask now: never asked here, pushes not already on (or impossible), and a server that
  * can send them. One that can't (ADR 0244) is not asked about, and not counted as asked: You says
- * why, and this asks once it can.
+ * why, and this asks once it can. One whose last pushes didn't get through still can.
  */
 async function shouldAsk(store: Store): Promise<boolean> {
   const asked = await readSetting(SETTINGS.pushAsked).catch(() => undefined);
@@ -51,7 +57,7 @@ async function shouldAsk(store: Store): Promise<boolean> {
   const facts = await Promise.resolve()
     .then(() => store.serverFacts())
     .catch(() => undefined);
-  if (facts?.pushes !== undefined && facts.pushes !== "ready") return false;
+  if (serverCantPush(facts?.pushes)) return false;
   return (await pushIsOn().catch(() => "never" as const)) === false;
 }
 

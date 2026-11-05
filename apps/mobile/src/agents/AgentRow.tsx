@@ -13,12 +13,13 @@
  */
 
 import { type AgentRow as Row, waitingWords } from "@chipschat/core";
-import type { ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { type PickMark, PickRow, Shifted, ShiftedText } from "../spaces/SelectMotion";
 import type { SpaceAct } from "../spaces/SwipeRow";
 import { relativeTime } from "../spaces/when";
 import { Avatar, faceGround, ROW_AVATAR } from "../ui/Avatar";
+import type { SheetFrom } from "../ui/beside";
 import { mixHex } from "../ui/lit";
 import { MainTag } from "../ui/MainTag";
 import { Pill } from "../ui/Pill";
@@ -85,7 +86,8 @@ export function AgentRow({
   readonly first?: boolean;
   readonly onPress: (agentId: string) => void;
   /** Pressed and held: its face is changed (ADR 0089). Absent where the reader may not. */
-  readonly onLongPress?: ((agentId: string) => void) | undefined;
+  /** Pressed and held, with the row, which a sheet it opens stands beside on an iPad. */
+  readonly onLongPress?: ((agentId: string, from: SheetFrom) => void) | undefined;
   /** What a swipe offers (ADR 0095), for a screen reader as actions. */
   readonly acts?: readonly SpaceAct[];
   readonly onAct?: ((act: SpaceAct, agentId: string) => void) | undefined;
@@ -101,6 +103,7 @@ export function AgentRow({
   const { active } = pick;
   const picked = active && pick.mark === "on";
   const held = active ? undefined : onLongPress;
+  const self = useRef<View>(null);
   return (
     <Pressable
       accessibilityRole={active ? "checkbox" : "button"}
@@ -109,12 +112,13 @@ export function AgentRow({
       aria-checked={active ? picked : undefined}
       disabled={gone}
       onPress={active ? pick.onPick : () => onPress(row.id)}
-      {...(held === undefined ? {} : { onLongPress: () => held(row.id) })}
+      {...(held === undefined ? {} : { onLongPress: () => held(row.id, self) })}
+      ref={self}
       // What the long press and the swipe do, for a screen reader, which can make neither.
       accessibilityActions={active ? [] : rowActions(onLongPress !== undefined, acts)}
       onAccessibilityAction={(event) => {
         const name = event.nativeEvent.actionName;
-        if (name === CHANGE_ICON.name) onLongPress?.(row.id);
+        if (name === CHANGE_ICON.name) onLongPress?.(row.id, self);
         else onAct?.(name as SpaceAct, row.id);
       }}
       testID={`agent-${row.id}`}

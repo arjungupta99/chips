@@ -6,6 +6,8 @@
  * not served by — which is the whole of the desktop shell's relationship with `chipsd` (M2.2).
  */
 
+import { createHash } from "node:crypto";
+import { joinCheckCode, joinCheckText, joinCommitText } from "@chipschat/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { allowWaiting, waitForAllow } from "./allowWait.js";
 import { cacheKey } from "./cache.js";
@@ -926,10 +928,13 @@ describe("pairing by a typed code (ADR 0191, decision 5)", () => {
 
 describe("askToJoin", () => {
   const SERVER = "http://192.168.1.20:4431";
+  const SERVER_KEY = "k".repeat(43);
+  // A server since ADR 0278: no code handed over, the halves of one.
   const asked = {
     request_id: "jrq_1",
     secret: "s".repeat(32),
-    code: "ABC-234",
+    server_key: SERVER_KEY,
+    nonce: "n".repeat(43),
     expires_in: 600,
     interval: 3,
   };
@@ -941,12 +946,15 @@ describe("askToJoin", () => {
     workspace_id: "ws_1",
     display_name: "Arjun",
     workspace_name: "My workspace",
+    server_key: SERVER_KEY,
   };
+  const sha = (text: string) => createHash("sha256").update(text, "utf8").digest();
 
   it("asks with its key, shows the code, waits while a person decides, and keeps what it is given", async () => {
     const calls: { url: string; body: Record<string, unknown> }[] = [];
     const answers = [
       new Response(JSON.stringify(asked), { status: 201 }),
+      new Response(JSON.stringify({ state: "waiting", interval: 3 }), { status: 202 }),
       new Response(JSON.stringify({ state: "waiting", interval: 2 }), { status: 202 }),
       new Response(JSON.stringify(joined), { status: 200 }),
     ];
@@ -973,12 +981,27 @@ describe("askToJoin", () => {
       url: `${SERVER}/v1/join`,
       body: { kind: "device", name: "iPhone 17 Pro" },
     });
-    expect(typeof calls[0]?.body["public_key"]).toBe("string");
-    expect(calls.slice(1).map((call) => [call.url, call.body["secret"]])).toEqual([
-      [`${SERVER}/v1/join/jrq_1/redeem`, asked.secret],
-      [`${SERVER}/v1/join/jrq_1/redeem`, asked.secret],
-    ]);
-    expect(shown).toEqual(["ABC-234"]);
+    const publicKey = calls[0]?.body["public_key"] as string;
+    expect(typeof publicKey).toBe("string");
+    // Every poll carries the nonce, the first at once, before the code is shown (ADR 0278).
+    const nonce = calls[1]?.body["nonce"] as string;
+    expect(nonce).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(
+      calls.slice(1).map((call) => [call.url, call.body["secret"], call.body["nonce"]]),
+    ).toEqual([1, 2, 3].map(() => [`${SERVER}/v1/join/jrq_1/redeem`, asked.secret, nonce]));
+    // It committed to that nonce before it saw the server's.
+    expect(calls[0]?.body["commit"]).toBe(sha(joinCommitText(nonce)).toString("base64url"));
+    const code = joinCheckCode(
+      sha(
+        joinCheckText({
+          publicKey,
+          serverKey: SERVER_KEY,
+          deviceNonce: nonce,
+          serverNonce: asked.nonce,
+        }),
+      ),
+    );
+    expect(shown).toEqual([code]);
     // The server's interval, then the one its last answer said.
     expect(waits).toEqual([3000, 2000]);
     expect(device).toMatchObject({
@@ -988,14 +1011,58 @@ describe("askToJoin", () => {
       workspaceName: "My workspace",
     });
     expect((await loadDevice(storage))?.deviceId).toBe("dev_phone");
-    // A server from before ADR 0191 named no key: the device holds none, and keeps the plain link.
-    expect(device.serverKey).toBeUndefined();
+    expect(device.serverKey).toBe(SERVER_KEY);
+    dropLink(device.deviceId);
+  });
+
+  it("asks no further of a server that hands over a code and not its halves: an older one, or somebody making it look so", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (url: string) => {
+      calls.push(url);
+      const { server_key: _key, nonce: _nonce, ...old } = asked;
+      return new Response(JSON.stringify({ ...old, code: "ABC-234" }), { status: 201 });
+    });
+    const shown: string[] = [];
+    await expect(
+      askToJoin({
+        serverUrl: SERVER,
+        name: "iPhone",
+        storage: memory(),
+        onWaiting: (waiting) => shown.push(waiting.code),
+        sleep: async () => undefined,
+      }),
+    ).rejects.toThrow("too old to ask from here");
+    vi.unstubAllGlobals();
+    expect(calls).toEqual([`${SERVER}/v1/join`]);
+    expect(shown).toEqual([]);
+  });
+
+  it("keeps nothing handed over with another key than its code was worked out from", async () => {
+    const answers = [
+      new Response(JSON.stringify(asked), { status: 201 }),
+      new Response(JSON.stringify({ state: "waiting", interval: 3 }), { status: 202 }),
+      new Response(JSON.stringify({ ...joined, server_key: "x".repeat(43) }), { status: 200 }),
+    ];
+    vi.stubGlobal("fetch", async () => answers.shift() as Response);
+    const storage = memory();
+    await expect(
+      askToJoin({
+        serverUrl: SERVER,
+        name: "iPhone",
+        storage,
+        onWaiting: () => undefined,
+        sleep: async () => undefined,
+      }),
+    ).rejects.toThrow("another key");
+    vi.unstubAllGlobals();
+    expect(await loadDevice(storage)).toBeUndefined();
   });
 
   it("pins the server's key the join answer carries, and not a key that is not one (ADR 0191)", async () => {
     const KEY = "k".repeat(43);
     const answersWith = (server_key: string) => [
-      new Response(JSON.stringify(asked), { status: 201 }),
+      new Response(JSON.stringify({ ...asked, server_key }), { status: 201 }),
+      new Response(JSON.stringify({ state: "waiting", interval: 3 }), { status: 202 }),
       new Response(JSON.stringify({ ...joined, server_key }), { status: 200 }),
     ];
     const ask = async (server_key: string) => {

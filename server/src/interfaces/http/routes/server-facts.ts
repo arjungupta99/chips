@@ -7,8 +7,8 @@
  *   mini", the setup card says whether Chips is reachable away from home, and a device paired
  *   before its server had a relay, or a key, learns them here (ADR 0144, ADR 0191; SEC-28). And
  *   whether it can push to a phone at all (`pushes`, ADR 0244): `ready`, or why not, which the
- *   phone says under its switch rather than standing on for pushes that never come. A person's:
- *   a harness has no welcome.
+ *   phone says under its switch rather than standing on for pushes that never come, or `failing`
+ *   while its last pushes didn't get through. A person's: a harness has no welcome.
  * - `GET /v1/connectors`: the gallery's cards, as the docs say them, read from wherever the server
  *   was told. None, when it was told nowhere or the docs can't be read: the apps carry the two
  *   generic ways in themselves.
@@ -38,7 +38,7 @@ export function registerServerFactsRoutes(app: Hono<GatewayEnv>, deps: GatewayDe
         status: deps.relay.status(),
         key: await deps.relay.publicKey(),
       },
-      pushes: deps.pushReadiness(),
+      pushes: deps.pushStanding(),
     });
   });
 

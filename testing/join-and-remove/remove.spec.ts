@@ -21,6 +21,7 @@ import {
   openedRow,
   openSpace,
   openYou,
+  openYouPage,
   personId,
   roomLines,
   say,
@@ -117,7 +118,7 @@ test("her name is free, and a new invite makes a new person who starts with noth
     // A new person by the old name: welcomed, in no room, and listed once.
     await expect(back.page.getByTestId("no-rooms-welcome")).toBeVisible();
     await expect(back.page.getByText(title)).toHaveCount(0);
-    await openYou(owner);
+    await openYouPage(owner, "people-row");
     await expect(owner.getByTestId("person-row").filter({ hasText: name })).toHaveCount(1);
     expect(await personId(owner, name)).not.toBe(id);
   } finally {
@@ -129,14 +130,15 @@ test("her name is free, and a new invite makes a new person who starts with noth
 const named = (rows: ReturnType<Page["getByTestId"]>, name: string) =>
   rows.filter({ has: rows.page().getByText(name, { exact: true }) });
 
-/** Remove… on a person's row, once the row is opened under itself (ADR 0209). */
-async function removeOn(rows: ReturnType<Page["getByTestId"]>, name: string) {
-  const row = named(rows, name);
+/** Remove… on a person's page, opened from their row in People (ADR 0209). */
+async function removeOn(page: Page, name: string) {
+  await openYouPage(page, "people-row");
+  const row = named(page.getByTestId("person-row"), name);
   await expect(row).toHaveCount(1);
-  const open = row.getByTestId("person-open");
-  if ((await open.getAttribute("aria-expanded")) !== "true") await open.click();
-  await expect(row.getByTestId("person-details")).toBeVisible();
-  return row.getByTestId("remove-person");
+  await row.click();
+  const details = page.getByTestId("person-details");
+  await expect(details).toBeVisible();
+  return details.getByTestId("remove-person");
 }
 
 test("Remove… is an owner's or an admin's, never on yourself, and never an admin's on an owner", async ({
@@ -148,24 +150,21 @@ test("Remove… is an owner's or an admin's, never on yourself, and never an adm
   const member = await join(browser, await invite(owner), aName("Dev"));
   try {
     // The owner: on both of them, not on themselves.
-    await openYou(owner);
-    const rows = owner.getByTestId("person-row");
-    await expect(await removeOn(rows, admin.name)).toBeVisible();
-    await expect(await removeOn(rows, member.name)).toBeVisible();
-    await expect(await removeOn(rows, "Arjun (you)")).toHaveCount(0);
+    await expect(await removeOn(owner, admin.name)).toBeVisible();
+    await expect(await removeOn(owner, member.name)).toBeVisible();
+    await expect(await removeOn(owner, "Arjun (you)")).toHaveCount(0);
 
     // The admin: on the member, not on the owner, not on themselves.
-    await openYou(admin.page);
-    const theirs = admin.page.getByTestId("person-row");
-    await expect(await removeOn(theirs, member.name)).toBeVisible();
-    await expect(await removeOn(theirs, "Arjun")).toHaveCount(0);
-    await expect(await removeOn(theirs, `${admin.name} (you)`)).toHaveCount(0);
+    await expect(await removeOn(admin.page, member.name)).toBeVisible();
+    await expect(await removeOn(admin.page, "Arjun")).toHaveCount(0);
+    await expect(await removeOn(admin.page, `${admin.name} (you)`)).toHaveCount(0);
     // Only an owner invites (his call of 14 October 2026): an admin has no Invite someone.
-    await expect(admin.page.getByTestId("invites")).toHaveCount(0);
+    await openYou(admin.page);
+    await expect(admin.page.getByTestId("invite-someone")).toHaveCount(0);
 
     // A member has no People at all.
     await openYou(member.page);
-    await expect(member.page.getByTestId("people")).toHaveCount(0);
+    await expect(member.page.getByTestId("people-row")).toHaveCount(0);
   } finally {
     await admin.context.close();
     await member.context.close();

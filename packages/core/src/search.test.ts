@@ -8,6 +8,7 @@ import {
   findAgents,
   findSpaces,
   forgetSearch,
+  holdsTerms,
   markedParts,
   nameMarks,
   RECENT_SEARCHES,
@@ -368,6 +369,36 @@ describe("the marks in a message", () => {
           const last = terms.at(-1) ?? "";
           expect(terms.slice(0, -1).includes(folded) || folded.startsWith(last)).toBe(true);
         }
+      }),
+    );
+  });
+});
+
+describe("whether a message holds what was searched for", () => {
+  const said = "Booked. Want Theo's card sent to the family?";
+
+  it("takes the last word as the start of one, never the inside of one", () => {
+    expect(holdsTerms(said, searchTerms("fam"))).toBe(true);
+    expect(holdsTerms(said, searchTerms("mi"))).toBe(false);
+    expect(holdsTerms("Milo booked it", searchTerms("mi"))).toBe(true);
+  });
+
+  it("takes the earlier words whole, folded", () => {
+    expect(holdsTerms(said, searchTerms("CARD fam"))).toBe(true);
+    expect(holdsTerms(said, searchTerms("car fam"))).toBe(false);
+    expect(holdsTerms("Café au lait", searchTerms("cafe la"))).toBe(true);
+  });
+
+  it("holds nothing for no terms", () => {
+    expect(holdsTerms(said, [])).toBe(false);
+  });
+
+  it("holds whatever it marks", () => {
+    fc.assert(
+      fc.property(fc.array(fc.stringMatching(/^[a-zé]{1,6}$/u), { maxLength: 6 }), (words) => {
+        const text = words.join(" ");
+        const terms = searchTerms(words.slice(0, 2).join(" "));
+        if (holdsTerms(text, terms)) expect(wordMarks(text, terms).length).toBeGreaterThan(0);
       }),
     );
   });

@@ -6,7 +6,16 @@
 
 import { type Directory, nameOf } from "@chipschat/core";
 import { Avatar, Icon } from "@chipschat/ui";
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useRef,
+} from "react";
+import { motionMs } from "../motionTokens.ts";
+import { ease } from "../viewer/open.ts";
 
 /** A face from the directory: an agent's own, a person's own, or their initials. */
 export function Face({
@@ -169,15 +178,40 @@ export function Heading({ children }: { readonly children: string }) {
   return <h3 className="sheet-h">{children}</h3>;
 }
 
-/** A page's title, with Back to the page it came from. */
+/**
+ * What puts the sheet away, for the X at the top right of every page: the phone's sheets close by
+ * their X alone, with no Done (ADR 0169's option 2, and ADR 0268 for the desktop).
+ */
+export const SheetClose = createContext<(() => void) | undefined>(undefined);
+
+/** The sheet's X, at the right of a page's head. */
+export function CloseX() {
+  const close = useContext(SheetClose);
+  if (close === undefined) return null;
+  return (
+    <button
+      type="button"
+      className="new-space-close"
+      aria-label="Close"
+      data-testid="room-sheet-close"
+      onClick={close}
+    >
+      <Icon name="x" size={14} />
+    </button>
+  );
+}
+
+/** A page's title, with Back to the page it came from, and the sheet's X. */
 export function Back(props: {
   readonly titleId: string;
   readonly title: string;
   readonly onBack: () => void;
   readonly testId?: string | undefined;
+  /** What the page is called to a test, on its head. */
+  readonly pageTestId?: string | undefined;
 }) {
   return (
-    <div className="sheet-back">
+    <div className="sheet-back" data-testid={props.pageTestId}>
       <button
         type="button"
         className="sheet-back-button"
@@ -188,6 +222,7 @@ export function Back(props: {
         <Icon name="down" size={15} />
       </button>
       <h2 id={props.titleId}>{props.title}</h2>
+      <CloseX />
     </div>
   );
 }
@@ -202,56 +237,124 @@ export function Failed({ words }: { readonly words: string }) {
 }
 
 /**
- * The page on show, faded in where it stands while the sheet's height glides from the last page's
- * to this one's, as the phone's `SheetPages` does (ADR 0110): no sideways slide. The height is
- * watched as it changes inside a page too, so a glide always starts from what was drawn last.
+ * The page on show, as the phone's `SheetPages` turns one (ADR 0110): the new page fades in where it
+ * stands while the page it replaces fades out where it stood, and the sheet's height glides from
+ * what was drawn to what the page is, with no sideways slide. Not only on a turn: a page that grows
+ * or folds as it is read (Media & files as its files come, a row gone) glides too, and a glide that
+ * ends short of what the page has become glides on (ADR 0268 addendum). Until 3 November the page
+ * left went in a frame, a page that grew after its turn jumped to its height when the glide ended,
+ * and Media & files, laid out before its files had come, glid down to nothing and jumped back up.
  */
 export function Pages({ page, children }: { readonly page: string; readonly children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);
+  const shown = useRef<HTMLDivElement>(null);
+  const left = useRef<HTMLDivElement | null>(null);
   const drawn = useRef<number | undefined>(undefined);
-  const gliding = useRef(false);
-  useLayoutEffect(() => {
+  const gliding = useRef<(() => void) | undefined>(undefined);
+
+  // From what was drawn last to what the pages are now. A turn (`restart`) takes a glide from
+  // where it has got to; a change of size while one goes waits for it to end, and is taken then.
+  const follow = useCallback((restart: boolean) => {
     const element = box.current;
-    if (element === null) return;
-    const watch = new ResizeObserver(() => {
-      if (!gliding.current) drawn.current = element.getBoundingClientRect().height;
-    });
-    watch.observe(element);
-    return () => watch.disconnect();
-  }, []);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new page is what starts a glide.
-  useLayoutEffect(() => {
-    const element = box.current;
-    const from = drawn.current;
-    if (element === null) return;
+    if (element === null || (gliding.current !== undefined && !restart)) return;
+    let from = drawn.current;
+    if (gliding.current !== undefined) {
+      from = element.getBoundingClientRect().height;
+      gliding.current();
+    }
     const to = element.getBoundingClientRect().height;
     drawn.current = to;
     if (from === undefined || Math.abs(from - to) < 1 || stillMotion()) return;
-    gliding.current = true;
-    element.style.height = `${from}px`;
-    element.getBoundingClientRect();
-    element.style.height = `${to}px`;
-    const settle = () => {
-      gliding.current = false;
-      element.style.height = "";
-    };
-    const timer = setTimeout(settle, GLIDE_MS + 60);
+    gliding.current = glide(element, from, to, () => {
+      gliding.current = undefined;
+      follow(false);
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    const element = box.current;
+    if (element === null) return;
+    const watch = new ResizeObserver(() => follow(false));
+    watch.observe(element);
     return () => {
-      clearTimeout(timer);
-      settle();
+      watch.disconnect();
+      gliding.current?.();
     };
+  }, [follow]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new page is what starts a turn.
+  useLayoutEffect(() => {
+    const was = left.current;
+    left.current = shown.current;
+    const turned = was !== null && was !== shown.current && !was.isConnected;
+    if (turned && box.current !== null && !stillMotion()) fadeAway(box.current, was);
+    follow(true);
   }, [page]);
+
   return (
     <div ref={box} className="sheet-pages">
-      <div key={page} className="sheet-page">
+      <div key={page} ref={shown} className="sheet-page">
         {children}
       </div>
     </div>
   );
 }
 
-/** As long as the stylesheet's glide. */
-const GLIDE_MS = 260;
+/** The box drawn `from` tall and gliding to `to`; the stop it returns lets it be its own height again. */
+function glide(element: HTMLElement, from: number, to: number, ended: () => void): () => void {
+  element.style.height = `${from}px`;
+  element.getBoundingClientRect();
+  element.style.height = `${to}px`;
+  let done = false;
+  const stop = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    element.removeEventListener("transitionend", end);
+    element.style.height = "";
+  };
+  const end = (event: TransitionEvent) => {
+    if (event.target !== element || event.propertyName !== "height") return;
+    stop();
+    ended();
+  };
+  // A timer as well as the transition's end: a window out of sight may never end it.
+  const timer = setTimeout(() => {
+    stop();
+    ended();
+  }, motionMs("--motion-slow") + 60);
+  element.addEventListener("transitionend", end);
+  return stop;
+}
+
+/**
+ * The page a turn left, faded out where it stood, behind the page that came: the page itself, which
+ * React has let go of, put back in the box until it has faded. Nothing in it is anything to find,
+ * to name the sheet by or to press any more.
+ */
+function fadeAway(box: HTMLElement, page: HTMLElement): void {
+  if (typeof page.animate !== "function") return;
+  for (const named of [page, ...page.querySelectorAll("[data-testid], [id]")]) {
+    named.removeAttribute("data-testid");
+    named.removeAttribute("id");
+  }
+  page.setAttribute("aria-hidden", "true");
+  page.inert = true;
+  page.classList.add("sheet-page-left");
+  box.prepend(page);
+  // Put back on a page, what it had played plays again; it is as it was, at their ends.
+  for (const playing of page.getAnimations({ subtree: true })) {
+    if (Number.isFinite(playing.effect?.getTiming().iterations ?? 1)) playing.finish();
+  }
+  const fading = page.animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: motionMs("--motion-fast"),
+    easing: ease(),
+    fill: "forwards",
+  });
+  const gone = () => page.remove();
+  fading.addEventListener("finish", gone);
+  setTimeout(gone, motionMs("--motion-fast") + 60);
+}
 
 export function stillMotion(): boolean {
   return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;

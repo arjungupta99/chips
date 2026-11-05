@@ -387,8 +387,9 @@ function RoomChoice({
       testID={`into-${id ?? "none"}`}
     >
       <RoomFace on={on}>{children}</RoomFace>
+      {/* Two lines under the face, as the share sheet names a person: one cut "Birthday...". */}
       <Text
-        numberOfLines={1}
+        numberOfLines={2}
         style={[
           styles.roomName,
           { color: on ? palette.ink : palette.ink2, fontWeight: on ? "600" : "400" },
@@ -589,7 +590,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xl,
     borderWidth: 1.5,
   },
-  roomName: { fontSize: TEXT.xs, maxWidth: 64 },
+  roomName: { fontSize: TEXT.xs, maxWidth: 64, textAlign: "center" },
   noRoom: { width: 36, height: 36, borderRadius: 10, borderWidth: 1.5, borderStyle: "dashed" },
   picked: { transform: [{ scale: 1.08 }] },
 });

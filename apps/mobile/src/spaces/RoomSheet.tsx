@@ -126,10 +126,11 @@ import {
   standingInRoom,
   takeOutAsking,
   whoIsHere,
+  whyFaceNotSaved,
   workspaceOwnerName,
 } from "@chipschat/core";
 import type { JobSpend, SpaceIcon, SpaceNotifications } from "@chipschat/protocol";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { faceProps } from "../agents/face";
@@ -137,11 +138,12 @@ import { Pick } from "../newSpace/Pick";
 import { InviteForm } from "../people/InviteForm";
 import { Avatar, avatarCorner, avatarSide } from "../ui/Avatar";
 import { Button } from "../ui/Button";
+import type { SheetFrom } from "../ui/beside";
 import { useGround } from "../ui/ground";
 import { Icon } from "../ui/Icon";
 import { PageBack } from "../ui/PageBack";
 import { SharedTag } from "../ui/SharedTag";
-import { CLOSE_ROOM, Sheet, SheetPages, SheetScroll } from "../ui/Sheet";
+import { CLOSE_ROOM, Sheet, SheetDock, SheetPages, SheetScroll } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { useScrollGlide } from "../ui/useScrollGlide";
@@ -149,8 +151,8 @@ import { useNotificationSettings } from "../you/Notifications";
 import type { FacePickerHandle } from "./FacePicker";
 import { faceWords } from "./faceWords";
 import type { FileService } from "./files";
-import { whyNotSaved } from "./IconSheet";
 import { LeadMark } from "./LeadMark";
+import { AgentPage } from "./RoomAgent";
 import { useRoomFiles } from "./RoomFiles";
 import { IconPage } from "./RoomIcon";
 import { MediaFilesPage } from "./RoomMedia";
@@ -184,6 +186,8 @@ type Page =
   | { readonly kind: "new" }
   | { readonly kind: "invite" }
   | { readonly kind: "move"; readonly agentId: string }
+  | { readonly kind: "agent"; readonly agentId: string }
+  | { readonly kind: "history"; readonly agentId: string }
   | { readonly kind: "takeout"; readonly participantId: string }
   | { readonly kind: "leave" }
   | { readonly kind: "project" }
@@ -202,6 +206,10 @@ const keyOf = (page: Page) =>
           ? `${page.kind}:${page.path}`
           : page.kind;
 
+/** An agent's card or its history, which the details push inside their column (ADR 0276). */
+const isAgentPage = (page: Page): page is Extract<Page, { readonly kind: "agent" | "history" }> =>
+  page.kind === "agent" || page.kind === "history";
+
 /** The page the sheet stands on when it is opened: its first, Add, Spend per job, or Project. */
 export type RoomPage = "who" | "add" | "spend" | "project";
 
@@ -216,10 +224,12 @@ export function RoomSheet({
   files,
   onGoTo,
   onOpenAgent,
+  onOpenSpace,
   onOpenMedia,
   onLeft,
   opensOn = "who",
   workspace = "the workspace",
+  from,
 }: {
   readonly store: Store;
   readonly snapshot: Snapshot;
@@ -233,8 +243,13 @@ export function RoomSheet({
    */
   readonly opensOn?: RoomPage | undefined;
   readonly onClose: () => void;
-  /** An agent's row: its card, which opens once the sheet has gone. */
+  /**
+   * An agent's row: its card, which opens once the sheet has gone. In a column beside the room, its
+   * card is a page of theirs instead (`RoomAgent.tsx`, ADR 0276).
+   */
   readonly onOpenAgent: (agentId: string) => void;
+  /** Another space, named by an agent's card or history inside the column. */
+  readonly onOpenSpace?: ((spaceId: string) => void) | undefined;
   /** See all on Media & files: the space's own Media, which opens once the sheet has gone (ADR 0165). */
   readonly onOpenMedia?: (() => void) | undefined;
   /**
@@ -248,8 +263,12 @@ export function RoomSheet({
   readonly onGoTo?: ((lineId: string) => void) | undefined;
   /** The workspace as a sentence names it, for a link made into this room (ADR 0168). */
   readonly workspace?: string | undefined;
+  /** The room's name in its bar: on an iPad without the column for them, it opens beside it. */
+  readonly from?: SheetFrom | undefined;
 }) {
   const [page, setPage] = useState<Page>({ kind: opensOn });
+  // A column beside the room, where an agent's card is one of its pages.
+  const docked = useContext(SheetDock) !== undefined;
   // What Add has put in the room since the sheet came up, which it keeps where it was, ticked; and
   // the new agents asked for from it, with the names they are to have (ADR 0148).
   const [kept, setKept] = useState<readonly string[]>([]);
@@ -383,7 +402,7 @@ export function RoomSheet({
   const facing = (face: SpaceIcon | undefined) => {
     setIconFailed(undefined);
     void store.setSpaceIcon(space.id, face).catch((error: unknown) => {
-      setIconFailed(whyNotSaved(error));
+      setIconFailed(whyFaceNotSaved(error));
     });
   };
   // The Icon page: the picker, under a way back that saves letters typed and not yet saved.
@@ -490,7 +509,9 @@ export function RoomSheet({
           | "leave"
           | "project"
           | "change"
-          | "file";
+          | "file"
+          | "agent"
+          | "history";
       }
     >,
   ) =>
@@ -544,6 +565,21 @@ export function RoomSheet({
         workspace={workspace}
       />
     );
+  // An agent's card, or its history, inside the column beside the room.
+  const agentPage = ({ kind, agentId }: Extract<Page, { readonly kind: "agent" | "history" }>) => (
+    <AgentPage
+      store={store}
+      snapshot={snapshot}
+      agentId={agentId}
+      selfId={selfId}
+      history={kind === "history"}
+      onBack={() => go(kind === "history" ? { kind: "agent", agentId } : { kind: "who" })}
+      onHistory={() => go({ kind: "history", agentId })}
+      onOpenAgent={(other) => go({ kind: "agent", agentId: other })}
+      onOpenRoom={(id) => (id === space.id ? go({ kind: "who" }) : onOpenSpace?.(id))}
+      onDeleted={() => go({ kind: "who" })}
+    />
+  );
   // The first page: who is here, and the rows that open the others.
   const first = () => (
     <Who
@@ -554,8 +590,9 @@ export function RoomSheet({
       icon={snapshot.spaceIcons.get(space.id)}
       onIcon={() => go({ kind: "icon" })}
       onAdd={() => go({ kind: "add" })}
-      // Down, and then its card over the room, which is where Back lands.
+      // Its card inside the column; or down, and then its card over the room, where Back lands.
       onAgent={(agentId) => {
+        if (docked) return go({ kind: "agent", agentId });
         opening.current = agentId;
         onClose();
       }}
@@ -578,7 +615,7 @@ export function RoomSheet({
       onProject={() => go({ kind: "project" })}
     />
   );
-  const view = (shown: Page) => {
+  const view = (shown: Exclude<Page, { readonly kind: "agent" | "history" }>) => {
     if (shown.kind === "who") return first();
     if (shown.kind === "icon") return iconPage();
     if (shown.kind === "notify") {
@@ -619,9 +656,14 @@ export function RoomSheet({
       // Its first page's title is a field (ADR 0112), as is New agent's name; on every page, so
       // that leaving one with the keys up lets the sheet down with them.
       keyboard
+      from={from}
       testID="room-sheet"
     >
-      <SheetPages page={page} keyOf={keyOf} render={view} />
+      <SheetPages
+        page={page}
+        keyOf={keyOf}
+        render={(shown) => (isAgentPage(shown) ? agentPage(shown) : view(shown))}
+      />
       {failed === undefined ? null : <Failed words={failed} />}
     </Sheet>
   );
@@ -1499,7 +1541,8 @@ function RoomTitle({
       testID="room-sheet-title"
       style={({ pressed }) => [styles.titleLine, pressed ? styles.pressed : null]}
     >
-      <Text style={[styles.title, { color: palette.ink }]} numberOfLines={1}>
+      {/* Two lines: in the iPad's 320-point column beside the room one cut "Birthday dinn...". */}
+      <Text style={[styles.title, { color: palette.ink }]} numberOfLines={2}>
         {shown}
       </Text>
       {may ? <Icon name="pen" size={16} color={palette.ink4} /> : null}

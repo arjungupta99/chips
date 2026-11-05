@@ -37,6 +37,14 @@ export function reduceMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 }
 
+/** A motion token's length in milliseconds, read from the page: 120 for `--motion-fast`. */
+export function motionMs(token: string, otherwise: number): number {
+  const said = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+  const value = Number.parseFloat(said);
+  if (Number.isNaN(value)) return otherwise;
+  return said.endsWith("ms") ? value : value * 1000;
+}
+
 /** The design system's curve, read from the page so the token stays the one definition. */
 export function ease(): string {
   const token = getComputedStyle(document.documentElement).getPropertyValue("--ease").trim();

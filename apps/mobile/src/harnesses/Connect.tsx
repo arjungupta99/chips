@@ -54,6 +54,8 @@ import {
   mayAskFromPage,
   nameOf,
   OFFERED,
+  RUN_IN_TERMINAL,
+  runsInTerminal,
   type Snapshot,
   type Store,
   stallWords,
@@ -429,7 +431,10 @@ function Gallery({
             })}
           </View>
         )}
-        <Text style={[styles.heading, { color: palette.ink3 }]}>Or build your own</Text>
+        {/* "Or" only after the gallery: a server told nowhere, and the demo, have none. */}
+        <Text style={[styles.heading, { color: palette.ink3 }]}>
+          {cards === undefined || cards.length === 0 ? "Build your own" : "Or build your own"}
+        </Text>
         <View style={[styles.group, { backgroundColor: on.fill }]}>
           {CONNECT_WAY_ORDER.map((way, at) => (
             <GalleryRow
@@ -647,6 +652,7 @@ function Linked({
         standIn={copyOf(choice, linkStandIn(serverUrl), saying)}
         failed={made === undefined ? failed : undefined}
         prose={saying && listed?.sentence !== undefined}
+        run={runsInTerminal(choice, saying)}
         note={`${HANDOFF_NOTE} ${connectNote(choice, made?.link)}`}
       />
       {coming ? (
@@ -865,14 +871,15 @@ const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
 
 /**
  * The line to run, or the sentence to say, with Copy first and Send… beside it, and the note under
- * them. The note stays as it is when Copy is pressed, which says Copied itself, so the page keeps
- * its height.
+ * them. A line to run says Run in Terminal over it, in its box (ADR 0257). The note stays as it is
+ * when Copy is pressed, which says Copied itself, so the page keeps its height.
  */
 function Line({
   text,
   standIn,
   failed,
   prose,
+  run,
   note,
 }: {
   /** Nothing while the link is being made. */
@@ -882,6 +889,8 @@ function Line({
   readonly failed: string | undefined;
   /** A sentence, set as words rather than code. */
   readonly prose: boolean;
+  /** A line the person runs in a terminal. */
+  readonly run: boolean;
   /** How it reaches the computer, how long the link lasts, and what else it needs. */
   readonly note: string;
 }) {
@@ -903,6 +912,7 @@ function Line({
         style={[styles.box, { backgroundColor: on.fill, borderColor: palette.line }]}
         testID="connect-line"
       >
+        {run ? <RunHead /> : null}
         {text === undefined ? (
           <Making standIn={standIn} failed={failed} prose={prose} />
         ) : (
@@ -938,6 +948,24 @@ function Line({
         {note}
       </Text>
     </>
+  );
+}
+
+/** Over a line to run, in its box: what to do with it (ADR 0257). */
+function RunHead() {
+  const palette = usePalette();
+  const on = useGround();
+  return (
+    <View style={[styles.runHead, { borderBottomColor: palette.line }]} testID="connect-line-run">
+      <View
+        style={[styles.runMark, { backgroundColor: on.pressed }]}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Text style={[styles.runMarkWords, { color: palette.ink2 }]}>{">_"}</Text>
+      </View>
+      <Text style={[styles.runWords, { color: palette.ink2 }]}>{RUN_IN_TERMINAL}</Text>
+    </View>
   );
 }
 
@@ -1359,6 +1387,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   code: { fontFamily: MONO, fontSize: 13, lineHeight: 19 },
+  runHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACE.sm,
+    paddingBottom: SPACE.sm,
+    marginBottom: SPACE.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  runMark: {
+    width: 22,
+    height: 18,
+    borderRadius: RADIUS.xs,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  runMarkWords: { fontFamily: MONO, fontSize: 10, fontWeight: "700" },
+  runWords: { fontSize: TEXT.sm, fontWeight: "600" },
   prose: { fontSize: TEXT.md, lineHeight: TEXT.md * 1.4 },
   making: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   // "Making a link…" over the unseen stand-in, at the middle of the box's height.

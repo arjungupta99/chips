@@ -7,7 +7,8 @@
  *   harness marked when that is what was typed; the Main tag after a Main agent's name, as on the
  *   Agents tab (ADR 0145); Free in amber, Archived at the right.
  * - **A message:** who said it and where, when, and the server's words with what it matched
- *   marked; a voice note says so, and a step of a run starts with a prompt.
+ *   marked; a voice note says so, and a step of a run starts with a prompt. One said in an
+ *   archived space says Archived before when, and opens it to read.
  *
  * The rows run to both edges with a hairline inset to where the words start, as every list here
  * does, and the marks are the room's flash colours (`Marked`).
@@ -15,15 +16,14 @@
 
 import {
   type AgentFound,
+  hitArchived,
   hitAuthor,
   hitPlace,
   markedParts,
   plainWords,
   SEARCH_ARRIVAL,
-  SEARCH_LOOKS_AT,
   type SearchHit,
   type SearchItem,
-  type SearchScope,
   type Snapshot,
   type SpaceFound,
   snippetParts,
@@ -37,9 +37,11 @@ import { Avatar, avatarSide, faceGround } from "../ui/Avatar";
 import { Icon } from "../ui/Icon";
 import { MainTag } from "../ui/MainTag";
 import { Marked } from "../ui/Marked";
+import { useSplitSide } from "../ui/Split";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { Hint } from "./Hint";
+import { hitAt } from "./items";
 import { Breathing } from "./ResultsMotion";
 
 /** What a row needs beyond itself: the workspace, the clock, and where each press goes. */
@@ -58,6 +60,15 @@ export interface RowContext {
   readonly onRetry: () => void;
   /** The server, reached for again. */
   readonly onWake: () => void;
+  /** What is open beside the results on an iPad (ADR 0256), whose row is chosen. */
+  readonly open?: OpenBeside | undefined;
+}
+
+/** What a result opened beside the results: a room, at a line or at its end, or an agent's card. */
+export interface OpenBeside {
+  readonly space?: string | undefined;
+  readonly at?: string | undefined;
+  readonly agent?: string | undefined;
 }
 
 type RowOf<K extends SearchItem["kind"]> = (props: {
@@ -94,7 +105,7 @@ const ROWS: { readonly [K in SearchItem["kind"]]: RowOf<K> } = {
   ),
   fewLetters: () => <Quiet>Messages are found from two letters on.</Quiet>,
   fetching: () => <Fetching />,
-  nothing: ({ item }) => <Nothing text={item.text} scope={item.scope} />,
+  nothing: ({ item }) => <Nothing text={item.text} looksAt={item.looksAt} />,
 };
 
 /** One row of the results, whichever kind it is. */
@@ -191,30 +202,51 @@ function Quiet({ children }: { readonly children: string }) {
 function ResultPress({
   label,
   first,
+  selected = false,
   onPress,
   testID,
   children,
 }: {
   readonly label: string;
   readonly first: boolean;
+  /** Open beside the results: in the split, a tile set in from the list's edges (ADR 0256). */
+  readonly selected?: boolean;
   readonly onPress: () => void;
   readonly testID: string;
   readonly children: ReactNode;
 }) {
   const palette = usePalette();
+  const inset = useSplitSide() === "list";
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={inset ? { selected } : undefined}
       onPress={onPress}
       testID={testID}
       style={({ pressed }) => [
         styles.row,
-        { backgroundColor: pressed ? palette.surface2 : palette.bg },
+        { backgroundColor: !inset && pressed ? palette.surface2 : palette.bg },
       ]}
     >
-      {first ? null : <View style={[styles.hairline, { backgroundColor: palette.line }]} />}
-      {children}
+      {({ pressed }) => (
+        <>
+          {inset && (pressed || selected) ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.tile,
+                { backgroundColor: selected ? palette.surface3 : palette.surface2 },
+              ]}
+              testID="result-tile"
+            />
+          ) : null}
+          {first || selected ? null : (
+            <View style={[styles.hairline, { backgroundColor: palette.line }]} />
+          )}
+          {children}
+        </>
+      )}
     </Pressable>
   );
 }
@@ -246,6 +278,11 @@ function SpaceRow({
     <ResultPress
       label={found.title}
       first={item.first}
+      selected={
+        context.open?.space === found.space.id &&
+        context.open.at === undefined &&
+        context.open.agent === undefined
+      }
       onPress={() => context.onOpenSpace(found.space.id)}
       testID={`result-space-${found.space.id}`}
     >
@@ -289,6 +326,7 @@ function AgentResultRow({
     <ResultPress
       label={`${row.name}${row.lead ? ", Main agent" : ""}, ${row.line}`}
       first={item.first}
+      selected={context.open?.agent === row.id}
       onPress={() => context.onOpenAgent(row.id)}
       testID={`result-agent-${row.id}`}
     >
@@ -351,10 +389,17 @@ function MessageRow({
   const where = hitPlace(space, model, directory, context.selfId);
   const step = hit.kind === "receipt";
   const voice = hit.snippetFrom === "transcript";
+  const archived = hitArchived(space, model);
+  const when = clockOrDay(hit.at, context.now);
   return (
     <ResultPress
-      label={`${who.name} in ${where}`}
+      label={`${who.name} in ${where}${archived ? ", archived" : ""}`}
       first={item.first}
+      selected={
+        context.open?.agent === undefined &&
+        context.open?.space === hit.spaceId &&
+        context.open.at === hitAt(hit)
+      }
       onPress={() => context.onOpenHit(hit)}
       testID={`result-message-${hit.lineId ?? hit.stepId ?? hit.at}`}
     >
@@ -369,7 +414,7 @@ function MessageRow({
             {where}
           </Text>
           <Text style={[styles.aside, { color: palette.ink3 }]}>
-            {clockOrDay(hit.at, context.now)}
+            {archived ? `Archived · ${when}` : when}
           </Text>
         </View>
         <Marked
@@ -461,7 +506,8 @@ function Fetching() {
   );
 }
 
-function Nothing({ text, scope }: { readonly text: string; readonly scope: SearchScope }) {
+/** What a search looked at is core's to say: on one letter in All, only the names. */
+function Nothing({ text, looksAt }: { readonly text: string; readonly looksAt: string }) {
   const palette = usePalette();
   return (
     <View style={styles.nothing} testID="search-nothing">
@@ -469,7 +515,7 @@ function Nothing({ text, scope }: { readonly text: string; readonly scope: Searc
       <Text style={[styles.nothingTitle, { color: palette.ink }]}>
         {`Nothing for “${text.trim()}”`}
       </Text>
-      <Text style={[styles.nothingWords, { color: palette.ink3 }]}>{SEARCH_LOOKS_AT[scope]}</Text>
+      <Text style={[styles.nothingWords, { color: palette.ink3 }]}>{looksAt}</Text>
     </View>
   );
 }
@@ -509,6 +555,15 @@ const styles = StyleSheet.create({
     minHeight: 64,
   },
   // The margin, the face and the gap: the hairline starts where the words do.
+  // The open row beside the results, as Spaces draws its open row beside a room (ADR 0256).
+  tile: {
+    position: "absolute",
+    top: 2,
+    bottom: 2,
+    left: SPACE.sm,
+    right: SPACE.sm,
+    borderRadius: RADIUS.xl,
+  },
   hairline: {
     position: "absolute",
     left: SPACE.lg + FACE + SPACE.md,

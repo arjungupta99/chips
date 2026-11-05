@@ -74,3 +74,25 @@ So the consequence above, "a token Expo refuses costs one banner", no longer hol
 comes up on the person's computer up to 15 seconds late. A computer that was offline when the
 claim was given back asks as it would for any decision. The phone's switch still says nothing
 while the push relay is down: that would mean a new value for `pushes`, which is still open.
+
+## Addendum, 2 November 2026: the phone says when pushes aren't getting through
+
+Arjun, 2 November 2026: "do 1 and 3 now, then 2". This is 2.
+
+- **`pushes` has a fourth value, `failing`.** The sender is `failing` from a batch the push
+  service didn't answer or didn't take until a later batch gets its tickets. That covers the
+  push relay down or answering `push_unavailable` (ADR 0246), Expo down, and a 5xx. A ticket that
+  says one phone is gone isn't the service's trouble and changes nothing. `GET /v1/server` and
+  `/v1/health` say it, from the sender's `standing()`. A sender that can't push at all still
+  says `no_access_token` or `refused`.
+- **A failing sender keeps sending.** `readiness()` is unchanged, so the push use cases still
+  claim and send. That is how the server learns the service is back, and the claim of a push that
+  doesn't go is given back (above).
+- **The phone says it under its switch**: "Your server's last notifications didn't get through…
+  The next one will try again." The setup card's Notifications step isn't blocked by it, and the
+  phone still asks to turn notifications on. Both stop only for `no_access_token` and `refused`
+  (`serverCantPush` in core). `chips doctor` warns, and points at `push.not_sent` in the log.
+
+An iPhone build from before this drops a value it doesn't know and says nothing, as it did. The
+phone reads `pushes` when You → Notifications opens, so the line says what the server's last
+pushes did at that moment.

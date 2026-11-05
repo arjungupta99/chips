@@ -126,8 +126,8 @@ test("a room made empty from the +, by its name, opens with Add in front (ADR 01
   const sheet = page.getByTestId("room-sheet");
   await expect(sheet.getByRole("heading", { name: "Add to Japan trip" })).toBeVisible();
   await expect(sheet.locator(".sheet-scroll :focus")).toHaveCount(1);
-  // Done puts it away, and the room takes the keyboard's next words.
-  await sheet.getByTestId("room-sheet-add-done").click();
+  // Its X puts it away, and the room takes the keyboard's next words.
+  await sheet.getByTestId("room-sheet-close").click();
   await expect(sheet).toHaveCount(0);
   await expect(room.getByText("Nobody's here yet")).toBeVisible();
 });

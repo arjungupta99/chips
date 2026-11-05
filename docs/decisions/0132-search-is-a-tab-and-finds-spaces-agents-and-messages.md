@@ -215,3 +215,25 @@ appearing. The screen should look polished".
 3. Walked on a Release simulator: measured frame by frame, the box's edge eases in and out over
    about eighteen frames with no step back, Cancel slides in whole, and the first results stand
    where they end from the first frame. Not on the web, which has no Cancel.
+
+## Addendum: archived spaces, and the steps of a turn that passed, 3 November 2026
+
+Arjun searched "Car" and some results did nothing when tapped: steps by Sage and Moss in an open
+space, matched by "carbon" in a file they had read. He guessed they were in archived spaces, and
+asked that archived spaces be readable from search, with a clear label.
+
+1. **A step of a turn that ended on `NO_REPLY` is not a result.** Such a turn draws nothing in the
+   room (ADR 0105), so its run has no closing line to land on: on a phone the room opened at its
+   foot, and on an iPad, with the room already beside the results, nothing moved at all. The
+   server leaves these steps out of the search (`receiptHits`), so a page of results stays full
+   and every client, the released ones too, stops showing them. It reads `NO_REPLY` by the
+   protocol's own rule, `isNoReply`, registered on the connection as the SQLite function
+   `no_reply`.
+2. **A message said in an archived space says so.** Archived spaces were already searched and
+   opened. Now their messages' rows say "Archived" before when they were said, on the phone and
+   the web, and "archived" ends the row's spoken label; a thread off an archived space counts as
+   archived (core's `hitArchived`). The row opens the space as before, to read.
+3. **The phone's archived room says archived.** Its foot said "This space is closed… reopen it
+   with /reopen"; it now says "This space is archived. Its history stays; unarchive it from
+   Spaces, or send /unarchive, to carry on.", and the field says "This space is archived", as
+   the web's room does.

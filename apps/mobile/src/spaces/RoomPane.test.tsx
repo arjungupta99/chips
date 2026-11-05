@@ -2,13 +2,20 @@
  * The room in the detail half of a wide screen (ADR 0177). What is worth proving: that it is named,
  * with who is in it, and the name opens the room's sheet; that a thread is named as one with a way
  * back to the space it grew from; that a room made empty from the + opens on its Add; and that the
- * room itself is there under the name.
+ * room itself is there under the name. On an iPad (ADR 0256, ADR 0276): that its details stand in
+ * the third column beside it, and stay open from space to space; and that the list is put away from
+ * its bar. Seen from Search, that it offers Open in Spaces in their place, its details are the sheet,
+ * and it puts nothing away.
  */
 
 import type { Snapshot } from "@chipschat/core";
-import { render, screen, userEvent } from "@testing-library/react-native";
+import { act, render, screen, userEvent } from "@testing-library/react-native";
+import { Dimensions, Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore } from "../testing/fixtures";
+import { ChromeProvider, useChrome } from "../ui/chrome";
+import { commandsNow, runCommand } from "../ui/menuBar";
+import { THIRD } from "../ui/Split";
 import { RoomPane } from "./RoomPane";
 
 /** What the pane asked of the route, which a router as stable as the real one records. */
@@ -21,6 +28,7 @@ const mockRouter = {
 jest.mock("expo-router", () => ({
   useFocusEffect: (effect: () => (() => void) | undefined) =>
     require("react").useEffect(effect, [effect]),
+  useIsFocused: () => true,
   useRouter: () => mockRouter,
 }));
 
@@ -83,10 +91,12 @@ function Pane(props: {
   readonly spaceId: string;
   readonly onOpen?: (id: string) => void;
   readonly add?: boolean;
+  readonly preview?: () => void;
 }) {
   return (
     <SafeAreaProvider initialMetrics={IPAD}>
       <RoomPane
+        key={props.spaceId}
         store={fakeStore(props.snapshot)}
         spaceId={props.spaceId}
         selfId="per_arjun"
@@ -94,6 +104,7 @@ function Pane(props: {
         onOpenAgent={() => undefined}
         onClose={() => undefined}
         add={props.add}
+        preview={props.preview}
       />
     </SafeAreaProvider>
   );
@@ -132,5 +143,136 @@ describe("the room pane", () => {
     ).toBeTruthy();
     await userEvent.press(screen.getByRole("button", { name: "Back" }));
     expect(opened).toEqual(["sp_1"]);
+  });
+});
+
+describe("the room pane on an iPad (ADR 0256)", () => {
+  const jestWindow = Dimensions.get("window");
+  afterEach(() => Dimensions.set({ window: jestWindow }));
+  const on = (width: number, height: number) =>
+    Dimensions.set({ window: { width, height, scale: 2, fontScale: 1 } });
+
+  /** What stands around the panes: whether the details and the list are wanted, and the fold. */
+  function Chrome() {
+    const { details, listHidden } = useChrome();
+    return (
+      <Text testID="chrome">
+        {[details && "details", listHidden && "list away"].filter(Boolean).join(", ") || "nothing"}
+      </Text>
+    );
+  }
+
+  const inChrome = (spaceId: string, preview?: () => void) => (
+    <ChromeProvider>
+      <Pane snapshot={state()} spaceId={spaceId} {...(preview === undefined ? {} : { preview })} />
+      <Chrome />
+    </ChromeProvider>
+  );
+
+  it("stands the details in the third column beside the room, open from space to space (ADR 0276)", async () => {
+    on(1376, 1032);
+    const { rerender } = await render(inChrome("sp_1"));
+    expect(screen.queryByTestId("room-sheet")).toBeNull();
+    await userEvent.press(screen.getByRole("button", { name: "Show details" }));
+    expect(screen.getByTestId("room-sheet")).toHaveStyle({ width: THIRD });
+    expect(screen.getByTestId("room-sheet").type).not.toBe("Modal");
+    expect(screen.getByTestId("chrome")).toHaveTextContent("details");
+
+    // Another space: the column stands beside it too, on its first page.
+    await rerender(inChrome("sp_t"));
+    expect(screen.getByTestId("room-sheet")).toHaveStyle({ width: THIRD });
+    expect(screen.getByTestId("chrome")).toHaveTextContent("details");
+
+    await userEvent.press(screen.getByRole("button", { name: "Hide details" }));
+    expect(screen.queryByTestId("room-sheet")).toBeNull();
+    expect(screen.getByTestId("chrome")).toHaveTextContent("nothing");
+  });
+
+  it("stands its Universe in the column beside the room, the details and it putting each other away, and its button closes it (ADR 0276)", async () => {
+    on(1376, 1032);
+    const snapshot = state();
+    const spaces = snapshot.model.spaces as unknown as Record<string, unknown>[];
+    spaces[0] = { ...spaces[0], project: { files: 2, changes: [] } };
+    const store = fakeStore(snapshot);
+    (store as { projectFiles: unknown }).projectFiles = async () => ({
+      files: [],
+      truncated: false,
+    });
+    await render(
+      <ChromeProvider>
+        <SafeAreaProvider initialMetrics={IPAD}>
+          <RoomPane
+            store={store}
+            spaceId="sp_1"
+            selfId="per_arjun"
+            onOpen={() => undefined}
+            onOpenAgent={() => undefined}
+            onClose={() => undefined}
+          />
+        </SafeAreaProvider>
+      </ChromeProvider>,
+    );
+    await userEvent.press(screen.getByTestId("room-universe-button"));
+    expect(screen.getByTestId("universe-sheet")).toHaveStyle({ width: THIRD });
+    expect(screen.getByTestId("universe-sheet").type).not.toBe("Modal");
+    await userEvent.press(screen.getByRole("button", { name: "Show details" }));
+    expect(screen.getByTestId("room-sheet")).toHaveStyle({ width: THIRD });
+    expect(screen.queryByTestId("universe-sheet")).toBeNull();
+    await userEvent.press(screen.getByTestId("room-universe-button"));
+    expect(screen.getByTestId("universe-sheet")).toHaveStyle({ width: THIRD });
+    expect(screen.queryByTestId("room-sheet")).toBeNull();
+    // Its button puts it away again.
+    await userEvent.press(screen.getByTestId("room-universe-button"));
+    expect(screen.queryByTestId("universe-sheet")).toBeNull();
+  });
+
+  it("opens the sheet beside the room's name from the details button where the window has no room for a column", async () => {
+    on(834, 1194);
+    await render(inChrome("sp_1"));
+    await userEvent.press(screen.getByRole("button", { name: "Show details" }));
+    expect(screen.getByTestId("room-sheet").type).toBe("Modal");
+    // A popover, with a tap off it for its way out (`Sheet`'s `from`).
+    expect(screen.getByTestId("room-sheet-off", { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId("chrome")).toHaveTextContent("nothing");
+  });
+
+  it("puts the list away from its bar, and brings it back", async () => {
+    on(1376, 1032);
+    await render(inChrome("sp_1"));
+    await userEvent.press(screen.getByRole("button", { name: "Hide the list" }));
+    expect(screen.getByTestId("chrome")).toHaveTextContent("list away");
+    await userEvent.press(screen.getByRole("button", { name: "Show the list" }));
+    expect(screen.getByTestId("chrome")).toHaveTextContent("nothing");
+  });
+
+  it("shows and hides the details and the list from the menu bar, as its bar's buttons do", async () => {
+    on(1376, 1032);
+    const named = (id: string) => commandsNow().find((each) => each.id === id);
+    await render(inChrome("sp_1"));
+    expect(named("details")).toMatchObject({ enabled: true, title: "Show Details" });
+    expect(named("list")).toMatchObject({ enabled: true, title: "Hide List" });
+    await act(() => runCommand("details"));
+    expect(screen.getByTestId("room-sheet")).toHaveStyle({ width: THIRD });
+    expect(named("details")?.title).toBe("Hide Details");
+    await act(() => runCommand("list"));
+    expect(screen.getByTestId("chrome")).toHaveTextContent("details, list away");
+    expect(named("list")?.title).toBe("Show List");
+    await act(() => runCommand("details"));
+    expect(screen.queryByTestId("room-sheet")).toBeNull();
+  });
+
+  it("offers Open in Spaces seen from Search, its details the sheet, and puts nothing away", async () => {
+    on(1376, 1032);
+    const open = jest.fn();
+    await render(inChrome("sp_1", open));
+    expect(screen.queryByRole("button", { name: "Hide the list" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show details" })).toBeNull();
+    // Nor are they the menu bar's, for a room seen from a search.
+    expect(commandsNow().find((each) => each.id === "details")?.enabled).toBe(false);
+    await userEvent.press(screen.getByRole("button", { name: "Open in Spaces" }));
+    expect(open).toHaveBeenCalledTimes(1);
+    await userEvent.press(screen.getByRole("button", { name: "Supplier email, who is here" }));
+    expect(screen.getByTestId("room-sheet").type).toBe("Modal");
+    expect(screen.getByTestId("chrome")).toHaveTextContent("nothing");
   });
 });

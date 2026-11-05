@@ -90,7 +90,7 @@ test("a message reaches the harness it is for, the capsule picks, and the refere
   await name.press("Enter");
   await expect(page.getByTestId("new-space-window")).toHaveCount(0);
   await expect(page.getByRole("main", { name: "Space: Northwind" })).toBeVisible();
-  await expect(page.getByTestId("room-sheet-add-done")).toBeVisible();
+  await expect(page.getByTestId("room-sheet-add-page")).toBeVisible();
   await addMember(page, { id: scoutHere });
   await addMember(page, { moving: "Pilot" });
   await expect((await sheetBack(page)).getByTestId("member")).toHaveCount(3);

@@ -5,8 +5,8 @@
  */
 
 import { ROOM_SPRING, roomMoveAt, springAt } from "@chipschat/core";
-import { describe, expect, it } from "vitest";
-import { carried, type Laid, scrollOf } from "./roomMotion.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { carried, type Laid, scrollOf, wayOf } from "./roomMotion.ts";
 
 const still = (top: number): Laid => ({ top, move: undefined });
 const never = () => false;
@@ -46,6 +46,21 @@ describe("the scroll for a change", () => {
       top: 120,
       scroll: undefined,
     });
+  });
+});
+
+describe("how a change is laid out", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("on the spring at the end, at once from where no row is drawn: a room catching up on its history", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false })),
+    );
+    expect(wayOf(true, true, { was: 9000, undrawn: 8000 })).toBe("moving");
+    expect(wayOf(true, true, { was: 9000, undrawn: 60_000 })).toBe("atOnce");
+    expect(wayOf(true, false, { was: 9000, undrawn: 0 })).toBe("atOnce");
+    expect(wayOf(false, true, { was: 9000, undrawn: 60_000 })).toBe("away");
   });
 });
 

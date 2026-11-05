@@ -3,10 +3,11 @@
  * harness's bridge from npm. Built to the mock's three boards.
  *
  * - **On this Mac.** Chips for Mac carries `chips`, so it runs the line itself. The four steps of
- *   `chips connect <id> --json` stand greyed from the first frame, so the dialog never changes
- *   height (ADR 0190); Connect runs them, each in the bridge's own words where it gives some.
- *   Where the bridge stops, the step stops in amber, its words say what to do, and Try again runs
- *   the same line with the same link while it is still good.
+ *   `chips connect <id> --json` stand on their line from the first frame, under What Connect does,
+ *   so the dialog never changes height (ADR 0190) and nothing reads as a row to pick (ADR 0257);
+ *   Connect runs them, each in the bridge's own words where it gives some. Where the bridge stops,
+ *   the step stops in amber, its words say what to do, any line to run says Run in Terminal, and
+ *   Try again runs the same line with the same link while it is still good.
  * - **On another computer.** The installer's line, which installs Chips there when it isn't, then
  *   connects; the link followed in the phone's three steps, counting its minutes down.
  *
@@ -16,6 +17,7 @@
 import {
   alreadyThere,
   CONNECT_WHERE,
+  type ConnectChoice,
   type ConnectStep,
   type ConnectWhere,
   connectHead,
@@ -35,6 +37,8 @@ import {
   type JoinStall,
   LINK_REMADE,
   makingSteps,
+  RUN_IN_TERMINAL,
+  STEPS_LABEL,
   sayOf,
   stallWords,
   stillWorks,
@@ -70,13 +74,18 @@ export function useConnectHere(given: ConnectHere | null | undefined): ConnectHe
   return given === null ? undefined : (given ?? found);
 }
 
-/** A box of text with a Copy button that says so for a moment. */
+/**
+ * A box of text with a Copy button that says so for a moment. A line to run says Run in Terminal
+ * over it, with Copy at the end of those words (ADR 0257).
+ */
 export function CopyBox(props: {
   readonly text: string;
   readonly testId: string;
   readonly block?: boolean;
   /** Words to say rather than a line to run: set as the page's text, not as code. */
   readonly prose?: boolean;
+  /** A line the person runs in a terminal. */
+  readonly run?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -84,25 +93,46 @@ export function CopyBox(props: {
     const timer = setTimeout(() => setCopied(false), 1500);
     return () => clearTimeout(timer);
   }, [copied]);
-  return (
-    <div
-      className={["join-cmd", props.block === true && "block", props.prose === true && "prose"]
-        .filter(Boolean)
-        .join(" ")}
+  const copy = (
+    <button
+      type="button"
+      className="join-copy"
+      onClick={() => {
+        void navigator.clipboard?.writeText(props.text).then(
+          () => setCopied(true),
+          () => undefined,
+        );
+      }}
     >
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+  const className = [
+    "join-cmd",
+    props.block === true && "block",
+    props.prose === true && "prose",
+    props.run === true && "run",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  if (props.run === true) {
+    return (
+      <div className={className}>
+        <div className="join-run" data-testid={`${props.testId}-run`}>
+          <span className="join-run-mark" aria-hidden="true">
+            {">_"}
+          </span>
+          <span>{RUN_IN_TERMINAL}</span>
+          {copy}
+        </div>
+        <code data-testid={props.testId}>{props.text}</code>
+      </div>
+    );
+  }
+  return (
+    <div className={className}>
       <code data-testid={props.testId}>{props.text}</code>
-      <button
-        type="button"
-        className="join-copy"
-        onClick={() => {
-          void navigator.clipboard?.writeText(props.text).then(
-            () => setCopied(true),
-            () => undefined,
-          );
-        }}
-      >
-        {copied ? "Copied" : "Copy"}
-      </button>
+      {copy}
     </div>
   );
 }
@@ -132,30 +162,69 @@ export function WhereTabs(props: {
   );
 }
 
-/** Steps as the mock draws them: a dot (done, under way, stopped, to come), the step, a line. */
+/**
+ * Steps as the mock draws them (ADR 0257): under a label that says what they are, each on one line
+ * with a mark (done, under way, stopped, to come), the step, and a line of its own. No box and no
+ * rules, so they read as what will happen, not rows to pick.
+ */
 function StepList(props: {
+  readonly label: string;
   readonly steps: readonly (HereStep | ConnectStep)[];
   readonly testId: string;
 }) {
   return (
-    <ol className="join-steps" data-testid={props.testId}>
-      {props.steps.map((step) => (
-        <li
-          key={step.key}
-          className={step.state}
-          data-testid={`${props.testId}-${step.key}`}
-          data-state={step.state}
-        >
-          <i aria-hidden="true">
-            {step.state === "done" ? "✓" : step.state === "stopped" ? "!" : ""}
-          </i>
-          <span>
-            <b>{step.label}</b>
-            <small>{step.detail}</small>
-          </span>
-        </li>
-      ))}
-    </ol>
+    <div className="join-steps-group">
+      <span className="join-label" aria-hidden="true">
+        {props.label}
+      </span>
+      <ol className="join-steps" aria-label={props.label} data-testid={props.testId}>
+        {props.steps.map((step) => (
+          <li
+            key={step.key}
+            className={step.state}
+            data-testid={`${props.testId}-${step.key}`}
+            data-state={step.state}
+          >
+            <i aria-hidden="true">
+              {step.state === "done" ? "✓" : step.state === "stopped" ? "!" : ""}
+            </i>
+            <span>
+              <b>{step.label}</b>
+              <small>{step.detail}</small>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * The link followed in the phone's three steps, from the page's first frame (core's `makingSteps`,
+ * then `connectSteps`), and where it stopped, named as the card names it. A bridge's card on
+ * another computer and every other card draw it alike (ADR 0257, 0271).
+ */
+export function LinkSteps(props: {
+  readonly choice: ConnectChoice;
+  readonly request: JoinRequest | undefined;
+  readonly joinCard: JoinCard | undefined;
+  readonly nowMs: number;
+  readonly testId: string;
+  readonly onRenew: () => void;
+}) {
+  const { request, joinCard } = props;
+  const name = connectingName(request, props.choice);
+  const steps =
+    request === undefined || joinCard === undefined
+      ? makingSteps(name)
+      : connectSteps(request, joinCard, name, props.nowMs);
+  return (
+    <>
+      <StepList label={STEPS_LABEL.another} steps={steps} testId={props.testId} />
+      {joinCard?.stall === undefined ? null : (
+        <StallBox stall={joinCard.stall} name={name} testId="join-stall" onRenew={props.onRenew} />
+      )}
+    </>
   );
 }
 
@@ -166,7 +235,9 @@ function StopBox(props: { readonly stop: HereStop }) {
     <div className="join-fix" role="status" data-testid="join-here-stop">
       <b>{stop.says}</b>
       {stop.doing === undefined ? null : <p>{stop.doing}</p>}
-      {stop.copy === undefined ? null : <CopyBox text={stop.copy} testId="join-here-copy" />}
+      {stop.copy === undefined ? null : (
+        <CopyBox text={stop.copy} testId="join-here-copy" run={stop.run} />
+      )}
     </div>
   );
 }
@@ -329,7 +400,7 @@ export function OnThisMac(props: {
   return (
     <>
       <p className="join-lede">{hereSentence(card.name)}</p>
-      <StepList steps={steps.steps} testId="join-here-steps" />
+      <StepList label={STEPS_LABEL.here} steps={steps.steps} testId="join-here-steps" />
       {stop === undefined ? null : <StopBox stop={stop} />}
       {stalled === undefined ? (
         <HereGo
@@ -419,11 +490,6 @@ export function OnAnother(props: {
   readonly onRenew: () => void;
 }) {
   const { card, request, joinCard } = props;
-  const name = connectingName(request, card);
-  const steps =
-    request === undefined || joinCard === undefined
-      ? makingSteps(name)
-      : connectSteps(request, joinCard, name, props.nowMs);
   const said = props.link === undefined ? undefined : sayOf(card, props.link, false);
   // The card's own line carries the link too, so it waits for one.
   const there = props.link === undefined ? undefined : alreadyThere(card, props.link);
@@ -433,7 +499,7 @@ export function OnAnother(props: {
       {said === undefined ? (
         <p className="join-lede">Making a link…</p>
       ) : (
-        <CopyBox text={said.text} testId={said.testId} block />
+        <CopyBox text={said.text} testId={said.testId} block run={said.kind === "command"} />
       )}
       {there === undefined ? null : (
         <p className="join-note">
@@ -442,15 +508,14 @@ export function OnAnother(props: {
           {there.after}
         </p>
       )}
-      <StepList steps={steps} testId="join-another-steps" />
-      {joinCard?.stall === undefined ? null : (
-        <StallBox
-          stall={joinCard.stall}
-          name={request?.name}
-          testId="join-stall"
-          onRenew={props.onRenew}
-        />
-      )}
+      <LinkSteps
+        choice={card}
+        request={request}
+        joinCard={joinCard}
+        nowMs={props.nowMs}
+        testId="join-another-steps"
+        onRenew={props.onRenew}
+      />
       <p className="join-note center">{connectNote(card, props.link)}</p>
     </>
   );

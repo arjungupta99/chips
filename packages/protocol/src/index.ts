@@ -546,6 +546,8 @@ export type { PushWords } from "./push.js";
 export { isExpoPushToken, isPushWords, PUSH_WORDS } from "./push.js";
 export type { RangeAnswer } from "./ranges.js";
 export { byteRange, contentRange } from "./ranges.js";
+export type { ReadFrame, ReadMarks } from "./read-marks.js";
+export { READ_MARKS_MAX, readFrame, readMarks, readMarksBody } from "./read-marks.js";
 export type { CandidateAddress, RelayErrorCode, RelayFrame, RelayFrameName } from "./relay.js";
 export {
   candidateAddress,
@@ -609,6 +611,7 @@ export {
   roomRules,
   roomWork,
   toEveryAgent,
+  UNIVERSE_WORDS,
   yoursWithoutAt,
 } from "./room-note.js";
 export type { SpaceIcon, SpaceIcons } from "./space-icons.js";

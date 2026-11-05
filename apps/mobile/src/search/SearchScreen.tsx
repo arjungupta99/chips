@@ -19,11 +19,15 @@
  * - **Nothing found is swapped in a frame** (ADR 0189): the rows a change brings arrive down the
  *   page on a wave, the rows it keeps glide to their new places and the rows it drops fade where
  *   they stand (`ResultsMotion`); which rows arrived is core's `searchArrivals`.
+ * - **On an iPad the results are a list beside what they find** (ADR 0256): a result opens in the
+ *   pane beside them, its room at the line it was found at, rather than taking the tab away
+ *   (`Found`); the drifting faces are that pane's before anything is opened.
  */
 
 import {
   findAgents,
   findSpaces,
+  hitWords,
   type SearchHit,
   type SearchIndex,
   type SearchItem,
@@ -40,17 +44,22 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Animated, Easing, Platform, StyleSheet, type TextInput, View } from "react-native";
 import { PlusRoom } from "../newSpace/plusRoom";
 import { useDeferredSnapshot } from "../store/provider";
+import { useLayout } from "../ui/layout";
+import { useOpened } from "../ui/opened";
 import { Screen, UnderNameList, useColumn } from "../ui/Screen";
 import { Search } from "../ui/Search";
+import { Split } from "../ui/Split";
 import { usePalette } from "../ui/theme";
 import { SPACE } from "../ui/tokens";
 import { useReduceMotion } from "../ui/useReduceMotion";
 import { Backdrop, backdropFaces } from "./Backdrop";
-import { hitHref } from "./items";
+import { Found, SEARCH_OPEN } from "./Found";
+import { hitAt, hitHref } from "./items";
 import { ResultRow, type RowContext } from "./Results";
 import { Arriving, MovingList } from "./ResultsMotion";
 import { useRecentSearches } from "./recent";
 import { CHIPS_HEIGHT, ScopeChips } from "./ScopeChips";
+import { onSummon } from "./summon";
 import { useMessageSearch } from "./useMessageSearch";
 
 export function SearchScreen({
@@ -114,17 +123,27 @@ export function SearchScreen({
     [text, typed, scope, spaces, agents, messages.results, online, snapshot.model, recent.list],
   );
   const arrivals = useArrivals(items);
+  const { wide } = useLayout();
+  const [opened, go] = useOpened("search", SEARCH_OPEN);
   const open = (href: string) => {
     recent.remember(text);
     router.push(href);
+  };
+  // Beside the results on an iPad, what a result finds opens there.
+  const beside = (next: typeof opened) => {
+    recent.remember(text);
+    go(next);
   };
   const context: RowContext = {
     snapshot,
     selfId,
     now: Date.now(),
-    onOpenSpace: (id) => open(`/spaces/${id}`),
-    onOpenAgent: (id) => open(`/agents/${id}`),
-    onOpenHit: (hit: SearchHit) => open(hitHref(hit, text)),
+    onOpenSpace: (id) => (wide ? beside({ space: id }) : open(`/spaces/${id}`)),
+    onOpenAgent: (id) => (wide ? beside({ agent: id }) : open(`/agents/${id}`)),
+    onOpenHit: (hit: SearchHit) =>
+      wide
+        ? beside({ space: hit.spaceId, at: hitAt(hit), words: hitWords(hit, text) })
+        : open(hitHref(hit, text)),
     onRecent: (words) => {
       type(words);
       recent.remember(words);
@@ -135,11 +154,12 @@ export function SearchScreen({
     onSeeAll: setScope,
     onRetry: messages.retry,
     onWake: store.wake,
+    open: wide ? opened : undefined,
   };
   // The next page, when the list nears its end with messages in it.
   const more = scope === "all" || scope === "messages" ? messages.more : undefined;
 
-  return (
+  const results = (
     <Screen
       title="Search"
       glass
@@ -176,12 +196,13 @@ export function SearchScreen({
           </Arriving>
         )}
         extraData={context}
-        ListHeaderComponent={<Backdrop faces={faces} shown={!typed} />}
+        // Beside the results on an iPad, the faces drift in the pane instead (`Found`).
+        ListHeaderComponent={wide ? null : <Backdrop faces={faces} shown={!typed} />}
         ListFooterComponent={<PlusRoom />}
         // The backdrop hangs from the list's first child, which scrolls above the window while
         // it is still drawn behind the rows below it: it must not be clipped away with it. Typed,
         // the backdrop is gone and the results clip as lists do.
-        removeClippedSubviews={typed ? undefined : false}
+        removeClippedSubviews={typed || wide ? undefined : false}
         onEndReached={more}
         onEndReachedThreshold={0.5}
         // The tab bar is glass over the list, so the inset that keeps the last row clear of it is
@@ -193,6 +214,24 @@ export function SearchScreen({
         testID="search-results"
       />
     </Screen>
+  );
+  if (!wide) return results;
+  return (
+    <Split
+      tab="search"
+      list={results}
+      detail={
+        <Found
+          store={store}
+          snapshot={snapshot}
+          selfId={selfId}
+          opened={opened}
+          go={go}
+          faces={faces}
+          typed={typed}
+        />
+      }
+    />
   );
 }
 
@@ -291,6 +330,8 @@ function useSummoned(field: RefObject<TextInput | null>, empty: boolean) {
   const chosen = useRef(true);
   const blank = useRef(empty);
   blank.current = empty;
+  // Asked for by Search Everything: the field takes the keys whatever it holds.
+  const asked = useRef(false);
   useEffect(
     () =>
       navigation.addListener("tabPress", () => {
@@ -299,9 +340,18 @@ function useSummoned(field: RefObject<TextInput | null>, empty: boolean) {
       }),
     [navigation, field],
   );
+  useEffect(
+    () =>
+      onSummon(() => {
+        if (navigation.isFocused()) field.current?.focus();
+        else asked.current = true;
+      }),
+    [navigation, field],
+  );
   useFocusEffect(
     useCallback(() => {
-      const summoned = chosen.current && blank.current;
+      const summoned = asked.current || (chosen.current && blank.current);
+      asked.current = false;
       chosen.current = false;
       // A frame on: the navigator says the tab is in front before UIKit has put its view in the
       // window, and a field that is not in one cannot take the keyboard.

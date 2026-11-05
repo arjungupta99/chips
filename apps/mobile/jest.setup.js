@@ -133,6 +133,9 @@ jest.mock("./src/spaces/SelectMotion", () => {
     Blink: ({ children }) => children,
     ListDust: () => null,
     Turned: ({ children }) => children,
+    // Hidden's and Archived's rooms (ADR 0205) are there the render they are shown, and gone the
+    // render they are put away.
+    Unfold: ({ shown, children }) => (shown ? children : null),
   };
 });
 
@@ -158,6 +161,38 @@ jest.mock("./src/ui/UnderMotion", () => {
 // Words crossfading in place (`ui/Swap.tsx`): a screen's name, Select and Done. Under Node they are
 // the words as they are now.
 jest.mock("./src/ui/Swap", () => ({ Swap: ({ children }) => children }));
+
+// How an iPad's tabs move between the capsule and the sidebar (`src/ui/SidebarMotion.tsx`, ADR
+// 0276), on Reanimated: under Node each piece simply stands at its frame, and what has faded is
+// not drawn.
+jest.mock("./src/ui/SidebarMotion", () => {
+  const react = require("react");
+  const { View } = require("react-native");
+  return {
+    __esModule: true,
+    Moving: ({ frame, style, pointerEvents, testID, children }) =>
+      react.createElement(
+        View,
+        { pointerEvents, testID, style: [{ position: "absolute" }, style, frame] },
+        children,
+      ),
+    Fading: ({ shown, style, pointerEvents, children }) =>
+      shown ? react.createElement(View, { style, pointerEvents }, children) : null,
+  };
+});
+
+// How the panes beside an iPad's list move (`src/ui/PaneMotion.tsx`, ADR 0276), on Reanimated:
+// under Node a box simply stands at its width, and what has gone is gone at once.
+jest.mock("./src/ui/PaneMotion", () => {
+  const react = require("react");
+  const { View } = require("react-native");
+  return {
+    __esModule: true,
+    Widening: ({ width, style, testID, children }) =>
+      react.createElement(View, { style: [style, { width }], testID }, children),
+    useKept: (value) => value,
+  };
+});
 
 // How Spaces moves as the workspace in front changes (`ui/SwitchMotion.tsx`, ADR 0197), on
 // Reanimated: under Node a row is simply there, what is being replaced is out of reach of a tap

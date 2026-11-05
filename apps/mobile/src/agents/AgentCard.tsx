@@ -35,6 +35,11 @@
  * and Delete and says why, and an archived one keeps Unarchive, which only puts it back. Opened
  * from its Locked on the Agents tab (`lockGlow`), the row glows once, so the eye finds it.
  *
+ * Beside the Agents list on an iPad the card reads as it does on a phone, one group after another,
+ * across the whole pane (ADR 0276): what the agent is (its facts, Lock changes, its icon and model),
+ * then what it holds (its heartbeat, context window, files, history and what may be done with it).
+ * Until 3 November 2026 the two halves stood side by side (ADR 0256).
+ *
  * Between its facts and its history, for its harness's owner, the files its harness builds it
  * from (ADR 0135, `context/ContextGroup.tsx`), when what shows the card says where they open.
  * Above them, for the same people, its model and effort (ADR 0141, `model/ModelGroup.tsx`), and
@@ -52,12 +57,13 @@ import {
   type Store,
   stayFact,
 } from "@chipschat/core";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { ContextGroup, type ContextOpeners } from "../context/ContextGroup";
 import { faceWords } from "../spaces/faceWords";
 import type { RowAct } from "../spaces/SwipeRow";
 import { Avatar } from "../ui/Avatar";
+import type { SheetFrom } from "../ui/beside";
 import { Group, GroupFoot, GroupHeading, GroupRow } from "../ui/Group";
 import { GROWS, GroupPlace, GrowingView } from "../ui/growing";
 import * as feel from "../ui/haptics";
@@ -109,7 +115,9 @@ export function AgentCard({
   const agent = snapshot.directory[agentId];
   const { stays, failed } = useStays(store, agentId, agent?.room);
   const [picking, setPicking] = useState<"put" | "move" | "fork" | undefined>(undefined);
-  const [facing, setFacing] = useState(false);
+  // The face sheet, open, and what opened it: the face, or the Icon row.
+  const [facing, setFacing] = useState<{ readonly from: SheetFrom } | undefined>(undefined);
+  const hero = useRef<View>(null);
   const keep = useKeep(store, snapshot, selfId, { onDeleted: () => onDeleted?.() });
   const model = useModelGroup({
     store,
@@ -142,7 +150,8 @@ export function AgentCard({
             accessibilityLabel={`${card.name}'s icon`}
             accessibilityHint="Changes its icon"
             disabled={!card.mayFace}
-            onPress={() => setFacing(true)}
+            onPress={() => setFacing({ from: hero })}
+            ref={hero}
             hitSlop={SPACE.sm}
             testID="agent-face"
             style={({ pressed }) => (pressed ? styles.pressed : null)}
@@ -202,11 +211,15 @@ export function AgentCard({
             name={card.name}
             face={card.face}
             may={card.mayFace}
-            onPress={() => setFacing(true)}
+            onPress={(from) => setFacing({ from })}
           />
-          {/* Each group in a place of its own, which takes a copy's size on `GROWS` as it lands
-              over its blank, and what is under them moves down with it (ADR 0238's addendum). */}
+          {/* Each group in a place of its own, which takes a copy's size on `GROWS` as it
+                lands over its blank, and what is under them moves down with it (ADR 0238's
+                addendum). */}
           <GroupPlace>{model.group}</GroupPlace>
+          {/* The heartbeat ends the left rather than starting the right: the order a phone
+                stacks them in is the same, and the right's context window no longer stands
+                twice the left's height (the simulator, 2 November 2026). */}
           <GroupPlace>
             <HeartbeatGroup
               store={store}
@@ -261,8 +274,9 @@ export function AgentCard({
       <FaceSheet
         store={store}
         snapshot={snapshot}
-        agentId={facing ? agentId : undefined}
-        onClose={() => setFacing(false)}
+        agentId={facing === undefined ? undefined : agentId}
+        from={facing?.from}
+        onClose={() => setFacing(undefined)}
       />
       {keep.sheet}
       {model.overlays}
@@ -328,8 +342,9 @@ function IconGroup({
   readonly name: string;
   readonly face: AgentCardFacts["face"];
   readonly may: boolean;
-  readonly onPress: () => void;
+  readonly onPress: (from: SheetFrom) => void;
 }) {
+  const self = useRef<View>(null);
   if (!may) return null;
   return (
     <>
@@ -339,7 +354,8 @@ function IconGroup({
           label="Icon"
           value={faceWords(face)}
           mark={<Avatar name={name} kind="agent" size="sm" icon={face} decorative />}
-          onPress={onPress}
+          onPress={() => onPress(self)}
+          ref={self}
           accessibilityHint="Changes its icon"
           testID="agent-icon"
         />

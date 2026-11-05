@@ -4,7 +4,7 @@
  * repository's form. The sheet offers the Main agent, which finds a line asking for its help in
  * its Main space's field, not sent, and GitHub, which opens the form with this build filled in.
  * Chips sends nothing either way. With no Main agent there is nothing to choose, so the row opens
- * GitHub itself.
+ * GitHub itself. Beside the list on an iPad the two ways are a page, which goes as a way is taken.
  *
  * Not drawn while the switch is off (`FEEDBACK_SHOWN`), until the repository is public, unless
  * the build asked for it (`FEEDBACK_BUILD`).
@@ -36,7 +36,9 @@ import { Sheet } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { SPACE } from "../ui/tokens";
 import { buildWords } from "./About";
+import { SheetPage, useSheetPage } from "./pages";
 import { SheetHead } from "./SheetHead";
+import type { YouSection } from "./section";
 
 /** Whether You draws the row: the switch, or a build that asked for it. */
 export const FEEDBACK_ON = FEEDBACK_SHOWN || FEEDBACK_BUILD;
@@ -75,10 +77,11 @@ export function useFeedbackGroup({
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
-}) {
+}): YouSection {
   const palette = usePalette();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const page = useSheetPage("feedback", () => setOpen(true));
   // What a pick does once the sheet has gone: a room pushed, or Safari opened, over a sheet still
   // leaving would come up behind it.
   const then = useRef<(() => void) | undefined>(undefined);
@@ -88,7 +91,13 @@ export function useFeedbackGroup({
   );
   if (!shown) return { group: null, overlays: null };
 
+  // Beside the list the page goes and the way is taken at once: there is no sheet to wait on.
   const leave = (next: () => void) => {
+    if (page.beside) {
+      page.done();
+      next();
+      return;
+    }
     then.current = next;
     setOpen(false);
   };
@@ -99,25 +108,16 @@ export function useFeedbackGroup({
           label={FEEDBACK_ROW}
           sub={FEEDBACK_ROW_SUB}
           mark={<RowMark icon="chat" tint={palette.gold} ink="#231a00" />}
-          onPress={agent === undefined ? openForm : () => setOpen(true)}
+          onPress={agent === undefined ? openForm : page.onPress}
+          selected={agent === undefined ? undefined : page.selected}
           testID="feedback-row"
         />
       </Group>
     </View>
   );
-  const overlays =
+  const ways =
     agent === undefined ? null : (
-      <Sheet
-        open={open}
-        onClose={() => setOpen(false)}
-        onGone={() => {
-          const next = then.current;
-          then.current = undefined;
-          next?.();
-        }}
-        testID="feedback-sheet"
-      >
-        <SheetHead title={FEEDBACK_TITLE} />
+      <>
         <Group inset={MARKED_INSET}>
           <GroupRow
             label={feedbackWithWords(agent.name)}
@@ -142,9 +142,33 @@ export function useFeedbackGroup({
           />
         </Group>
         <GroupFoot>{FEEDBACK_SENDS_NOTHING}</GroupFoot>
+      </>
+    );
+  const overlays =
+    ways === null ? null : (
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        onGone={() => {
+          const next = then.current;
+          then.current = undefined;
+          next?.();
+        }}
+        testID="feedback-sheet"
+      >
+        <SheetHead title={FEEDBACK_TITLE} />
+        {ways}
       </Sheet>
     );
-  return { group, overlays };
+  const pages = {
+    feedback:
+      ways === null ? undefined : (
+        <SheetPage title={FEEDBACK_TITLE} testID="feedback-page">
+          {ways}
+        </SheetPage>
+      ),
+  };
+  return { group, overlays, pages };
 }
 
 const styles = StyleSheet.create({

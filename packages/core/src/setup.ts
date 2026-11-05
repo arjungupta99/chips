@@ -23,7 +23,7 @@ import { DEMO_PERSON_ID } from "./demo/device.js";
 import { type DeviceKind, deviceKind } from "./devices.js";
 import { type Directory, isAgent, nameOf } from "./events.js";
 import type { RelayState, WorkspaceModel } from "./model/types.js";
-import type { PairedDeviceRecord, ServerFacts } from "./store.js";
+import { type PairedDeviceRecord, type ServerFacts, serverCantPush } from "./store.js";
 
 export type SetupStepId = "running" | "computer" | "hello" | "phone" | "notify" | "away";
 
@@ -133,8 +133,7 @@ function pairedOf(devices: readonly PairedDeviceRecord[], kinds: readonly Device
  * server that can't push (ADR 0244) leaves them undone however the phone is set, and says so.
  */
 function notifyStep(on: boolean, pushes: ServerFacts["pushes"]): SetupStep {
-  const cannot = pushes !== undefined && pushes !== "ready";
-  if (!cannot) return { id: "notify", title: "Notifications", done: on };
+  if (!serverCantPush(pushes)) return { id: "notify", title: "Notifications", done: on };
   return {
     id: "notify",
     title: "Notifications",

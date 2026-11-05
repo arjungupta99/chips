@@ -7,7 +7,7 @@
 
 import { type Directory, followsRooms, harnessOf, isRemoved, nameOf } from "./events.js";
 import { administers, myRole, type Space, type WorkspaceModel } from "./model.js";
-import { roomAgents, roomName } from "./rooms.js";
+import { mayLock, roomAgents, roomName } from "./rooms.js";
 
 /**
  * Anybody in the room who is not a guest, here or in the workspace. Never a harness's home, which
@@ -72,6 +72,73 @@ export function pinAct(
 
 /** No room pinned. */
 export const NO_PINS: readonly string[] = [];
+
+/**
+ * What a Spaces row offers: from its leading end Pin or Unpin and Hide or Unhide, the reader's own
+ * (ADRs 0240, 0205); from its trailing end Archive or Unarchive and Delete (ADRs 0066, 0067), or
+ * Locked in their place on a room whose changes are locked, for whoever may let them go (ADR 0156).
+ * The phone's swipes lay them out from each end; the desktop's menu on a row lists them in this
+ * order.
+ */
+export type SpaceRowAct =
+  | "pin"
+  | "unpin"
+  | "hide"
+  | "unhide"
+  | "archive"
+  | "unarchive"
+  | "delete"
+  | "locked";
+
+/** A row's acts, in the order of `SpaceRowAct`: what core offers this reader on this room. */
+export function spaceRowActs(
+  model: WorkspaceModel,
+  space: Space,
+  selfId: string,
+  pinned: readonly string[],
+  hidden: ReadonlySet<string>,
+): readonly SpaceRowAct[] {
+  const acts: SpaceRowAct[] = [];
+  const pin = pinAct(space, selfId, pinned, hidden);
+  if (pin !== undefined) acts.push(pin);
+  const hide = hideAct(space, selfId, hidden);
+  if (hide !== undefined) acts.push(hide);
+  if (mayArchive(model, space, selfId))
+    acts.push(space.state === "closed" ? "unarchive" : "archive");
+  if (mayErase(model, space, selfId)) acts.push("delete");
+  if (space.locked === true && mayLock(space, selfId)) acts.push("locked");
+  return acts;
+}
+
+/** What each of a row's acts is called, on a phone's swipe and in a desktop's menu alike. */
+export const SPACE_ROW_ACT_WORDS: Readonly<Record<SpaceRowAct, string>> = {
+  pin: "Pin",
+  unpin: "Unpin",
+  hide: "Hide",
+  unhide: "Unhide",
+  archive: "Archive",
+  unarchive: "Unarchive",
+  delete: "Delete",
+  locked: "Locked, show details",
+};
+
+const NOT_TAKEN = {
+  hide: "Not hidden",
+  unhide: "Not unhidden",
+  pin: "Not pinned",
+  unpin: "Not unpinned",
+} as const;
+
+/**
+ * Why a hide, a pin or their undoing did not hold, in words worth reading. A server from before
+ * ADR 0205, or 0240 for a pin, has no such route, and says so as a 404.
+ */
+export function notTakenWords(act: keyof typeof NOT_TAKEN, error: unknown): string {
+  const not = NOT_TAKEN[act];
+  const said = error instanceof Error ? error.message : "";
+  if (/404|no route matches/i.test(said)) return `${not}: this server is older than the app.`;
+  return said === "" ? `${not}: the server would not take it.` : `${not}: ${said}`;
+}
 
 /**
  * A list's rooms in its three runs (ADR 0205): the open ones; those this person hid, under their

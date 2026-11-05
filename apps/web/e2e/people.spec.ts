@@ -40,6 +40,7 @@ test("an invite, a role, a passkey, and a way back", async ({ page, browser }) =
   // At 127.0.0.1 no passkey can work, so You does not offer one (ADR 0085); at localhost it does.
   await expect(page.getByTestId("devices")).toBeVisible();
   await expect(page.getByTestId("passkeys")).toHaveCount(0);
+  await page.getByTestId("invite-someone").click();
   await page.getByRole("combobox", { name: "Invite role" }).selectOption("member");
   await page.getByTestId("make-invite").click();
   const url = (await page.getByTestId("invite-url").textContent()) ?? "";
@@ -82,18 +83,24 @@ test("an invite, a role, a passkey, and a way back", async ({ page, browser }) =
     }
 
     // The owner sees her, and makes her an admin; her screen follows, and offers the admin's view.
+    await page.getByTestId("people-row").click();
     const priya = page.getByTestId("person-row").filter({ hasText: "Priya Nair" });
     await expect(priya).toHaveAttribute("data-role", "member");
-    await priya.getByRole("combobox", { name: "Priya Nair's role" }).selectOption("admin");
+    await priya.click();
+    await page
+      .getByTestId("person-details")
+      .getByRole("combobox", { name: "Priya Nair's role" })
+      .selectOption("admin");
     // It asks first, saying what an admin may do (people review, Phase 1).
     const asking = page.getByTestId("confirm-dialog");
     await expect(asking.getByRole("heading")).toHaveText("Make Priya Nair an admin?");
     await asking.getByTestId("confirm-go").click();
+    await page.getByRole("button", { name: "‹ People" }).click();
     await expect(priya).toHaveAttribute("data-role", "admin");
     await expect(danaPage.getByTestId("my-role")).toHaveText(/^Admin/);
-    await expect(danaPage.getByTestId("people")).toBeVisible();
+    await expect(danaPage.getByTestId("people-row")).toBeVisible();
     // Only an owner invites (ADR 0034's addendum of 14 October 2026).
-    await expect(danaPage.getByTestId("invites")).toHaveCount(0);
+    await expect(danaPage.getByTestId("invite-someone")).toHaveCount(0);
 
     // Priya adds a passkey, signs out of this browser, and comes back with the passkey alone.
     await virtualAuthenticator(danaPage);

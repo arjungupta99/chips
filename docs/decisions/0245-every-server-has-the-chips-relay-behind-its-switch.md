@@ -56,6 +56,16 @@ it may be asleep", which was not why.
 - A self-hosted relay can still serve a list (`CHIPS_RELAY_ALLOW_KEYS`), and its box files still
   start with one.
 
+## Addendum, 1 November 2026: the Relay card lights where Set up leads
+
+Arjun, on Chips for Mac: "when we tap 'Away from home' setup item, it takes us to the relay section,
+I would like it to also show the yellow highlight and then fade for that section as well to make it
+clear that we are pointing towards the relay section. Else it is confusing." Set up now scrolls You
+to the Relay card and lights it gold, fading back to itself over about two seconds, as a link just
+made lights in Invite (`.you-card.is-lit`, the `card-lit` keyframes). The Shell counts each Set up,
+so pressing it again while You is open lights the card again (the card is drawn anew under that
+count). Only the web and the Mac have the card; the phone's Set up opens its Relay page.
+
 ## Addendum, 1 November 2026: Away from home follows the switch
 
 His screenshot the same day showed *Away from home ✓ through your relay* beside a relay switched

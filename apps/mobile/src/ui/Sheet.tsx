@@ -48,6 +48,19 @@
  * in measured 187 points high, and the viewer flew the picture from mid-screen). The glide ends
  * when it is seen to, not when the spring's tail does, and what measures a view on the panel waits
  * for the panel to be drawn at rest (`useSheetRest`), which is at once unless it is moving.
+ *
+ * **Docked.** Inside `SheetDock` the same sheet is a column where it is drawn instead of a panel
+ * over the window: a space's details beside its room on a wide iPad (ADR 0256). It holds the same
+ * pages and the same X, with nothing to pull and no scrim, and stands while it is open. A sheet
+ * opened from inside it opens as any other does.
+ *
+ * **On an iPad** (ADR 0256, the mock's section 7: "What opens from a button opens beside the
+ * button"), a choice opens beside the button it was opened from, as iPadOS opens one: the caller
+ * says what that was (`from`), and the sheet is a popover with its arrow on it (`Beside`, placed by
+ * `ui/beside.ts`). Nothing dims, since what it was opened over is what the choice is about, nothing
+ * pulls it, and a tap off it puts it away. Any other sheet is a task, and a card in the middle of
+ * the window, as iPadOS stands a form: it comes up from the foot and goes back down, and a pull
+ * takes it as on a phone. What either holds is what the phone's sheet holds.
  */
 
 import {
@@ -56,6 +69,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -72,6 +86,7 @@ import {
   StyleSheet,
   useWindowDimensions,
   View,
+  type ViewStyle,
 } from "react-native";
 import {
   Gesture,
@@ -80,16 +95,21 @@ import {
   type PanGestureHandlerEventPayload,
 } from "react-native-gesture-handler";
 import { useKeyboardContext } from "react-native-keyboard-controller";
+import { ARROW, type Placed, placeBeside, type Seen, type SheetFrom, watch } from "./beside";
+import { pageOffFold, useDuo } from "./duo";
 import { OnGround } from "./ground";
 import * as feel from "./haptics";
 import { useLayout } from "./layout";
+import { useEscape } from "./menuBar";
 import { IOS_SPRING } from "./motion";
-import { SheetClose } from "./SheetClose";
+import { useKept, Widening } from "./PaneMotion";
+import { type CloseAt, type CloseMotion, closeInLane, SheetClose } from "./SheetClose";
 import { type Grip, SheetGrip } from "./SheetScroll";
+import { THIRD, type ThirdHost, ThirdSide, useThirdHost } from "./Split";
 import { usePalette } from "./theme";
 import { RADIUS, SHEET, SPACE } from "./tokens";
 import { useReduceMotion } from "./useReduceMotion";
-import { useWindowInsets } from "./windowInsets";
+import { useTabTop, useWindowInsets } from "./windowInsets";
 
 export { CLOSE_ROOM } from "./SheetClose";
 export { SheetPages } from "./SheetPages";
@@ -98,10 +118,14 @@ export { SheetScroll } from "./SheetScroll";
 
 /** How long the panel takes to leave; it arrives on the spring (`IOS_SPRING`), the scrim with it. */
 export const SHEET_OUT_MS = 220;
+/** The grabber's height. */
+const GRABBER = 5;
 /** With Reduce Motion on, the fade that stands in for the travel. */
 const STILL_MS = 160;
-/** Wider than a phone the sheet is a card (`roomy`), and this is as wide as the card gets. */
-const CARD_WIDTH = 520;
+/** Wider than a phone the sheet is a card (`roomy`), and this is as wide as the card gets: a form's. */
+const CARD_WIDTH = 540;
+/** The side of the square turned to make a popover's arrow, which stands `ARROW` out of it. */
+const ARROW_SIDE = Math.round(ARROW * Math.SQRT2);
 /** Let go past this much of the panel's height, or this fast (points a second), and it leaves. */
 const LETS_GO = 1 / 3;
 const FLICK = 800;
@@ -120,6 +144,12 @@ const NATIVE = Platform.OS !== "web";
  */
 const GLIDE_REST = { restDisplacementThreshold: 0.25, restSpeedThreshold: 4 } as const;
 
+/**
+ * Inside it a sheet stands as a column this wide where it is drawn, rather than over the window;
+ * outside it, nothing.
+ */
+export const SheetDock = createContext<number | undefined>(undefined);
+
 /** When the panel a view is on is drawn at rest; at once, off a sheet. */
 const SheetRest = createContext<() => Promise<void>>(() => Promise.resolve());
 
@@ -131,18 +161,7 @@ export function useSheetRest(): () => Promise<void> {
   return useContext(SheetRest);
 }
 
-export function Sheet({
-  open,
-  onClose,
-  onCloseButton,
-  closable = true,
-  onGone,
-  testID,
-  sizing = "content",
-  cap,
-  keyboard = false,
-  children,
-}: {
+type SheetProps = {
   readonly open: boolean;
   /**
    * The X, the scrim, the Android back button, a screen reader's escape, and a drag past the line.
@@ -164,6 +183,12 @@ export function Sheet({
   /** Bounded callers supply a shrinking ScrollView between fixed chrome. Full uses the same modal. */
   readonly sizing?: "content" | "bounded" | "full";
   /**
+   * A card that shows something rather than asks: wider than a phone it takes the window's width
+   * less a margin, where any other is a form's (`CARD_WIDTH`). Universe draws a page in it, and a
+   * page wants the width (Arjun, 3 November 2026: "want to be able to make use of ipad width").
+   */
+  readonly wide?: boolean;
+  /**
    * At most this much of the window, for a sheet that would otherwise fill it. A sheet is this
    * screen with something in front of it; one that reaches the notch is another screen, and the
    * room behind it stops being the thing you are deciding about (Arjun, 21 September 2026: the
@@ -179,8 +204,167 @@ export function Sheet({
    * while the keys are up to put them away, so Save would need two (the agent card, 2 October).
    */
   readonly keyboard?: boolean;
+  /**
+   * The button the sheet was opened from, or where a finger pressed and held: on an iPad a choice
+   * opens beside it as a popover. Without it, a sheet there is a card in the middle.
+   */
+  readonly from?: SheetFrom | undefined;
   readonly children: ReactNode;
+};
+
+export function Sheet(props: SheetProps) {
+  const width = useContext(SheetDock);
+  const host = useThirdHost();
+  const { roomy } = useLayout();
+  // What it was opened from is kept until it opens again: a caller that lets go of it as it closes
+  // (the row whose face it was) would have it change shape on the way out.
+  const kept = useRef(props.from);
+  if (props.open) kept.current = props.from;
+  const from = kept.current;
+  // Esc puts away what stands over the window (ADR 0256); a column beside the room is not over it.
+  useEscape(props.open && width === undefined && host === undefined, props.onClose);
+  if (width !== undefined) return <Docked width={width} {...props} />;
+  if (host !== undefined) return <InThird host={host} {...props} />;
+  if (roomy && from !== undefined) return <Beside {...props} from={from} />;
+  return <Rising {...props} />;
+}
+
+/**
+ * The sheet as a column where it is drawn: no pull, the X its way out. It grows in from the window's
+ * right edge as the room beside it narrows, and shrinks away as the room widens again, on the
+ * panes' motion (`PaneMotion.tsx`, ADR 0276); what it holds stays drawn until it has gone.
+ */
+function Docked({ width, open, onGone, ...props }: SheetProps & { readonly width: number }) {
+  const drawn = useGoneOnceAway(open, onGone);
+  return (
+    <Widening width={open ? width : 0} style={styles.dock}>
+      {drawn ? <DockedPanel width={width} open={open} {...props} /> : null}
+    </Widening>
+  );
+}
+
+/**
+ * The sheet as the third column of the split it was opened in (`useThirdHost`, ADR 0276's
+ * addendum): what it holds stands there, under its X, while it is open, and the split moves the
+ * column in and out. Drawn there rather than here, so nothing of it stands where it was opened.
+ */
+function InThird({ host, open, onGone, ...props }: SheetProps & { readonly host: ThirdHost }) {
+  const id = useId();
+  useGoneOnceAway(open, onGone);
+  const close = useRef(props.onClose);
+  close.current = props.onClose;
+  const panel = open ? <DockedPanel width={THIRD} open ruled={false} top {...props} /> : undefined;
+  // It takes the column as it opens; each time it is drawn after, the column shows what it holds
+  // now. Taking it every time, two sheets drawn in one go closed each other.
+  const standing = useRef(false);
+  useEffect(() => {
+    if (panel === undefined) {
+      if (standing.current) host.hide(id);
+      standing.current = false;
+    } else if (standing.current) host.update(id, panel);
+    else {
+      standing.current = true;
+      host.show(id, panel, () => close.current());
+    }
+  });
+  useEffect(() => () => host.hide(id), [host, id]);
+  return null;
+}
+
+/** Whether a column still stands while it slides away; and, once it has gone, the sheet's `onGone`. */
+function useGoneOnceAway(open: boolean, onGone: (() => void) | undefined): boolean {
+  const drawn = useKept(open ? true : undefined) === true;
+  const gone = useRef(onGone);
+  gone.current = onGone;
+  const was = useRef(drawn);
+  useEffect(() => {
+    if (was.current && !drawn) gone.current?.();
+    was.current = drawn;
+  }, [drawn]);
+  return drawn;
+}
+
+/**
+ * What a sheet as a column holds: its X and its pages on the grouped ground, at the column's width.
+ * Beside a room it draws its own rule; as a split's third column, the split draws it, and it keeps
+ * clear of the status bar itself (`top`).
+ */
+function DockedPanel({
+  width,
+  open,
+  ruled = true,
+  top = false,
+  onClose,
+  onCloseButton,
+  closable = true,
+  testID,
+  children,
+}: Omit<SheetProps, "onGone"> & {
+  readonly width: number;
+  readonly ruled?: boolean;
+  readonly top?: boolean;
 }) {
+  const palette = usePalette();
+  const insets = useWindowInsets();
+  const tabTop = useTabTop();
+  const motion = useMemo<CloseMotion>(
+    () => ({
+      progress: new Animated.Value(1),
+      drag: new Animated.Value(0),
+      armed: new Animated.Value(0),
+      line: 1,
+      still: true,
+    }),
+    [],
+  );
+  return (
+    <View
+      style={[
+        styles.docked,
+        ruled ? null : styles.unruledDock,
+        {
+          width,
+          paddingTop: top ? tabTop : 0,
+          paddingBottom: insets.bottom,
+          backgroundColor: palette.grouped,
+          borderColor: palette.line,
+        },
+      ]}
+      pointerEvents={open ? "auto" : "none"}
+      testID={testID}
+    >
+      <SheetDock.Provider value={undefined}>
+        <View style={styles.fill} testID={testID === undefined ? undefined : `${testID}-panel`}>
+          <OnGround kind="grouped">
+            <View style={styles.noHandle} />
+            <SheetClose
+              motion={motion}
+              disabled={!closable}
+              onClose={onClose}
+              onCloseButton={onCloseButton}
+              sheet={testID}
+            />
+            <ThirdSide>{children}</ThirdSide>
+          </OnGround>
+        </View>
+      </SheetDock.Provider>
+    </View>
+  );
+}
+
+function Rising({
+  open,
+  onClose,
+  onCloseButton,
+  closable = true,
+  onGone,
+  testID,
+  sizing = "content",
+  cap,
+  keyboard = false,
+  wide = false,
+  children,
+}: SheetProps) {
   const palette = usePalette();
   // The window's insets, not the screen's: the sheet covers the window. A tab's own are the tab
   // bar's too, so a sheet opened from You stood 49 points clear of the bottom with nothing under
@@ -188,21 +372,25 @@ export function Sheet({
   const insets = useWindowInsets();
   // A card wherever the window is wider than a phone: an iPad mini upright too (ADR 0177).
   const { roomy: card } = useLayout();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const room = Math.max(
     0,
-    windowHeight - insets.top - SPACE.md - (card ? SPACE.xl + insets.bottom : 0),
+    card
+      ? windowHeight - insets.top - insets.bottom - SPACE.xl * 2
+      : windowHeight - insets.top - SPACE.md,
   );
   // The cap is of the window, which is what "three quarters of the screen" means to an eye;
   // never more than the room the insets leave.
   const available = cap === undefined ? room : Math.min(room, windowHeight * cap);
-  // A card stands clear of the edge, with nowhere below it to keep the rest.
+  // A card stands in the middle, with nowhere below it to keep the rest.
   const glides = !card;
   const motion = useMotion(open, onGone, glides);
   // On a phone the panel rises with the keys; a card keeps the avoiding view.
   const lift = useLift(keyboard, glides, motion.below);
   const grip = useDrag(motion, open, { onClose, onCloseButton, closable }, testID);
   const { progress, still } = motion;
+  const beside = useBesideColumn(card, windowWidth, windowHeight - room + motion.below);
+  const width = useCardWidth(card, wide, windowWidth, insets);
   // Where the panel is: the finger's pull, plus what it does not hold standing below the edge,
   // plus the way it has still to come.
   const translateY = useMemo(() => {
@@ -225,7 +413,7 @@ export function Sheet({
       {/* A modal is a root of its own, which a gesture needs one inside. */}
       <GestureHandlerRootView style={styles.fill}>
         <KeyboardAvoidingView
-          style={styles.root}
+          style={[styles.root, card ? styles.middle : null]}
           enabled={keyboard && !glides}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
@@ -246,12 +434,13 @@ export function Sheet({
               style={[
                 styles.panel,
                 card ? styles.card : styles.edge,
+                width,
                 glides ? { height: room } : null,
+                beside?.padding,
                 {
                   // The grouped ground: white cards on it in light, as iOS groups (ADR 0192).
                   backgroundColor: palette.grouped,
                   borderColor: palette.line,
-                  marginBottom: card ? SPACE.xl + insets.bottom : 0,
                   transform: [{ translateY }],
                   opacity: still ? progress : 1,
                 },
@@ -276,6 +465,7 @@ export function Sheet({
                     onClose={onClose}
                     onCloseButton={onCloseButton}
                     sheet={testID}
+                    at={beside?.close}
                   />
                   <SheetGrip.Provider value={grip}>
                     <SheetRest.Provider value={motion.rested}>{children}</SheetRest.Provider>
@@ -290,12 +480,280 @@ export function Sheet({
   );
 }
 
+/** Where the title's line stands on a sheet's panel: under the handle, which stands at its top. */
+const LINE_TOP = SPACE.sm * 2 + GRABBER;
+
+/**
+ * A phone's sheet on the iPhone Duo (ADR 0256, the mock's section 11): it rises across the screen
+ * and under the column, as UIKit's own sheets do, and what it holds stands beside the column, with
+ * its X in the column's lane (`closeInLane`). Folded, its tiles ran on under the column and its X
+ * stood under the battery (the simulator, 2 November 2026). `top` is the panel's top at rest.
+ */
+function useBesideColumn(
+  card: boolean,
+  windowWidth: number,
+  top: number,
+): { readonly padding: ViewStyle; readonly close: CloseAt | undefined } | undefined {
+  const { side, column, bar } = useDuo();
+  if (card || side === undefined || column <= 0) return undefined;
+  const inner = SPACE.lg + column;
+  const lineRight = windowWidth - (side === "right" ? inner : SPACE.lg);
+  return {
+    padding: side === "right" ? { paddingRight: inner } : { paddingLeft: inner },
+    close: bar === undefined ? undefined : closeInLane(bar, lineRight, top + LINE_TOP),
+  };
+}
+
+/**
+ * How wide a card stands, past `styles.card`'s form width. A wide one takes the window's width,
+ * less a margin each side clear of its insets. On the Duo half open a card stands in the middle of
+ * the page beside the column, off the fold.
+ */
+function useCardWidth(
+  card: boolean,
+  wide: boolean,
+  windowWidth: number,
+  insets: { readonly left: number; readonly right: number },
+): ViewStyle | undefined {
+  const page = pageOffFold(useDuo(), windowWidth);
+  if (!card) return undefined;
+  if (page === undefined) {
+    return wide ? { maxWidth: windowWidth - insets.left - insets.right - SPACE.xl * 2 } : undefined;
+  }
+  const most = page.width - 2 * SPACE.lg;
+  const width = wide ? most : Math.min(CARD_WIDTH, most);
+  return {
+    alignSelf: "flex-start",
+    maxWidth: width,
+    width,
+    marginLeft: page.x + (most - width) / 2 + SPACE.lg,
+  };
+}
+
+/**
+ * The sheet beside what it was opened from, on an iPad: a popover, its arrow on the button. It
+ * fades in out of the arrow, and goes the same way. No scrim, and no pull: a tap anywhere off it
+ * puts it away, as the X does. A sheet that holds a field rises clear of the keys as they come.
+ */
+function Beside({
+  from,
+  open,
+  onClose,
+  onGone,
+  testID,
+  cap,
+  keyboard = false,
+  ...held
+}: SheetProps & { readonly from: SheetFrom }) {
+  const insets = useWindowInsets();
+  const window = useWindowDimensions();
+  const spot = useSpot(from, open);
+  const placed = spot === undefined ? undefined : placeBeside(spot.at, window, insets);
+  const motion = useMotion(open, onGone, false);
+  const [tall, setTall] = useState(0);
+  const lift = useKeysClear(keyboard, placed, tall, window.height, insets.top);
+  return (
+    <Modal
+      visible={motion.shown && placed !== undefined}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      supportedOrientations={ORIENTATIONS}
+      onRequestClose={onClose}
+      testID={testID}
+    >
+      <GestureHandlerRootView style={styles.fill}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          testID={testID === undefined ? undefined : `${testID}-off`}
+        />
+        {placed === undefined ? null : (
+          <Popover
+            {...held}
+            onClose={onClose}
+            testID={testID}
+            placed={placed}
+            pointed={spot?.seen === true}
+            // As tall as the side it stands on has room for, and no more of the window than a cap.
+            room={Math.min(placed.room, cap === undefined ? placed.room : window.height * cap)}
+            motion={motion}
+            lift={lift}
+            onTall={setTall}
+          />
+        )}
+      </GestureHandlerRootView>
+    </Modal>
+  );
+}
+
+/** The popover itself, where it was placed: its panel, and its arrow on the button. */
+function Popover({
+  placed,
+  pointed,
+  room,
+  motion,
+  lift,
+  onTall,
+  onClose,
+  onCloseButton,
+  closable = true,
+  sizing = "content",
+  testID,
+  children,
+}: Pick<SheetProps, "onClose" | "onCloseButton" | "closable" | "sizing" | "testID" | "children"> & {
+  readonly placed: Placed;
+  /** It has a button to point at, in sight. */
+  readonly pointed: boolean;
+  readonly room: number;
+  readonly motion: Motion;
+  readonly lift: Animated.Value | Animated.AnimatedInterpolation<number>;
+  readonly onTall: (height: number) => void;
+}) {
+  const palette = usePalette();
+  const { progress, still, onPanel } = motion;
+  const grow = useMemo(
+    () => (still ? 1 : progress.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] })),
+    [still, progress],
+  );
+  const onLaid = useCallback(
+    (event: LayoutChangeEvent) => {
+      onTall(event.nativeEvent.layout.height);
+      onPanel(event);
+    },
+    [onPanel, onTall],
+  );
+  return (
+    <Animated.View
+      accessibilityViewIsModal
+      onAccessibilityEscape={onClose}
+      onLayout={onLaid}
+      testID={testID === undefined ? undefined : `${testID}-panel`}
+      style={[
+        styles.popover,
+        placed.above ? { bottom: placed.edge } : { top: placed.edge },
+        {
+          left: placed.left,
+          width: placed.width,
+          opacity: progress,
+          // It grows out of its arrow.
+          transformOrigin: `${placed.arrow}px ${placed.above ? "100%" : "0%"}`,
+          transform: [{ translateY: lift }, { scale: grow }],
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.popoverPanel,
+          { backgroundColor: palette.grouped, borderColor: palette.line, maxHeight: room },
+        ]}
+      >
+        <View
+          onLayout={motion.onHeld}
+          style={[
+            styles.held,
+            sizing === "content" ? null : { maxHeight: room },
+            sizing === "full" ? { height: room } : null,
+            { paddingBottom: SPACE.lg },
+          ]}
+        >
+          <OnGround kind="grouped">
+            <View style={styles.noHandle} />
+            <SheetClose
+              motion={motion}
+              disabled={!closable}
+              onClose={onClose}
+              onCloseButton={onCloseButton}
+              sheet={testID}
+            />
+            <SheetRest.Provider value={motion.rested}>{children}</SheetRest.Provider>
+          </OnGround>
+        </View>
+      </View>
+      {pointed ? (
+        // The half of a turned square that stands out of the panel, with the panel's hairline
+        // round it, and a point of it over the panel's own hairline, which it covers.
+        <View
+          pointerEvents="none"
+          style={[
+            styles.arrowBox,
+            { left: placed.arrow - ARROW_SIDE },
+            placed.above ? { bottom: -ARROW } : { top: -ARROW },
+          ]}
+        >
+          <View
+            style={[
+              styles.arrow,
+              { backgroundColor: palette.grouped, borderColor: palette.line },
+              { top: placed.above ? 1 - ARROW_SIDE / 2 : ARROW - ARROW_SIDE / 2 },
+            ]}
+          />
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+/**
+ * Where a popover's button is, measured each time it opens and again as the window turns. A button
+ * gone from under it, or out of sight, leaves it in the middle of the window with no arrow.
+ */
+function useSpot(from: SheetFrom, open: boolean): Seen | undefined {
+  const { width, height } = useWindowDimensions();
+  const [spot, setSpot] = useState<Seen>();
+  // Opened afresh, it waits to be measured rather than standing where it stood last time.
+  useEffect(() => {
+    if (open) setSpot(undefined);
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const middle = { at: { x: width / 2, y: height / 2, width: 0, height: 0 }, seen: false };
+    const view = from.current;
+    if (view === null) return setSpot(middle);
+    return watch(view, middle, height, setSpot);
+  }, [open, from, width, height]);
+  return spot;
+}
+
+/**
+ * How far a popover that holds a field rises as the keys come: as far as keeps its foot clear of
+ * them, frame by frame with them, and not at all if they stop short of it. A tall one stops with
+ * its top at the top of the window, the keys over its foot, as a phone's sheet does (`useLift`).
+ */
+function useKeysClear(
+  keyboard: boolean,
+  placed: Placed | undefined,
+  tall: number,
+  window: number,
+  top: number,
+) {
+  const keys = useKeyboardContext().animated.height;
+  const [still] = useState(() => new Animated.Value(0));
+  return useMemo(() => {
+    if (!(keyboard && NATIVE) || placed === undefined) return still;
+    const head = placed.above ? window - placed.edge - tall : placed.edge;
+    const clear = Math.max(0, window - head - tall - SPACE.md);
+    const most = Math.max(0, head - top - SPACE.md);
+    if (most === 0) return still;
+    return keys.interpolate({
+      inputRange: [-clear - most, -clear],
+      outputRange: [-most, 0],
+      extrapolate: "clamp",
+    });
+  }, [keyboard, placed, tall, window, top, keys, still]);
+}
+
 interface Motion {
   /** Whether the modal is up at all: from the first open until the last exit has finished. */
   readonly shown: boolean;
   /** Nought is away and one is in place; the scrim's opacity, and the panel's under Reduce Motion. */
   readonly progress: Animated.Value;
-  /** How far away is away: the height of what the panel holds, once it has been laid out. */
+  /**
+   * How far away is away, once what the panel holds has been laid out: its height on a phone, and
+   * a card's way down out of the window from the middle.
+   */
   readonly depth: Animated.Value;
   /** Where a finger has pulled the panel to, in points below its place. */
   readonly drag: Animated.Value;
@@ -389,7 +847,8 @@ function useMotion(open: boolean, onGone: (() => void) | undefined, glides: bool
     if (still) return;
     const exit: Leaving = { done: false, after: undefined };
     leaving.current = exit;
-    leave(progress, drag, height.current - pulled.from, pulled.speed).start(({ finished }) => {
+    const away = travelOf(glides, height.current, window);
+    leave(progress, drag, away - pulled.from, pulled.speed).start(({ finished }) => {
       if (!finished) return;
       exit.done = true;
       exit.after?.();
@@ -433,7 +892,7 @@ function useMotion(open: boolean, onGone: (() => void) | undefined, glides: bool
   const settle = useCallback(() => {
     const below = belowOf(glides, panel.current, height.current);
     if (below === undefined) return;
-    depth.setValue(still ? 0 : height.current);
+    depth.setValue(still ? 0 : travelOf(glides, height.current, window));
     setBelow(below);
     setLine(height.current * LETS_GO);
     if (arriving.current) {
@@ -452,7 +911,7 @@ function useMotion(open: boolean, onGone: (() => void) | undefined, glides: bool
       ...GLIDE_REST,
       useNativeDriver: NATIVE,
     }).start(() => resting.end(move));
-  }, [depth, rest, go, still, glides, resting]);
+  }, [depth, rest, go, still, glides, resting, window]);
 
   const onPanel = useCallback(
     (event: LayoutChangeEvent) => {
@@ -549,6 +1008,14 @@ function useResting() {
     }),
     [],
   );
+}
+
+/**
+ * How far a panel goes to be away: on a phone, the height of what it holds, below the edge; a card
+ * in the middle, down out of the window, half of it and half of itself.
+ */
+function travelOf(glides: boolean, held: number, window: number): number {
+  return glides ? held : (window + held) / 2;
 }
 
 /**
@@ -716,6 +1183,7 @@ const ORIENTATIONS: NonNullable<ModalProps["supportedOrientations"]> = ["portrai
 
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: "flex-end" },
+  middle: { justifyContent: "center" },
   scrim: { backgroundColor: `rgba(0,0,0,${SHEET.scrim})` },
   fill: { flex: 1 },
   panel: {
@@ -733,16 +1201,51 @@ const styles = StyleSheet.create({
     borderTopRightRadius: SHEET.radius,
     borderBottomWidth: 0,
   },
-  // Wider than a phone it is a card, clear of the edge and no wider than a hand's reach.
+  // Wider than a phone it is a card in the middle, as wide as a form, its shadow falling below it.
   card: {
     alignSelf: "center",
     width: "100%",
     maxWidth: CARD_WIDTH,
     borderRadius: SHEET.radius,
+    shadowOpacity: 0.22,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  // A popover: the shadow is the panel's and the arrow's together, since this holds both.
+  popover: {
+    position: "absolute",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+  },
+  popoverPanel: {
+    paddingHorizontal: SPACE.lg,
+    borderRadius: SHEET.radius,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  arrowBox: { position: "absolute", width: ARROW_SIDE * 2, height: ARROW + 1, overflow: "hidden" },
+  // A square turned on its corner, its middle on the panel's edge.
+  arrow: {
+    position: "absolute",
+    left: ARROW_SIDE / 2,
+    width: ARROW_SIDE,
+    height: ARROW_SIDE,
+    borderRadius: 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    transform: [{ rotate: "45deg" }],
   },
   // What the panel holds, and the height it is seen at.
   held: { paddingTop: SPACE.sm },
   // The handle: the grabber and the strip around it, which says the sheet can be pulled.
   handle: { alignItems: "center", paddingVertical: SPACE.sm, marginTop: -SPACE.sm },
-  grabber: { width: 36, height: 5, borderRadius: RADIUS.pill },
+  grabber: { width: 36, height: GRABBER, borderRadius: RADIUS.pill },
+  docked: { flex: 1, paddingHorizontal: SPACE.lg, borderLeftWidth: StyleSheet.hairlineWidth },
+  // Holds the column at its left, so it slides in from the window's edge as the box grows.
+  dock: { overflow: "hidden", alignItems: "flex-start" },
+  unruledDock: { borderLeftWidth: 0 },
+  // Where the handle stands on a sheet that rises, so on one with nothing to pull the X and the
+  // title stand where they do there.
+  noHandle: { height: SPACE.sm * 2 + GRABBER },
 });

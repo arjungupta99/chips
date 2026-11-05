@@ -49,6 +49,14 @@ export function createPushRegistry(db: Kysely<Database>): PushRegistry {
       await db.deleteFrom("push_tokens").where("device_id", "=", deviceId).execute();
     },
 
+    async removeToken(token) {
+      const result = await db
+        .deleteFrom("push_tokens")
+        .where("token", "=", token)
+        .executeTakeFirst();
+      return Number(result.numDeletedRows);
+    },
+
     async pruneRevoked() {
       const result = await db
         .deleteFrom("push_tokens")

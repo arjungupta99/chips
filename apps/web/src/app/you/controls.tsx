@@ -65,6 +65,8 @@ export function Switch(props: {
   readonly onChange: (checked: boolean) => void;
   readonly disabled?: boolean;
   readonly testId?: string | undefined;
+  /** The id of a line that says more about it, read after its name. */
+  readonly describedBy?: string | undefined;
 }) {
   return (
     <input
@@ -72,6 +74,7 @@ export function Switch(props: {
       role="switch"
       className="you-switch"
       aria-label={props.label}
+      aria-describedby={props.describedBy}
       aria-checked={props.checked}
       checked={props.checked}
       disabled={props.disabled}

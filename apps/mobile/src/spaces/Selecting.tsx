@@ -27,8 +27,9 @@
  */
 
 import type { Asking, ConnectionState } from "@chipschat/core";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import type { SheetFrom } from "../ui/beside";
 import { BEFORE_A_WORD, type MarkedBy, useMarking } from "../ui/Connection";
 import { Capsule, EdgeBand, GLASS } from "../ui/Glass";
 import * as feel from "../ui/haptics";
@@ -202,7 +203,8 @@ export function PickHint({
 /** An act on the bar, and how many of the picked rows it would take. */
 export interface BarAct {
   readonly count: number;
-  readonly onPress: () => void;
+  /** Pressed: what was pressed is handed on, for a sheet it asks in to open beside on an iPad. */
+  readonly onPress: (from: SheetFrom) => void;
 }
 
 /** Read on the bar: with nothing picked it reads every room, and says so. */
@@ -314,10 +316,11 @@ function ActButton({
   readonly act: keyof typeof ACT_WORD;
   readonly count: number;
   readonly all?: boolean;
-  readonly onPress: () => void;
+  readonly onPress: (from: SheetFrom) => void;
   readonly three?: boolean;
 }) {
   const palette = usePalette();
+  const self = useRef<View>(null);
   const live = count > 0;
   const word = all ? `${ACT_WORD[act]} all` : live ? `${ACT_WORD[act]} ${count}` : ACT_WORD[act];
   return (
@@ -326,7 +329,8 @@ function ActButton({
       accessibilityLabel={word}
       accessibilityState={{ disabled: !live }}
       disabled={!live}
-      onPress={onPress}
+      onPress={() => onPress(self)}
+      ref={self}
       style={({ pressed }) => [
         styles.act,
         three ? styles.actThree : null,
@@ -471,6 +475,8 @@ export interface BatchAsk<T> {
   readonly going: readonly T[];
   /** Picked rows a delete leaves, since this person may only archive them. */
   readonly staying: readonly T[];
+  /** The act on the bar that asked: on an iPad the sheet opens beside it. */
+  readonly from?: SheetFrom | undefined;
 }
 
 /** What an act on one row is told: whether the sheet's switch is on, and what the sheet said. */
@@ -578,6 +584,7 @@ export function BatchSheet<T extends { readonly id: string }>({
       open={ask !== undefined}
       onClose={onClose}
       onGone={() => setShowing(undefined)}
+      from={showing?.from}
       room={said?.who ?? whoOf(going)}
       confirming={{
         asking: said?.asking ?? asking,

@@ -25,8 +25,11 @@ import {
   mayPickAgent,
   mayPinRoom,
   mayUnarchiveAgent,
+  notTakenWords,
   pinAct,
   roomGoesWith,
+  SPACE_ROW_ACT_WORDS,
+  spaceRowActs,
 } from "./putAway.js";
 
 const ARJUN = "usr_01K4ZQPX0000000000000ARJUN";
@@ -391,6 +394,66 @@ describe("a harness's home (ADR 0069)", () => {
     });
     expect(mayArchive(j.model, j.space, ARJUN)).toBe(true);
     expect(mayErase(j.model, j.space, ARJUN)).toBe(false);
+  });
+});
+
+describe("what a Spaces row offers, on a phone's swipes and a desktop's menu", () => {
+  it("lists the reader's own acts first, then what the room's people see done to it", () => {
+    const open = room({ members: { [DANA]: "member", [VENDOR]: "guest" } });
+    expect(spaceRowActs(open.model, open.space, ARJUN, [], new Set())).toEqual([
+      "pin",
+      "hide",
+      "archive",
+      "delete",
+    ]);
+    expect(spaceRowActs(open.model, open.space, ARJUN, [open.space.id], new Set())).toEqual([
+      "unpin",
+      "hide",
+      "archive",
+      "delete",
+    ]);
+    // Hidden, it keeps its pin for later and offers only to come back, besides its people's acts.
+    expect(
+      spaceRowActs(open.model, open.space, ARJUN, [open.space.id], new Set([open.space.id])),
+    ).toEqual(["unhide", "archive", "delete"]);
+    // A member who did not open it may archive it, and not delete it.
+    expect(spaceRowActs(open.model, open.space, DANA, [], new Set())).toEqual([
+      "pin",
+      "hide",
+      "archive",
+    ]);
+    // A guest may pin and hide, and neither archive nor delete.
+    expect(spaceRowActs(open.model, open.space, VENDOR, [], new Set())).toEqual(["pin", "hide"]);
+    expect(SPACE_ROW_ACT_WORDS.unhide).toBe("Unhide");
+  });
+
+  it("offers Unarchive on an archived room, and Locked in place of Archive and Delete", () => {
+    const archived = room({ archived: true, members: { [DANA]: "member" } });
+    expect(spaceRowActs(archived.model, archived.space, ARJUN, [], new Set())).toEqual([
+      "unarchive",
+      "delete",
+    ]);
+    const locked = room({ locked: true, members: { [DANA]: "member", [VENDOR]: "guest" } });
+    expect(spaceRowActs(locked.model, locked.space, DANA, [], new Set())).toEqual([
+      "pin",
+      "hide",
+      "locked",
+    ]);
+    // A guest may not let a lock go, so is not shown the way there.
+    expect(spaceRowActs(locked.model, locked.space, VENDOR, [], new Set())).toEqual([
+      "pin",
+      "hide",
+    ]);
+  });
+
+  it("says why a hide or a pin did not hold", () => {
+    expect(notTakenWords("hide", new Error("404 no route matches"))).toBe(
+      "Not hidden: this server is older than the app.",
+    );
+    expect(notTakenWords("pin", new Error("not in this space"))).toBe(
+      "Not pinned: not in this space",
+    );
+    expect(notTakenWords("unpin", undefined)).toBe("Not unpinned: the server would not take it.");
   });
 });
 

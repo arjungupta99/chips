@@ -3,8 +3,9 @@
  *
  * A space is read up to a `seq`. Anything a person would see with a higher `seq` — a
  * message, a summary, an approval — is unread. It is pure arithmetic over the model and a map,
- * so it is tested without a browser; the map itself is persisted per device (see the cache),
- * because read state is a property of where you last looked, not of the log.
+ * so it is tested without a browser. The map is the person's, kept at the server and followed by
+ * each of their devices (ADR 0262): each keeps a copy in its cache to count from at once, and the
+ * further of two marks for a room wins (`furthest`). It is not the log's: no event says it.
  */
 
 import type { Line, NeedsYouItem, Run, Space } from "./model.js";
@@ -86,6 +87,32 @@ export function markRead(readState: ReadState, spaceId: string, seq: number): Re
  */
 export function markSpacesRead(readState: ReadState, spaces: readonly Space[]): ReadState {
   return spaces.reduce((state, space) => markRead(state, space.id, readMark(space)), readState);
+}
+
+/**
+ * Two maps as one, each room read as far as the further of them says: the server's marks over
+ * this device's, or another device's as it reads (ADR 0262). The same object back when nothing
+ * moves, so a store saves and renders once or not at all.
+ */
+export function furthest(readState: ReadState, marks: Readonly<Record<string, number>>): ReadState {
+  return Object.entries(marks).reduce(
+    (state, [spaceId, seq]) => markRead(state, spaceId, seq),
+    readState,
+  );
+}
+
+/** The marks of `mine` further than `theirs` says, for these rooms: what the server is owed. */
+export function aheadOf(
+  mine: ReadState,
+  theirs: Readonly<Record<string, number>>,
+  spaceIds: Iterable<string>,
+): Record<string, number> {
+  const ahead: Record<string, number> = {};
+  for (const spaceId of spaceIds) {
+    const seq = mine[spaceId];
+    if (seq !== undefined && seq > (theirs[spaceId] ?? 0)) ahead[spaceId] = seq;
+  }
+  return ahead;
 }
 
 /**

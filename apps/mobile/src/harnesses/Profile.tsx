@@ -16,6 +16,10 @@
  * that takes restarts: gold while it can't answer, quiet while it can, "Restarting…" while a
  * restart stands, and in words, under the row, with no button while nothing of it is connected.
  *
+ * Beside the Agents list on an iPad wide enough (ADR 0256), its agents and own jobs stand on the
+ * left and Set up and History on the right (`Columns`), with Restart and Remove side by side at the
+ * foot; narrower, one after the other, as on a phone.
+ *
  * Removing the harness is the last row (ADR 0078): for its owner and for an owner or admin of the
  * workspace, asked first on the sheet Delete uses, in the desktop's words. Once the server has
  * removed it the profile is left for the list, which no longer holds it.
@@ -132,7 +136,7 @@ export function Profile({
           onAll={() => open("agents")}
         />
         {/* Its own jobs in a place that takes their size on `GROWS` as they land over their
-            blanks, and what is under them moves with it, as on an agent's page (ADR 0238). */}
+              blanks, and what is under them moves with it, as on an agent's page (ADR 0238). */}
         <GroupPlace>
           <JobsGroup
             store={store}
@@ -143,6 +147,7 @@ export function Profile({
             onOpen={onOpenJob}
           />
         </GroupPlace>
+
         <GrowingView layout={GROWS}>
           <SetUp
             snapshot={snapshot}
@@ -153,6 +158,8 @@ export function Profile({
             onOpen={open}
           />
           <History snapshot={snapshot} harnessId={harnessId} onOpen={open} />
+        </GrowingView>
+        <GrowingView layout={GROWS}>
           <Foot
             store={store}
             snapshot={snapshot}

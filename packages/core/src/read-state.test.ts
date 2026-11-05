@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { NeedsYouItem, Run, Space } from "./model.js";
 import {
+  aheadOf,
   attention,
+  furthest,
   hasUnread,
   markRead,
   markSpacesRead,
@@ -180,5 +182,24 @@ describe("attention", () => {
     ]);
     expect(attention(items, { spc_1: 5 }).map((i) => i.id)).toEqual(["approval-2", "checkpoint-9"]);
     expect(attention(items, { spc_1: 9 }).map((i) => i.id)).toEqual(["approval-2"]);
+  });
+});
+
+describe("the person's marks and this device's (ADR 0262)", () => {
+  it("takes the further of two for each room, and the same map back when nothing moves", () => {
+    const mine = { spc_1: 4, spc_2: 2 };
+    expect(furthest(mine, { spc_1: 3, spc_2: 5, spc_3: 1 })).toEqual({
+      spc_1: 4,
+      spc_2: 5,
+      spc_3: 1,
+    });
+    expect(furthest(mine, { spc_1: 4, spc_2: 1 })).toBe(mine);
+  });
+
+  it("owes the server the marks further than it has, for the rooms asked about", () => {
+    const mine = { spc_1: 4, spc_2: 2, spc_left: 9 };
+    expect(aheadOf(mine, { spc_1: 3, spc_2: 2 }, ["spc_1", "spc_2", "spc_9"])).toEqual({
+      spc_1: 4,
+    });
   });
 });

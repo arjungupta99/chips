@@ -81,7 +81,7 @@ describe("Cancel link on a card's page", () => {
 
   it("is not offered once the harness has taken the link", async () => {
     page(waiting({ state: "redeemed", harnessId: "hrn_x", spaceId: "spc_x" }), () => {});
-    expect(await screen.findByTestId("join-progress")).toBeTruthy();
+    expect((await screen.findByTestId("join-steps-connects")).dataset["state"]).toBe("now");
     expect(screen.queryByTestId("join-cancel")).toBeNull();
   });
 });
@@ -168,6 +168,11 @@ describe("a bridge's card in a browser", () => {
       `curl -fsSL https://chipschat.ai/install | CHIPS_JOIN_LINK='${LINK}' sh -s -- connect hermes`,
     );
     expect(screen.getByText(`CHIPS_JOIN_LINK='${LINK}' chips connect hermes`).tagName).toBe("CODE");
+    // A line to run says so on its box (ADR 0257).
+    expect(screen.getByTestId("join-command-run").textContent).toBe(">_Run in TerminalCopy");
+    expect(screen.getByRole("list", { name: "What happens" })).toBe(
+      screen.getByTestId("join-another-steps"),
+    );
     expect(screen.getByTestId("join-another-steps-connects").textContent).toMatch(/left$/);
     // Nothing of this Mac where nothing can run the line here.
     expect(screen.queryByTestId("join-where-here")).toBeNull();
@@ -191,6 +196,11 @@ describe("a bridge's card on Chips for Mac", () => {
       "later",
       "later",
     ]);
+    // Under a label that says what they are, so they read as what will happen (ADR 0257).
+    expect(screen.getByRole("list", { name: "What Connect does" })).toBe(
+      screen.getByTestId("join-here-steps"),
+    );
+    expect(screen.getByText("What Connect does")).toBeTruthy();
     expect(screen.getByTestId("join-here-go").textContent).toBe("Connect Hermes");
     expect(screen.getByTestId("join-here-note").textContent).toBe(
       "You need Hermes running with its API server on.",
@@ -230,6 +240,8 @@ describe("a bridge's card on Chips for Mac", () => {
     expect(stop.textContent).toContain("Hermes's API server is off.");
     expect(stop.textContent).toContain("Add this line to ~/.hermes/.env");
     expect(screen.getByTestId("join-here-copy").textContent).toBe("API_SERVER_ENABLED=true");
+    // A setting goes in a file: its box doesn't say Run in Terminal (ADR 0257).
+    expect(screen.queryByTestId("join-here-copy-run")).toBeNull();
     expect(screen.getByTestId("join-here-note").textContent).toBe(
       "The link still works for another 15 minutes.",
     );
@@ -237,6 +249,43 @@ describe("a bridge's card on Chips for Mac", () => {
     await waitFor(() => expect(shell.runs).toHaveLength(2));
     // The same link: a bridge stops before it uses it.
     expect(shell.runs[1]).toEqual({ id: "hermes", name: "Hermes", link: LINK });
+  });
+
+  it("says Run in Terminal over a command the bridge gives to copy (ADR 0257)", async () => {
+    const shell = shellSaying(
+      [
+        { step: "downloading", package: "@chipschat/acp", version: "1.0.10", reused: true },
+        { step: "checking" },
+        {
+          step: "failed",
+          code: 1,
+          detail: "claude-agent-acp isn't on this Mac",
+          says: "Claude Code's ACP adapter isn't installed.",
+          doing: "Install it with npm, then try again.",
+          copy: "npm install -g @agentclientprotocol/claude-agent-acp",
+        },
+      ],
+      1,
+    );
+    bridgePage(waiting(), shell.connectHere);
+    const go = await screen.findByTestId("join-here-go");
+    await waitFor(() => expect((go as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(go);
+    await waitFor(() => expect(go.textContent).toBe("Try again"));
+    expect(screen.getByTestId("join-here-copy").textContent).toBe(
+      "npm install -g @agentclientprotocol/claude-agent-acp",
+    );
+    expect(screen.getByTestId("join-here-copy-run").textContent).toBe(">_Run in TerminalCopy");
+  });
+
+  it("gives each switch a short sentence on hover, which the switch is described by (ADR 0257)", async () => {
+    bridgePage(waiting(), shellSaying([], 0).connectHere);
+    const row = await screen.findByTestId("join-cap-follows_rooms");
+    const tip = row.querySelector('[role="tooltip"]');
+    expect(tip?.textContent).toBe("When you archive or delete a space, it does too.");
+    const sw = row.querySelector('[role="switch"]');
+    expect(sw?.getAttribute("aria-describedby")).toBe(tip?.id);
+    expect(screen.getAllByRole("tooltip", { hidden: true })).toHaveLength(12);
   });
 
   /**

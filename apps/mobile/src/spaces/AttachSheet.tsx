@@ -13,6 +13,7 @@
 
 import { lazy, Suspense, useEffect, useState } from "react";
 import { thisDevice } from "../device/word";
+import type { SheetFrom } from "../ui/beside";
 import type { IconName } from "../ui/icons";
 import { Sheet, SheetCard, SheetRow, SheetTitle } from "../ui/Sheet";
 import { hasAudio } from "./audio";
@@ -48,12 +49,15 @@ export function AttachSheet({
   onPick,
   onRecorded,
   onClose,
+  from,
 }: {
   readonly open: boolean;
   readonly onPick: (source: Source) => void;
   /** A voice note was recorded and kept. Absent, the sheet offers none. */
   readonly onRecorded?: ((picked: Picked) => void) | undefined;
   readonly onClose: () => void;
+  /** The +: on an iPad the sheet opens beside it (`Sheet`). */
+  readonly from?: SheetFrom | undefined;
 }) {
   const [recording, setRecording] = useState(false);
   // A sheet let go mid-note takes the recorder with it, and opens on the choices next time.
@@ -62,7 +66,7 @@ export function AttachSheet({
   }, [open]);
   const voice = onRecorded !== undefined && hasAudio();
   return (
-    <Sheet open={open} onClose={onClose} testID="attach-sheet">
+    <Sheet open={open} onClose={onClose} from={from} testID="attach-sheet">
       {recording && onRecorded !== undefined ? (
         <Suspense fallback={null}>
           <VoiceRecorder onRecorded={onRecorded} />

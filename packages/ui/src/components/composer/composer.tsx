@@ -45,6 +45,11 @@ export interface ComposerProps {
   readonly attachments?: readonly ComposerAttachment[];
   /** Let an empty line go: the message is its attachments. */
   readonly canSendEmpty?: boolean;
+  /**
+   * Whether what is typed has somewhere to go: false keeps Send asleep while the words can still be
+   * typed, as New space's does until somebody is picked to ask.
+   */
+  readonly sendable?: boolean;
   readonly maxRows?: number;
   readonly className?: string;
   /**
@@ -82,6 +87,7 @@ export function Composer({
   chips = [],
   attachments = [],
   canSendEmpty = false,
+  sendable = true,
   maxRows = 8,
   className,
   lead,
@@ -89,7 +95,7 @@ export function Composer({
   onEscape,
   inputRef,
 }: ComposerProps) {
-  const ready = !disabled && (value.trim() !== "" || canSendEmpty);
+  const ready = !disabled && sendable && (value.trim() !== "" || canSendEmpty);
 
   const send = () => {
     if (ready) onSend(value);

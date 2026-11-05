@@ -1,16 +1,19 @@
 /**
  * The harnesses' shelf at the head of the Agents tab (ADR 0185): a tile for each, in the order
  * their rooms last spoke, each saying why it can't answer, what it is doing, or how many agents it
- * has; Connect a harness at its end for whoever may; and View all under it.
+ * has; Connect a harness at its end for whoever may; and View all under it. Beside a room on an
+ * iPad, a grid of them two to a row with nothing to view all of (ADR 0256).
  */
 
 import type { Snapshot } from "@chipschat/core";
 import { render as renderBare, screen, userEvent, within } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
+import { StyleSheet, Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Agents } from "../agents/Agents";
 import { agentsSnapshot, ME } from "../testing/agents";
 import { fakeStore } from "../testing/fixtures";
+import { Split } from "../ui/Split";
 import { countdownPath } from "./Shelf";
 
 const IPHONE = {
@@ -169,6 +172,26 @@ describe("the harnesses' shelf", () => {
     await userEvent.press(screen.getByLabelText("View all harnesses"));
     expect(all).toBe(1);
     expect(pushed).toEqual(["/harnesses"]);
+  });
+
+  it("stands beside a room as a grid, two to a row, Connect last and no View all (ADR 0256)", async () => {
+    await render(
+      <Split
+        list={<Agents store={fakeStore(shelved())} selfId={ME} />}
+        detail={<Text>the card</Text>}
+      />,
+    );
+    expect(tiles()).toEqual(["OpenClaw", "Jacobian", "Codex", "Scout", "Connect a harness"]);
+    expect(screen.queryByLabelText("View all harnesses")).toBeNull();
+    // Two to a row, sharing the row, Connect alone in the last.
+    const rows = screen.getByTestId("harness-shelf").children as unknown as Parameters<
+      typeof within
+    >[0][];
+    expect(rows.map((row) => within(row).getAllByRole("button").length)).toEqual([2, 2, 1]);
+    expect(StyleSheet.flatten(rows[0]?.props["style"])).toMatchObject({ flexDirection: "row" });
+    expect(StyleSheet.flatten(screen.getByTestId("add-agent").props["style"])).toMatchObject({
+      flexDirection: "row",
+    });
   });
 
   it("opens Connect a harness's sheet from its last tile (ADR 0190)", async () => {

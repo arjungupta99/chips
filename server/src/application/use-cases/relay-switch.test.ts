@@ -89,6 +89,7 @@ function harness(configured = true, moment: () => Promise<void> = async () => un
         return messages.map(() => ({ ok: true }));
       },
       readiness: () => "ready",
+      standing: () => "ready",
     },
     clock: manualClock(Date.parse("2026-10-21T10:05:00.000Z")),
     ids: { next: () => "evt_1" } as never,

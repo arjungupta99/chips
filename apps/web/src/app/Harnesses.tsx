@@ -2,38 +2,26 @@
  * The Agents tab (ADR 0087, Phase 5; the Harnesses tab until 30 September 2026): the harnesses on
  * a shelf (`HarnessShelf`, ADR 0185), then the workspace's agents in their sections (`Agents.tsx`),
  * and an agent's card and history in the middle column when one is opened. A tile opens its
- * harness's card alone, and View all every harness's card, each as it was on that tab, over the
- * page; until 17 October 2026 the cards stood under the agents, three screens down.
+ * harness's page (`harness/HarnessPage.tsx`, ADR 0254, here since ADR 0266), and View all every
+ * harness's card (`harness/HarnessCards.tsx`), each over the page; until 17 October 2026 the cards
+ * stood under the agents, three screens down, and until ADR 0266 the page was the old card whole.
  *
- * The harnesses: every harness in the workspace with its level, its budget, its connection
- * checklist — the rows light as event types arrive (technical-plan M1.6); the rows themselves are
- * the protocol's, shared with `chips conformance` — and its tokens; plus Connect a harness (ADR
- * 0122): a gallery whose ways make a link to run where the harness runs, and under Anything with HTTP →
- * Advanced, Add harness, Custom: a name, a token shown once, and the curl lines.
- * Add harness is a dialog that grows out of its button (ADR 0084): the name, then the token, the
- * lines and the checklist lighting as the first events arrive, all in it, and Escape, the × or a
- * click outside folds it away at either step. It was a panel in the page with only a Cancel at
- * its foot, and after the token only a Done under the curl lines.
+ * A harness's page opens pages of its own over it (`harness/Parts.tsx`): all of its agents, its
+ * context files, When it asks you and its recent runs; and its jobs (ADR 0252) and files (ADR 0135)
+ * open theirs. Each goes back to the one under it.
  *
- * Tokens are the owner's (ADR 0023). The card shows what a harness holds without ever showing a
+ * Connect a harness (ADR 0122): a gallery whose ways make a link to run where the harness runs, and
+ * under Anything with HTTP → Advanced, Add harness, Custom: a name, a token shown once, and the curl
+ * lines. Add harness is a dialog that grows out of its button (ADR 0084): the name, then the token,
+ * the lines and the checklist lighting as the first events arrive, all in it, and Escape, the × or a
+ * click outside folds it away at either step.
+ *
+ * Tokens are the owner's (ADR 0023). A harness's page shows what it holds without ever showing a
  * token, because Chips keeps only digests; it issues another, once, on screen; and it withdraws
  * one, which takes effect at the harness's next request and closes the socket it is holding. A
- * rotation is those two in that order, which is what the card's wording says.
- *
- * The same people may remove a harness from the workspace (ADR 0078), asked first in the phone's
- * words (`removeAsking`). A removed harness is not listed: the directory still names it, for what
- * it said, and the card goes when the directory is read again.
- *
- * And restart one that takes restarts (ADR 0094), asked first in the phone's words
- * (`restartAsking`): in gold while it can't answer, quietly while it can, "Restarting…" while a
- * restart stands, and in words, with no button, while nothing of it is connected.
- *
- * Under it, for the same people, a harness that sends its models shows its Main agent's Model row
- * (ADR 0154), the one on that agent's card: every agent of the harness with no model of its own
- * follows it, so changing it changes the harness's.
- *
- * And, for the same people, a harness that sends the jobs it runs on its own shows them under what
- * its agents share (ADR 0252), each opening a page of its own over the card (`jobs/JobPage.tsx`).
+ * rotation is those two in that order, which is what the page's wording says. The tokens stand with
+ * what else only a desk has, in the page's Connection group (`harness/Desk.tsx`, ADR 0273): who owns
+ * it, what it sends, and what it may do, each a row opening a page of its own.
  */
 
 import {
@@ -42,87 +30,76 @@ import {
   administers,
   agentStateWords,
   agentsTab,
-  backFromRestart,
-  backWords,
   type ConnectionState,
   type ContextReads,
   connectedNames,
-  connectedWords,
+  contextValue,
   type Directory,
   type HarnessConnection,
-  type HarnessToken,
   type HeartbeatReads,
+  harnessGroups,
   harnessModelAgent,
   harnessNamed,
-  harnessShelf,
   heldNamesFor,
-  type IssuedHarnessToken,
   type JoinRequest,
+  joinCardOf,
   type ModelReads,
   mayAskFromPage,
+  mayReadContext,
   mayRemoveHarness,
   myRole,
   nameOf,
-  OFFERED,
-  type Participant,
   pageAgentHint,
   pageAgentName,
-  removeAsking,
-  restartAsking,
-  restartOffer,
+  RUN_IN_TERMINAL,
+  type SetAutonomyInput,
   type SetRulesInput,
-  type Space,
-  takesAutonomy,
   type WindowReads,
   type WorkspaceModel,
+  waitingLink,
   workspaceHarnesses,
 } from "@chipschat/core";
-import {
-  type AgentState,
-  CONNECTION_CHECKLIST,
-  type Connector,
-  type SpaceIcon,
-} from "@chipschat/protocol";
+import type { Connector, SpaceIcon } from "@chipschat/protocol";
 import { Avatar, Button, Icon } from "@chipschat/ui";
-import {
-  type FormEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import {
   AgentPage,
   AgentSections,
   type AgentsService,
   AgentsWaiting,
   agentRun,
+  type Folds,
 } from "./Agents.tsx";
-import { Asking } from "./Asking.tsx";
-import { ConfirmDialog } from "./ConfirmDialog.tsx";
+import { AgentFace } from "./agent/AgentFace.tsx";
+import { AgentHistory } from "./agent/AgentHistory.tsx";
 import { ContextFile } from "./context/ContextFile.tsx";
-import { HarnessContext } from "./context/HarnessContext.tsx";
-import type { ContextPage } from "./context/pages.ts";
+import { type ContextPage, pageName } from "./context/pages.ts";
+import { useHarnessContext } from "./context/useContext.ts";
 import { NotInDemo, useNotInDemo } from "./demo/NotInDemo.tsx";
 import type { FileService } from "./files.ts";
 import { GrowingDialog } from "./GrowingDialog.tsx";
 import { HarnessShelf } from "./HarnessShelf.tsx";
+import { Checklist, DeskGroup, type TokenService } from "./harness/Desk.tsx";
+import { HarnessCards } from "./harness/HarnessCards.tsx";
+import { HarnessPage } from "./harness/HarnessPage.tsx";
+import { Part } from "./harness/Parts.tsx";
+import { PART_TITLE } from "./harness/parts.ts";
 import {
-  CapabilityRow,
   type Choice,
   ConnectPage,
   Gallery,
   HereAlready,
   type JoinService,
+  type KeptLink,
+  PageGallery,
 } from "./Join.tsx";
 import { JobPage } from "./jobs/JobPage.tsx";
 import { JobsGroup, type JobsReads } from "./jobs/JobsGroup.tsx";
-import { ModelGroup } from "./model/ModelGroup.tsx";
+import { useModelRow } from "./model/ModelGroup.tsx";
+import { Swap } from "./Swap.tsx";
 import { useAgentPicking } from "./select/agents.tsx";
 import { PickBar, PickHint, SelectButton } from "./select/PickParts.tsx";
-import { relativeTime } from "./time.ts";
+import { Turns } from "./Turns.tsx";
 
 export interface HarnessesProps {
   readonly model: WorkspaceModel;
@@ -144,6 +121,15 @@ export interface HarnessesProps {
   readonly onRemove?: ((harnessId: string) => Promise<void>) | undefined;
   /** Ask a harness to restart (ADR 0094): the same people's. Rejects with the server's reason. */
   readonly onRestart?: ((harnessId: string) => Promise<void>) | undefined;
+  /** Pause and Resume a harness's latest run, from its page (ADR 0254). Absent, no Pause. */
+  readonly onRun?:
+    | {
+        readonly pause: (target: { readonly spaceId: string; readonly runId: string }) => void;
+        readonly resume: (target: { readonly spaceId: string; readonly runId: string }) => void;
+      }
+    | undefined;
+  /** Turn a harness's dial, on its When it asks you (ADR 0046). Absent, the dial is read only. */
+  readonly onSetAutonomy?: ((input: SetAutonomyInput) => void) | undefined;
   /**
    * Send a scope's rules changed (ADR 0195): a rule allowed always switched off or on, removed, or
    * put back. Absent, When it asks you reads its list and changes nothing.
@@ -211,225 +197,377 @@ export interface AddOptions {
   readonly takesDial: boolean;
 }
 
-export interface TokenService {
-  readonly list: (harnessId: string) => Promise<HarnessToken[]>;
-  readonly issue: (harnessId: string, name: string) => Promise<IssuedHarnessToken>;
-  readonly revoke: (harnessId: string, tokenId: string) => Promise<void>;
+/**
+ * Connect a harness's dialog, open: what it grows out of (nothing, opened from You: the page's
+ * middle), and the card it opens at, when one was picked on the empty page (ADR 0261).
+ */
+interface Adding {
+  readonly from: HTMLElement | null;
+  readonly way?: Choice | undefined;
+  /** Opened on the card whose link waits (ADR 0271): its link again, and back is the gallery. */
+  readonly resume?: boolean | undefined;
 }
-
-const LEVEL_WORDS = ["observe", "ask first", "ask when it matters", "autonomous"] as const;
 
 export function Harnesses(props: HarnessesProps) {
   const { model, directory } = props;
-  const [adding, setAdding] = useState(props.initialAdding === true);
-  const [agent, setAgent] = useState<string | undefined>(props.initialAgent);
-  // The context pages opened over the agent's page or the list, each going back to the one under it.
-  const [over, setOver] = useState<readonly ContextPage[]>([]);
+  const [adding, setAdding] = useState<Adding | undefined>(
+    props.initialAdding === true ? { from: null } : undefined,
+  );
+  // The pages opened over the list, each going back to the one under it: an agent's page (one a
+  // search result opened, ADR 0132, is the first), a harness's and the pages it opens, files, jobs.
+  const [over, setOver] = useState<readonly ContextPage[]>(() =>
+    props.initialAgent === undefined ? [] : [{ kind: "agent", agentId: props.initialAgent }],
+  );
   // In the demo, connecting a harness needs a server: the page says so in its place.
   const setUp = useNotInDemo();
-  const addButton = useRef<HTMLButtonElement>(null);
-  const harnesses = workspaceHarnesses(directory);
   const agents = props.agents;
   // Whose words wait is read with the directory, so it is read again when the page opens.
   useEffect(() => {
     void agents?.refresh();
   }, [agents]);
-  const push = (page: ContextPage) => setOver((was) => [...was, page]);
-  const pop = () => setOver((was) => was.slice(0, -1));
-
-  // Its Main agent's Model row (ADR 0154): nobody's, and no group, when it has none.
-  const modelGroup = (harnessId: string) => {
-    const main = harnessModelAgent(directory, harnessId);
-    if (main === undefined || props.selfId === undefined) return undefined;
-    return (
-      <ModelGroup
-        reads={props.models}
-        model={model}
-        directory={directory}
-        agentId={main}
-        agentName={nameOf(directory, main)}
-        selfId={props.selfId}
-      />
-    );
+  // A page of a harness that was removed is left, as the phone's page leaves: what was under it shows.
+  const shown = over.filter((each) => standing(each, directory));
+  const push = (page: ContextPage) => setOver([...shown, page]);
+  const pop = () => setOver(shown.slice(0, -1));
+  const openAgent = (agentId: string) => push({ kind: "agent", agentId });
+  // The list's archived folds, kept here so the list is as it was left when a page goes back to it.
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [elsewhereOpen, setElsewhereOpen] = useState(false);
+  const folds: Folds = {
+    archived: archivedOpen,
+    elsewhere: elsewhereOpen,
+    onArchived: setArchivedOpen,
+    onElsewhere: setElsewhereOpen,
   };
 
-  // New agent on a card, for whoever may ask that harness for one (ADR 0190, point 4).
-  const asksFor = (harnessId: string) =>
-    props.onNewAgent !== undefined &&
-    props.selfId !== undefined &&
-    mayAskFromPage(model, directory, props.selfId, harnessId)
-      ? props.onNewAgent
+  // A link a card made, kept while the dialog is put away (ADR 0271): the shelf's last tile counts
+  // it down, and Connect opens on its card again while it waits, as the phone's does.
+  const [kept, setKept] = useState<KeptLink | undefined>(undefined);
+  const waiting = waitingKept(kept, props.joins, model, directory);
+  const connect =
+    setUp === undefined
+      ? (from: HTMLElement, way?: Choice) => setAdding(addingFor(from, way, waiting))
       : undefined;
-  const card = (harness: Participant, flash?: string) => (
-    <HarnessCard
-      key={harness.id}
-      harnessId={harness.id}
-      name={harness.displayName}
-      ownerId={harness.ownerId}
-      ownerName={harness.ownerId === undefined ? undefined : nameOf(directory, harness.ownerId)}
+  const dialog = adding !== undefined && (
+    <AddHarness
+      from={adding.from}
+      way={adding.way}
+      resume={adding.resume === true}
+      kept={waiting}
+      onKept={setKept}
       model={model}
       directory={directory}
-      space={directSpaceWith(model, harness.id)}
+      selfId={props.selfId ?? ""}
+      serverUrl={props.serverUrl}
+      join={props.join}
+      joins={props.joins}
+      cards={props.cards}
+      onAdd={props.onAdd}
       onOpen={props.onOpen}
-      tokens={props.tokens}
-      transfer={
-        props.onTransfer !== undefined && mayHandOn(model, props.selfId, harness.ownerId)
-          ? props.onTransfer
-          : undefined
-      }
-      remove={
-        props.onRemove !== undefined &&
-        props.selfId !== undefined &&
-        mayRemoveHarness(model, directory, harness.id, props.selfId)
-          ? props.onRemove
-          : undefined
-      }
+      onOpenHarness={(harnessId) => {
+        setAdding(undefined);
+        push({ kind: "harness_page", harnessId });
+      }}
+      onNewAgent={(harnessId) => {
+        setAdding(undefined);
+        push({ kind: "harness_page", harnessId, newAgent: true });
+      }}
+      onClosed={() => {
+        setAdding(undefined);
+        focusBack(adding.from);
+      }}
+    />
+  );
+  const cards = (onConnect?: (from: HTMLElement) => void) => (
+    <HarnessCards
+      model={model}
+      directory={directory}
       selfId={props.selfId}
-      restart={props.onRestart}
-      setRules={props.onSetRules}
-      newAgent={asksFor(harness.id)}
-      declare={
-        props.onDeclare !== undefined && mayHandOn(model, props.selfId, harness.ownerId)
-          ? props.onDeclare
-          : undefined
-      }
-      modelGroup={modelGroup(harness.id)}
-      context={
-        <HarnessContext
-          reads={props.context}
+      onOpen={(harnessId) => push({ kind: "harness_page", harnessId })}
+      onConnect={onConnect}
+    />
+  );
+
+  const page = overPage(shown, {
+    model,
+    directory,
+    selfId: props.selfId,
+    context: props.context,
+    jobs: props.jobs,
+    onBack: pop,
+    agentPage: (agentId, backLabel) => (
+      <AgentOf
+        {...props}
+        agentId={agentId}
+        backLabel={backLabel}
+        onBack={pop}
+        onOpenAgent={openAgent}
+        onPush={push}
+      />
+    ),
+    historyPage: (agentId, backLabel) =>
+      agents === undefined || props.files === undefined ? undefined : (
+        <AgentHistory
+          agentId={agentId}
           model={model}
           directory={directory}
-          harnessId={harness.id}
-          selfId={props.selfId}
-          flashFile={flash}
-          onOpenFile={(name) =>
-            push({ kind: "file", owner: { kind: "harness", id: harness.id }, name, own: false })
-          }
+          selfId={props.selfId ?? ""}
+          files={props.files}
+          faces={props.faces}
+          agents={agents}
+          backLabel={backLabel}
+          onBack={pop}
+          onOpenRoom={props.onOpen}
+          onOpenAgent={openAgent}
         />
+      ),
+    facePage: (agentId, backLabel) =>
+      agents === undefined ? undefined : (
+        <OverPage
+          title="Icon"
+          label={`${nameOf(directory, agentId)}: Icon`}
+          backLabel={backLabel}
+          onBack={pop}
+        >
+          <AgentFace agentId={agentId} directory={directory} agents={agents} />
+        </OverPage>
+      ),
+    harnessPage: (harnessId, newAgent) => (
+      <HarnessOf
+        {...props}
+        harnessId={harnessId}
+        newAgent={newAgent}
+        onOpenAgent={openAgent}
+        onPush={push}
+      />
+    ),
+    part: (top) => (
+      <Part
+        part={top.part}
+        harnessId={top.harnessId}
+        model={model}
+        directory={directory}
+        selfId={props.selfId}
+        context={props.context}
+        flashFile={top.flash}
+        onOpenAgent={openAgent}
+        onOpenSpace={props.onOpen}
+        onOpenFile={(name) =>
+          push({ kind: "file", owner: { kind: "harness", id: top.harnessId }, name, own: false })
+        }
+        onSetRules={props.onSetRules}
+        onSetAutonomy={props.onSetAutonomy}
+        onTransfer={mayOn(props, top.harnessId).transfer}
+        onDeclare={mayOn(props, top.harnessId).declare}
+        tokens={props.tokens}
+      />
+    ),
+    // Connect a harness at the foot of every harness's card, for whoever may (ADR 0185).
+    cards: cards(
+      connect !== undefined && administers(myRole(model, props.selfId ?? ""))
+        ? (from) => connect(from)
+        : undefined,
+    ),
+  });
+  const home = waitsForList(props) ? (
+    <ListWaiting {...props} />
+  ) : (
+    <AgentsHome
+      model={model}
+      directory={directory}
+      selfId={props.selfId ?? ""}
+      agents={agents}
+      add={<HeaderAdd setUp={setUp} onPress={(from) => connect?.(from)} />}
+      onConnect={connect}
+      waitsOn={requestOf(waiting, props.joins)}
+      connectors={galleryCards(props)}
+      cards={cards()}
+      folds={folds}
+      onOpenHarness={(harnessId) => push({ kind: "harness_page", harnessId })}
+      onAllHarnesses={() => push({ kind: "harnesses" })}
+      onOpenAgent={openAgent}
+    />
+  );
+  // The page on top, or the list: the blank before it, or the empty page's gallery, which gives way
+  // to the list as the first harness comes, each by a turn in place.
+  return (
+    <>
+      <Turns
+        at={turnName(props, shown, page !== undefined, connect !== undefined)}
+        depth={page === undefined ? 0 : shown.length}
+        keeps=".harnesses-body"
+      >
+        {page ?? home}
+      </Turns>
+      {/* Connect's dialog stands apart from the pages, so a page turning under it leaves it be. */}
+      {dialog}
+    </>
+  );
+}
+
+/** An agent's page (`AgentPage`), over whatever opened it, with what this surface gives it. */
+function AgentOf(
+  props: HarnessesProps & {
+    readonly agentId: string;
+    readonly backLabel: string;
+    readonly onBack: () => void;
+    readonly onOpenAgent: (agentId: string) => void;
+    readonly onPush: (page: ContextPage) => void;
+  },
+) {
+  if (props.agents === undefined || props.files === undefined) return null;
+  return (
+    <AgentPage
+      agentId={props.agentId}
+      model={props.model}
+      directory={props.directory}
+      selfId={props.selfId ?? ""}
+      faces={props.faces}
+      agents={props.agents}
+      backLabel={props.backLabel}
+      onBack={props.onBack}
+      onOpenRoom={props.onOpen}
+      onOpenAgent={props.onOpenAgent}
+      onOpenHistory={() => props.onPush({ kind: "agent_history", agentId: props.agentId })}
+      onOpenFace={() => props.onPush({ kind: "agent_face", agentId: props.agentId })}
+      context={props.context}
+      heartbeats={props.heartbeats}
+      windows={props.windows}
+      models={props.models}
+      onOpenContext={props.onPush}
+    />
+  );
+}
+
+/**
+ * One harness's page (`HarnessPage`, ADR 0254) with what this surface gives it: New agent for
+ * whoever may ask it for one, Pause, its Main agent's Model row, its context files' count, its own
+ * jobs, Restart and Remove for whoever may, and what only a desk has.
+ */
+function HarnessOf(
+  props: HarnessesProps & {
+    readonly harnessId: string;
+    readonly newAgent?: boolean | undefined;
+    readonly onOpenAgent: (agentId: string) => void;
+    readonly onPush: (page: ContextPage) => void;
+  },
+) {
+  const { model, directory, harnessId, selfId } = props;
+  const main = harnessModelAgent(directory, harnessId);
+  const modelRow = useModelRow({
+    reads: selfId === undefined ? undefined : props.models,
+    model,
+    directory,
+    agentId: main ?? "",
+    agentName: main === undefined ? "" : nameOf(directory, main),
+    selfId: selfId ?? "",
+  });
+  const set = useHarnessContext(props.context, model, directory, harnessId, selfId);
+  const may = mayOn(props, harnessId);
+  const name = nameOf(directory, harnessId);
+  return (
+    <HarnessPage
+      harnessId={harnessId}
+      model={model}
+      directory={directory}
+      selfId={selfId}
+      onOpenAgent={props.onOpenAgent}
+      onOpenPart={(part) => props.onPush({ kind: "harness_part", harnessId, part })}
+      newAgent={
+        may.ask === undefined ? undefined : (
+          <NewAgent
+            harnessId={harnessId}
+            name={name}
+            model={model}
+            directory={directory}
+            selfId={selfId}
+            onAsk={may.ask}
+            onOpen={props.onOpen}
+            opening={props.newAgent === true}
+          />
+        )
+      }
+      run={props.onRun}
+      modelRow={main === undefined ? undefined : modelRow}
+      contextValue={
+        may.context ? contextValue(set === undefined ? undefined : harnessGroups(set)) : null
       }
       jobs={
         <JobsGroup
           reads={props.jobs}
           model={model}
           directory={directory}
-          harnessId={harness.id}
-          selfId={props.selfId}
-          onOpenJob={(jobId) => push({ kind: "job", harnessId: harness.id, jobId })}
+          harnessId={harnessId}
+          selfId={selfId}
+          onOpenJob={(jobId) => props.onPush({ kind: "job", harnessId, jobId })}
         />
       }
-    />
-  );
-
-  const page = overPage(over, {
-    agent,
-    model,
-    directory,
-    selfId: props.selfId,
-    context: props.context,
-    jobs: props.jobs,
-    harnesses,
-    shelved: shelfOrder(model, directory, props.selfId),
-    card,
-    onBack: pop,
-  });
-  if (page !== undefined) return page;
-
-  if (agent !== undefined && agents !== undefined && props.files !== undefined) {
-    return (
-      <AgentPage
-        agentId={agent}
-        model={model}
-        directory={directory}
-        selfId={props.selfId ?? ""}
-        files={props.files}
-        faces={props.faces}
-        agents={agents}
-        onBack={() => setAgent(undefined)}
-        onOpenRoom={props.onOpen}
-        onOpenAgent={setAgent}
-        context={props.context}
-        heartbeats={props.heartbeats}
-        windows={props.windows}
-        models={props.models}
-        onOpenContext={push}
-      />
-    );
-  }
-
-  if (props.look !== undefined && props.look !== "listed") {
-    return (
-      <AgentsWaiting
-        look={props.look}
-        connection={props.connection ?? "connecting"}
-        server={props.server}
-        agents={agents}
-        onWake={props.onWake}
-      />
-    );
-  }
-
-  return (
-    <AgentsHome
-      model={model}
-      directory={directory}
-      selfId={props.selfId ?? ""}
-      agents={agents}
-      add={
-        setUp === undefined ? (
-          <Button ref={addButton} onClick={() => setAdding(true)} aria-haspopup="dialog">
-            Connect a harness
-          </Button>
-        ) : (
-          <NotInDemo onSetUp={setUp} />
-        )
+      desk={
+        <DeskGroup
+          harnessId={harnessId}
+          model={model}
+          directory={directory}
+          selfId={selfId}
+          handsOn={may.transfer !== undefined}
+          tokens={props.tokens !== undefined}
+          onOpenPart={(part) => props.onPush({ kind: "harness_part", harnessId, part })}
+        />
       }
-      adding={
-        adding && (
-          <AddHarness
-            from={addButton.current}
-            model={model}
-            directory={directory}
-            selfId={props.selfId ?? ""}
-            serverUrl={props.serverUrl}
-            join={props.join}
-            joins={props.joins}
-            cards={props.cards}
-            onAdd={props.onAdd}
-            onOpen={props.onOpen}
-            onOpenHarness={(harnessId) => {
-              setAdding(false);
-              push({ kind: "harness_page", harnessId });
-            }}
-            onClosed={() => {
-              setAdding(false);
-              addButton.current?.focus();
-            }}
-          />
-        )
-      }
-      cards={harnesses.map((harness) => card(harness))}
-      onOpenHarness={(harnessId) => push({ kind: "harness_page", harnessId })}
-      onAllHarnesses={() => push({ kind: "harnesses" })}
-      onOpenAgent={setAgent}
+      restart={props.onRestart}
+      remove={may.remove}
     />
   );
 }
 
 /**
+ * What the reader may do to a harness, of what this surface offers: ask it for a new agent (ADR
+ * 0190, point 4), remove it (ADR 0078), hand it on and say what it may do (M5.2, ADR 0046), and read
+ * its context files (ADR 0135). Each absent for anybody who may not.
+ */
+function mayOn(props: HarnessesProps, harnessId: string) {
+  const { model, directory } = props;
+  const self = props.selfId;
+  const handsOn = mayHandOn(model, self, directory[harnessId]?.ownerId);
+  if (self === undefined) {
+    return {
+      ask: undefined,
+      remove: undefined,
+      transfer: undefined,
+      declare: undefined,
+      context: false,
+    };
+  }
+  return {
+    ask: mayAskFromPage(model, directory, self, harnessId) ? props.onNewAgent : undefined,
+    remove: mayRemoveHarness(model, directory, harnessId, self) ? props.onRemove : undefined,
+    transfer: handsOn ? props.onTransfer : undefined,
+    declare: handsOn ? props.onDeclare : undefined,
+    context: props.context !== undefined && mayReadContext(model, directory, harnessId, self),
+  };
+}
+
+/**
  * The Agents page's list (ADR 0087, Phase 5): its header, the harnesses' shelf over the agents'
  * sections, and, while it picks agents to archive, unarchive or delete together (ADR 0182), the
- * bar of acts. The archived agents' folds are kept here, where what is shown is known, since
- * Select all picks what is shown. Without the agents, the harnesses' cards, as the Harnesses tab
- * was.
+ * bar of acts. The archived agents' folds are read here, where what is shown is known, since
+ * Select all picks what is shown, and kept by the tab, so a page gone back from finds them as they
+ * were. Without the agents, the harnesses' cards, as the Harnesses tab was.
+ *
+ * Connect a harness is the shelf's last tile, as the phone's is, and the header's button only where
+ * there is no shelf. A workspace with no harness and no agent is the gallery to pick one from
+ * (ADR 0261), for whoever may make a link; everybody else's empty page says where agents come from.
  */
 function AgentsHome({
   model,
   directory,
   selfId,
+  waitsOn,
   agents,
   add,
-  adding,
+  onConnect,
+  connectors,
   cards,
+  folds,
   onOpenHarness,
   onAllHarnesses,
   onOpenAgent,
@@ -438,17 +576,24 @@ function AgentsHome({
   readonly directory: Directory;
   readonly selfId: string;
   readonly agents: AgentsService | undefined;
-  /** Connect a harness, and its dialog while it is open. */
+  /** The header's Connect a harness, or the demo's line in its place. */
   readonly add: ReactNode;
-  readonly adding: ReactNode;
+  /** Open Connect a harness, grown out of what was pressed, at a card picked. Absent in the demo. */
+  readonly onConnect: ((from: HTMLElement, way?: Choice) => void) | undefined;
+  /** The request of a link a card made that still waits: the shelf's last tile counts it down. */
+  readonly waitsOn?: JoinRequest | undefined;
+  /** The docs' cards an empty page offers. Absent, it offers none. */
+  readonly connectors: readonly Connector[] | undefined;
   /** The harnesses' cards, for a page without the agents. */
   readonly cards: ReactNode;
+  /** Which of the archived folds are open, kept by the tab so they outlast a page over the list. */
+  readonly folds: Folds;
   readonly onOpenHarness: (harnessId: string) => void;
   readonly onAllHarnesses: () => void;
   readonly onOpenAgent: (agentId: string) => void;
 }) {
-  const [archivedOpen, setArchivedOpen] = useState(false);
-  const [elsewhereOpen, setElsewhereOpen] = useState(false);
+  const archivedOpen = folds.archived;
+  const elsewhereOpen = folds.elsewhere;
   const tab = agentsTab(model, directory, selfId);
   const picks = useAgentPicking({
     model,
@@ -465,6 +610,22 @@ function AgentsHome({
     acts: agents,
   });
   const picking = picks.picking;
+  const counts = countWords(model, directory, selfId);
+  const shelved = agents !== undefined && onConnect !== undefined;
+  if (shelved && connectors !== undefined && bareTab(tab)) {
+    return (
+      <main className="conv harnesses" aria-label="Agents">
+        <header className="conv-h">
+          <div className="conv-h-t">
+            <h1 data-testid="agents-title">Agents</h1>
+          </div>
+        </header>
+        <div className="harnesses-body">
+          <PageGallery cards={connectors} onPick={(way, from) => onConnect(from, way)} />
+        </div>
+      </main>
+    );
+  }
   return (
     <main
       className="conv harnesses"
@@ -476,7 +637,10 @@ function AgentsHome({
           <h1 data-testid="agents-title">{pickTitle(picking, picks.chosen.length)}</h1>
           <span className="pick-head-sub">
             <span className="conv-h-sub" aria-hidden={picking}>
-              {countWords(model, directory, selfId)}
+              {/* The counts crossfade as an agent or a harness comes or goes. */}
+              <Swap id={counts} className="agents-counts">
+                {counts}
+              </Swap>
             </span>
             <PickHint
               shown={picking}
@@ -495,12 +659,13 @@ function AgentsHome({
               testId="select-agents"
             />
           )}
-          <span className="pick-aside" inert={picking}>
-            {add}
-          </span>
+          {!shelved && (
+            <span className="pick-aside" inert={picking}>
+              {add}
+            </span>
+          )}
         </div>
       </header>
-      {adding}
 
       <div className="harnesses-body">
         {agents === undefined ? (
@@ -516,6 +681,8 @@ function AgentsHome({
                 selfId={selfId}
                 onOpen={onOpenHarness}
                 onAll={onAllHarnesses}
+                onConnect={onConnect}
+                waitsOn={waitsOn}
               />
             </div>
             <AgentSections
@@ -523,12 +690,7 @@ function AgentsHome({
               directory={directory}
               selfId={selfId}
               onOpen={onOpenAgent}
-              folds={{
-                archived: archivedOpen,
-                elsewhere: elsewhereOpen,
-                onArchived: setArchivedOpen,
-                onElsewhere: setElsewhereOpen,
-              }}
+              folds={folds}
               pickOf={picks.rowOf}
               held={[...picks.leaving.values()]}
             />
@@ -548,6 +710,111 @@ function AgentsHome({
   );
 }
 
+/**
+ * The header's Connect a harness, where the page has no shelf to end with it, or in the demo the
+ * line in its place.
+ */
+function HeaderAdd(props: {
+  readonly setUp: ReturnType<typeof useNotInDemo>;
+  readonly onPress: (from: HTMLElement) => void;
+}) {
+  if (props.setUp !== undefined) return <NotInDemo onSetUp={props.setUp} />;
+  return (
+    <Button onClick={(event) => props.onPress(event.currentTarget)} aria-haspopup="dialog">
+      Connect a harness
+    </Button>
+  );
+}
+
+/**
+ * The cards an empty page offers (ADR 0261): an owner's or an admin's, whose dialog opens on the
+ * gallery with links to make. Anybody else's opens on the form, and their page says so instead.
+ */
+function galleryCards(props: HarnessesProps): readonly Connector[] | undefined {
+  if (props.join === undefined || !administers(myRole(props.model, props.selfId ?? ""))) {
+    return undefined;
+  }
+  return props.cards ?? [];
+}
+
+/**
+ * Which page the tab shows, for the turn to it (`Turns`): the page on top, the blank before the
+ * list, the empty page's gallery, or the list.
+ */
+function turnName(
+  props: HarnessesProps,
+  shown: readonly ContextPage[],
+  onTop: boolean,
+  connects: boolean,
+): string {
+  const top = shown.at(-1);
+  if (onTop && top !== undefined) return pageName(top);
+  if (waitsForList(props)) return "blank";
+  return homeName(props, connects);
+}
+
+/** Whether the directory is not yet the server's word, so the page stands blank (`agentsLook`). */
+function waitsForList(props: HarnessesProps): boolean {
+  return props.look !== undefined && props.look !== "listed";
+}
+
+/** The page before its first list: blank agents, or why the list can't be had. */
+function ListWaiting(props: HarnessesProps) {
+  if (props.look === undefined || props.look === "listed") return null;
+  return (
+    <AgentsWaiting
+      look={props.look}
+      connection={props.connection ?? "connecting"}
+      server={props.server}
+      agents={props.agents}
+      onWake={props.onWake}
+    />
+  );
+}
+
+/** The list, or the empty page's gallery (ADR 0261) as `AgentsHome` draws it, for the turn between. */
+function homeName(props: HarnessesProps, connects: boolean): string {
+  const gallery =
+    props.agents !== undefined &&
+    connects &&
+    galleryCards(props) !== undefined &&
+    bareTab(agentsTab(props.model, props.directory, props.selfId ?? ""));
+  return gallery ? "gallery" : "agents";
+}
+
+/** Whether a page's harness, or its agent, is still in the workspace. */
+function standing(page: ContextPage, directory: Directory): boolean {
+  const id =
+    page.kind === "agent" || page.kind === "agent_history" || page.kind === "agent_face"
+      ? page.agentId
+      : page.kind === "file"
+        ? page.owner.id
+        : page.kind === "harnesses"
+          ? undefined
+          : page.harnessId;
+  return (
+    id === undefined || (directory[id] !== undefined && directory[id]?.removedAt === undefined)
+  );
+}
+
+/** Back to what the dialog grew out of, unless the harness that arrived took it away. */
+function focusBack(from: HTMLElement | null): void {
+  if (from?.isConnected === true) from.focus();
+}
+
+/** Whether the workspace has no harness and no agent, archived or not: the gallery's page. */
+function bareTab(tab: ReturnType<typeof agentsTab>): boolean {
+  const { leads, agents, archived, harnesses } = tab;
+  return (
+    harnesses.length +
+      leads.length +
+      agents.length +
+      archived.here.length +
+      archived.elsewhere.length ===
+    0
+  );
+}
+
 /** The page's name, and while it picks, how many are picked (ADR 0182). */
 function pickTitle(picking: boolean, count: number): string {
   if (!picking) return "Agents";
@@ -555,29 +822,35 @@ function pickTitle(picking: boolean, count: number): string {
 }
 
 /**
- * The page on top: a file of an agent's or a harness's (ADR 0135); a harness's page — its card
- * alone, the shared file an agent's page opened it for flashing; every harness's card, in the
- * shelf's order (ADR 0185); or one of a harness's own jobs (ADR 0252). Nothing, when there is
- * none, or its harness is gone.
+ * The page on top: a file of an agent's or a harness's (ADR 0135); a harness's page (ADR 0254), or
+ * one of the pages it opens, its context files flashing the shared file an agent's page opened them
+ * for; every harness's card, in the shelf's order (ADR 0185); or one of a harness's own jobs (ADR
+ * 0252). Nothing, when there is none, or its harness is gone.
  */
 function overPage(
   over: readonly ContextPage[],
   on: {
-    readonly agent: string | undefined;
     readonly model: WorkspaceModel;
     readonly directory: Directory;
     readonly selfId: string | undefined;
     readonly context: ContextReads | undefined;
     readonly jobs: JobsReads | undefined;
-    readonly harnesses: readonly Participant[];
-    /** The harnesses in the shelf's order, for every harness's card. */
-    readonly shelved: readonly Participant[];
-    readonly card: (harness: Participant, flash?: string) => ReactNode;
+    readonly agentPage: (agentId: string, backLabel: string) => ReactNode;
+    readonly historyPage: (agentId: string, backLabel: string) => ReactNode;
+    /** An agent's face, chosen on a page over its card (ADR 0272). */
+    readonly facePage: (agentId: string, backLabel: string) => ReactNode;
+    /** A harness's page; with its New agent dialog open, when Connect's card asked for one. */
+    readonly harnessPage: (harnessId: string, newAgent: boolean) => ReactNode;
+    readonly part: (top: Extract<ContextPage, { kind: "harness_part" }>) => ReactNode;
+    /** Every harness's card, for View all. */
+    readonly cards: ReactNode;
     readonly onBack: () => void;
   },
 ): ReactNode | undefined {
   const top = over.at(-1);
-  const backLabel = backLabelOf(over.at(-2), on.agent, on.directory);
+  const backLabel = backLabelOf(over.at(-2), on.directory);
+  const agent = agentTop(top, backLabel, on);
+  if (agent !== undefined) return agent;
   if (top?.kind === "file") {
     if (on.context === undefined) return undefined;
     return (
@@ -610,93 +883,129 @@ function overPage(
   }
   if (top?.kind === "harnesses") {
     return (
-      <main className="conv harnesses" aria-label="Harnesses">
-        <header className="conv-h">
-          <div className="conv-h-t">
-            <button type="button" className="agent-back" onClick={on.onBack}>
-              {`‹ ${backLabel}`}
-            </button>
-            <h1>Harnesses</h1>
-          </div>
-        </header>
-        <div className="harnesses-body">{on.shelved.map((each) => on.card(each))}</div>
-      </main>
+      <OverPage title="Harnesses" backLabel={backLabel} onBack={on.onBack}>
+        {on.cards}
+      </OverPage>
     );
   }
-  const harness = on.harnesses.find((each) => each.id === top?.harnessId);
-  if (top === undefined || harness === undefined) return undefined;
+  if (
+    top === undefined ||
+    !("harnessId" in top) ||
+    workspaceHarnesses(on.directory).every((each) => each.id !== top.harnessId)
+  ) {
+    return undefined;
+  }
+  if (top.kind === "harness_part") {
+    return (
+      <OverPage
+        title={PART_TITLE[top.part]}
+        backLabel={backLabel}
+        onBack={on.onBack}
+        label={`${nameOf(on.directory, top.harnessId)}: ${PART_TITLE[top.part]}`}
+      >
+        {on.part(top)}
+      </OverPage>
+    );
+  }
   return (
-    <main className="conv harnesses" aria-label={harness.displayName}>
+    <OverPage title={nameOf(on.directory, top.harnessId)} backLabel={backLabel} onBack={on.onBack}>
+      {on.harnessPage(top.harnessId, top.newAgent === true)}
+    </OverPage>
+  );
+}
+
+/** A page over the Agents page: its way back, its name, and what it holds, scrolling. */
+function OverPage(props: {
+  readonly title: string;
+  readonly backLabel: string;
+  readonly onBack: () => void;
+  /** What a screen reader calls it, when not its title. */
+  readonly label?: string | undefined;
+  readonly children: ReactNode;
+}) {
+  return (
+    <main className="conv harnesses" aria-label={props.label ?? props.title}>
       <header className="conv-h">
         <div className="conv-h-t">
-          <button type="button" className="agent-back" onClick={on.onBack}>
-            {`‹ ${backLabel}`}
+          <button type="button" className="agent-back" onClick={props.onBack}>
+            {`‹ ${props.backLabel}`}
           </button>
-          <h1>{harness.displayName}</h1>
+          <h1>{props.title}</h1>
         </div>
       </header>
-      <div className="harnesses-body">{on.card(harness, top.flash)}</div>
+      <div className="harnesses-body">{props.children}</div>
     </main>
   );
 }
 
-/** What a context page's back button says: the page under it, the agent's, or the list's. */
-function backLabelOf(
-  under: ContextPage | undefined,
-  agent: string | undefined,
-  directory: Directory,
-): string {
-  if (under?.kind === "harness_page") return nameOf(directory, under.harnessId);
-  if (under?.kind === "harnesses") return "Harnesses";
-  if (under?.kind === "file") return nameOf(directory, under.owner.id);
-  return agent === undefined ? "Agents" : nameOf(directory, agent);
+/** An agent's own pages over the list: its card, its history and its face; else nothing. */
+function agentTop(
+  top: ContextPage | undefined,
+  backLabel: string,
+  on: {
+    readonly agentPage: (agentId: string, backLabel: string) => ReactNode;
+    readonly historyPage: (agentId: string, backLabel: string) => ReactNode;
+    readonly facePage: (agentId: string, backLabel: string) => ReactNode;
+  },
+): ReactNode | undefined {
+  switch (top?.kind) {
+    case "agent":
+      return on.agentPage(top.agentId, backLabel);
+    case "agent_history":
+      return on.historyPage(top.agentId, backLabel);
+    case "agent_face":
+      return on.facePage(top.agentId, backLabel);
+    default:
+      return undefined;
+  }
 }
 
-/** The workspace's harnesses in the order the shelf stands them (`harnessShelf`). */
-function shelfOrder(
+/** What a page's back button says: the page under it, or the list's. */
+function backLabelOf(under: ContextPage | undefined, directory: Directory): string {
+  switch (under?.kind) {
+    case undefined:
+      return "Agents";
+    case "agent":
+      return nameOf(directory, under.agentId);
+    case "agent_history":
+      return "Message history";
+    case "agent_face":
+      return "Icon";
+    case "harness_page":
+    case "job":
+      return nameOf(directory, under.harnessId);
+    case "harness_part":
+      return PART_TITLE[under.part];
+    case "harnesses":
+      return "Harnesses";
+    case "file":
+      return nameOf(directory, under.owner.id);
+  }
+}
+
+/**
+ * Under the page's name: how many agents, archived ones, and harnesses. Nothing on a page with none
+ * of them, whose body says so once (ADR 0261).
+ */
+function countWords(
   model: WorkspaceModel,
   directory: Directory,
   selfId: string | undefined,
-): readonly Participant[] {
-  return harnessShelf(agentsTab(model, directory, selfId ?? ""), directory)
-    .map((tile) => directory[tile.id])
-    .filter((each) => each !== undefined);
-}
-
-/** Under the page's name: how many agents, archived ones, and harnesses. */
-function countWords(model: WorkspaceModel, directory: Directory, selfId: string | undefined) {
+): string {
   const tab = agentsTab(model, directory, selfId ?? "");
   const agents = tab.leads.length + tab.agents.length;
   const archived = tab.archived.here.length + tab.archived.elsewhere.length;
   const harnesses = tab.harnesses.length;
-  if (harnesses === 0) return "No harnesses yet.";
+  if (harnesses + agents + archived === 0) return "";
   return [
     `${agents} ${agents === 1 ? "agent" : "agents"}`,
     ...(archived === 0 ? [] : [`${archived} archived`]),
-    `${harnesses} ${harnesses === 1 ? "harness in this workspace" : "harnesses in this workspace"}`,
+    ...(harnesses === 0
+      ? []
+      : [
+          `${harnesses} ${harnesses === 1 ? "harness in this workspace" : "harnesses in this workspace"}`,
+        ]),
   ].join(" · ");
-}
-
-/**
- * A harness across all of its spaces (ADR 0024): how many terminals are open on it, how many
- * places it works in, and how much of what is waiting on you is its. A harness with no spaces at all has not
- * been connected to anything yet, and saying that is more use than three zeroes.
- */
-function rollup(model: WorkspaceModel, harnessId: string): string {
-  const entry = model.fleet.find((each) => each.harnessId === harnessId);
-  if (entry === undefined || entry.spaceCount === 0) return "No spaces yet";
-  const parts = [
-    entry.liveSessions === 0
-      ? "No live sessions"
-      : `${entry.liveSessions} live ${entry.liveSessions === 1 ? "session" : "sessions"}`,
-    `${entry.spaceCount} ${entry.spaceCount === 1 ? "space" : "spaces"}`,
-    ...(entry.needsYou === 0 ? [] : [`${entry.needsYou} waiting on you`]),
-  ];
-  return parts.join(" · ");
-}
-
-function directSpaceWith(model: WorkspaceModel, harnessId: string): Space | undefined {
-  return model.spaces.find((space) => space.kind === "direct" && space.members.includes(harnessId));
 }
 
 /**
@@ -712,139 +1021,6 @@ export function mayHandOn(
   return ownerId === selfId || administers(myRole(model, selfId));
 }
 
-function HarnessCard(props: {
-  readonly harnessId: string;
-  readonly name: string;
-  readonly ownerId: string | undefined;
-  readonly ownerName: string | undefined;
-  readonly model: WorkspaceModel;
-  readonly directory: Directory;
-  readonly space: Space | undefined;
-  readonly onOpen: (spaceId: string) => void;
-  readonly tokens: TokenService | undefined;
-  readonly transfer: ((harnessId: string, ownerId: string) => Promise<void>) | undefined;
-  readonly remove: ((harnessId: string) => Promise<void>) | undefined;
-  readonly selfId: string | undefined;
-  readonly restart: ((harnessId: string) => Promise<void>) | undefined;
-  /** When it asks you's switches and removals (ADR 0195); absent, its list is read only. */
-  readonly setRules?: ((input: SetRulesInput) => void) | undefined;
-  /** For whoever may ask it (ADR 0190, point 4): New agent, in a space of its own. */
-  readonly newAgent?: ((harnessId: string, name: string) => Promise<string>) | undefined;
-  /** For whoever may hand it on: what it may do, said again (ADR 0046). */
-  readonly declare?:
-    | ((harnessId: string, capabilities: readonly string[]) => Promise<void>)
-    | undefined;
-  /** For its owner: its Main agent's model, which the agents with none of their own follow (ADR 0154). */
-  readonly modelGroup?: ReactNode;
-  /** For its owner: what its agents share, and what a new one starts with (ADR 0135). */
-  readonly context?: ReactNode;
-  /** For the people who run it: the jobs it runs on its own (ADR 0252). */
-  readonly jobs?: ReactNode;
-}) {
-  const policy = props.model.harnesses[props.harnessId];
-  const connection = props.model.connections[props.harnessId];
-  const level = policy?.autonomy;
-  // The level is said only for a harness that takes the dial (ADR 0046); the budget is money
-  // and is said either way.
-  const facts = [
-    ...(takesAutonomy(props.directory, props.harnessId)
-      ? [level === undefined ? "No policy yet" : `L${level} · ${LEVEL_WORDS[level]}`]
-      : []),
-    ...(policy?.budgetUsd !== undefined
-      ? [`$${policy.spentUsd.toFixed(2)} of $${policy.budgetUsd}`]
-      : []),
-    ...(props.ownerName !== undefined && props.transfer === undefined
-      ? [`owned by ${props.ownerName}`]
-      : []),
-  ];
-  // Why it can't answer now, when it can't (ADR 0083): its own words, or offline since when.
-  const trouble = agentStateWords(
-    props.directory,
-    props.harnessId,
-    Date.now(),
-    undefined,
-    props.selfId,
-  );
-  return (
-    <section className="harness-card" data-testid="harness-card" aria-label={props.name}>
-      <div className="harness-card-h">
-        <Avatar name={props.name} kind="harness" cantAnswer={trouble !== undefined} />
-        <div>
-          <h2>{props.name}</h2>
-          <StateLine
-            trouble={trouble}
-            state={props.directory[props.harnessId]?.state}
-            connected={connectedWords(props.directory, props.harnessId, Date.now())}
-          />
-          <span className="harness-card-sub">{facts.join(" · ")}</span>
-          {props.transfer !== undefined && (
-            <OwnerPicker
-              harnessId={props.harnessId}
-              name={props.name}
-              ownerId={props.ownerId}
-              model={props.model}
-              directory={props.directory}
-              onTransfer={props.transfer}
-            />
-          )}
-          <span className="harness-card-sub" data-testid="harness-rollup">
-            {rollup(props.model, props.harnessId)}
-          </span>
-        </div>
-        <div className="harness-card-acts">
-          {props.newAgent !== undefined && (
-            <NewAgent
-              harnessId={props.harnessId}
-              name={props.name}
-              model={props.model}
-              directory={props.directory}
-              selfId={props.selfId}
-              onAsk={props.newAgent}
-              onOpen={props.onOpen}
-            />
-          )}
-          {props.space !== undefined && (
-            <Button variant="ghost" onClick={() => props.onOpen(props.space?.id ?? "")}>
-              Open space
-            </Button>
-          )}
-        </div>
-      </div>
-      {props.restart !== undefined && props.selfId !== undefined && (
-        <RestartHarness
-          harnessId={props.harnessId}
-          name={props.name}
-          model={props.model}
-          directory={props.directory}
-          selfId={props.selfId}
-          onRestart={props.restart}
-        />
-      )}
-      {props.modelGroup}
-      {props.context}
-      {props.jobs}
-      <Checklist connection={connection} />
-      <Asking
-        model={props.model}
-        directory={props.directory}
-        harnessId={props.harnessId}
-        selfId={props.selfId}
-        onSetRules={props.setRules}
-        onOpenSpace={props.onOpen}
-      />
-      <MayDo
-        harnessId={props.harnessId}
-        capabilities={props.directory[props.harnessId]?.capabilities}
-        onDeclare={props.declare}
-      />
-      {props.tokens !== undefined && <Tokens harnessId={props.harnessId} service={props.tokens} />}
-      {props.remove !== undefined && (
-        <RemoveHarness harnessId={props.harnessId} name={props.name} onRemove={props.remove} />
-      )}
-    </section>
-  );
-}
-
 /**
  * New agent (ADR 0190, point 4): a button, and the dialog it grows: the agent's name, a first name
  * offered (ADR 0150), and a space of its own made with the ask in it. The space opens once the
@@ -858,17 +1034,29 @@ function NewAgent(props: {
   readonly selfId: string | undefined;
   readonly onAsk: (harnessId: string, name: string) => Promise<string>;
   readonly onOpen: (spaceId: string) => void;
+  /** Open at once, grown out of the button: Connect's card for one here already asked for it. */
+  readonly opening?: boolean | undefined;
 }) {
   const button = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const opening = props.opening === true;
+  useEffect(() => {
+    if (opening) setOpen(true);
+  }, [opening]);
+  // Gold while the harness can answer; quiet while it can't, since the ask waits on it.
+  const answers =
+    agentStateWords(props.directory, props.harnessId, Date.now(), undefined, props.selfId) ===
+    undefined;
   return (
     <>
       <Button
         ref={button}
-        variant="primary"
+        className="hp-act"
+        variant={answers ? "primary" : "default"}
         data-testid="harness-new-agent"
         onClick={() => setOpen(true)}
       >
+        <Icon name="plus" size={14} />
         New agent
       </Button>
       {open && (
@@ -997,407 +1185,6 @@ function NewAgentDialog(props: {
   );
 }
 
-/**
- * Why it can't answer, when it can't (ADR 0083); or, after a restart this card watched, when it was
- * back (ADR 0094). Nothing is kept of that: another window, or the card drawn later, says nothing.
- * Otherwise that it is connected, and since when (ADR 0254), as the phone's page says.
- */
-function StateLine(props: {
-  readonly trouble: string | undefined;
-  readonly state: AgentState | undefined;
-  /** "Connected · since 8:02 AM", while it can answer. */
-  readonly connected: string | undefined;
-}) {
-  const before = useRef(props.state);
-  const [back, setBack] = useState<number | undefined>(undefined);
-  useEffect(() => {
-    if (backFromRestart(before.current, props.state)) setBack(Date.now());
-    else if (props.state?.restarting !== undefined) setBack(undefined);
-    before.current = props.state;
-  }, [props.state]);
-  if (props.trouble !== undefined) {
-    return (
-      <span className="harness-card-sub harness-trouble" data-testid="harness-trouble">
-        {props.trouble}
-      </span>
-    );
-  }
-  if (back === undefined) {
-    if (props.connected === undefined) return null;
-    return (
-      <span className="harness-card-sub harness-connected" data-testid="harness-connected">
-        {props.connected}
-      </span>
-    );
-  }
-  return (
-    <span className="harness-card-sub harness-back" data-testid="harness-back">
-      {backWords(back, Date.now())}
-    </span>
-  );
-}
-
-/**
- * Restart, asked first (ADR 0094). What it offers is core's, as on the phone: a button, gold while
- * the harness can't answer; "Restarting…" with nothing to press while a restart stands; or why
- * there is nobody to ask. The dialog waits for the server and says why in red when it will not.
- */
-function RestartHarness(props: {
-  readonly harnessId: string;
-  readonly name: string;
-  readonly model: WorkspaceModel;
-  readonly directory: Directory;
-  readonly selfId: string;
-  readonly onRestart: (harnessId: string) => Promise<void>;
-}) {
-  const [asking, setAsking] = useState(false);
-  const offer = restartOffer(props.model, props.directory, props.harnessId, props.selfId);
-  if (offer === undefined) return null;
-  if (offer.kind === "unreachable") {
-    return (
-      <p className="harness-restart-note" data-testid="restart-unreachable">
-        <strong>{offer.title}.</strong> {offer.body}
-      </p>
-    );
-  }
-  return (
-    <div className="harness-restart">
-      <Button
-        className="harness-restart-go"
-        data-loud={offer.kind === "offer" && offer.loud ? "true" : undefined}
-        disabled={offer.kind === "going"}
-        onClick={() => setAsking(true)}
-        data-testid="restart-harness"
-      >
-        {offer.label}
-      </Button>
-      {asking && (
-        <ConfirmDialog
-          asking={restartAsking(props.name)}
-          danger={false}
-          tooOld="Not restarted: this server is older than the app, and cannot restart a harness yet."
-          onCancel={() => setAsking(false)}
-          onConfirm={async () => {
-            await props.onRestart(props.harnessId);
-            setAsking(false);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * Remove harness…, asked first (ADR 0078). The dialog waits for the server and says why in red
- * when it will not; once it has, the directory is read again and this card is gone with it.
- */
-function RemoveHarness(props: {
-  readonly harnessId: string;
-  readonly name: string;
-  readonly onRemove: (harnessId: string) => Promise<void>;
-}) {
-  const [asking, setAsking] = useState(false);
-  return (
-    <div className="harness-card-foot">
-      <Button
-        size="sm"
-        variant="danger"
-        onClick={() => setAsking(true)}
-        data-testid="remove-harness"
-      >
-        Remove harness…
-      </Button>
-      {asking && (
-        <ConfirmDialog
-          asking={removeAsking(props.name)}
-          danger
-          tooOld="Not removed: this server is older than the app, and cannot remove a harness yet."
-          onCancel={() => setAsking(false)}
-          onConfirm={async () => {
-            await props.onRemove(props.harnessId);
-            setAsking(false);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
- * Who owns a harness, as a picker of the people who may — everyone in the workspace who is not
- * a guest (M5.2). Choosing somebody hands it on; the change lands when the directory is read
- * again, and the picker is busy until then.
- */
-function OwnerPicker(props: {
-  readonly harnessId: string;
-  readonly name: string;
-  readonly ownerId: string | undefined;
-  readonly model: WorkspaceModel;
-  readonly directory: Directory;
-  readonly onTransfer: (harnessId: string, ownerId: string) => Promise<void>;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const people = Object.values(props.model.people).filter((person) => person.role !== "guest");
-  const choose = async (ownerId: string) => {
-    if (ownerId === props.ownerId) return;
-    setBusy(true);
-    setError(undefined);
-    try {
-      await props.onTransfer(props.harnessId, ownerId);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <span className="harness-card-sub harness-owner" data-testid="owner-picker">
-      owned by{" "}
-      <select
-        aria-label={`${props.name}'s owner`}
-        value={props.ownerId ?? ""}
-        disabled={busy}
-        onChange={(event) => void choose(event.target.value)}
-      >
-        {people.map((person) => (
-          <option key={person.participantId} value={person.participantId}>
-            {nameOf(props.directory, person.participantId)}
-          </option>
-        ))}
-      </select>
-      {error !== undefined && (
-        <span className="harness-add-error" role="alert">
-          {error}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * What a harness holds, and the two things an owner can do about it. The list is fetched when
- * the section is opened rather than with the tab: a workspace of twenty harnesses should not make
- * twenty requests to draw a page nobody has asked a question of yet.
- */
-/**
- * What a harness may do, said again (ADR 0046): every capability Chips draws something for, a
- * switch each, as a link offers them. A flip sends the whole list, keeping whatever else the
- * harness declared that is no switch here (its tools); the card follows the directory read after.
- */
-function MayDo(props: {
-  readonly harnessId: string;
-  readonly capabilities: readonly string[] | undefined;
-  /** Absent for somebody who may not hand the harness on: then there is nothing to draw. */
-  readonly onDeclare:
-    | ((harnessId: string, capabilities: readonly string[]) => Promise<void>)
-    | undefined;
-}) {
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const { onDeclare } = props;
-  const capabilities = props.capabilities ?? [];
-
-  if (onDeclare === undefined) return null;
-  if (!open) {
-    return (
-      <div className="harness-tokens">
-        <Button variant="ghost" onClick={() => setOpen(true)} data-testid="may-do-open">
-          What it may do
-        </Button>
-      </div>
-    );
-  }
-
-  const flip = async (name: string, on: boolean) => {
-    const others = capabilities.filter((each) => each !== name);
-    setBusy(true);
-    setError(undefined);
-    try {
-      await onDeclare(props.harnessId, on ? [...others, name] : others);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="harness-tokens" data-testid="may-do">
-      <div className="harness-tokens-h">
-        <h3>What it may do</h3>
-        <span className="harness-card-sub">
-          Chips draws a control only for what a harness takes. One that is connected hears a change
-          when it next connects.
-        </span>
-      </div>
-      {error !== undefined && (
-        <p className="harness-add-error" role="alert">
-          {error}
-        </p>
-      )}
-      <fieldset className="join-switches">
-        {OFFERED.map((name) => (
-          <CapabilityRow
-            key={name}
-            name={name}
-            on={capabilities.includes(name)}
-            disabled={busy}
-            onChange={(on) => void flip(name, on)}
-          />
-        ))}
-      </fieldset>
-      <div className="harness-add-actions">
-        <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-          Close
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Tokens(props: { readonly harnessId: string; readonly service: TokenService }) {
-  const { harnessId, service } = props;
-  const [open, setOpen] = useState(false);
-  const [tokens, setTokens] = useState<readonly HarnessToken[] | undefined>(undefined);
-  const [issued, setIssued] = useState<IssuedHarnessToken | undefined>(undefined);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-
-  const load = useCallback(async () => {
-    try {
-      setTokens(await service.list(harnessId));
-      setError(undefined);
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
-    }
-  }, [harnessId, service]);
-
-  useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
-
-  const act = async (what: () => Promise<void>) => {
-    setBusy(true);
-    try {
-      await what();
-      await load();
-    } catch (failure) {
-      setError(failure instanceof Error ? failure.message : String(failure));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <div className="harness-tokens">
-        <Button variant="ghost" onClick={() => setOpen(true)} data-testid="tokens-open">
-          Tokens
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="harness-tokens" data-testid="tokens">
-      <div className="harness-tokens-h">
-        <h3>Tokens</h3>
-        <span className="harness-card-sub">
-          Chips keeps only a digest, so a token cannot be shown again. To rotate: issue a new one,
-          point the harness at it, then revoke the old.
-        </span>
-      </div>
-      {error !== undefined && (
-        <p className="harness-add-error" role="alert">
-          {error}
-        </p>
-      )}
-      {issued !== undefined && (
-        <dl className="harness-new-facts" data-testid="issued-token">
-          <dt>New token, shown once</dt>
-          <dd>
-            <code>{issued.token}</code>
-          </dd>
-        </dl>
-      )}
-      <ul className="token-list">
-        {tokens?.map((token) => (
-          <li key={token.id} data-testid="token-row" data-revoked={token.revokedAt !== undefined}>
-            <b>{token.name}</b>
-            <span className="token-life">
-              {token.revokedAt === undefined
-                ? `made ${relativeTime(token.createdAt)}${
-                    token.lastUsedAt === undefined
-                      ? ", never used"
-                      : `, last used ${relativeTime(token.lastUsedAt)}`
-                  }`
-                : `revoked ${relativeTime(token.revokedAt)}`}
-            </span>
-            {token.revokedAt === undefined && (
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={() => void act(() => service.revoke(harnessId, token.id))}
-              >
-                Revoke
-              </Button>
-            )}
-          </li>
-        ))}
-        {tokens?.length === 0 && <li className="token-life">None. This harness cannot connect.</li>}
-      </ul>
-      <div className="harness-add-actions">
-        <Button
-          disabled={busy}
-          data-testid="issue-token"
-          onClick={() =>
-            void act(async () => {
-              setIssued(await service.issue(harnessId, "rotated"));
-            })
-          }
-        >
-          Issue a new token
-        </Button>
-        <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-          Close
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** Which rows have lit: a harness that has sent the event type has earned that part of the UI. */
-export function Checklist({ connection }: { readonly connection: HarnessConnection | undefined }) {
-  const seen = new Set(connection?.seen ?? []);
-  return (
-    <ul className="checklist" aria-label="Connection checklist">
-      {CONNECTION_CHECKLIST.map((row) => {
-        const lit = row.types.some((type) => seen.has(type));
-        return (
-          <li
-            key={row.label}
-            data-lit={lit ? "true" : "false"}
-            data-testid={`check-${row.types[0]}`}
-          >
-            <span className="checklist-mark" aria-hidden="true">
-              {lit ? "●" : "○"}
-            </span>
-            <b>{row.label}</b>
-            <span className="checklist-gives">
-              {lit ? `sent ${row.types[0]}` : `send ${row.types[0]} for ${row.gives}`}
-            </span>
-          </li>
-        );
-      })}
-      {connection?.lastSeenAt !== undefined && (
-        <li className="checklist-seen">Last heard {relativeTime(connection.lastSeenAt)}</li>
-      )}
-    </ul>
-  );
-}
-
 /** The three curl lines: see who you can talk to, say something, read what happened. */
 export function curlLines(
   serverUrl: string,
@@ -1422,7 +1209,56 @@ type AddPage =
   | { readonly kind: "connect"; readonly way: Choice }
   | { readonly kind: "advanced" };
 
+/**
+ * What the dialog focuses as it opens, on the page it opens at: the gallery's first card, the form's
+ * first field, or, at a card picked on the empty page (ADR 0261), its ×, since the link it shows is
+ * still being made.
+ */
+const FOCUS: Readonly<Record<AddPage["kind"], string>> = {
+  gallery: ".join-card",
+  here: ".new-space-close",
+  connect: ".new-space-close",
+  advanced: "input[type=text]",
+};
+
 /** The page a card picked opens: one for a harness here already asks first, as the phone's does. */
+/**
+ * The link a card made, while it still waits to be used (core's `waitingLink`): read as the page
+ * draws, so a link that was used, ran out or was withdrawn is not opened again.
+ */
+function waitingKept(
+  kept: KeptLink | undefined,
+  joins: ReadonlyMap<string, JoinRequest> | undefined,
+  model: WorkspaceModel,
+  directory: Directory,
+): KeptLink | undefined {
+  const request = requestOf(kept, joins);
+  if (request === undefined) return undefined;
+  const nowMs = Date.now();
+  return waitingLink(request, joinCardOf(request, model, directory, nowMs), nowMs) === undefined
+    ? undefined
+    : kept;
+}
+
+/** The kept link's request, as the store holds it. */
+function requestOf(
+  kept: KeptLink | undefined,
+  joins: ReadonlyMap<string, JoinRequest> | undefined,
+): JoinRequest | undefined {
+  return kept === undefined ? undefined : joins?.get(kept.id);
+}
+
+/** Where Connect opens: the card picked, else the card whose link waits, else the gallery. */
+function addingFor(
+  from: HTMLElement,
+  way: Choice | undefined,
+  waiting: KeptLink | undefined,
+): Adding {
+  return way === undefined && waiting !== undefined
+    ? { from, way: waiting.choice, resume: true }
+    : { from, way };
+}
+
 function pickedPage(way: Choice, directory: Directory): AddPage {
   const here = typeof way === "string" ? undefined : harnessNamed(directory, way.name);
   return here === undefined || typeof way === "string"
@@ -1453,13 +1289,26 @@ function AddHarness(props: {
   readonly onOpen: (spaceId: string) => void;
   /** A harness's page, from the card for one here already. */
   readonly onOpenHarness: (harnessId: string) => void;
+  /** Its page with New agent open, from the card for one here already (ADR 0190, point 1). */
+  readonly onNewAgent: (harnessId: string) => void;
   readonly onClosed: () => void;
+  /** The card picked on the empty page (ADR 0261): it opens there, and going back closes it. */
+  readonly way?: Choice | undefined;
+  /** Opened on the card whose link waits (ADR 0271): back from it is the gallery. */
+  readonly resume?: boolean | undefined;
+  /** The link a card made that still waits, and where each new one is kept. */
+  readonly kept?: KeptLink | undefined;
+  readonly onKept: (kept: KeptLink | undefined) => void;
 }) {
   const titleId = useId();
   const join = administers(myRole(props.model, props.selfId)) ? props.join : undefined;
-  const [page, setPage] = useState<AddPage>(
-    join === undefined ? { kind: "advanced" } : { kind: "gallery" },
-  );
+  const [page, setPage] = useState<AddPage>(() => {
+    if (join === undefined) return { kind: "advanced" };
+    if (props.way === undefined) return { kind: "gallery" };
+    return props.resume === true
+      ? { kind: "connect", way: props.way }
+      : pickedPage(props.way, props.directory);
+  });
   const [leaving, setLeaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState<AddedHarness | undefined>(undefined);
@@ -1472,7 +1321,7 @@ function AddHarness(props: {
       labelledBy={titleId}
       className="harness-dialog"
       testId="add-harness-dialog"
-      focus={page.kind === "advanced" ? "input[type=text]" : ".join-card"}
+      focus={FOCUS[page.kind]}
       leaving={leaving}
       onLeave={leave}
       onGone={props.onClosed}
@@ -1498,6 +1347,7 @@ function AddHarness(props: {
             onAnother={() => setPage({ kind: "connect", way: page.way })}
             onBack={() => setPage({ kind: "gallery" })}
             onOpenHarness={props.onOpenHarness}
+            onNewAgent={props.onNewAgent}
             onClose={leave}
           />
         )}
@@ -1516,7 +1366,15 @@ function AddHarness(props: {
             // Chips's own words, opened under the line, were the first thing it showed (the setup
             // audit, 17 October 2026, M5). They wait behind What it may do, as the welcome's do.
             foldSwitches={typeof page.way !== "string"}
-            onCancelled={() => setPage({ kind: "gallery" })}
+            kept={props.kept}
+            onKept={props.onKept}
+            // Picked on the page, the gallery to go back to is the page's own. A withdrawn link is
+            // kept no more.
+            onCancelled={() => {
+              props.onKept(undefined);
+              if (props.way === undefined || props.resume === true) setPage({ kind: "gallery" });
+              else leave();
+            }}
             onClose={leave}
           />
         )}
@@ -1696,7 +1554,7 @@ function Added(props: {
         another. Its space is <code data-testid="dm-id">{added.spaceId}</code>.
       </p>
       <div className="harness-new-lines">
-        <b>Paste these into a terminal</b>
+        <b>{RUN_IN_TERMINAL}</b>
         <Copy text={lines} label="Copy all" testId="copy-lines" />
       </div>
       <pre className="curl-lines" data-testid="curl-lines">

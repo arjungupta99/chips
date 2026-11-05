@@ -23,6 +23,7 @@
  */
 
 import {
+  ALONE_TILE_WIDTH,
   type Block,
   type Cell,
   capsule,
@@ -36,6 +37,7 @@ import {
   parseMarkdown,
   runsWords,
   type Table,
+  tileShape,
   wordMarks,
 } from "@chipschat/core";
 import { EVERYONE_HANDLE, handleMap } from "@chipschat/protocol";
@@ -318,6 +320,7 @@ function renderInline(inline: Inline, key: number, drawing: Drawing): ReactNode 
 }
 
 function Pictures({ pictures }: { readonly pictures: readonly Picture[] }) {
+  const alone = pictures.length === 1;
   return (
     <div
       className="photo-grid md-pictures"
@@ -326,14 +329,30 @@ function Pictures({ pictures }: { readonly pictures: readonly Picture[] }) {
     >
       {pictures.map((picture, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: a parsed picture is only ever itself.
-        <PictureTile key={index} picture={picture} />
+        <PictureTile key={index} picture={picture} alone={alone} />
       ))}
     </div>
   );
 }
 
-function PictureTile({ picture }: { readonly picture: Picture }) {
+/**
+ * The shape each picture came out, by its address: a room drawn again — scrolled back to, or
+ * reopened — draws it at its shape at once, rather than as a placeholder that then grows (the
+ * phone's `Markdown.tsx`, ADR 0268 addendum).
+ */
+const shapes = new Map<string, number>();
+
+/** Before a picture has come, its frame is a photo's usual shape. */
+const UNKNOWN_SHAPE = 4 / 3;
+
+/**
+ * A picture alone is the phone's: as wide as a tile alone, at its own shape within reason once it
+ * has come, and a photo's usual shape until then. Until 3 November it stood as tall as its picture,
+ * up to 360, from a placeholder 120 tall.
+ */
+function PictureTile({ picture, alone }: { readonly picture: Picture; readonly alone: boolean }) {
   const [state, setState] = useState<"loading" | "shown" | "failed">("loading");
+  const [shape, setShape] = useState(() => shapes.get(picture.src));
   const words = picture.alt || "Image";
   if (state === "failed") {
     return (
@@ -350,14 +369,26 @@ function PictureTile({ picture }: { readonly picture: Picture }) {
       rel="noreferrer noopener"
       aria-label={words}
       data-testid="md-picture"
+      style={
+        alone
+          ? { width: ALONE_TILE_WIDTH, aspectRatio: tileShape(shape ?? UNKNOWN_SHAPE) }
+          : undefined
+      }
     >
-      {state === "loading" && <span className="photo-loading" />}
       <img
         src={picture.src}
         alt={picture.alt}
         referrerPolicy="no-referrer"
         data-loading={state === "loading" ? "" : undefined}
-        onLoad={() => setState("shown")}
+        data-decoded={state === "shown"}
+        onLoad={(event) => {
+          const { naturalWidth, naturalHeight } = event.currentTarget;
+          if (naturalWidth > 0 && naturalHeight > 0) {
+            shapes.set(picture.src, naturalWidth / naturalHeight);
+            setShape(naturalWidth / naturalHeight);
+          }
+          setState("shown");
+        }}
         onError={() => setState("failed")}
       />
     </a>

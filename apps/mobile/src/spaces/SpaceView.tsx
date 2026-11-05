@@ -156,6 +156,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewStyle,
   type ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -164,9 +165,11 @@ import { MediaProvider } from "../media/MediaViewer";
 import type { Chosen } from "../needs/Ask";
 import { NeedsCard } from "../needs/NeedsCard";
 import { useChips } from "../store/provider";
+import { useDuo } from "../ui/duo";
 import { Aside, alpha, EdgeBand, GLASS } from "../ui/Glass";
 import { useLayout } from "../ui/layout";
-import { Empty, useColumn } from "../ui/Screen";
+import { Empty, useRoomColumn } from "../ui/Screen";
+import { useSplitSide } from "../ui/Split";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { useHandler } from "../ui/useHandler";
@@ -1115,7 +1118,7 @@ export function SpaceView({
 }) {
   const chips = useChips();
   const files = givenFiles ?? chips.paired?.files;
-  const column = useColumn();
+  const column = useRoomColumn();
   // The band at the bottom of the glass, which the composer holds clear itself and the room's
   // foot therefore stands on (`quietFoot`, `Composer.tsx`).
   const insets = useSafeAreaInsets();
@@ -1542,6 +1545,11 @@ function Head({
  * 10 October 2026). So a tap nothing in here wanted is off the menu, as one on the room is, and
  * closes the list only. A row, a circle, the field and the + are still their own taps: the
  * innermost view is asked first.
+ *
+ * On the iPhone Duo it stops short of the column iOS keeps down the screen's edge, where the room's
+ * back button stands (ADR 0256): it floats, so the safe area that keeps the lines clear of the column
+ * doesn't reach it, and the field ran under the clock (the simulator, 2 November 2026). In a split
+ * the room's pane already stops there.
  */
 function Foot({
   store,
@@ -1572,48 +1580,62 @@ function Foot({
 }) {
   const palette = usePalette();
   const closed = space.state === "closed";
+  // On an iPad the foot stands in the room's column, under the lines it answers (ADR 0256).
+  const column = useRoomColumn();
+  const clear = useClearOfDuo();
   return (
-    <View
-      style={styles.floating}
-      testID="room-foot"
-      onStartShouldSetResponder={() => closeAddress.current !== undefined}
-      onResponderRelease={() => closeAddress.current?.()}
-      onLayout={(event) => onHeight(heightOf(event))}
-    >
-      {closed ? (
-        <View style={styles.asides}>
-          <Aside>
-            <Text style={[styles.asideWords, { color: palette.ink3 }]} testID="closed">
-              This space is closed. Its history stays; reopen it with /reopen.
-            </Text>
-          </Aside>
-        </View>
-      ) : null}
-      <RoomNotice
-        store={store}
-        space={space}
-        snapshot={snapshot}
-        selfId={selfId}
-        onAdd={onOpenRoom === undefined ? undefined : () => onOpenRoom("add")}
-      />
-      <PausedBanner store={store} space={space} snapshot={snapshot} />
-      <Composer
-        key={space.id}
-        store={store}
-        space={space}
-        run={space.run}
-        directory={snapshot.directory}
-        selfId={selfId}
-        disabled={snapshot.connection === "rejected"}
-        files={files}
-        caps={snapshot.model.attachmentCaps}
-        onSent={onSent}
-        onAddressOpen={onAddressOpen}
-        roomNotice={snapshot.notices?.get(space.id)}
-        bar={bar}
-      />
+    <View style={[styles.floating, styles.footRow, clear]} pointerEvents="box-none">
+      <View
+        style={column}
+        testID="room-foot"
+        onStartShouldSetResponder={() => closeAddress.current !== undefined}
+        onResponderRelease={() => closeAddress.current?.()}
+        onLayout={(event) => onHeight(heightOf(event))}
+      >
+        {closed ? (
+          <View style={styles.asides}>
+            <Aside>
+              <Text style={[styles.asideWords, { color: palette.ink3 }]} testID="closed">
+                This space is archived. Its history stays; unarchive it from Spaces, or send
+                /unarchive, to carry on.
+              </Text>
+            </Aside>
+          </View>
+        ) : null}
+        <RoomNotice
+          store={store}
+          space={space}
+          snapshot={snapshot}
+          selfId={selfId}
+          onAdd={onOpenRoom === undefined ? undefined : () => onOpenRoom("add")}
+        />
+        <PausedBanner store={store} space={space} snapshot={snapshot} />
+        <Composer
+          key={space.id}
+          store={store}
+          space={space}
+          run={space.run}
+          directory={snapshot.directory}
+          selfId={selfId}
+          disabled={snapshot.connection === "rejected"}
+          files={files}
+          caps={snapshot.model.attachmentCaps}
+          onSent={onSent}
+          onAddressOpen={onAddressOpen}
+          roomNotice={snapshot.notices?.get(space.id)}
+          bar={bar}
+        />
+      </View>
     </View>
   );
+}
+
+/** Where the Duo's column is kept clear by what floats at the room's edge: not in a split's pane. */
+function useClearOfDuo(): ViewStyle | null {
+  const { side, column } = useDuo();
+  const split = useSplitSide();
+  if (side === undefined || column === 0 || split !== undefined) return null;
+  return side === "right" ? { right: column } : { left: column };
 }
 
 /**
@@ -2393,6 +2415,7 @@ const styles = StyleSheet.create({
   // The chrome at the room's foot, floating over the lines rather than standing under them.
   // `foot` below is the other one: the list's own, which is its header because it is inverted.
   floating: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  footRow: { alignItems: "center" },
   lines: { padding: SPACE.lg },
   // A turn stands off the one before it; a bubble inside a turn sits two points under the last.
   turn: { marginTop: TURN_GAP },

@@ -1,6 +1,6 @@
 /**
  * The app shell: subscribes to the store and renders the three panes — the sidebar, the middle
- * (a space, the audit, the harnesses, search or you), and the run panel. It holds only what is
+ * (a space, the workspace's log, the harnesses, search or you), and the run panel. It holds only what is
  * not in the log: which space is open, which tab, and a notice for the composer.
  * Everything else is folded from events, and every click becomes a call on the store.
  */
@@ -32,6 +32,7 @@ import {
   mayChangeProject,
   mayErase,
   mayOpenSpace,
+  mayRenameWorkspace,
   mayTurnDial,
   mayUseMac,
   messageRoute,
@@ -47,6 +48,7 @@ import {
   readUniverse,
   registerPasskey,
   roomDirectory,
+  runGoing,
   runsBySession,
   type SearchHit,
   type Snapshot,
@@ -57,6 +59,7 @@ import {
   spaceById,
   spaceTitle,
   type TakenOut,
+  THINKING_GRACE_MS,
   troubled,
   turnedBy,
   unreadCount,
@@ -67,11 +70,19 @@ import {
 } from "@chipschat/core";
 import { type AutonomyLevel, appPairingUrl, type Connector, pairingUrl } from "@chipschat/protocol";
 import { ChipMark, Icon } from "@chipschat/ui";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { desktop, inDesktop } from "../native.ts";
 import type { AgentsService } from "./Agents.tsx";
 import type { Chosen } from "./Ask.tsx";
-import { Audit } from "./Audit.tsx";
+import { AgentPane } from "./agent/AgentPane.tsx";
 import type { DecisionInput } from "./Decide.tsx";
 import type { OnFeedback } from "./Feedback.tsx";
 import { useFirstRun } from "./FirstRun.tsx";
@@ -80,17 +91,27 @@ import { createFolders, type Folders } from "./folders.ts";
 import { Harnesses } from "./Harnesses.tsx";
 import { JoinRequestDialog, type JoinService, nextAsk } from "./Join.tsx";
 import type { LineHandlers, Standing } from "./LineActions.tsx";
+import { useMenuCommands } from "./menuCommands.ts";
 import { useNewSpaceDialog } from "./NewSpace.tsx";
 import { NoRooms } from "./NoRooms.tsx";
+import type { RowActs } from "./RowMenu.tsx";
 import { RunPanel } from "./RunPanel.tsx";
 import type { SpaceActions } from "./room/actions.ts";
 import type { ProjectActions } from "./room/Project.tsx";
+import { usePanelMotion } from "./room/panelMotion.ts";
 import { AskedPage } from "./room/Universe.tsx";
-import { Search, type SearchSession, useSearchSession } from "./Search.tsx";
+import {
+  type Beside,
+  OpenInSpaces,
+  Search,
+  type SearchSession,
+  useSearchSession,
+} from "./Search.tsx";
 import { DemoTag, Sidebar, type Tab, type WorkspaceTab } from "./Sidebar.tsx";
-import { type LineFocus, SpaceView, seedField } from "./SpaceView.tsx";
+import { type LineFocus, type SheetFor, SpaceView, seedField } from "./SpaceView.tsx";
 import type { RoomActs } from "./select/rooms.tsx";
-import { useMessaging } from "./useMessaging.ts";
+import { Turns } from "./Turns.tsx";
+import { type Messaging, useMessaging } from "./useMessaging.ts";
 import { usePatience } from "./usePatience.ts";
 import { DirectAsks } from "./you/DirectAskDialog.tsx";
 import { FEEDBACK_ON } from "./you/Feedback.tsx";
@@ -146,6 +167,7 @@ export function passkeysWorkHere(where: typeof globalThis = globalThis): boolean
 
 import { browserPermission } from "./useNotifications.ts";
 import {
+  BUILD,
   type FeedbackService,
   type LimitsService,
   type NotificationsService,
@@ -155,6 +177,9 @@ import {
 } from "./You.tsx";
 
 export type { WorkspaceTab } from "./Sidebar.tsx";
+
+/** A change of section fades through: the one going out first, then the one coming in. */
+const THROUGH = () => "through" as const;
 
 /** `open`, with `first` done before it; nothing where there is nothing to open. */
 function after(
@@ -240,8 +265,9 @@ export function Shell({
   const [pickedSession, setPickedSession] = useState<string | undefined>(undefined);
   /** A space this person just opened, to select the moment its event comes back (M3.3). */
   const [awaited, setAwaited] = useState<string | undefined>(undefined);
-  // A room made empty from the +, which opens with its sheet up on Add (ADR 0148).
-  const [membersFor, setMembersFor] = useState<string | undefined>(undefined);
+  // A room whose sheet comes up as it opens: on Add, made empty from the + (ADR 0148); on Icon,
+  // from Change icon on its row in the rail (ADR 0264's addendum).
+  const [sheetFor, setSheetFor] = useState<SheetFor | undefined>(undefined);
   const messaging = useMessaging(store, model, device.participantId);
   // The search, kept while the page is away, so a room opened from it and the way back find it
   // as it was (ADR 0132's addendum).
@@ -252,19 +278,23 @@ export function Shell({
   // You's Connect a harness (ADR 0185's addendum): the Agents page opens with its dialog up, where
   // the harness lands once it has said hello. Any other way to the page opens it without.
   const [connecting, setConnecting] = useState(false);
-  // The setup card's Away from home (ADR 0245): You, scrolled to the relay switch.
-  const [revealRelay, setRevealRelay] = useState(false);
-  const selectTab = useCallback((next: Tab) => {
+  // The setup card's Away from home (ADR 0245): You, scrolled to the relay card, which lights. A
+  // count of the asks, so asking again while You is open lights it again; 0 is none.
+  const [revealRelay, setRevealRelay] = useState(0);
+  const relayAsks = useRef(0);
+  // A section from the top: its list, or You at the relay card when `reveal` asks.
+  const goTo = useCallback((next: Tab, reveal: number) => {
     setAgentOpened(undefined);
     setConnecting(false);
-    setRevealRelay(false);
+    setRevealRelay(reveal);
     setTab(next);
     setMenu(false);
   }, []);
+  const selectTab = useCallback((next: Tab) => goTo(next, 0), [goTo]);
   const openRelay = useCallback(() => {
-    selectTab("you");
-    setRevealRelay(true);
-  }, [selectTab]);
+    relayAsks.current += 1;
+    goTo("you", relayAsks.current);
+  }, [goTo]);
   const openAgent = useCallback((agentId: string) => {
     setAgentOpened(agentId);
     setConnecting(false);
@@ -313,7 +343,6 @@ export function Shell({
     () => model.spaces.find((space) => space.id === selectedId),
     [model.spaces, selectedId],
   );
-  const personName = directory[device.participantId]?.displayName ?? device.displayName;
 
   /**
    * Open a space — or, for a thread the log holds, the room it grew in — at a line when one is
@@ -337,6 +366,18 @@ export function Shell({
     (spaceId: string, lineId?: string, words?: string) => openIn(spaceId, lineId, select, words),
     [openIn, select],
   );
+  const keepTab = useCallback((roomId: string) => {
+    setSelectedId(roomId);
+    setPickedSession(undefined);
+    setTakenFrom(undefined);
+  }, []);
+  const [searchBeside, besideSearch] = useSearchBeside({
+    model,
+    onSearch: tab === "search",
+    selectedId,
+    openIn,
+    keepTab,
+  });
 
   // A link from outside. An approval names the space it is waiting in rather than one of
   // its own, so both kinds of link end in the same place: a space, open, on Spaces.
@@ -381,6 +422,22 @@ export function Shell({
       read: (spaceIds) => store.markSpacesRead(spaceIds),
     }),
     [store],
+  );
+  // What a row's menu pins, hides, archives and deletes through: the phone's swipes, on a right-click.
+  const rowActs = useMemo<RowActs>(
+    () => ({
+      pin: (spaceId, pinned) => store.setSpacePinned(spaceId, pinned),
+      hide: (spaceId, hidden) => store.setSpaceHidden(spaceId, hidden),
+      archive: (spaceId, archived) =>
+        store.updateSpace({ spaceId, state: archived ? "closed" : "open" }),
+      erase: (spaceId, options) => store.eraseSpace(spaceId, options),
+      // The room, and its sheet on Icon: a page, where the phone's long press opens a sheet.
+      icon: (spaceId) => {
+        open(spaceId);
+        setSheetFor({ spaceId, on: "icon" });
+      },
+    }),
+    [store, open],
   );
 
   // Which visit's run the panel is showing, when a space has more than one open (ADR 0024).
@@ -469,13 +526,14 @@ export function Shell({
   // One dialog for a new space, opened out of the rail's + or an empty workspace's button.
   const newSpace = useNewSpaceDialog({
     directory,
+    workspace: device.deviceId,
     onAsk: (harnessIds, title) =>
       setAwaited(askForSpace(store, device.participantId, harnessIds, title)),
     onGroup: (title) => {
       const spaceId = store.createSpace({ title });
       setAwaited(spaceId);
       // Its sheet, on Add, once the dialog has gone (ADR 0148).
-      return () => setMembersFor(spaceId);
+      return () => setSheetFor({ spaceId, on: "add" });
     },
   });
 
@@ -483,6 +541,19 @@ export function Shell({
   const newSpaceFrom = mayOpenSpace(myRole(model, device.participantId))
     ? newSpace.open
     : undefined;
+
+  // The Mac's menus and their keys (ADR 0267); in a browser they are held and never asked.
+  useMenuCommands({
+    tab,
+    selectTab,
+    onNewSpace: newSpaceFrom,
+    spaces: model.spaces,
+    hiddenSpaces,
+    pinnedSpaces,
+    selectedId,
+    open,
+    build: BUILD,
+  });
 
   const middle = (
     <MiddlePane
@@ -511,8 +582,8 @@ export function Shell({
         setSelectedId(undefined);
       }}
       onNewSpace={newSpaceFrom}
-      membersFor={membersFor}
-      onMembersShown={() => setMembersFor(undefined)}
+      sheetFor={sheetFor}
+      onSheetShown={() => setSheetFor(undefined)}
       receipts={receipts}
       unsentNotes={snapshot.unsentNotes}
       // A command's own notice, or what the server said of a change to who is in the room that
@@ -536,20 +607,27 @@ export function Shell({
       hiddenSpaces={hiddenSpaces}
       pinnedSpaces={pinnedSpaces}
       searching={searching}
+      searchBeside={searchBeside}
+      onSearchBeside={besideSearch}
+      onOpenInSpaces={select}
+      onAgentsList={() => selectTab("agents")}
       agentOpened={agentOpened}
       onOpenAgent={openAgent}
       connecting={connecting}
       onConnectHarness={connectHarness}
+      workspaces={workspaces}
+      onSwitch={onSwitch}
       cards={firstRun.cards}
     />
   );
-  const side = sideOf(tab, selected, run);
+  const side = useAfterTheBeat(sideOf(tab, selected, run, sessions));
+  const panel = usePanelMotion(side, panelRoom(tab, selectedId));
 
   return (
     <OpenRelay.Provider value={openRelay}>
       <div
         className="shell"
-        data-panel={side === undefined ? "false" : "true"}
+        data-panel={panel.laid ? "true" : "false"}
         data-menu={menu ? "true" : "false"}
       >
         <NarrowBar
@@ -576,7 +654,6 @@ export function Shell({
           selectedSpaceId={selectedId}
           empty={empty}
           awaiting={snapshot.awaiting}
-          listed={snapshot.directoryFrom !== undefined}
           reach={{
             connection,
             link,
@@ -587,7 +664,6 @@ export function Shell({
           }}
           selfId={device.participantId}
           tab={tab}
-          personName={personName}
           onSelectTab={selectTab}
           onSelectSpace={open}
           onNewSpace={after(() => setMenu(false), newSpaceFrom)}
@@ -596,12 +672,39 @@ export function Shell({
           onPairAnother={onPairAnother}
           onRemoveDemo={onRemoveDemo}
           onWatchDemo={onWatchDemo}
+          onRenameWorkspace={
+            mayRenameWorkspace(myRole(model, device.participantId))
+              ? (name) => store.renameWorkspace(name)
+              : undefined
+          }
+          desktop={inDesktop()}
           // A demo has nothing to set up, and no welcome (ADR 0213, point 1).
           setup={firstRun.setup}
           roomActs={roomActs}
+          rowActs={rowActs}
         />
 
-        {middle}
+        {/* The section and its run panel, which fade through to the next section (ADR 0274). */}
+        <Turns at={tab} depth={0} way={THROUGH} name="section">
+          {middle}
+          {panel.shown?.kind === "run" && (
+            <RunPanel
+              run={panel.shown.run}
+              motion={panel.motion}
+              directory={directory}
+              harness={model.harnesses[panel.shown.run.harnessId]}
+              busy={busy.has(panel.shown.run.runId) || busy.has(panel.shown.run.harnessId)}
+              sessions={sessions}
+              chainCostUsd={laneChainCostUsd(model, panel.shown.run.runId)}
+              onPickSession={setPickedSession}
+              onPause={() => carryOut({ kind: "pause" })}
+              onResume={() => carryOut({ kind: "resume" })}
+              onStop={(reason) => carryOut({ kind: "stop", reason })}
+              onAutonomy={turnDial}
+              turnsDial={mayTurnDial(model, device.participantId)}
+            />
+          )}
+        </Turns>
         {newSpace.dialog}
         {firstRun.phone}
         {firstRun.welcome}
@@ -624,22 +727,6 @@ export function Shell({
           selfId={device.participantId}
         />
 
-        {side?.kind === "run" && (
-          <RunPanel
-            run={side.run}
-            directory={directory}
-            harness={model.harnesses[side.run.harnessId]}
-            busy={busy.has(side.run.runId) || busy.has(side.run.harnessId)}
-            sessions={sessions}
-            chainCostUsd={laneChainCostUsd(model, side.run.runId)}
-            onPickSession={setPickedSession}
-            onPause={() => carryOut({ kind: "pause" })}
-            onResume={() => carryOut({ kind: "resume" })}
-            onStop={(reason) => carryOut({ kind: "stop", reason })}
-            onAutonomy={turnDial}
-            turnsDial={mayTurnDial(model, device.participantId)}
-          />
-        )}
         <PageAsked
           asked={pageAsked}
           store={store}
@@ -817,8 +904,8 @@ function JoinAsks(props: {
 
 interface MiddlePaneProps {
   readonly tab: Tab;
-  /** You opened from the setup card's Away from home, to the relay switch (ADR 0245). */
-  readonly revealRelay?: boolean | undefined;
+  /** You opened from the setup card's Away from home, to the relay card: which ask (ADR 0245). */
+  readonly revealRelay?: number | undefined;
   readonly model: Snapshot["model"];
   readonly joins: Snapshot["joins"];
   readonly directory: Snapshot["directory"];
@@ -847,10 +934,10 @@ interface MiddlePaneProps {
   readonly onTakenSeen: () => void;
   /** Absent for somebody who may not open a space (ADR 0196). */
   readonly onNewSpace: ((from: HTMLElement | null) => void) | undefined;
-  /** The room just made empty from the +, whose sheet opens on Add with it (ADR 0148). */
-  readonly membersFor?: string | undefined;
+  /** The room whose sheet comes up on a page as it opens: Add (ADR 0148) or Icon. */
+  readonly sheetFor?: SheetFor | undefined;
   /** Its sheet came up: the next time that room opens, it opens as any room does. */
-  readonly onMembersShown: () => void;
+  readonly onSheetShown: () => void;
   readonly receipts: Snapshot["receipts"];
   readonly unsentNotes: Snapshot["unsentNotes"];
   readonly notice: string | undefined;
@@ -882,12 +969,22 @@ interface MiddlePaneProps {
   /** The rooms the person pinned (ADR 0240), which the room's sheet offers to let go. */
   readonly pinnedSpaces: Snapshot["pinnedSpaces"];
   readonly searching: SearchSession;
+  /** What a result opened beside Search's results (ADR 0269), and opening another there. */
+  readonly searchBeside: Beside | undefined;
+  readonly onSearchBeside: (opened: Beside) => void;
+  /** The room beside Search's results, taken to Spaces. */
+  readonly onOpenInSpaces: (spaceId: string) => void;
+  /** The Agents page's list: an agent's page beside Search's results goes back to it. */
+  readonly onAgentsList: () => void;
   /** An agent a search result opened, which the Agents page opens on. */
   readonly agentOpened: string | undefined;
   readonly onOpenAgent: (agentId: string) => void;
   /** The Agents page opens with Connect a harness up: You's card asked for it. */
   readonly connecting: boolean;
   readonly onConnectHarness: () => void;
+  /** Every workspace this device holds, which You's Workspace row switches between. */
+  readonly workspaces: readonly WorkspaceTab[] | undefined;
+  readonly onSwitch: ((deviceId: string) => void) | undefined;
   /** The gallery's cards from the docs (ADR 0171), for Connect a harness. */
   readonly cards?: readonly Connector[] | undefined;
 }
@@ -900,13 +997,89 @@ function hitLine(model: WorkspaceModel, hit: SearchHit): string | undefined {
   return spaceById(model, hit.spaceId)?.lines.findLast((line) => closesRun(line, runId))?.id;
 }
 
-/** What the right-hand column shows: the room's run, else nothing. */
+/**
+ * What a result opened beside Search's results on a wide window (ADR 0269), kept while the page is
+ * away as the search is, and opening another there. A room opened there is the open room, chosen
+ * with the Search tab kept (`keepTab`), so it is read, answered and acted on as on Spaces; and back
+ * on Search it is the open room again, whatever Spaces looked at meanwhile.
+ */
+function useSearchBeside(on: {
+  readonly model: WorkspaceModel;
+  readonly onSearch: boolean;
+  readonly selectedId: string | undefined;
+  readonly openIn: Messaging["open"];
+  readonly keepTab: (roomId: string) => void;
+}): readonly [Beside | undefined, (next: Beside) => void] {
+  const { model, onSearch, selectedId, openIn, keepTab } = on;
+  const [opened, setOpened] = useState<Beside | undefined>(undefined);
+  const open = useCallback(
+    (next: Beside) => {
+      setOpened(next);
+      if (next.kind !== "space") return;
+      const hit = next.hit;
+      const words = hit === undefined ? undefined : hitWords(hit, next.searched ?? "");
+      openIn(next.spaceId, hit === undefined ? undefined : hitLine(model, hit), keepTab, words);
+    },
+    [model, openIn, keepTab],
+  );
+  const room = opened?.kind === "space" ? spaceById(model, opened.spaceId) : undefined;
+  const shown = room?.parentSpaceId ?? room?.id;
+  useEffect(() => {
+    if (onSearch && shown !== undefined && shown !== selectedId) keepTab(shown);
+  }, [onSearch, shown, selectedId, keepTab]);
+  return [opened, open];
+}
+
+/**
+ * What the right-hand column shows: the room's run while one is going in it, else nothing, and the
+ * room has the width (ADR 0268). The run shown is the visit picked, which may have ended while
+ * another goes on, so the panel's picker can switch back.
+ */
 type Side = { readonly kind: "run"; readonly room: Space; readonly run: Run } | undefined;
 
-function sideOf(tab: Tab, room: Space | undefined, run: Run | undefined): Side {
-  if (tab !== "spaces" || room === undefined) return undefined;
-  if (run !== undefined) return { kind: "run", room, run };
-  return undefined;
+function sideOf(
+  tab: Tab,
+  room: Space | undefined,
+  run: Run | undefined,
+  sessions: readonly { readonly run?: Run }[],
+): Side {
+  if (tab !== "spaces" || room === undefined || run === undefined) return undefined;
+  const going = [room.run, ...sessions.map((each) => each.run)].some(
+    (each) => each !== undefined && runGoing(each),
+  );
+  return going ? { kind: "run", room, run } : undefined;
+}
+
+/**
+ * The room the run panel slides beside: Spaces's open room only. To another section the panel goes
+ * with the section's fade (ADR 0274), so a change of section counts as another room.
+ */
+function panelRoom(tab: Tab, roomId: string | undefined): string | undefined {
+  return tab === "spaces" ? roomId : undefined;
+}
+
+/**
+ * The panel once its run has been going the thinking bubble's beat (core's `THINKING_GRACE_MS`), as
+ * the bubble waits it: a run over in less never shows it, where the panel slid in and straight back
+ * out (ADR 0268 addendum). Counted from the run's own start, so a room opened on a run long going
+ * shows it at once, and a clock ahead of the server's waits no more than the beat.
+ */
+function useAfterTheBeat(side: Side): Side {
+  const [, again] = useState(0);
+  const started = side === undefined ? Number.NaN : Date.parse(side.run.startedAt ?? "");
+  const left = Number.isNaN(started)
+    ? 0
+    : Math.min(THINKING_GRACE_MS, Math.max(0, started + THINKING_GRACE_MS - Date.now()));
+  const waiting = left > 0;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(
+      () => again((n) => n + 1),
+      Math.max(1, started + THINKING_GRACE_MS - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [waiting, started]);
+  return waiting ? undefined : side;
 }
 
 /**
@@ -932,7 +1105,7 @@ function accountOf(store: Store, device: Device): (() => Promise<void>) | undefi
   return isDemo(device) ? undefined : () => store.deleteAccount();
 }
 
-/** The middle pane: the audit, the agents, you, search, or the space that is open. */
+/** The middle pane: the workspace's log, the agents, you, search, or the space that is open. */
 function MiddlePane(p: MiddlePaneProps) {
   // One service for the life of the store: the You screen fetches its lists when the service
   // changes, and a new object on every snapshot would fetch them on every event.
@@ -945,6 +1118,7 @@ function MiddlePane(p: MiddlePaneProps) {
       revokeDevice: (id) => p.store.revokeDevice(id),
       rename: (name) => p.store.rename(name),
       renameWorkspace: (name) => p.store.renameWorkspace(name),
+      setMyFace: (face) => p.store.setMyFace(face),
       issuePairingCode: async (forId, replaces) => {
         const issued = await p.store.issuePairingCode(forId, replaces);
         // The server's own answer first: this QR is read by a phone somewhere else, and the only
@@ -1002,6 +1176,7 @@ function MiddlePane(p: MiddlePaneProps) {
       archive: (agentId, archived) => p.store.setAgentArchived(agentId, archived),
       remove: (agentId, options) => p.store.deleteAgent(agentId, options),
       lock: (agentId, locked) => p.store.setAgentLock(agentId, locked),
+      face: (agentId, face) => p.store.setAgentFace(agentId, face),
     }),
     [p.store],
   );
@@ -1090,13 +1265,14 @@ function MiddlePane(p: MiddlePaneProps) {
         notifications={notifications}
         limits={limits}
         onConnectHarness={p.onConnectHarness}
+        workspaces={p.workspaces}
+        onSwitch={p.onSwitch}
         onSetRules={(input) => p.store.setRules(input)}
         spaceIcons={p.spaceIcons}
         onOpenSpace={(spaceId) => p.open(spaceId)}
       />
     );
   }
-  if (p.tab === "audit") return <Audit model={p.model} directory={p.directory} onOpen={p.open} />;
   if (p.tab === "search") {
     return (
       <Search
@@ -1112,6 +1288,11 @@ function MiddlePane(p: MiddlePaneProps) {
           p.open(hit.spaceId, hitLine(p.model, hit), hitWords(hit, searched))
         }
         onWake={p.store.wake}
+        beside={{
+          opened: p.searchBeside,
+          onOpen: p.onSearchBeside,
+          pane: besidePane(p, agents),
+        }}
       />
     );
   }
@@ -1129,7 +1310,12 @@ function MiddlePane(p: MiddlePaneProps) {
         onTransfer={(harnessId, ownerId) => p.store.transferHarness(harnessId, ownerId)}
         onRemove={(harnessId) => p.store.removeHarness(harnessId)}
         onRestart={(harnessId) => p.store.restartHarness(harnessId)}
+        onRun={{
+          pause: (run) => p.store.pauseRun(run),
+          resume: (run) => p.store.resumeRun(run),
+        }}
         onSetRules={(input) => p.store.setRules(input)}
+        onSetAutonomy={(input) => p.store.setAutonomy(input)}
         onNewAgent={(harnessId, name) => p.store.askIntoNewRoom(harnessId, name)}
         onDeclare={(harnessId, capabilities) =>
           p.store.declareCapabilities(harnessId, capabilities)
@@ -1172,6 +1358,7 @@ function MiddlePane(p: MiddlePaneProps) {
         onRetry={p.store.wake}
         onNewSpace={p.onNewSpace}
         welcome={welcomeFor(p.model.people, p.directory, p.device.participantId, p.workspace)}
+        relay={p.device.relayUrl !== undefined}
       />
     );
   }
@@ -1183,9 +1370,54 @@ function MiddlePane(p: MiddlePaneProps) {
       </main>
     );
   }
+  return roomView(p, selected);
+}
+
+/**
+ * What stands beside Search's results (ADR 0269): the room a result opened, at its line, with Open
+ * in Spaces at its head, or an agent's page. Nothing for a room or an agent that has gone.
+ */
+function besidePane(p: MiddlePaneProps, agents: AgentsService): ReactNode {
+  const opened = p.searchBeside;
+  if (opened === undefined) return undefined;
+  if (opened.kind === "agent") {
+    if (p.directory[opened.agentId] === undefined) return undefined;
+    return (
+      <AgentPane
+        key={opened.agentId}
+        agentId={opened.agentId}
+        model={p.model}
+        directory={p.directory}
+        selfId={p.device.participantId}
+        files={p.files}
+        faces={p.spaceIcons}
+        agents={agents}
+        onBack={p.onAgentsList}
+        onOpenRoom={(spaceId) =>
+          p.onSearchBeside({ kind: "space", key: `space:${spaceId}`, spaceId })
+        }
+        onOpenAgent={(agentId) =>
+          p.onSearchBeside({ kind: "agent", key: `agent:${agentId}`, agentId })
+        }
+        context={p.store}
+        heartbeats={p.store}
+        windows={p.store}
+        models={p.store}
+      />
+    );
+  }
+  const room = spaceById(p.model, opened.spaceId);
+  const selected = p.selected;
+  if (selected === undefined || selected.id !== (room?.parentSpaceId ?? room?.id)) return undefined;
+  return roomView(p, selected, <OpenInSpaces onOpen={() => p.onOpenInSpaces(selected.id)} />);
+}
+
+/** A room as the middle pane draws it: on Spaces, and beside Search's results (ADR 0269). */
+function roomView(p: MiddlePaneProps, selected: Space, headEnd?: ReactNode) {
   return (
     <SpaceView
       space={selected}
+      headEnd={headEnd}
       // A harness waiting here goes by the first name held for its agent (ADR 0150).
       directory={roomDirectory(selected, p.directory)}
       selfId={p.device.participantId}
@@ -1216,8 +1448,8 @@ function MiddlePane(p: MiddlePaneProps) {
         p.workspace,
         p.folders,
       )}
-      membersFor={p.membersFor}
-      onMembersShown={p.onMembersShown}
+      sheetFor={p.sheetFor}
+      onSheetShown={p.onSheetShown}
       onSend={(text, attachments, aim, replyTo) =>
         p.carryOut(parseCommand(text), attachments, aim, replyTo)
       }
@@ -1372,6 +1604,7 @@ function spaceActions(
     lead: (agentId) => store.setLead(spaceId, agentId),
     spend: (usd) => store.setSpendCeiling(spaceId, usd),
     lock: (locked) => store.setLock(spaceId, locked),
+    icon: (face) => store.setSpaceIcon(spaceId, face),
     roomSpend: () => store.roomSpend(spaceId),
     refresh: () => store.refreshDirectory(),
     mayArchive: mayArchive(model, space, selfId),

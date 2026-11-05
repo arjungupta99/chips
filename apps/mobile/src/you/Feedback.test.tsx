@@ -1,6 +1,7 @@
 /**
  * Send feedback on You (ADR 0237): the row, the sheet's two ways, and the switch that keeps the
- * row from being drawn until the repository is public.
+ * row from being drawn until the repository is public. Beside the list on an iPad the two ways are
+ * a page, which goes as one is taken.
  */
 
 import {
@@ -11,10 +12,11 @@ import {
   type WorkspaceModel,
 } from "@chipschat/core";
 import { render as renderBare, screen, userEvent, waitFor } from "@testing-library/react-native";
-import type { ReactElement, ReactNode } from "react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { Linking } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { feedbackVersion, useFeedbackGroup } from "./Feedback";
+import { YouBeside, type YouPage } from "./pages";
 
 const IPHONE = {
   frame: { x: 0, y: 0, width: 393, height: 852 },
@@ -72,6 +74,32 @@ function Feedback({ shown = true, main = true }: { shown?: boolean; main?: boole
     <>
       {group}
       {overlays}
+    </>
+  );
+}
+
+/** Beside the list on an iPad: the row, and beside it the page open, if any. */
+function Beside() {
+  const [open, setOpen] = useState<YouPage | undefined>(undefined);
+  return (
+    <YouBeside value={{ open, go: setOpen }}>
+      <BesideShown open={open} />
+    </YouBeside>
+  );
+}
+
+function BesideShown({ open }: { readonly open: YouPage | undefined }) {
+  const { group, overlays, pages } = useFeedbackGroup({
+    shown: true,
+    model: workspace(true),
+    directory: DIRECTORY,
+    selfId: ME,
+  });
+  return (
+    <>
+      {group}
+      {overlays}
+      {open === "feedback" ? pages?.feedback : null}
     </>
   );
 }
@@ -135,6 +163,35 @@ describe("the sheet", () => {
     await userEvent.press(screen.getByTestId("feedback-row"));
     expect(opened).toEqual([feedbackLink(feedbackVersion())]);
     expect(screen.queryByText("Feedback for Chips")).toBeNull();
+  });
+});
+
+describe("beside the list on an iPad", () => {
+  it("opens the two ways as a page, chooses the row, and opens no sheet", async () => {
+    await render(<Beside />);
+    await userEvent.press(screen.getByTestId("feedback-row"));
+    expect(screen.getByTestId("feedback-page")).toBeOnTheScreen();
+    expect(screen.getByRole("header", { name: "Feedback for Chips" })).toBeTruthy();
+    expect(screen.getByTestId("feedback-row")).toBeSelected();
+    expect(screen.queryByTestId("feedback-sheet")).toBeNull();
+  });
+
+  it("puts the line in the Main space's field and opens the space, the page gone", async () => {
+    await render(<Beside />);
+    await userEvent.press(screen.getByTestId("feedback-row"));
+    await userEvent.press(screen.getByTestId("feedback-agent"));
+    expect(mockFilled).toEqual([[HOME, FEEDBACK_ASK]]);
+    expect(mockPushed).toEqual([`/spaces/${HOME}`]);
+    expect(screen.queryByTestId("feedback-page")).toBeNull();
+    expect(screen.getByTestId("feedback-row")).not.toBeSelected();
+  });
+
+  it("opens the form on GitHub, the page gone", async () => {
+    await render(<Beside />);
+    await userEvent.press(screen.getByTestId("feedback-row"));
+    await userEvent.press(screen.getByTestId("feedback-github"));
+    expect(opened).toEqual([feedbackLink(feedbackVersion())]);
+    expect(screen.queryByTestId("feedback-page")).toBeNull();
   });
 });
 

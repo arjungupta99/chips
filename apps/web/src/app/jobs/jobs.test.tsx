@@ -182,11 +182,15 @@ function reads(first: HarnessJobsView, runs: readonly JobRun[] = checks, refuse?
   return store satisfies JobsReads;
 }
 
+/**
+ * OpenClaw's page (ADR 0254), opened from its card in every harness's list, where there is one: a
+ * member of no room with its agents has none (ADR 0034).
+ */
 function page(
   jobs: JobsReads,
   options: { selfId?: string; capabilities?: readonly string[] } = {},
 ) {
-  return render(
+  const shown = render(
     <Harnesses
       model={model}
       directory={directory(options.capabilities)}
@@ -197,6 +201,9 @@ function page(
       jobs={jobs}
     />,
   );
+  const card = screen.queryByTestId(`harness-summary-${CLAW}`);
+  if (card !== null) fireEvent.click(card);
+  return shown;
 }
 
 const rowOf = (jobId: string) => screen.getByTestId(`job-row-${jobId}`);
@@ -213,7 +220,7 @@ async function open(jobId: string) {
   return await screen.findByTestId("job-hero");
 }
 
-describe("Its own jobs on a harness's card", () => {
+describe("Its own jobs on a harness's page", () => {
   it("lists each job in core's words for the people who run it, with the week at the heading", async () => {
     page(reads(viewOf()));
     await screen.findByTestId("jobs-group");
@@ -238,7 +245,7 @@ describe("Its own jobs on a harness's card", () => {
   it("is nothing for a member, for a harness that sends no jobs, or for one that has none (404)", async () => {
     const store = reads(viewOf());
     const member = page(store, { selfId: DANA });
-    await screen.findByTestId("harness-card");
+    expect(screen.queryByTestId("harness-card")).toBeNull();
     expect(screen.queryByTestId("jobs-group")).toBeNull();
     expect(screen.queryByTestId("jobs-waiting")).toBeNull();
     member.unmount();
@@ -312,7 +319,7 @@ describe("a job's page", () => {
     );
   });
 
-  it("says a day pointed at above the bars, and goes back to the card", async () => {
+  it("says a day pointed at above the bars, and goes back to the harness's page", async () => {
     page(reads(viewOf()));
     await open("heartbeat:main");
     const bars = screen.getByTestId("job-bars");
@@ -324,7 +331,7 @@ describe("a job's page", () => {
     expect(screen.getByTestId("job-total-sub").textContent).toMatch(/ · \d+ runs?$/);
     fireEvent.mouseLeave(first);
     expect(days.at(-1)?.getAttribute("data-lit")).toBe("true");
-    fireEvent.click(screen.getByRole("button", { name: "‹ Agents" }));
+    fireEvent.click(screen.getByRole("button", { name: "‹ OpenClaw" }));
     await screen.findByTestId("jobs-group");
     expect(screen.queryByTestId("job-page")).toBeNull();
   });
@@ -359,7 +366,7 @@ describe("switching a job", () => {
     expect(screen.getByTestId("job-hero").querySelector(".job-mark")?.getAttribute("data-on")).toBe(
       "false",
     );
-    fireEvent.click(screen.getByRole("button", { name: "‹ Agents" }));
+    fireEvent.click(screen.getByRole("button", { name: "‹ OpenClaw" }));
     await screen.findByTestId("jobs-group");
     expect(words("heartbeat:main").value).toBe("Off");
   });

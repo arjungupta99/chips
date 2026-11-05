@@ -4,6 +4,10 @@
  * Theirs alone, as the rooms they hid are (ADR 0205): read and written through
  * `/v1/me/pinned-spaces`, and by nobody else, an owner or an admin included. Nothing else asks who
  * pinned a room, because a pin changes where a room stands on one person's list and nothing more.
+ *
+ * An archived room is pinned by nobody (Arjun, 4 November 2026: "Archived spaces should
+ * automatically be unpinned"): archiving it lets go of every pin on it (`forgetSpace`), and a read
+ * leaves out one archived some other way.
  */
 
 export interface PinnedSpaceRegistry {
@@ -22,4 +26,6 @@ export interface PinnedSpaceRegistry {
     readonly participantId: string;
     readonly spaceId: string;
   }) => Promise<void>;
+  /** Archived: pinned by nobody now, unarchived or not later. */
+  readonly forgetSpace: (workspaceId: string, spaceId: string) => Promise<void>;
 }

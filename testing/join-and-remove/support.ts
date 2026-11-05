@@ -112,13 +112,26 @@ export async function asOwner(page: Page): Promise<Page> {
 }
 
 /**
- * You, wherever it is: on a phone's width behind the menu (JR-15), at a desk in the rail.
+ * You's list, wherever it is: on a phone's width behind the menu (JR-15), at a desk in the rail;
+ * where You is too narrow for a page beside the list, back from the page last opened, a person's
+ * to People and People's to You (ADR 0265).
  */
 export async function openYou(page: Page): Promise<void> {
   const menu = page.getByTestId("narrow-menu");
   if (await menu.isVisible()) await menu.click();
   await page.getByTestId("you").click();
+  for (const name of ["‹ People", "‹ You"]) {
+    const back = page.getByRole("button", { name });
+    if (await back.isVisible()) await back.click();
+  }
   await expect(page.getByTestId("my-role")).toBeVisible();
+}
+
+/** A row of You's opened: People or Invite someone, its page beside the list or in its place. */
+export async function openYouPage(page: Page, row: "people-row" | "invite-someone"): Promise<void> {
+  await openYou(page);
+  await page.getByTestId(row).click();
+  await expect(page.getByTestId(row === "people-row" ? "people" : "invites")).toBeVisible();
 }
 
 /** A space, wherever the list is: behind the menu on a phone, in the rail at a desk. */
@@ -149,7 +162,7 @@ export async function invite(
   role: "admin" | "member" | "guest" = "member",
   uses: Uses = "once",
 ): Promise<string> {
-  await openYou(owner);
+  await openYouPage(owner, "invite-someone");
   await owner.getByRole("combobox", { name: "Invite role" }).selectOption(role);
   await owner.getByRole("combobox", { name: "Invite uses" }).selectOption(uses);
   // The link shown last stays until the new one replaces it: wait for a different one.
@@ -269,20 +282,18 @@ function escaped(words: string): string {
 
 /** A person's row in the owner's People, found by name. */
 export async function personRow(owner: Page, name: string): Promise<Locator> {
-  await openYou(owner);
+  await openYouPage(owner, "people-row");
   const row = owner.getByTestId("person-row").filter({ hasText: name });
   await expect(row).toBeVisible();
   return row;
 }
 
-/** A person's row opened under itself, where New phone… and Remove… are (ADR 0209). */
+/** A person's page, opened from their row, where New phone… and Remove… are (ADR 0209). */
 export async function openedRow(owner: Page, name: string): Promise<Locator> {
-  const row = await personRow(owner, name);
-  if ((await row.getByTestId("person-open").getAttribute("aria-expanded")) !== "true") {
-    await row.getByTestId("person-open").click();
-  }
-  await expect(row.getByTestId("person-details")).toBeVisible();
-  return row;
+  await (await personRow(owner, name)).click();
+  const page = owner.getByTestId("person-details");
+  await expect(page).toBeVisible();
+  return page;
 }
 
 /** A person's id, read off their row in the owner's People. */
@@ -308,7 +319,7 @@ export async function newRoom(owner: Page, title: string): Promise<Locator> {
   const room = owner.getByRole("main", { name: `Space: ${title}` });
   await expect(room).toBeVisible();
   // Its sheet comes up on Add (ADR 0148), where the caller adds whoever comes in.
-  await expect(owner.getByTestId("room-sheet-add-done")).toBeVisible();
+  await expect(owner.getByTestId("room-sheet-add-page")).toBeVisible();
   return room;
 }
 

@@ -65,14 +65,14 @@ test("the room sheet's first page is laid out in tiles, three across on the Mac 
   await name.press("Enter");
   await expect(page.getByRole("main", { name: "Space: Dunes" })).toBeVisible();
   const sheet = page.getByTestId("room-sheet");
-  await expect(sheet.getByTestId("room-sheet-add-done")).toBeVisible();
+  await expect(sheet.getByTestId("room-sheet-add-page")).toBeVisible();
   await sheet.getByTestId("room-sheet-other-rooms").click();
   await sheet
     .locator('[data-testid^="room-sheet-agent-"]', { hasText: "Surveyor" })
     .first()
     .click();
   await sheet.getByTestId("room-sheet-move").click();
-  await expect(sheet.getByTestId("room-sheet-add-done")).toBeVisible();
+  await expect(sheet.getByTestId("room-sheet-add-page")).toBeVisible();
   await addMember(page, { id: tamsin.id });
   await sheetBack(page);
 
@@ -160,7 +160,7 @@ test("the room sheet's first page is laid out in tiles, three across on the Mac 
   await expect(page.getByTestId("viewer-count")).toBeHidden();
   await expect(sheet).toBeVisible();
   await sheet.getByTestId("room-media-back").click();
-  await expect(sheet.getByTestId("room-sheet-done")).toBeVisible();
+  await expect(sheet.getByTestId("room-sheet-icon")).toBeVisible();
 
   // At a phone's width, the tiles go two to a row and Lock changes takes the row under them.
   await page.setViewportSize({ width: 390, height: 844 });

@@ -76,7 +76,6 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { BAR_ROOM } from "./barShape";
 import { EdgeBand, GLASS, useGlassy } from "./Glass";
 import { OnGround, useGround } from "./ground";
@@ -84,7 +83,7 @@ import { Icon } from "./Icon";
 import { useLayout } from "./layout";
 import { useInReadingTabs } from "./phoneBarNative";
 import { hasScrollBand, ScrollBand } from "./ScrollBand";
-import { useSplitSide } from "./Split";
+import { PANE_COLUMN, ROOM_SHARE, useSides, useSplitSide } from "./Split";
 import { Swap } from "./Swap";
 import { Sweep } from "./SwitchMotion";
 import { usePalette } from "./theme";
@@ -98,7 +97,7 @@ import {
   UnderShelf,
   useGlide,
 } from "./UnderMotion";
-import { useTabTop, useWindowInsets } from "./windowInsets";
+import { useRaisedTop, useTabTop } from "./windowInsets";
 
 export function Screen({
   title,
@@ -242,15 +241,16 @@ function useUnder(under: Under | undefined) {
 }
 
 /**
- * Whether the page pads itself with the window's insets rather than ask the native safe-area view.
+ * A page that is not a glass one: padded with the window's top and the insets of the edges it
+ * stands at, from the root (`useTabTop`, `useSides`), never the native safe-area view's.
+ *
  * On Android that view measures on a pre-draw pass, and the launch picture holds every pre-draw
  * until the app has something to show (`expo-splash-screen`): the first frames of a tab drew its
  * name under the status bar, and it dropped into place a beat later (the emulator, 16 October
- * 2026). The window's insets are read at the root and are known from the first frame
- * (`useWindowInsets`), so on Android the page is padded with them.
+ * 2026). On the iPhone Duo it padded a page beside the column with the column's 84 points as well,
+ * wherever the page stood, and its top with the window's 0, under UIKit's own bars' 24 (the
+ * simulator, 2 November 2026): Invite someone stood in half its page.
  */
-const PADS_ITSELF = Platform.OS === "android";
-
 function Page({
   edges,
   style,
@@ -262,18 +262,12 @@ function Page({
   readonly testID: string | undefined;
   readonly children: ReactNode;
 }) {
-  const insets = useWindowInsets();
-  if (!PADS_ITSELF) {
-    return (
-      <SafeAreaView edges={edges} style={style} testID={testID}>
-        {children}
-      </SafeAreaView>
-    );
-  }
+  const top = useTabTop();
+  const sides = useSides();
   const padding = {
-    paddingTop: edges === TOP_AND_SIDES ? insets.top : 0,
-    paddingLeft: insets.left,
-    paddingRight: insets.right,
+    paddingTop: edges === TOP_AND_SIDES ? top : 0,
+    paddingLeft: sides.left,
+    paddingRight: sides.right,
   };
   return (
     <View style={[style, padding]} testID={testID}>
@@ -358,7 +352,7 @@ function Floating({
   // The window's sides, and its top or the tab's own, whichever is lower: on iOS 27 a tab off
   // screen is told its top is 0 (ADR 0107), and on an iPad the tab's own top is under its tab bar
   // (ADR 0177).
-  const insets = useWindowInsets();
+  const sides = useSides();
   const top = useTabTop();
   const [name, setName] = useState(NAME_GUESS);
   const [list, setList] = useState<number | null>(null);
@@ -385,7 +379,7 @@ function Floating({
     <View
       style={[
         styles.page,
-        { backgroundColor: ground, paddingLeft: insets.left, paddingRight: insets.right },
+        { backgroundColor: ground, paddingLeft: sides.left, paddingRight: sides.right },
       ]}
       testID={testID}
     >
@@ -408,7 +402,7 @@ function Floating({
       </ScrollBand>
       <View
         pointerEvents="box-none"
-        style={[styles.floating, { top, left: insets.left, right: insets.right }]}
+        style={[styles.floating, { top, left: sides.left, right: sides.right }]}
         onLayout={(event) => setName(event.nativeEvent.layout.height)}
       >
         {head}
@@ -420,8 +414,8 @@ function Floating({
             styles.floating,
             {
               top: top + name,
-              left: insets.left,
-              right: insets.right,
+              left: sides.left,
+              right: sides.right,
               height: under.height,
             },
           ]}
@@ -454,7 +448,9 @@ export function UnderName({
   ref: own,
   ...rest
 }: ScrollViewProps & { readonly ref?: Ref<ScrollView> | undefined }) {
-  const { name, under, glide, list } = useContext(NameRoomContext);
+  const { name: covered, under, glide, list } = useContext(NameRoomContext);
+  // What iOS leaves out of the list's own inset, on the iPhone Duo (`useRaisedTop`).
+  const name = covered + useRaisedTop();
   const foot = useBarFoot();
   const ref = useCallback(
     (view: ScrollView | null) => {
@@ -515,7 +511,8 @@ export function UnderNameList<T>({
   List = FlatList as unknown as ListOf<T>,
   ...rest
 }: FlatListProps<T> & { readonly List?: ListOf<T> }) {
-  const { name, under, list } = useContext(NameRoomContext);
+  const { name: covered, under, list } = useContext(NameRoomContext);
+  const name = covered + useRaisedTop();
   const foot = useBarFoot();
   const ref = useCallback(
     (view: FlatList<T> | null) =>
@@ -662,9 +659,40 @@ const BODY_FIRST = Platform.OS === "ios";
  */
 export const COLUMN = 760;
 
-/** The style for a scroll view's content, or any column: full width on a phone, a page on an iPad. */
+/**
+ * The style for a scroll view's content, or any column: full width on a phone, a page on an iPad.
+ * Beside a list, a page has Settings' margins (ADR 0276): Arjun wanted what is on the right to take
+ * the right's width rather than a column of 760 (3 November 2026), and then "some margin on left
+ * and right, similar to how ipad settings have". A group's own margin is inside the column.
+ */
 export function useColumn(): ViewStyle {
-  return useLayout().wide ? styles.column : styles.full;
+  const { wide } = useLayout();
+  const side = useSplitSide();
+  if (side === "detail" || side === "third") return styles.pane;
+  return wide ? styles.column : styles.full;
+}
+
+/**
+ * A room's conversation and its composer: narrower than a page's column, since a line of chat is
+ * read at a glance and its reply is typed under it. On a 13-inch on its side the reply sat a
+ * thousand points from the send button before this (ADR 0256).
+ */
+export const ROOM_COLUMN = 680;
+
+/**
+ * The style for a room's lines and its foot: the whole room on a phone, a column on an iPad, and
+ * beside the list margins in proportion to the room, its lines at most a page's column (ADR 0276's
+ * addendums; Arjun, 3 and 4 November 2026: "we need the same left right margins for message window
+ * as well in a space", and the same where the room stands at the window's edge beside its details).
+ * In proportion rather than a column in the middle alone, so the room has its margins at every
+ * width it moves through, beside the list or not: 70 either side on a 13-inch on its side beside the
+ * list, 66 at the window's edge beside the details. A bubble keeps its own width.
+ */
+export function useRoomColumn(): ViewStyle {
+  const { wide } = useLayout();
+  const side = useSplitSide();
+  if (side === "detail") return styles.roomPane;
+  return wide ? styles.roomColumn : styles.full;
 }
 
 /**
@@ -799,5 +827,8 @@ const styles = StyleSheet.create({
   band: { position: "absolute", top: 0, left: 0, right: 0 },
   empty: { padding: SPACE.lg, fontSize: TEXT.md },
   column: { width: "100%", maxWidth: COLUMN, alignSelf: "center" },
+  pane: { width: "100%", maxWidth: PANE_COLUMN, alignSelf: "center" },
+  roomPane: { width: `${ROOM_SHARE * 100}%`, maxWidth: PANE_COLUMN, alignSelf: "center" },
+  roomColumn: { width: "100%", maxWidth: ROOM_COLUMN, alignSelf: "center" },
   full: { width: "100%" },
 });

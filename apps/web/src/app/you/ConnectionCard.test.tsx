@@ -6,8 +6,9 @@
 
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ConnectionCard, DIRECT_NOW_MS, TRIP_EVERY_MS, type WayFacts } from "./ConnectionCard.tsx";
-import { GUIDE_CHECK_MS, GUIDE_DONE_MS } from "./GoDirectDialog.tsx";
+import { ConnectionPage, DIRECT_NOW_MS, TRIP_EVERY_MS, type WayFacts } from "./ConnectionCard.tsx";
+import { GUIDE_CHECK_MS, GUIDE_DONE_MS } from "./GoDirectPage.tsx";
+import { Pane } from "./pane.tsx";
 
 const SINCE = "2026-10-20T07:40:00.000Z";
 
@@ -63,7 +64,7 @@ describe("Connection on You", () => {
 
   it("says a browser on the server's own page is direct, and names no relay", async () => {
     render(
-      <ConnectionCard
+      <ConnectionPage
         way={facts({ link: "direct", relayed: false, serverUrl: "http://192.168.1.20:4431" })}
         desktop={false}
       />,
@@ -76,7 +77,7 @@ describe("Connection on You", () => {
 
   it("says the relay is in the way on the Mac, what it sees, and times a round trip", async () => {
     const trips = [410, 2000, 420];
-    render(<ConnectionCard way={facts({}, trips)} desktop />);
+    render(<ConnectionPage way={facts({}, trips)} desktop />);
     await wait(TRIP_EVERY_MS * 2);
     expect(text("connection-way")).toMatch("Through the relay");
     expect(text("connection-trip")).toMatch("420 ms round trip");
@@ -86,11 +87,11 @@ describe("Connection on You", () => {
 
   it("says Direct now with the time now and before, for a few seconds", async () => {
     const trips = [410, 410, 410];
-    const { rerender } = render(<ConnectionCard way={facts({}, trips)} desktop />);
+    const { rerender } = render(<ConnectionPage way={facts({}, trips)} desktop />);
     await wait(TRIP_EVERY_MS * 2);
     trips.push(38);
     rerender(
-      <ConnectionCard
+      <ConnectionPage
         way={facts(
           {
             link: "tunnel",
@@ -110,28 +111,36 @@ describe("Connection on You", () => {
     expect(screen.queryByTestId("connection-now")).toBeNull();
   });
 
-  it("offers the owner Go direct on the relay; the guide waits on the server, then folds away (Phase 2)", async () => {
-    const { rerender } = render(<ConnectionCard way={facts()} desktop />);
+  it("offers the owner Go direct on the relay; the guide waits on the server, then goes back (Phase 2)", async () => {
+    // In its page, as You draws it: the guide stands in Connection's place, with the way back.
+    const drawn = (way: WayFacts) => (
+      <Pane title="Connection" path="connection" testId="you-pane">
+        <ConnectionPage way={way} desktop />
+      </Pane>
+    );
+    const { rerender } = render(drawn(facts()));
     await wait(0);
     fireEvent.click(screen.getByTestId("go-direct-open"));
+    expect(screen.getByTestId("you-pane").hidden).toBe(true);
+    expect(screen.getByRole("button", { name: "‹ Connection" })).toBeDefined();
     expect(text("go-direct-step-2")).toMatch("Arjun's Mac mini is in tail2f9c1e.");
     expect(screen.getByTestId("go-direct-step-3").getAttribute("data-state")).toBe("waiting");
     await wait(GUIDE_CHECK_MS * 2);
     expect(asked.filter((each) => each === "goDirect")).toHaveLength(3);
-    rerender(<ConnectionCard way={facts({ link: "tunnel", wentDirect: true })} desktop />);
+    rerender(drawn(facts({ link: "tunnel", wentDirect: true })));
     await wait(0);
     expect(screen.getByTestId("go-direct-step-1").getAttribute("data-state")).toBe("done");
     expect(text("go-direct-step-3")).toMatch("answered directly");
-    expect(screen.getByTestId("go-direct-dialog").getAttribute("data-leaving")).toBeNull();
-    await wait(GUIDE_DONE_MS);
-    expect(screen.getByTestId("go-direct-dialog").getAttribute("data-leaving")).toBe("true");
-    await wait(1000);
-    expect(screen.queryByTestId("go-direct-dialog")).toBeNull();
+    await wait(GUIDE_DONE_MS - 100);
+    expect(screen.getByTestId("go-direct-page")).toBeDefined();
+    await wait(100);
+    expect(screen.queryByTestId("go-direct-page")).toBeNull();
+    expect(screen.getByTestId("you-pane").hidden).toBe(false);
   });
 
   it("guides somebody who is not an owner through an ask, and the invite once shared (Phase 3)", async () => {
     const guest = (over: Partial<WayFacts> = {}) => facts({ owner: false, ...over }, [430]);
-    const { rerender } = render(<ConnectionCard way={guest()} desktop />);
+    const { rerender } = render(<ConnectionPage way={guest()} desktop />);
     await wait(0);
     // Their ask is read as the card is drawn.
     expect(asked).toContain("readMine");
@@ -143,7 +152,7 @@ describe("Connection on You", () => {
     await wait(0);
     expect(asked).toContain("ask 430");
     const ask = { state: "asked" as const, askedAt: "2026-10-20T16:12:00.000Z" };
-    rerender(<ConnectionCard way={guest({ myAsk: ask })} desktop />);
+    rerender(<ConnectionPage way={guest({ myAsk: ask })} desktop />);
     await wait(0);
     expect(text("go-direct-step-1")).toMatch(/Asked at .+ when it's shared/);
     expect(screen.getByTestId("go-direct-step-1").getAttribute("data-state")).toBe("waiting");
@@ -154,7 +163,7 @@ describe("Connection on You", () => {
     expect(asked.filter((each) => each === "readMine").length).toBe(reads + 2);
     const link = "https://login.tailscale.com/admin/invite/x";
     rerender(
-      <ConnectionCard
+      <ConnectionPage
         way={guest({ myAsk: { ...ask, state: "shared", sharer: "Natalie", link } })}
         desktop
       />,
@@ -168,17 +177,17 @@ describe("Connection on You", () => {
   });
 
   it("offers Only direct once the Mac has gone direct, and says why it is not connected while on", async () => {
-    const { rerender } = render(<ConnectionCard way={facts()} desktop />);
+    const { rerender } = render(<ConnectionPage way={facts()} desktop />);
     await wait(0);
     const toggle = () => screen.getByTestId("only-direct-switch") as HTMLInputElement;
     expect(toggle().disabled).toBe(true);
     expect(text("only-direct")).toMatch("Connect directly once to turn this on.");
-    rerender(<ConnectionCard way={facts({ link: "tunnel", wentDirect: true })} desktop />);
+    rerender(<ConnectionPage way={facts({ link: "tunnel", wentDirect: true })} desktop />);
     expect(toggle().disabled).toBe(false);
     fireEvent.click(toggle());
     expect(asked).toContain("onlyDirect true");
     rerender(
-      <ConnectionCard
+      <ConnectionPage
         way={facts({ connection: "closed", link: "tunnel", wentDirect: true, onlyDirect: true })}
         desktop
       />,
@@ -191,7 +200,7 @@ describe("Connection on You", () => {
   it("says who turned the relay off once it cannot connect, and keeps Go direct offered (Phase 4)", async () => {
     const relayOff = { on: false, by: "Natalie", at: "2026-10-21T09:05:00.000Z" };
     const { rerender } = render(
-      <ConnectionCard
+      <ConnectionPage
         way={facts({
           connection: "closed",
           link: undefined,
@@ -207,7 +216,7 @@ describe("Connection on You", () => {
     expect(screen.getByTestId("go-direct")).toBeTruthy();
     // Trying again says the same: the relay being off is still why.
     rerender(
-      <ConnectionCard
+      <ConnectionPage
         way={facts({ connection: "connecting", link: undefined, relayOff })}
         desktop
       />,

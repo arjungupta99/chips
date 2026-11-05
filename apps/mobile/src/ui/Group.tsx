@@ -9,7 +9,7 @@
  * rows that hold a longer setting open it in a sheet, and the chevron says so.
  */
 
-import { Children, isValidElement, type ReactNode } from "react";
+import { Children, isValidElement, type ReactNode, type Ref } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { OnGround } from "./ground";
 import { Icon } from "./Icon";
@@ -152,6 +152,10 @@ interface RowProps {
   readonly accessibilityHint?: string | undefined;
   /** Drawn under the row's words and over its ground: the gold a saved file's row flashes. */
   readonly under?: ReactNode;
+  /** Its page is the one open beside the list (ADR 0256): it wears the chosen ground. */
+  readonly selected?: boolean | undefined;
+  /** The pressed row, for a sheet it opens to stand beside on an iPad (`Sheet`'s `from`). */
+  readonly ref?: Ref<View> | undefined;
 }
 
 /**
@@ -178,7 +182,9 @@ export function GroupRow(props: RowProps) {
         accessibilityLabel ?? (value === undefined ? label : `${label}, ${value}`)
       }
       accessibilityHint={props.accessibilityHint}
+      accessibilityState={props.selected === undefined ? undefined : { selected: props.selected }}
       onPress={onPress}
+      ref={props.ref}
       testID={testID}
     >
       {({ pressed }) => <RowBody {...props} pressed={pressed} />}
@@ -198,6 +204,7 @@ function RowBody({
   onPress,
   tone = "plain",
   under,
+  selected = false,
   pressed,
 }: RowProps & { readonly pressed: boolean }) {
   const palette = usePalette();
@@ -214,7 +221,13 @@ function RowBody({
       style={[
         styles.row,
         centred ? styles.centred : null,
-        { backgroundColor: pressed ? palette.surface2 : palette.surface },
+        {
+          backgroundColor: selected
+            ? palette.surface3
+            : pressed
+              ? palette.surface2
+              : palette.surface,
+        },
       ]}
     >
       {under}

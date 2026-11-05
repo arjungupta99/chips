@@ -270,8 +270,15 @@ export async function startRelay(options: RelayOptions): Promise<RunningRelay> {
           counted: (pushes) => tally.pushed(pushes),
         });
 
-  /** A server's pushes, sent on with the app's token; the answer written as the door gave it. */
-  const push = async (door: PushDoor, request: IncomingMessage, response: ServerResponse) => {
+  /**
+   * A server's pushes, or its request for their receipts, sent on with the app's token; the
+   * answer written as the door gave it.
+   */
+  const push = async (
+    asks: PushDoor["send"],
+    request: IncomingMessage,
+    response: ServerResponse,
+  ) => {
     if (!fromAServer(request)) {
       request.resume();
       response.writeHead(403, { "content-type": "application/json" });
@@ -287,14 +294,21 @@ export async function startRelay(options: RelayOptions): Promise<RunningRelay> {
               error: { code: "too_large", message: "That's more pushes than one request holds." },
             }),
           }
-        : await door.send(body, countedAs(addressOf(request)));
+        : await asks(body, countedAs(addressOf(request)));
     response.writeHead(sent.status, { "content-type": "application/json" });
     response.end(sent.body);
   };
-  /** Whether this is a push for the door, which then answers it. */
+  /** Whether this is for the push door, which then answers it. */
   const pushed = (request: IncomingMessage, response: ServerResponse, path: string) => {
-    if (pushDoor === undefined || request.method !== "POST" || path !== "/v1/push") return false;
-    push(pushDoor, request, response).catch((error: unknown) => {
+    if (pushDoor === undefined || request.method !== "POST") return false;
+    const asks =
+      path === "/v1/push"
+        ? pushDoor.send
+        : path === "/v1/push/receipts"
+          ? pushDoor.receipts
+          : undefined;
+    if (asks === undefined) return false;
+    push(asks, request, response).catch((error: unknown) => {
       logger.warn({ err: error }, "push request failed");
       if (!response.headersSent) response.writeHead(500);
       response.end();

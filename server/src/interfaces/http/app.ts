@@ -60,6 +60,7 @@ import {
   registerProjectTokenRoutes,
 } from "./routes/project.js";
 import { registerPushRoutes } from "./routes/push.js";
+import { registerReadMarkRoutes } from "./routes/read-marks.js";
 import { registerRelayRoutes } from "./routes/relay.js";
 import { registerSearchRoutes } from "./routes/search.js";
 import { registerServerFactsRoutes } from "./routes/server-facts.js";
@@ -334,6 +335,7 @@ export function createApp(deps: GatewayDeps): Hono<GatewayEnv> {
   registerSpaceIconRoutes(app, deps);
   registerHiddenSpaceRoutes(app, deps);
   registerPinnedSpaceRoutes(app, deps);
+  registerReadMarkRoutes(app, deps);
   registerAgentFaceRoutes(app, deps);
   registerAgentNameRoutes(app, deps);
   registerAgentContextRoutes(app, deps);

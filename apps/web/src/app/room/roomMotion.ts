@@ -60,6 +60,11 @@ export interface RoomMotion {
    * (`atEnd`) the list goes there, on the spring or at once; up the space the scroll is theirs.
    */
   readonly laidOut: (atEnd: boolean, lines: Lines) => void;
+  /**
+   * The list put somewhere by the list itself, at once (to its end from far up the space, after a
+   * send): drawn where it now stands, with nothing it was doing carried on.
+   */
+  readonly moved: () => void;
   /** Done with the list: nothing more is moved, and nothing is left drawn off its place. */
   readonly stop: () => void;
 }
@@ -225,11 +230,11 @@ export function roomMotion(list: HTMLElement, placed: (top: number) => void): Ro
   return {
     laidOut: (atEnd, lines) => {
       open();
-      const way = wayOf(atEnd, opened);
+      const { places, boxes, end, undrawn } = laidOutIn(list, rows);
+      const was = drawnTop;
+      const way = wayOf(atEnd, opened, { was, undrawn });
       if (way === "moving") clock = roomStarted(clock, performance.now());
       const at = clock.at;
-      const { places, boxes, end } = laidOutIn(list, rows);
-      const was = drawnTop;
       const drawn = scrollOf(way, { was, stands: list.scrollTop, end }, scroll, at);
       scroll = drawn.scroll;
       goal = end;
@@ -242,6 +247,10 @@ export function roomMotion(list: HTMLElement, placed: (top: number) => void): Ro
       if (atEnd) place(drawn.top, true);
       else drawnTop = drawn.top;
       if (draw(rows, at) || scroll !== undefined) frame ??= requestAnimationFrame(step);
+    },
+    moved: () => {
+      scroll = undefined;
+      drawnTop = list.scrollTop;
     },
     stop: () => {
       if (frame !== undefined) cancelAnimationFrame(frame);
@@ -272,10 +281,21 @@ function byReader(list: HTMLElement, drawn: number): number | undefined {
   return top;
 }
 
-/** How this change is laid out: at the end, on the spring once the room has opened and it moves. */
-function wayOf(atEnd: boolean, opened: boolean): Way {
+/**
+ * How this change is laid out: at the end, on the spring once the room has opened and it moves. Not
+ * from where no row is drawn, the scroll (`was`) over where the rows on the page begin (`undrawn`):
+ * a glide from there crosses nothing but the stand-in for rows off the page. That is the room
+ * catching up on its history in pages after it opened, or a burst of lines longer than the window,
+ * and it is placed at once, as the phone places a row it has not drawn. Until 3 November the list
+ * glided down through the whole history, blank, and a long room could stop halfway.
+ */
+export function wayOf(
+  atEnd: boolean,
+  opened: boolean,
+  { was, undrawn }: { readonly was: number; readonly undrawn: number },
+): Way {
   if (!atEnd) return "away";
-  return opened && moves() ? "moving" : "atOnce";
+  return opened && was >= undrawn && moves() ? "moving" : "atOnce";
 }
 
 /**
@@ -345,7 +365,8 @@ function overlap(row: Placed, next: Placed): number {
  * with its translate taken off; and where the scroll stands at the list's end. That is the
  * scroller's own end, less what a row drawn below its place adds past the foot of what is laid out
  * and the list's padding: the browser lets a list scroll as far as its rows are drawn. The spacers
- * that stand in for rows off the page are not rows.
+ * that stand in for rows off the page are not rows; where the one over them ends (`undrawn`), the
+ * rows on the page begin.
  */
 function laidOutIn(
   list: HTMLElement,
@@ -354,6 +375,7 @@ function laidOutIn(
   readonly places: Map<Element, number>;
   readonly boxes: Map<Element, Box>;
   readonly end: number;
+  readonly undrawn: number;
 } {
   const box = list.getBoundingClientRect();
   const origin = box.top + list.clientTop - list.scrollTop;
@@ -361,19 +383,24 @@ function laidOutIn(
   const boxes = new Map<Element, Box>();
   let foot = 0;
   let lowest = 0;
+  let undrawn = 0;
   for (const child of list.children) {
     const edge = child.getBoundingClientRect();
     const drawn = rows.get(child)?.drawn ?? 0;
     const top = edge.top - origin - drawn;
     foot = Math.max(foot, top + edge.height);
     lowest = Math.max(lowest, top + edge.height + drawn);
-    if (child.classList.contains("msgs-spacer")) continue;
+    if (child.classList.contains("msgs-spacer")) {
+      if (places.size === 0 && edge.height > 0) undrawn = top + edge.height;
+      continue;
+    }
     places.set(child, top);
     boxes.set(child, { height: edge.height, left: edge.left, width: edge.width });
   }
   const padding = Number.parseFloat(getComputedStyle(list).paddingBottom) || 0;
   const past = Math.max(0, lowest - foot - padding);
-  return { places, boxes, end: Math.max(0, list.scrollHeight - list.clientHeight - past) };
+  const end = Math.max(0, list.scrollHeight - list.clientHeight - past);
+  return { places, boxes, end, undrawn };
 }
 
 /** A row drawn `px` below where it is laid out (above, for less than nought). */

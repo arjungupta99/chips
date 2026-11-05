@@ -8,18 +8,22 @@
  * that param was where it was kept, and land the same way as a row in the list.
  */
 
-import { mayOpenSpace, myRole, type Store, serverHost } from "@chipschat/core";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { listRuns, mayOpenSpace, myRole, type Store, serverHost, spaceList } from "@chipschat/core";
+import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
+import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { AgentPane } from "../../src/agents/AgentPane";
 import { useLanding } from "../../src/pairing/landing";
 import { List } from "../../src/spaces/List";
 import { RoomPane } from "../../src/spaces/RoomPane";
+import { stepSpace } from "../../src/spaces/step";
 import { useChips, useDeferredSnapshot } from "../../src/store/provider";
+import { useChrome } from "../../src/ui/chrome";
 import { useLayout } from "../../src/ui/layout";
+import { useMenuCommand } from "../../src/ui/menuBar";
 import { useOpened } from "../../src/ui/opened";
 import { PaneEmpty } from "../../src/ui/Pane";
-import { Split } from "../../src/ui/Split";
+import { Split, THIRD, useListBesideThird, useThirdFits } from "../../src/ui/Split";
 import { usePalette } from "../../src/ui/theme";
 
 export default function SpacesScreen() {
@@ -32,6 +36,20 @@ export default function SpacesScreen() {
       server={serverHost(paired.device.serverUrl)}
     />
   );
+}
+
+/**
+ * How a room stands beside the list: the list put away from the room's bar (ADR 0256), while there
+ * is a room to give the window to, or stepped aside for the room's details where the room would be
+ * too narrow beside both (ADR 0276); and how wide the details, or its Universe, stand beside the
+ * room, so the capsule knows how wide the room is under it.
+ */
+function useRoomBeside(room: boolean): { readonly away: boolean; readonly docked: number } {
+  const { listHidden, details, universe } = useChrome();
+  const thirdFits = useThirdFits();
+  const listBeside = useListBesideThird();
+  const docked = room && (details || universe) && thirdFits;
+  return { away: room && (listHidden || (docked && !listBeside)), docked: docked ? THIRD : 0 };
 }
 
 function Spaces({
@@ -68,10 +86,12 @@ function Spaces({
     (id) => snapshot.model.spaces.some((each) => each.id === id),
     (id) => (wide ? open(id) : router.push(`/spaces/${id}`)),
   );
-  if (!wide) return <List store={store} snapshot={snapshot} selfId={selfId} server={server} />;
   // A room deleted while it was open beside the list (ADR 0067), here or on another device: the
   // pane says to choose one rather than drawing a room that is not there.
   const shown = snapshot.model.spaces.some((each) => each.id === space) ? space : undefined;
+  useSpaceSteps(wide, snapshot, shown, open);
+  const { away, docked } = useRoomBeside(shown !== undefined);
+  if (!wide) return <List store={store} snapshot={snapshot} selfId={selfId} server={server} />;
   const close = () => go({});
   // An agent's card opened from the room stands over it in the pane, with the way back to it, as a
   // phone pushes the card over the room (ADR 0177); the room stays drawn under it, where it was.
@@ -96,6 +116,9 @@ function Spaces({
     );
   return (
     <Split
+      tab="index"
+      away={away}
+      docked={docked}
       list={
         <List
           store={store}
@@ -139,5 +162,32 @@ function Spaces({
 
 /** What says what is open beside Spaces: the room, and an agent's card over it. */
 const SPACES_OPEN = ["space", "agent", "history"] as const;
+
+/**
+ * Previous Space and Next Space, from the menu bar or ⌥↑ ⌥↓ (ADR 0256): along the rooms the list
+ * shows first, pinned and then the most recently busy, while Spaces is in front beside a room.
+ */
+function useSpaceSteps(
+  wide: boolean,
+  snapshot: ReturnType<typeof useDeferredSnapshot>,
+  shown: string | undefined,
+  open: (id: string) => void,
+) {
+  const focused = useIsFocused();
+  const order = useMemo(
+    () =>
+      listRuns(spaceList(snapshot.model), snapshot.hiddenSpaces, snapshot.pinnedSpaces).open.map(
+        (each) => each.id,
+      ),
+    [snapshot.model, snapshot.hiddenSpaces, snapshot.pinnedSpaces],
+  );
+  const step = (by: 1 | -1) => () => {
+    const to = stepSpace(order, shown, by);
+    if (to !== undefined) open(to);
+  };
+  const able = wide && focused && order.length > 0;
+  useMenuCommand("previous-space", able ? step(-1) : undefined);
+  useMenuCommand("next-space", able ? step(1) : undefined);
+}
 
 const styles = StyleSheet.create({ fill: { flex: 1 } });

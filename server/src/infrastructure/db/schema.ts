@@ -8,9 +8,11 @@
  * The tables fall into two groups.
  *
  * **The log and its projections.** `events` is the truth; `spaces`, `memberships`,
- * `messages`, `runs`, `steps`, `approvals`, `questions`, `attachments`, `lanes`, `read_state`,
+ * `messages`, `runs`, `steps`, `approvals`, `questions`, `attachments`, `lanes`,
  * `harness_policy`, `workspace_policy`, `session_rules`, `workspace_members` and `pins` are read
- * models rebuilt from it. `rebuild(workspace)` drops all fifteen and replays. The two FTS5
+ * models rebuilt from it. `rebuild(workspace)` drops them and replays. `read_state` was one of them
+ * until something wrote it (ADR 0262): how far a person has read is no event's, so it is kept beside
+ * the log, as the rooms they pinned are. The two FTS5
  * tables beside `messages` and `steps` follow them by trigger (M5.4) and are not in the schema.
  *
  * **The registry.** `workspaces`, `participants`, `devices`, `harness_tokens`, `invites` and
@@ -424,7 +426,11 @@ export interface LanesTable {
   updated_at: string;
 }
 
-/** Reserved. Read receipts arrive with the client work in Phase 1. */
+/**
+ * How far each person has read each room they are in (ADR 0262): the `seq` it is read up to, moved
+ * only forward. The person's, not a device's, so it follows them between devices. Made in
+ * migration 0001 for this and written from ADR 0262 on; a registry table, which no rebuild clears.
+ */
 export interface ReadStateTable {
   workspace_id: string;
   space_id: string;

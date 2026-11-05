@@ -1,6 +1,6 @@
 [package]
 name = "chips-desktop"
-version = "1.0.3"
+version = "1.1.0"
 description = "Chips on the desktop: the web app in a native shell that can find a server, notify you, and be decided from."
 authors = ["Chips"]
 license = "FSL-1.1-ALv2"
@@ -29,8 +29,9 @@ mdns-sd = "0.21.1"
 mac-notification-sys = "0.6.15"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# Whether another copy of the app runs already, so a launch at login gives way to it (ADR 0215).
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "libc", "NSRunningApplication"] }
+# Whether another copy of the app runs already, so a launch at login gives way to it (ADR 0215),
+# and the window's frame kept from one launch to the next (ADR 0267).
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "libc", "NSResponder", "NSRunningApplication", "NSWindow"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSBundle", "NSString"] }
 
 [features]

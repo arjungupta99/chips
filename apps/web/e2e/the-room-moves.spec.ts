@@ -136,13 +136,15 @@ test("a room opens at its end, and a line glides in on the room's spring, or at 
 
   // With Reduce Motion the next line moves the room at once: the first frame that moves takes all
   // of the line's height (a glide's first frame takes a few pixels of it). What the room says under
-  // the line a moment later, in a room other specs have filled, may move it again after.
+  // the line a moment later, in a room other specs have filled, may move it again after; so may the
+  // line itself, its time coming once the server has it. A line just sent is a row of 28 and its
+  // margin; until 3 November it was laid out at the stylesheet's 60 for its first frame.
   await page.emulateMedia({ reducedMotion: "reduce" });
   await markLast(page);
   await box.fill(`And one with Reduce Motion on, ${stamp}.`);
   await box.press("Enter");
   await expect(messages.getByText(`And one with Reduce Motion on, ${stamp}.`)).toBeVisible();
   const atOnce = await stepsOfMarked(page);
-  expect(atOnce[0]).toBeGreaterThan(Math.min(40, rise * 0.9));
+  expect(atOnce[0]).toBeGreaterThan(Math.min(36, rise * 0.9));
   expect(glide[0]).toBeLessThan(rise * 0.2);
 });

@@ -36,6 +36,14 @@
  * next one and put the scroller back by a whole row; Undo did it again the other way (the web,
  * 15 October 2026, on Arjun's "the scrolling moves abruptly", ADR 0167).
  *
+ * So are the window's ends. A line drawn above rows already on the page — a harness's word the
+ * room held while its run was at work, let go after the lines that came since (ADR 0147, point
+ * 12) — moved every row under it down a place, and a window kept as places stopped one short:
+ * the newest row was taken off the page and drawn again a render later as a new element. A photo
+ * there flashed back in, and the viewer's return gave the focus to a tile that had gone, so it
+ * fell to the page (`e2e/viewer.spec.ts` at a phone's height, 18 October 2026). The window keeps
+ * which rows it begins and ends with, and finds them again each time it draws.
+ *
  * A container that reports no height — before layout, and under jsdom — tells us nothing about
  * what is in view, so everything is rendered. That is what keeps the component tests honest.
  */
@@ -71,11 +79,15 @@ const AIMS = 12;
  */
 export interface MessageListProps<T> {
   readonly items: readonly T[];
+  /** What a row is, wherever it stands: its line's id, or its fold's or day's. */
+  readonly keyOf: (item: T) => string;
   /** The scrolling element the rows live in. */
   readonly scroller: RefObject<HTMLDivElement | null>;
   readonly row: (item: T) => ReactNode;
   /** A row to jump to (M5.4): a pin's, or a search hit's. The nonce makes the same row again a jump. */
   readonly focus?: Focus | undefined;
+  /** How many lines of yours the room has sent: each takes the reader to the end (`homeward`). */
+  readonly sent?: number | undefined;
 }
 
 export interface Focus {
@@ -96,10 +108,14 @@ interface Visible {
   readonly last: number;
   readonly before: number;
   readonly after: number;
+  /** The row the window begins with, by its key, found again wherever a line drawn above moves it. */
+  readonly head?: string | undefined;
+  /** And the row it ends with. */
+  readonly tail?: string | undefined;
 }
 
 export function MessageList<T>(props: MessageListProps<T>) {
-  const { items, scroller } = props;
+  const { items, keyOf, scroller } = props;
   const heights = useRef<number[]>([]);
   const anchor = useRef<HTMLDivElement>(null);
   const foot = useRef<HTMLDivElement>(null);
@@ -122,6 +138,8 @@ export function MessageList<T>(props: MessageListProps<T>) {
    * it, once the window has caught up, and counted then it was an old line, drawn again.
    */
   const had = useRef(0);
+  /** How much of the list each row on the page took when last seen (`grownUnder`). */
+  const standingAt = useRef(new WeakMap<Element, number>());
 
   /**
    * The scrolling element. React gives a parent its ref only after its children's layout effects
@@ -144,9 +162,15 @@ export function MessageList<T>(props: MessageListProps<T>) {
    */
   const drawn = useCallback(() => rowsBetween(anchor.current, foot.current), []);
 
+  /** The rows as this last drew, for a window worked out after it, by a scroll or a measure. */
+  const listed = useRef({ items, keyOf });
+  listed.current = { items, keyOf };
+
   const recompute = useCallback(() => {
-    const next = windowOf(list(), heights.current, following.current);
-    if (next === undefined || same(next, shown.current)) return;
+    const places = windowOf(list(), heights.current, following.current);
+    if (places === undefined) return;
+    const next = named(places, listed.current.items, listed.current.keyOf);
+    if (same(next, shown.current)) return;
     shown.current = next;
     setVisible(next);
   }, [list]);
@@ -214,6 +238,13 @@ export function MessageList<T>(props: MessageListProps<T>) {
 
   // The rows and their guesses follow the space's length.
   if (heights.current.length !== items.length) growTo(heights.current, items.length);
+  // The window's rows where they stand now, which is not where they stood if a line has been put
+  // in or taken out above them since it was worked out.
+  const first = Math.min(placeOf(items, keyOf, visible.head, visible.first), items.length);
+  const last = Math.max(
+    first,
+    Math.min(placeOf(items, keyOf, visible.tail, visible.last - 1) + 1, items.length),
+  );
 
   /**
    * Jump to a row (M5.4): the list stops following the end, scrolls to where the row is
@@ -222,25 +253,72 @@ export function MessageList<T>(props: MessageListProps<T>) {
    * object every time it draws, and a reader who has scrolled on from the line is not pulled
    * back to it by the next line to arrive. Its nonce, or its coming at all (a line the room did
    * not have yet), is what makes a jump.
+   *
+   * A row already drawn is glided to, centred, as the phone glides its list to a row it has (ADR
+   * 0268 addendum); one up the space that is not is put in place at once, as the phone places one
+   * unseen, and so is any while the room is opening, which opens at its line as it is.
+   * Until 3 November every jump went at once, a reply's quote to the line it answers too, and the
+   * next search hit in the same room.
    */
   const focus = useRef(props.focus);
   focus.current = props.focus;
   const jump = props.focus?.nonce;
   const landing = useRef<number | undefined>(undefined);
   const aims = useRef(0);
+  // Once the room's first two frames are drawn: a jump before then is the room opening at a line.
+  const opened = useRef(false);
+  useEffect(() => {
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        opened.current = true;
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
   useLayoutEffect(() => {
     const el = scroller.current;
     const index = focus.current?.index;
     if (jump === undefined || index === undefined || el === null) return;
     following.current = false;
-    landing.current = index;
     aims.current = 0;
     // Where the reader was is not to be kept: they are going to the line.
     held.current = undefined;
+    const there = drawn().find((row) => indices.current.get(row) === index);
+    if (there !== undefined && opened.current && glides()) {
+      landing.current = undefined;
+      there.scrollIntoView?.({ block: "center", behavior: "smooth" });
+      return;
+    }
+    landing.current = index;
     el.scrollTop = offsetOf(heights.current, index);
     lastTop.current = el.scrollTop;
     recompute();
-  }, [jump, recompute, scroller]);
+  }, [jump, recompute, scroller, drawn]);
+
+  /**
+   * A line of yours sent from up the space: the room follows it to the end, as the phone's follows
+   * yours (`useFollowOwn`), on the room's spring from within a window of the end, and at once from
+   * further up, where a glide would cross rows not drawn; the line lands there as any line does
+   * (ADR 0268 addendum). Until 3 November a send from up the space left the reader there, and the
+   * line out of sight.
+   */
+  const sent = props.sent ?? 0;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a line sent is what takes it home.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (sent === 0 || el === null || following.current) return;
+    following.current = true;
+    held.current = undefined;
+    landing.current = undefined;
+    const gap = el.scrollHeight - el.clientHeight - el.scrollTop;
+    if (gap > el.clientHeight || !glides()) {
+      el.scrollTop = el.scrollHeight;
+      lastTop.current = el.scrollTop;
+      motion.current?.moved();
+    }
+    recompute();
+    stick();
+  }, [sent]);
 
   useEffect(() => {
     const el = scroller.current;
@@ -268,17 +346,28 @@ export function MessageList<T>(props: MessageListProps<T>) {
     // A row can change height after React is done with it — a photo finishing its decode — and
     // the spacers would keep the old number without this. So can what stands under the rows (a
     // thinking row's call strip opening) and the list itself (the window, the field growing),
-    // which move the end. And so does every row on the room's first frame: they are laid out at
-    // the stylesheet's guess (`content-visibility`), the frame's own layout gives them their
-    // heights, and a room that did not hear of it stayed at the top of its history until the
-    // next line came (the site's clip of the Mac, 28 October 2026).
+    // which move the end. And so did every row on the room's first frame while rows were laid out
+    // at the stylesheet's guess (`content-visibility`, until 3 November): a room that did not hear
+    // of it stayed at the top of its history until the next line came (the site's clip of the Mac,
+    // 28 October 2026).
     const sizes = new WeakMap<Element, number>();
     const watcher = new ResizeObserver((entries) => {
       const targets = entries.map((entry) => entry.target);
+      const el = list();
+      const under = grownUnder(el, held.current, targets, indices.current, standingAt.current);
       const rowsMoved = measure(heights.current, indices.current, targets);
-      if (!rowsMoved && !resized(targets, indices.current, sizes)) return;
+      // Under a pixel is not a row moving, but it is still the scroll's to take: noted and not
+      // taken, a closing row's last frames left the lines under it a pixel or two up.
+      if (!rowsMoved && !resized(targets, indices.current, sizes) && under === 0) return;
       const rows = drawn();
       hold(rows);
+      // A line under the held row that grew or shrank in the window takes the scroll with it, so
+      // the lines under it stand still and those over it move, as the phone's list does from its
+      // foot (ADR 0167): a line breaking into dust there closed the lines under it up.
+      if (el !== null && under !== 0 && !following.current) {
+        el.scrollTop += under;
+        lastTop.current = el.scrollTop;
+      }
       recompute();
       stick();
       note(rows);
@@ -288,16 +377,20 @@ export function MessageList<T>(props: MessageListProps<T>) {
       watcher.disconnect();
       observer.current = null;
     };
-  }, [recompute, stick, hold, note, drawn]);
+  }, [recompute, stick, hold, note, drawn, list]);
 
   // Measure what was just drawn. Running after every render is what makes a guess temporary:
   // the first paint of a row replaces its estimate, and the spacers close the difference.
   useLayoutEffect(() => {
     const rows = drawn();
     for (const [offset, element] of rows.entries()) {
-      indices.current.set(element, visible.first + offset);
+      indices.current.set(element, first + offset);
     }
     watch(observer, rows, list());
+    // Seen as React drew it: a line coming back stands at nothing as it starts to open (`Dust`).
+    for (const row of rows) {
+      if (!standingAt.current.has(row)) standingAt.current.set(row, standing(row));
+    }
     measure(heights.current, indices.current, rows);
     hold(rows);
     land(rows);
@@ -335,8 +428,6 @@ export function MessageList<T>(props: MessageListProps<T>) {
     stick();
   });
 
-  const first = Math.min(visible.first, items.length);
-  const last = Math.min(visible.last, items.length);
   return (
     <Fragment>
       <div
@@ -448,7 +539,43 @@ function total(heights: readonly number[], from: number, to = heights.length): n
 }
 
 function same(a: Visible, b: Visible): boolean {
-  return a.first === b.first && a.last === b.last && a.before === b.before && a.after === b.after;
+  return (
+    a.first === b.first &&
+    a.last === b.last &&
+    a.before === b.before &&
+    a.after === b.after &&
+    a.head === b.head &&
+    a.tail === b.tail
+  );
+}
+
+/** A window worked out by places, with the rows at its two ends named. */
+function named<T>(window: Visible, items: readonly T[], keyOf: (item: T) => string): Visible {
+  const head = items[window.first];
+  const tail = items[window.last - 1];
+  return {
+    ...window,
+    head: head === undefined ? undefined : keyOf(head),
+    tail: tail === undefined ? undefined : keyOf(tail),
+  };
+}
+
+/**
+ * Where a row stands now: at its old place, as it almost always is, or wherever a line put in or
+ * taken out above it has moved it. A row that has gone, or a window that never named one, keeps
+ * the old place.
+ */
+function placeOf<T>(
+  items: readonly T[],
+  keyOf: (item: T) => string,
+  key: string | undefined,
+  place: number,
+): number {
+  if (key === undefined) return place;
+  const there = items[place];
+  if (there !== undefined && keyOf(there) === key) return place;
+  const found = items.findIndex((item) => keyOf(item) === key);
+  return found < 0 ? place : found;
 }
 
 /** The elements between the two spacers: the rows the last render put on the page. */
@@ -471,12 +598,25 @@ function measure(
   let moved = false;
   for (const element of rows) {
     const index = indices.get(element);
-    const height = (element as HTMLElement).offsetHeight + GAP;
-    if (index === undefined || height <= GAP || heights[index] === height) continue;
+    const under = marginUnder(element);
+    const height = (element as HTMLElement).offsetHeight + under;
+    if (index === undefined || height <= under || heights[index] === height) continue;
     heights[index] = height;
     moved = true;
   }
   return moved;
+}
+
+/** What the bubbles of one turn stand apart by (ADR 0268), in place of `.msgs`'s gap. */
+const TURN_GAP = 2;
+
+/**
+ * What a row carries under it: `.msgs`'s gap, or the two pixels between the bubbles of one turn,
+ * which the row says by its place (`data-place`, as the stylesheet reads it).
+ */
+function marginUnder(element: Element): number {
+  const place = element instanceof HTMLElement ? element.dataset["place"] : undefined;
+  return place === "first" || place === "middle" ? TURN_GAP : GAP;
 }
 
 /**
@@ -551,7 +691,57 @@ function resized(
   return changed;
 }
 
+/**
+ * How much the lines in the window at or under the held row have grown (less than nought, shrunk)
+ * since they were last drawn: a line breaking into dust, a photo in one decoding, a card folding.
+ * Each row's height is noted as React draws it, and as it changes (`seen`), with the space under it
+ * as it stands: a row closing over a line gone takes that too, and missed, the lines under it rose
+ * by the list's gap. What a row first measures as it is drawn is not a change: a guess put right
+ * moves nothing here, and the hold has those.
+ */
+function grownUnder(
+  el: Element | null,
+  held: Held | undefined,
+  targets: readonly Element[],
+  indices: WeakMap<Element, number>,
+  seen: WeakMap<Element, number>,
+): number {
+  let grown = 0;
+  const bottom = el?.getBoundingClientRect().bottom ?? 0;
+  for (const target of targets) {
+    if (!indices.has(target) || el === null) continue;
+    const height = standing(target);
+    const was = seen.get(target);
+    seen.set(target, height);
+    if (was !== undefined && was !== height && underHeld(held, target, bottom)) {
+      grown += height - was;
+    }
+  }
+  return grown;
+}
+
+/** Whether a row is the held row or under it, and in the window (its top over `bottom`). */
+function underHeld(held: Held | undefined, row: Element, bottom: number): boolean {
+  if (held === undefined || !held.row.isConnected) return false;
+  const under =
+    row === held.row ||
+    (held.row.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+  return under && row.getBoundingClientRect().top < bottom;
+}
+
+/** How much of the list a row takes as it stands now: its height and the space under it. */
+function standing(row: Element): number {
+  if (!(row instanceof HTMLElement) || !row.isConnected) return 0;
+  return row.offsetHeight + (Number.parseFloat(getComputedStyle(row).marginBottom) || 0);
+}
+
 /** Where a row starts, by the guesses and measurements so far, each carrying its margin. */
 function offsetOf(heights: readonly number[], index: number): number {
   return total(heights, 0, Math.min(index, heights.length));
+}
+
+/** Whether a jump to a row on the page glides: not with Reduce Motion, nor with no screen to ask. */
+function glides(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }

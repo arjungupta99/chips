@@ -5,6 +5,9 @@
  * Other and Never; a ladder of what happens in a room as the messages mount; and how Chips counts,
  * behind a disclosure. A hold picked at or under the stop takes the stop down to fit. Save sends
  * all three at once, and is there only when the sheet says something new and whole.
+ *
+ * Beside the list on an iPad the same is a page (`ExchangeLimitsPage`), its Save in the pane's bar,
+ * which goes back to nothing open once it has saved, as the sheet goes.
  */
 
 import {
@@ -32,9 +35,12 @@ import { Icon } from "../ui/Icon";
 import { Sheet, SheetScroll } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { type Palette, RADIUS, SPACE, TEXT } from "../ui/tokens";
+import { SheetPage } from "./pages";
 import { SheetHead } from "./SheetHead";
 
 type Kind = "stop" | "hold";
+
+const TITLE = "Messages between agents";
 
 export function ExchangeLimitsSheet({
   open,
@@ -46,6 +52,71 @@ export function ExchangeLimitsSheet({
   readonly onClose: () => void;
   readonly limits: ExchangeLimits;
   readonly onSave: (limits: ExchangeLimits) => void;
+}) {
+  const form = useLimitsForm({ open, limits, onSave, onDone: onClose });
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      sizing="bounded"
+      cap={0.9}
+      keyboard
+      testID="exchange-limits-sheet"
+    >
+      <SheetHead
+        title={TITLE}
+        action={{ label: "Save", onPress: form.save }}
+        disabled={!form.ready}
+      />
+      <SheetScroll
+        style={styles.shrink}
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+      >
+        {form.body}
+      </SheetScroll>
+    </Sheet>
+  );
+}
+
+export function ExchangeLimitsPage({
+  limits,
+  onSave,
+  onDone,
+}: {
+  readonly limits: ExchangeLimits;
+  readonly onSave: (limits: ExchangeLimits) => void;
+  /** Saved: the page goes, as the sheet does. */
+  readonly onDone: () => void;
+}) {
+  const form = useLimitsForm({ open: true, limits, onSave, onDone });
+  return (
+    <SheetPage
+      title={TITLE}
+      action={{
+        label: "Save",
+        onPress: form.save,
+        disabled: !form.ready,
+        testID: "exchange-limits-save",
+      }}
+      testID="exchange-limits-page"
+    >
+      <View style={styles.body}>{form.body}</View>
+    </SheetPage>
+  );
+}
+
+/** What the sheet and the page hold, and their Save: ready only for something new and whole. */
+function useLimitsForm({
+  open,
+  limits,
+  onSave,
+  onDone,
+}: {
+  readonly open: boolean;
+  readonly limits: ExchangeLimits;
+  readonly onSave: (limits: ExchangeLimits) => void;
+  readonly onDone: () => void;
 }) {
   const palette = usePalette();
   const on = useGround();
@@ -78,100 +149,83 @@ export function ExchangeLimitsSheet({
   const save = () => {
     if (!ready) return;
     onSave(read.limits);
-    onClose();
+    onDone();
   };
 
-  return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      sizing="bounded"
-      cap={0.9}
-      keyboard
-      testID="exchange-limits-sheet"
-    >
-      <SheetHead
-        title="Messages between agents"
-        action={{ label: "Save", onPress: save }}
-        disabled={!ready}
+  const body = (
+    <>
+      <View style={[styles.why, { backgroundColor: palette.goldSoft }]}>
+        <Text style={[styles.whyHead, { color: palette.ink }]}>Why this is here</Text>
+        <Text style={[styles.words, { color: palette.ink2 }]}>{LIMITS_WHY}</Text>
+      </View>
+      <Setting
+        kind="stop"
+        draft={draft}
+        fieldRef={fields.stop}
+        onPick={pick}
+        onType={type}
+        palette={palette}
       />
-      <SheetScroll
-        style={styles.shrink}
-        contentContainerStyle={styles.body}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={[styles.why, { backgroundColor: palette.goldSoft }]}>
-          <Text style={[styles.whyHead, { color: palette.ink }]}>Why this is here</Text>
-          <Text style={[styles.words, { color: palette.ink2 }]}>{LIMITS_WHY}</Text>
+      <View style={[styles.toggle, { backgroundColor: on.fill }]}>
+        <View style={styles.toggleWords}>
+          <Title dot={palette.amber} palette={palette}>
+            {LIMITS_SETTINGS.circles.title}
+          </Title>
+          <Text style={[styles.sub, styles.indent, { color: palette.ink3 }]}>
+            {LIMITS_SETTINGS.circles.words}
+          </Text>
         </View>
-        <Setting
-          kind="stop"
-          draft={draft}
-          fieldRef={fields.stop}
-          onPick={pick}
-          onType={type}
-          palette={palette}
+        <Switch
+          testID="exchange-circles"
+          accessibilityLabel={LIMITS_SETTINGS.circles.title}
+          value={draft.circles}
+          onValueChange={(on) => setDraft({ ...draft, circles: on })}
         />
-        <View style={[styles.toggle, { backgroundColor: on.fill }]}>
-          <View style={styles.toggleWords}>
-            <Title dot={palette.amber} palette={palette}>
-              {LIMITS_SETTINGS.circles.title}
-            </Title>
-            <Text style={[styles.sub, styles.indent, { color: palette.ink3 }]}>
-              {LIMITS_SETTINGS.circles.words}
-            </Text>
-          </View>
-          <Switch
-            testID="exchange-circles"
-            accessibilityLabel={LIMITS_SETTINGS.circles.title}
-            value={draft.circles}
-            onValueChange={(on) => setDraft({ ...draft, circles: on })}
-          />
-        </View>
-        <Setting
-          kind="hold"
-          draft={draft}
-          fieldRef={fields.hold}
-          onPick={pick}
-          onType={type}
-          palette={palette}
-        />
-        <Ladder limits={shown} palette={palette} />
-        <View style={[styles.how, { backgroundColor: on.fill }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: how }}
-            onPress={() => setHow(!how)}
-            testID="exchange-how"
-            style={styles.howHead}
-          >
-            <Text style={[styles.howTitle, { color: palette.ink }]}>How Chips counts</Text>
-            <View style={how ? styles.turned : null}>
-              <Icon name="next" size={16} color={palette.ink3} />
-            </View>
-          </Pressable>
-          {how ? (
-            <View style={styles.howBody} testID="exchange-how-body">
-              {LIMITS_HOW.map((line) => (
-                <View key={line} style={styles.bullet}>
-                  <Text style={[styles.words, { color: palette.ink3 }]}>•</Text>
-                  <Text style={[styles.words, styles.bulletWords, { color: palette.ink2 }]}>
-                    {line}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </View>
-        <Text
-          style={[styles.foot, { color: foot.warn ? palette.amberInk : palette.ink3 }]}
-          testID="exchange-foot"
+      </View>
+      <Setting
+        kind="hold"
+        draft={draft}
+        fieldRef={fields.hold}
+        onPick={pick}
+        onType={type}
+        palette={palette}
+      />
+      <Ladder limits={shown} palette={palette} />
+      <View style={[styles.how, { backgroundColor: on.fill }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: how }}
+          onPress={() => setHow(!how)}
+          testID="exchange-how"
+          style={styles.howHead}
         >
-          {foot.text}
-        </Text>
-      </SheetScroll>
-    </Sheet>
+          <Text style={[styles.howTitle, { color: palette.ink }]}>How Chips counts</Text>
+          <View style={how ? styles.turned : null}>
+            <Icon name="next" size={16} color={palette.ink3} />
+          </View>
+        </Pressable>
+        {how ? (
+          <View style={styles.howBody} testID="exchange-how-body">
+            {LIMITS_HOW.map((line) => (
+              <View key={line} style={styles.bullet}>
+                <Text style={[styles.words, { color: palette.ink3 }]}>•</Text>
+                <Text style={[styles.words, styles.bulletWords, { color: palette.ink2 }]}>
+                  {line}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+      <Text
+        style={[styles.foot, { color: foot.warn ? palette.amberInk : palette.ink3 }]}
+        testID="exchange-foot"
+      >
+        {foot.text}
+      </Text>
+    </>
   );
+  return { save, ready, body };
 }
 
 /** A setting's name, with the dot its step wears on the ladder. */

@@ -11,7 +11,7 @@
 
 import type { Chips } from "@chipschat/harness";
 import { expect, test } from "@playwright/test";
-import { connectDemoHarness, GOAL, playGolden } from "./golden-run.ts";
+import { connectDemoHarness, GOAL, playGolden, SUMMARY } from "./golden-run.ts";
 import { demo, pair } from "./support.ts";
 
 const FACTS =
@@ -67,13 +67,15 @@ test("a harness on the SDK hears Not right?, and posts a fix", async ({ page }) 
       .filter({ hasText: "delivery 19 September" });
     await expect(card.getByRole("button", { name: "Approve" })).toBeEnabled({ timeout: 20_000 });
     await card.getByRole("button", { name: "Approve" }).click();
-    const runPanel = page.getByRole("complementary", { name: "Run" });
-    await expect(runPanel.getByTestId("run-controls")).toHaveCount(0, { timeout: 20_000 });
+    // The run is over once its summary is the room's last line: Scout's lines are held until the
+    // run closes. Not by its panel going: the panel waits the thinking beat, and a run at its card
+    // within that never showed one (ADR 0268 addendum).
+    const messages = page.getByTestId("messages");
+    await expect(messages.locator(".msg").last()).toContainText(SUMMARY, { timeout: 20_000 });
 
     // The summary is Scout's, so it takes a Not right?. It is in the line's menu, reached here
     // by the `⋯` beside the name — the path a keyboard takes; `messaging.spec.ts` proves the
     // right-click. There are no thumbs any more (ADR 0200).
-    const messages = page.getByTestId("messages");
     const menu = page.getByTestId("line-menu");
     await messages.locator(".msg").last().getByTestId("line-more").click();
     await expect(menu.getByRole("menuitem", { name: "Thumbs down" })).toHaveCount(0);

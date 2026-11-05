@@ -337,6 +337,31 @@ export async function waysIn(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Set up my own Chips" }).click();
 }
 
+/**
+ * The workspace's log (ADR 0261), opened from You's Workspace log row, an owner's or an admin's,
+ * as a page beside the list (ADR 0265): it was Audit in the sidebar until 3 November 2026.
+ */
+export async function openLog(page: Page): Promise<void> {
+  await page.getByTestId("you").click();
+  await page.getByTestId("workspace-log").click();
+  await expect(page.getByRole("region", { name: "Workspace log" })).toBeVisible();
+}
+
+/** A row of You's opened: its page beside the list, or its form over it (ADR 0265). */
+export async function openYouRow(page: Page, row: string): Promise<void> {
+  await page.getByTestId("you").click();
+  await page.getByTestId(row).click();
+}
+
+/** Somebody's page, from People on You (ADR 0209, ADR 0265): what it holds is theirs. */
+export async function openPerson(page: Page, participantId: string): Promise<Locator> {
+  await openYouRow(page, "people-row");
+  await page.locator(`[data-testid=person-row][data-participant="${participantId}"]`).click();
+  const details = page.getByTestId("person-details");
+  await expect(details).toHaveAttribute("data-participant", participantId);
+  return details;
+}
+
 export async function pair(page: Page): Promise<void> {
   await pairingPage(page);
   await page.getByLabel("Pairing code").fill(await freshCode());
@@ -405,11 +430,12 @@ export async function pickEmpty(page: Page): Promise<void> {
 }
 
 /**
- * The open room's sheet (ADR 0151), opened from *N members* if it is not up already.
+ * The open room's sheet (ADR 0151), opened from *N members* if it is not up already. By its test id:
+ * the button is named by its words, which are "1 member" in a room of one.
  */
 export async function roomSheet(page: Page): Promise<Locator> {
   const sheet = page.getByTestId("room-sheet");
-  if (!(await sheet.isVisible())) await page.getByRole("button", { name: "Members" }).click();
+  if (!(await sheet.isVisible())) await page.getByTestId("members").click();
   await expect(sheet).toBeVisible();
   return sheet;
 }
@@ -425,7 +451,7 @@ export async function addMember(
   who: { id: string } | { moving: string },
 ): Promise<void> {
   const sheet = await roomSheet(page);
-  const done = sheet.getByTestId("room-sheet-add-done");
+  const done = sheet.getByTestId("room-sheet-add-page");
   if (!(await done.isVisible())) await sheet.getByTestId("room-sheet-add").click();
   await expect(done).toBeVisible();
   if ("id" in who) {
@@ -449,18 +475,14 @@ export async function addMember(
 export async function sheetBack(page: Page): Promise<Locator> {
   const sheet = page.getByTestId("room-sheet");
   await sheet.getByRole("button", { name: "Back" }).click();
-  await expect(sheet.getByTestId("room-sheet-done")).toBeVisible();
+  await expect(sheet.getByTestId("room-sheet-icon")).toBeVisible();
   return sheet;
 }
 
-/** Put the sheet away with its Done, and wait for it to have gone. */
+/** Put the sheet away with its X, on whatever page it is, and wait for it to have gone. */
 export async function closeSheet(page: Page): Promise<void> {
   const sheet = page.getByTestId("room-sheet");
-  await sheet
-    .locator(
-      '[data-testid="room-sheet-done"], [data-testid="room-sheet-add-done"], [data-testid="room-sheet-invite-done"]',
-    )
-    .click();
+  await sheet.getByTestId("room-sheet-close").click();
   await expect(sheet).toHaveCount(0);
 }
 

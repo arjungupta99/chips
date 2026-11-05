@@ -5,7 +5,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { fileOfLink, isPage, MAX_PAGE_BYTES, pageLoad } from "./page";
+import {
+  fileOfLink,
+  GROUND_LINK,
+  GROUND_SCRIPT,
+  groundOfLink,
+  isPage,
+  MAX_PAGE_BYTES,
+  pageLoad,
+} from "./page";
 
 describe("which files open as a page", () => {
   it("takes an HTML document or a Markdown file, however its type is spelled, and nothing else", () => {
@@ -113,5 +121,31 @@ describe("what a page may load", () => {
     );
     expect(fileOfLink("chips-file:%E0%A4%A")).toBeUndefined();
     expect(fileOfLink("https://example.com")).toBeUndefined();
+  });
+});
+
+// 3 November 2026: "The background behind dark HTML is also light".
+describe("the colour a page is drawn on", () => {
+  it("is said at its own address, tapped or not, on either platform, and nothing loads", () => {
+    for (const platform of ["ios", "android"] as const) {
+      expect(pageLoad({ url: `${GROUND_LINK}15,17,21` }, platform)).toBe("ground");
+      expect(pageLoad({ url: `${GROUND_LINK}15,17,21`, navigationType: "other" }, platform)).toBe(
+        "ground",
+      );
+    }
+  });
+
+  it("is three numbers a colour can be, and nothing else", () => {
+    expect(groundOfLink(`${GROUND_LINK}15,17,21`)).toBe("rgb(15, 17, 21)");
+    expect(groundOfLink(`${GROUND_LINK}255,255,255`)).toBe("rgb(255, 255, 255)");
+    expect(groundOfLink(`${GROUND_LINK}256,0,0`)).toBeUndefined();
+    expect(groundOfLink(`${GROUND_LINK}red`)).toBeUndefined();
+    expect(groundOfLink(`${GROUND_LINK}1,2,3);background:url(x)`)).toBeUndefined();
+    expect(groundOfLink("chips-file:a.html")).toBeUndefined();
+  });
+
+  it("is said by a script that ends as the web view asks, at the address the view reads", () => {
+    expect(GROUND_SCRIPT).toContain(`"${GROUND_LINK}"`);
+    expect(GROUND_SCRIPT.trimEnd().endsWith("true;")).toBe(true);
   });
 });

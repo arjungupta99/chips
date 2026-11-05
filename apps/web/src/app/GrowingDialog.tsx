@@ -1,7 +1,8 @@
 /**
  * A modal dialog that grows out of the control that opened it and folds back into it (ADR 0084):
- * New space out of the gold +, Add harness out of its button. It grows in a fifth of a second with
- * no overshoot, as the phone's window pours out of its +.
+ * New space out of the gold +, Add harness out of its button. It grows in a fifth of a second
+ * (`--motion-base`) with no overshoot, as the phone's window pours out of its +, and folds away on
+ * `--motion-base` too (`dialogMotion.ts`, ADR 0274).
  *
  * Every way out folds it away: Escape, the × its owner draws, or a click outside it. Add harness
  * was a panel in the page that closed only with the Cancel at its foot, and once the token showed,
@@ -14,6 +15,8 @@
 
 import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { boxOf, growFrom } from "./dialogMotion.ts";
+import { reduceMotion } from "./viewer/open.ts";
 
 /** Longer than the fold: a dialog whose fold never ends, in a tab in the background, still goes. */
 const GONE_MS = 400;
@@ -49,14 +52,15 @@ export function GrowingDialog(props: {
     const element = dialog.current;
     if (element === null) return;
     if (!element.open) element.showModal();
-    growFrom(element, opening.current.from);
+    growFrom(element, boxOf(opening.current.from));
     element.querySelector<HTMLElement>(opening.current.focus)?.focus();
     return () => element.close();
   }, []);
 
   useEffect(() => {
     if (!props.leaving) return;
-    const timer = setTimeout(() => gone.current(), GONE_MS);
+    // With Reduce Motion there is no fold to wait for: it goes at once.
+    const timer = setTimeout(() => gone.current(), reduceMotion() ? 0 : GONE_MS);
     return () => clearTimeout(timer);
   }, [props.leaving]);
 
@@ -89,20 +93,4 @@ export function GrowingDialog(props: {
     </dialog>,
     document.body,
   );
-}
-
-/**
- * Where the dialog grows from and folds back to: the middle of what opened it, in the dialog's own
- * box. Measured with the growing held off for the moment, since its box is otherwise already the
- * first frame of it, scaled down about its middle; letting it go again starts it from the top.
- */
-function growFrom(element: HTMLDialogElement, from: HTMLElement | null | undefined): void {
-  if (from === null || from === undefined) return;
-  element.style.animation = "none";
-  const box = element.getBoundingClientRect();
-  element.style.animation = "";
-  const opener = from.getBoundingClientRect();
-  const x = opener.left + opener.width / 2 - box.left;
-  const y = opener.top + opener.height / 2 - box.top;
-  element.style.setProperty("--grow-from", `${Math.round(x)}px ${Math.round(y)}px`);
 }

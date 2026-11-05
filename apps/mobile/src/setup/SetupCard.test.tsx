@@ -11,15 +11,16 @@ import {
   type Snapshot,
   type Store,
 } from "@chipschat/core";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { readSetting } from "../prefs";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { readSetting, writeSetting } from "../prefs";
+import { choosePush } from "../push/chosen";
 import { pushIsOn } from "../push/turnOn";
-import { type Setup, SetupCard, SetupRail, useSetup } from "./SetupCard";
+import { SET_UP_FOLDS_MS, type Setup, SetupCard, SetupRail, useSetup } from "./SetupCard";
 
 jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock("../push/turnOn", () => ({ pushIsOn: jest.fn(), turnOnPush: jest.fn() }));
 jest.mock("../prefs", () => ({
-  SETTINGS: { setupHidden: "setup.hidden" },
+  SETTINGS: { setupHidden: "setup.hidden", push: "push" },
   readSetting: jest.fn(),
   writeSetting: jest.fn(),
 }));
@@ -83,6 +84,24 @@ describe("the rail", () => {
     await rerender(<SetupRail setup={setup(true, ALL)} />);
     expect(screen.getByText("You're set up")).toBeTruthy();
   });
+
+  it("folds up on the ×, and is put away once it has rather than in a frame", async () => {
+    jest.useFakeTimers();
+    try {
+      const { rerender } = await render(<SetupRail setup={setup(false, UNREAD)} />);
+      const shown = setup(true, STEPS);
+      await rerender(<SetupRail setup={shown} />);
+      await fireEvent.press(screen.getByTestId("setup-hide"));
+      expect(shown.onHide).not.toHaveBeenCalled();
+      expect(screen.getByTestId("setup-card")).toBeTruthy();
+      await act(async () => {
+        jest.advanceTimersByTime(SET_UP_FOLDS_MS + 100);
+      });
+      expect(shown.onHide).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe("the card's answers", () => {
@@ -120,5 +139,25 @@ describe("the card's answers", () => {
     firstFrames.length = 0;
     await render(<Card />);
     expect(firstFrames[0]).toBe(true);
+  });
+
+  it("tick Notifications once they are turned on anywhere else, when the word is kept (a fresh iPad)", async () => {
+    (readSetting as jest.Mock).mockResolvedValue(undefined);
+    (writeSetting as jest.Mock).mockResolvedValue(undefined);
+    (pushIsOn as jest.Mock).mockResolvedValue(false);
+    const notify: boolean[] = [];
+    function Notify() {
+      const setup = useSetup(store, snapshot, device);
+      notify.push(setup.steps.find((step) => step.id === "notify")?.done === true);
+      return null;
+    }
+    await render(<Notify />);
+    await waitFor(() => expect(pushIsOn).toHaveBeenCalled());
+    expect(notify.at(-1)).toBe(false);
+
+    // The ask at an agent's first question: Allow, then the server takes the token, then "on".
+    (pushIsOn as jest.Mock).mockResolvedValue(true);
+    await act(() => choosePush("on"));
+    await waitFor(() => expect(notify.at(-1)).toBe(true));
   });
 });

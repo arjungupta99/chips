@@ -116,6 +116,67 @@ describe("what the page asks the shell for", () => {
     expect(shell.handlers.has("chips://approval-decided")).toBe(false);
   });
 
+  it("tells the menus what the page can do, and hears what was chosen from them (ADR 0267)", async () => {
+    const shell = api();
+    const mac = desktopWith(shell);
+    await mac.setMenu?.([{ id: "new-space", title: "New Space", enabled: true }]);
+    await mac.openLink?.("https://github.com/arjungupta99/chips/issues/new");
+    expect(shell.calls).toEqual([
+      {
+        command: "set_menu",
+        args: { standing: [{ id: "new-space", title: "New Space", enabled: true }] },
+      },
+      { command: "open_link", args: { url: "https://github.com/arjungupta99/chips/issues/new" } },
+    ]);
+
+    const chosen: string[] = [];
+    const stop = await mac.onMenu?.((id) => chosen.push(id));
+    shell.handlers.get("chips://menu")?.({ payload: "next-space" });
+    expect(chosen).toEqual(["next-space"]);
+    stop?.();
+    expect(shell.handlers.has("chips://menu")).toBe(false);
+  });
+
+  it("says how large the page is drawn, at once and after each ⌘+ or ⌘−", async () => {
+    const shell = api();
+    const heard: number[] = [];
+    const stop = await desktopWith({
+      ...shell,
+      invoke: (async (command: string) =>
+        command === "page_zoom" ? 1.25 : undefined) as TauriApi["invoke"],
+    }).onZoom?.((zoom) => heard.push(zoom));
+    expect(heard).toEqual([1.25]);
+    shell.handlers.get("chips://zoom")?.({ payload: 1.5 });
+    expect(heard).toEqual([1.25, 1.5]);
+    stop?.();
+    expect(shell.handlers.has("chips://zoom")).toBe(false);
+  });
+
+  it("says whether the window fills the screen, at once and after each change of its size", async () => {
+    const handlers = new Map<string, (message: { payload: unknown }) => void>();
+    let full = false;
+    const asked: string[] = [];
+    const shell: TauriApi = {
+      invoke: (async (command: string) => {
+        asked.push(command);
+        return full;
+      }) as TauriApi["invoke"],
+      listen: (async (event: string, handler: (message: { payload: unknown }) => void) => {
+        handlers.set(event, handler);
+        return () => handlers.delete(event);
+      }) as TauriApi["listen"],
+    };
+    const heard: boolean[] = [];
+    const stop = await desktopWith(shell).onFullScreen?.((now) => heard.push(now));
+    expect(heard).toEqual([false]);
+    full = true;
+    handlers.get("tauri://resize")?.({ payload: {} });
+    await vi.waitFor(() => expect(heard).toEqual([false, true]));
+    expect(asked.every((command) => command === "plugin:window|is_fullscreen")).toBe(true);
+    stop?.();
+    expect(handlers.has("tauri://resize")).toBe(false);
+  });
+
   it("takes the link the app was launched with, though the page was not there to hear it", async () => {
     const shell = api();
     shell.waiting.push("chips://space/spc_01H");

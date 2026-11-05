@@ -82,7 +82,7 @@ test("agents are numbered, renamed on their page, and reached apart by their @",
     await title.fill("Aerie");
     await title.press("Enter");
     await expect(page.getByRole("main", { name: "Space: Aerie" })).toBeVisible();
-    await expect(page.getByTestId("room-sheet-add-done")).toBeVisible();
+    await expect(page.getByTestId("room-sheet-add-page")).toBeVisible();
     await addMember(page, { id: two.id });
     await addMember(page, { id: three.id });
     await expect((await sheetBack(page)).getByTestId("member")).toHaveCount(3);

@@ -3,7 +3,7 @@
  * blue, green, coral and violet planet on them, each with a thin edge of the ground it stands on.
  */
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 const RX = 10.4;
 const RY = 3;
@@ -41,6 +41,21 @@ function ringPath(ring: number, along: number): string {
   return `M ${from.x} ${from.y} ${arc(across)} ${arc(from)}`;
 }
 
+/** Each planet's time once round its ring when Universe calls, as on the phone. */
+const ONCE = ["1s", "1.25s", "0.9s", "1.15s"] as const;
+
+/**
+ * A planet's ring as a path from where it stands, all the way round, as a move from there: the
+ * planet keeps its own place, so it stands in it whenever it isn't going round.
+ */
+function onceRound(ring: number, along: number): string {
+  const from = pointOn(ring, along);
+  const across = pointOn(ring, along + 180);
+  const arc = (to: { x: number; y: number }) =>
+    `A ${RX} ${RY} ${ring} 1 1 ${to.x - from.x} ${to.y - from.y}`;
+  return `M 0 0 ${arc(across)} ${arc(from)}`;
+}
+
 const stillPlease = () =>
   typeof window !== "undefined" &&
   window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
@@ -49,18 +64,35 @@ const stillPlease = () =>
  * The mark. With `orbit`, its planets travel their rings while Universe reads the space and its
  * page opens (Arjun's pick on the mock, 24 October 2026: "Orbit loading motion looks good"); it
  * stands still for a reader who asked the system for less motion.
+ *
+ * With `calling`, the change the project has for the reader (ADR 0227's addendum, Arjun's pick "A ·
+ * Orbit once", 3 November 2026), its planets go once round their rings as it grows and settles,
+ * and then it pulses until Universe is opened (`.universe-calling`). A newer change goes round
+ * again. For less motion it fades and comes back instead.
  */
 export function UniverseMark({
   size = 20,
   orbit = false,
+  calling,
 }: {
   readonly size?: number;
   readonly orbit?: boolean;
+  readonly calling?: string | undefined;
 }) {
   const moving = orbit && !stillPlease();
+  const rounds = useRef<(SVGElement | null)[]>([]);
+  useEffect(() => {
+    if (calling === undefined || stillPlease()) return;
+    for (const round of rounds.current) {
+      // A browser without SMIL (and the tests' DOM) leaves the planets where they stand.
+      if (round !== null && "beginElement" in round) (round as SVGAnimationElement).beginElement();
+    }
+  }, [calling]);
   return (
     <svg
-      className="universe-mark"
+      // A newer change starts the grow and the pulse again, from the top.
+      key={calling}
+      className={calling === undefined ? "universe-mark" : "universe-mark universe-calling"}
       width={size}
       height={size}
       viewBox="0 0 24 24"
@@ -101,6 +133,20 @@ export function UniverseMark({
               dur={PERIODS[at] ?? "3s"}
               repeatCount="indefinite"
               path={ringPath(RINGS[at] ?? 0, ALONG[at] ?? 0)}
+            />
+          )}
+          {!moving && calling !== undefined && (
+            <animateMotion
+              ref={(round) => {
+                rounds.current[at] = round;
+              }}
+              begin="indefinite"
+              dur={ONCE[at] ?? "1s"}
+              calcMode="spline"
+              keyPoints="0;1"
+              keyTimes="0;1"
+              keySplines="0.45 0 0.2 1"
+              path={onceRound(RINGS[at] ?? 0, ALONG[at] ?? 0)}
             />
           )}
         </circle>

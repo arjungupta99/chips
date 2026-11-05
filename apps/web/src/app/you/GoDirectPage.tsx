@@ -1,8 +1,9 @@
 /**
- * Go direct on the Mac (ADR 0211, Phase 2): the phone's guide (`GoDirectSheet`), as a dialog that
- * grows out of its button. Three steps; the last waits on the server's own address, asking the
- * store to go direct every three seconds while it is open, and when the socket has moved over
- * every step goes green and the dialog folds away by itself.
+ * Go direct on the Mac (ADR 0211, Phase 2): the phone's guide (`GoDirectSheet`), as a page in the
+ * Connection page's place, with the way back to it (ADR 0265's addendum of 3 November 2026). Three
+ * steps; the last waits on the server's own address, asking the store to go direct every three
+ * seconds while it is open, and when the socket has moved over every step goes green and the page
+ * goes back to Connection by itself.
  *
  * Phase 3: somebody who is not an owner is guided through an ask (`guest`): Ask an owner, Get
  * Tailscale and open the invite the owner sends, turn Tailscale on. The ask is read again every
@@ -19,10 +20,10 @@ import {
   guideSteps,
 } from "@chipschat/core";
 import { Icon } from "@chipschat/ui";
-import { useEffect, useState } from "react";
-import { GrowingDialog } from "../GrowingDialog.tsx";
+import { useEffect, useRef, useState } from "react";
+import { FormPage } from "./Form.tsx";
 
-/** How often the dialog asks the store to go direct while it waits. */
+/** How often the guide asks the store to go direct while it waits. */
 export const GUIDE_CHECK_MS = 3000;
 /** How long it stays, every step green, once the computer has gone direct. */
 export const GUIDE_DONE_MS = 1500;
@@ -36,7 +37,7 @@ export interface GuestAsk {
   readonly readMine: () => Promise<unknown>;
 }
 
-export function GoDirectDialog(props: {
+export function GoDirectPage(props: {
   readonly from: HTMLElement | null;
   readonly machine: string;
   readonly tailnet: string;
@@ -47,8 +48,7 @@ export function GoDirectDialog(props: {
   /** For somebody who is not an owner: the guide asks an owner first (Phase 3). */
   readonly guest?: GuestAsk | undefined;
 }) {
-  const { direct, goDirect, guest } = props;
-  const [leaving, setLeaving] = useState(false);
+  const { direct, goDirect, guest, onGone } = props;
   const waiting = guest?.ask?.state === "asked";
   // Before a guest's ask is shared there is nothing for the server's address to answer to.
   const reachable = guest === undefined || (guest.ask !== undefined && !waiting);
@@ -64,9 +64,11 @@ export function GoDirectDialog(props: {
     const every = setInterval(() => void readMine().catch(() => undefined), GUIDE_CHECK_MS);
     return () => clearInterval(every);
   }, [waiting, readMine]);
+  const gone = useRef(onGone);
+  gone.current = onGone;
   useEffect(() => {
     if (!direct) return;
-    const done = setTimeout(() => setLeaving(true), GUIDE_DONE_MS);
+    const done = setTimeout(() => gone.current(), GUIDE_DONE_MS);
     return () => clearTimeout(done);
   }, [direct]);
   const steps: readonly GuestStep[] =
@@ -77,49 +79,31 @@ export function GoDirectDialog(props: {
         }))
       : guestGuideSteps(props.machine, guest.ask, "computer", direct);
   return (
-    <GrowingDialog
-      from={props.from}
-      labelledBy="go-direct-title"
-      className="go-direct-dialog"
-      testId="go-direct-dialog"
-      focus=".new-space-close"
-      leaving={leaving}
-      onLeave={() => setLeaving(true)}
-      onGone={props.onGone}
-    >
-      <div className="go-direct-card">
-        <div className="model-head">
-          <h2 id="go-direct-title">Go direct</h2>
-          <button
-            type="button"
-            className="new-space-close"
-            aria-label="Close"
-            onClick={() => setLeaving(true)}
-          >
-            <Icon name="x" size={14} />
-          </button>
-        </div>
-        <p className="go-direct-lead">{guest === undefined ? GUIDE_LEAD : GUEST_GUIDE_LEAD}</p>
-        <ol className="go-direct-steps">
-          {steps.map((step, index) => (
-            <li
-              key={step.title}
-              data-state={step.state}
-              data-testid={`go-direct-step-${index + 1}`}
-            >
-              <span className="go-direct-n" aria-hidden="true">
-                {step.state === "done" ? <Icon name="check" size={13} /> : index + 1}
-              </span>
-              <span className="go-direct-words">
-                <b>{step.title}</b>
-                <small>{step.words}</small>
-                {!direct && <StepAction index={index} guest={guest} />}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </GrowingDialog>
+    <FormPage title="Go direct" from={props.from} testId="go-direct-page" onGone={onGone}>
+      {() => (
+        <>
+          <p className="go-direct-lead">{guest === undefined ? GUIDE_LEAD : GUEST_GUIDE_LEAD}</p>
+          <ol className="go-direct-steps">
+            {steps.map((step, index) => (
+              <li
+                key={step.title}
+                data-state={step.state}
+                data-testid={`go-direct-step-${index + 1}`}
+              >
+                <span className="go-direct-n" aria-hidden="true">
+                  {step.state === "done" ? <Icon name="check" size={13} /> : index + 1}
+                </span>
+                <span className="go-direct-words">
+                  <b>{step.title}</b>
+                  <small>{step.words}</small>
+                  {!direct && <StepAction index={index} guest={guest} />}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+    </FormPage>
   );
 }
 

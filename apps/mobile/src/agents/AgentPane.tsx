@@ -9,6 +9,7 @@ import { nameOf, type Snapshot, type Store } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { fileHref } from "../context/owner";
 import { Pane } from "../ui/Pane";
+import { useThirdHost } from "../ui/Split";
 import { AgentCard } from "./AgentCard";
 import { History } from "./History";
 
@@ -20,6 +21,7 @@ export function AgentPane({
   history,
   lockGlow = false,
   onBack,
+  onClose,
   onHistory,
   onOpenRoom,
   onOpenAgent,
@@ -36,6 +38,8 @@ export function AgentPane({
   readonly lockGlow?: boolean;
   /** Where the pane's back goes, when it has one: the card from its history, the room from its card. */
   readonly onBack?: (() => void) | undefined;
+  /** In a third column, its × (ADR 0276): its history beside its card. */
+  readonly onClose?: (() => void) | undefined;
   readonly onHistory: () => void;
   readonly onOpenRoom: (spaceId: string) => void;
   /** Another agent's card: the one a copy was forked from, or one its history names. */
@@ -46,8 +50,21 @@ export function AgentPane({
   readonly onDeleted: () => void;
 }) {
   const router = useRouter();
+  // Its history and its harness's pages open in the third column on the Agents tab (ADR 0276): a
+  // choice of the card's standing there closes for them, rather than stand over them.
+  const host = useThirdHost();
+  const beside =
+    <A extends unknown[]>(open: (...args: A) => void) =>
+    (...args: A) => {
+      host?.dismiss();
+      open(...args);
+    };
   return (
-    <Pane title={history ? "Message history" : nameOf(snapshot.directory, agentId)} onBack={onBack}>
+    <Pane
+      title={history ? "Message history" : nameOf(snapshot.directory, agentId)}
+      onBack={onBack}
+      onClose={onClose}
+    >
       {history ? (
         <History
           store={store}
@@ -64,12 +81,12 @@ export function AgentPane({
           agentId={agentId}
           selfId={selfId}
           lockGlow={lockGlow}
-          onHistory={onHistory}
+          onHistory={beside(onHistory)}
           context={{
             focus: 0,
             onOpenFile: (name, mode) =>
               router.push(fileHref({ kind: "agent", id: agentId }, name, mode)),
-            onOpenHarness,
+            onOpenHarness: beside(onOpenHarness),
           }}
           onOpenRoom={onOpenRoom}
           onOpenAgent={onOpenAgent}

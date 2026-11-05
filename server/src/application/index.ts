@@ -63,6 +63,7 @@ export type {
   PushReadiness,
   PushRegistry,
   PushSender,
+  PushStanding,
   PushTicket,
   PushToken,
   RegisterPushToken,
@@ -324,6 +325,8 @@ export type {
   ProjectVisitor,
 } from "./use-cases/project-door.js";
 export { createProjectDoor } from "./use-cases/project-door.js";
+export type { PushReceipts, PushReceiptsDeps } from "./use-cases/push-receipts.js";
+export { createPushReceipts } from "./use-cases/push-receipts.js";
 export type {
   RelayLinkControl,
   RelaySwitchDeps,

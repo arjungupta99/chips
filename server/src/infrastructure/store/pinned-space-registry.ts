@@ -43,5 +43,13 @@ export function createPinnedSpaceRegistry(db: Kysely<Database>): PinnedSpaceRegi
         .where("space_id", "=", spaceId)
         .execute();
     },
+
+    async forgetSpace(workspaceId, spaceId) {
+      await db
+        .deleteFrom("pinned_spaces")
+        .where("workspace_id", "=", workspaceId)
+        .where("space_id", "=", spaceId)
+        .execute();
+    },
   };
 }

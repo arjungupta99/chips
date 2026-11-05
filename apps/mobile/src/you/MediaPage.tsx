@@ -68,6 +68,7 @@ import { GROWS, GrowingList } from "../ui/growing";
 import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
 import { COLUMN } from "../ui/Screen";
+import { useDetailWidth } from "../ui/Split";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import {
@@ -393,15 +394,22 @@ function usePicking(sections: readonly KeptSection[]) {
   };
 }
 
-/** How wide a tile is: as many across as fit at the smallest, the column's width shared out. */
+/**
+ * How wide a tile is: as many across as fit at the smallest, the column's width shared out. The
+ * width is the page's own: beside You's list on an iPad, the whole of the detail the split gives it,
+ * with no column inside it (ADR 0276); not the window, whose 760-point column overran a portrait
+ * iPad's 692-point detail and stood under the list (the simulator, 2 November 2026).
+ */
 function useTileSide(): {
   readonly tile: number;
   readonly columns: number;
   readonly wide: boolean;
 } {
-  const { width } = useWindowDimensions();
-  const wide = width > COLUMN;
-  const inner = Math.min(width, COLUMN) - SPACE.lg * 2;
+  const { width: window } = useWindowDimensions();
+  const beside = useDetailWidth();
+  const width = beside ?? window;
+  const wide = beside === undefined && width > COLUMN;
+  const inner = (wide ? COLUMN : width) - SPACE.lg * 2;
   const columns = Math.max(4, Math.floor((inner + GAP) / (MIN_TILE + GAP)));
   return { tile: (inner - GAP * (columns - 1)) / columns, columns, wide };
 }
@@ -857,7 +865,7 @@ function PickBar({
 
 const styles = StyleSheet.create({
   list: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.sm },
-  column: { width: COLUMN, alignSelf: "center" },
+  column: { width: "100%", maxWidth: COLUMN, alignSelf: "center" },
   summary: {
     borderRadius: RADIUS.xxl,
     paddingHorizontal: SPACE.lg,

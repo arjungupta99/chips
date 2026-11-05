@@ -38,11 +38,17 @@ export function People({
   store,
   selfId,
   workspace,
+  onOpen,
+  selected,
 }: {
   readonly store: Store;
   readonly selfId: string;
   /** The workspace as a sentence names it. */
   readonly workspace: string;
+  /** Open a person's page: pushed, unless beside You's list on an iPad (ADR 0256). */
+  readonly onOpen?: ((personId: string) => void) | undefined;
+  /** The person whose page stands beside the list, whose row wears the chosen ground (ADR 0276). */
+  readonly selected?: string | undefined;
 }) {
   const snapshot = useSnapshot(store);
   const router = useRouter();
@@ -84,7 +90,8 @@ export function People({
                 sub={where === undefined ? `Joined ${joined}` : `${where} · joined ${joined}`}
                 subLines={1}
                 trailing={<RoleTag role={person.role} />}
-                onPress={() => router.push(`/people/${id}`)}
+                onPress={() => (onOpen ? onOpen(id) : router.push(`/people/${id}`))}
+                selected={selected === undefined ? undefined : id === selected}
                 accessibilityLabel={`${self ? selfLabel(name) : name}, ${ROLE_WORDS[person.role]}`}
                 testID={`person-row-${id}`}
               />

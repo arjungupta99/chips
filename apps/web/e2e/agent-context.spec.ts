@@ -165,7 +165,8 @@ test("opens a shared file on its harness's page, and reads it there", async ({ p
   );
   await expect(page.getByTestId("context-used-by")).toContainText("1 agent");
 
-  await page.getByRole("button", { name: "‹ Spindle" }).click();
+  // Back through Spindle's Context files page, which the shared row opened (ADR 0266).
+  await page.getByRole("button", { name: "‹ Context files" }).click();
   await page.getByRole("button", { name: "‹ Sandpiper" }).click();
   await expect(page.getByTestId("agent-card")).toBeVisible();
 });

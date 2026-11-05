@@ -7,8 +7,14 @@
  * never so much as opened for them.
  */
 
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  chooseInWorkspaces,
+  frontWorkspace,
+  menuRows,
+  openWorkspaces,
+} from "../../testing/workspaces.ts";
 import { App } from "../App.tsx";
 import { demoAtLaunch, keepDemo, keptDemo } from "./kept.ts";
 
@@ -50,10 +56,7 @@ async function watch(): Promise<HTMLElement> {
 
 /** The switcher's Watch Chips work, over the demo once Look around has kept it. */
 async function fromSwitcher(): Promise<HTMLElement> {
-  const switcher = await screen.findByRole("combobox", { name: "Workspace" });
-  await act(async () => {
-    fireEvent.change(switcher, { target: { value: "-watch" } });
-  });
+  await chooseInWorkspaces("Watch Chips work");
   return screen.findByTestId("film-player");
 }
 
@@ -84,7 +87,7 @@ describe("the demo workspace", () => {
     render(<App devices={[]} />);
     await watch();
     await lookAround();
-    await screen.findByRole("combobox", { name: "Workspace" });
+    await screen.findByTestId("workspace-switcher");
     expect(opened).not.toContain("chips");
     // Kept, as a word of the page's own.
     expect(keptDemo()).toBe("front");
@@ -94,15 +97,14 @@ describe("the demo workspace", () => {
     const first = render(<App devices={[]} />);
     await watch();
     await lookAround();
-    await screen.findByRole("combobox", { name: "Workspace" });
+    await screen.findByTestId("workspace-switcher");
     first.unmount();
 
     // The next launch, as `main.tsx` makes it.
     const launch = await demoAtLaunch();
     expect(launch?.front).toBe(true);
     render(<App devices={[]} demo={launch} />);
-    const switcher = await screen.findByRole("combobox", { name: "Workspace" });
-    expect((switcher as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("Chips demo");
+    expect(await frontWorkspace()).toBe("Chips demo");
     expect(screen.queryByTestId("film-source")).toBeNull();
     expect(await screen.findByText("Birthday dinner")).toBeDefined();
     expect(screen.getAllByTestId("demo-tag").length).toBeGreaterThan(0);
@@ -117,7 +119,7 @@ describe("the demo workspace", () => {
     const first = await ended();
     fireEvent.click(within(first).getByRole("button", { name: /Costs and trouble/ }));
     await lookAround();
-    await screen.findByRole("combobox", { name: "Workspace" });
+    await screen.findByTestId("workspace-switcher");
     // The first film's end: Morning brief's last line is Hugo's, not the question Herald, offline, left.
     expect(await screen.findByText(/Rain after 3/)).toBeDefined();
     expect(screen.queryByText("What's on tomorrow?")).toBeNull();
@@ -127,11 +129,9 @@ describe("the demo workspace", () => {
     render(<App devices={[]} />);
     await watch();
     await lookAround();
-    const switcher = await screen.findByRole("combobox", { name: "Workspace" });
-    expect(within(switcher).getByRole("option", { name: "Remove Chips demo" })).toBeDefined();
-    await act(async () => {
-      fireEvent.change(switcher, { target: { value: "-demo" } });
-    });
+    expect(menuRows(await openWorkspaces())).toContain("Remove Chips demo");
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Workspaces" }), { key: "Escape" });
+    await chooseInWorkspaces("Remove Chips demo");
     expect(await screen.findByRole("heading", { level: 1, name: "Chips" })).toBeDefined();
     expect(keptDemo()).toBeUndefined();
     expect(await demoAtLaunch()).toBeUndefined();
@@ -142,7 +142,7 @@ describe("the demo workspace", () => {
     render(<App devices={[]} />);
     await watch();
     await lookAround();
-    await screen.findByRole("combobox", { name: "Workspace" });
+    await screen.findByTestId("workspace-switcher");
     expect(screen.queryByTestId("film-player")).toBeNull();
     expect(await fromSwitcher()).toBeDefined();
     // The demo stays as it was looked around, behind the film.
@@ -157,7 +157,7 @@ describe("the demo workspace", () => {
     await fromSwitcher();
     fireEvent.click(screen.getByRole("button", { name: "Leave the film" }));
     expect(screen.queryByTestId("film-player")).toBeNull();
-    expect(await screen.findByRole("combobox", { name: "Workspace" })).toBeDefined();
+    expect(await screen.findByTestId("workspace-switcher")).toBeDefined();
     expect(keptDemo()).toBe("front");
   });
 
@@ -165,7 +165,7 @@ describe("the demo workspace", () => {
     render(<App devices={[]} />);
     await watch();
     await lookAround();
-    await screen.findByRole("combobox", { name: "Workspace" });
+    await screen.findByTestId("workspace-switcher");
     // Agents: the line in place of Connect a harness.
     fireEvent.click(screen.getAllByRole("button", { name: /^Agents/ })[0] as HTMLElement);
     const agents = await screen.findByTestId("not-in-demo");
@@ -175,15 +175,16 @@ describe("the demo workspace", () => {
     fireEvent.click(screen.getAllByTestId("you")[0] as HTMLElement);
     const devices = await screen.findByTestId("devices");
     expect(within(devices).getByTestId("not-in-demo")).toBeDefined();
-    expect(within(devices).queryByText("Pair another device…")).toBeNull();
-    expect(within(screen.getByTestId("invites")).getByTestId("not-in-demo")).toBeDefined();
+    expect(within(screen.getByTestId("issue-code")).getByTestId("not-in-demo")).toBeDefined();
     expect(within(screen.getByTestId("connect-harness")).getByTestId("not-in-demo")).toBeDefined();
+    fireEvent.click(screen.getByTestId("invite-someone"));
+    expect(within(screen.getByTestId("invites")).getByTestId("not-in-demo")).toBeDefined();
     // Set up my own Chips: the pairing page's ways in, with the demo kept behind it.
     fireEvent.click(within(devices).getByRole("button", { name: "Set up my own Chips" }));
     expect(await screen.findByLabelText("Pairing code")).toBeDefined();
     expect(keptDemo()).toBe("front");
     fireEvent.click(screen.getByTestId("pair-cancel"));
-    expect(await screen.findByRole("combobox", { name: "Workspace" })).toBeDefined();
+    expect(await screen.findByTestId("workspace-switcher")).toBeDefined();
   });
 
   it("sends the switcher's film's Set up my own Chips to the pairing page's ways in, on That's Chips", async () => {

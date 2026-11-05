@@ -296,6 +296,8 @@ describe("attaching from the phone", () => {
 
     await userEvent.press(screen.getByRole("button", { name: "Attach" }));
     expect(screen.getByRole("header", { name: "Add to your message" })).toBeTruthy();
+    // Beside the +, in a window as wide as Jest's, an iPad's (ADR 0256): a tap off it is a way out.
+    expect(screen.getByTestId("attach-sheet-off", { includeHiddenElements: true })).toBeTruthy();
     // Each row is its name and, as the hint, what it gives.
     expect(screen.getByRole("button", { name: "Photo library" })).toHaveProp(
       "accessibilityHint",

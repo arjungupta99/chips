@@ -5,7 +5,7 @@
 
 import { expect, type Page, test } from "@playwright/test";
 import { blankPdf, noisyPng } from "./png.ts";
-import { demo, Harness, newRunId, pair } from "./support.ts";
+import { demo, Harness, newRunId, openLog, openYouRow, pair } from "./support.ts";
 
 test.describe.configure({ mode: "serial" });
 
@@ -53,9 +53,13 @@ test("a 20 MB photo uploads with a thumbnail, the harness fetches it, and the au
 
     // Every harness fetch is an audit event.
     await expect(page.getByTestId("fetch-line").last()).toHaveText("Scout read holiday.png");
-    await page.getByRole("button", { name: /Audit/ }).click();
+    await openLog(page);
     await expect(
-      page.getByRole("row").filter({ hasText: "read holiday.png" }).last(),
+      page
+        .getByTestId("audit")
+        .getByRole("listitem")
+        .filter({ hasText: "read holiday.png" })
+        .last(),
     ).toBeVisible();
   } finally {
     harness.close();
@@ -150,14 +154,22 @@ test("a .md file opens as a formatted page, and the author's HTML is words", asy
  */
 test("a cap set in You stops a photo at the chip, and at the server's door", async ({ page }) => {
   await pair(page);
-  await page.getByTestId("you").click();
-  const section = page.getByTestId("attachment-caps");
+  /** Attachment limits' form, on its page beside You's list (ADR 0265 and its addendum). */
+  const caps = async () => {
+    await openYouRow(page, "caps-row");
+    return page.getByTestId("attachment-caps");
+  };
+  let section = await caps();
   await expect(section.getByTestId("caps-words")).toContainText("Photos up to the server's");
   await section.getByLabel("Photos").fill("1");
-  await section.getByTestId("save-caps").click();
+  await section.getByTestId("attachment-caps-save").click();
+  await expect(section).toHaveCount(0);
+  section = await caps();
   await expect(section.getByTestId("caps-words")).toContainText("Photos up to 1 MB", {
     timeout: 20_000,
   });
+  await section.getByTestId("attachment-caps-cancel").click();
+  await expect(section).toHaveCount(0);
 
   try {
     await page
@@ -173,9 +185,11 @@ test("a cap set in You stops a photo at the chip, and at the server's door", asy
     await expect(chips).toContainText("Photos here are capped at 1 MB, and this one is");
     await expect(page.getByRole("button", { name: "Send", exact: true })).toBeDisabled();
   } finally {
-    await page.getByTestId("you").click();
+    section = await caps();
     await section.getByLabel("Photos").fill("");
-    await section.getByTestId("save-caps").click();
+    await section.getByTestId("attachment-caps-save").click();
+    await expect(section).toHaveCount(0);
+    section = await caps();
     await expect(section.getByTestId("caps-words")).toContainText("Photos up to the server's", {
       timeout: 20_000,
     });

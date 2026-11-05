@@ -29,21 +29,35 @@
 import type { Store } from "@chipschat/core";
 import { Redirect, useRouter, useSegments } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { memo, useCallback, useEffect, useRef } from "react";
-import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
-import { useSharedValue } from "react-native-reanimated";
+import { memo, type ReactNode, type RefObject, useCallback, useEffect, useRef } from "react";
+import {
+  Platform,
+  type StyleProp,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from "react-native";
+import { type SharedValue, useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { topMiddle } from "../../src/newSpace/geometry";
 import { useNewSpace } from "../../src/newSpace/NewSpace";
 import { useOpens } from "../../src/newSpace/opens";
 import { Plus } from "../../src/newSpace/Plus";
 import { PLUS_GAP, PLUS_SIZE } from "../../src/newSpace/plusRoom";
+import { summonSearch } from "../../src/search/summon";
 import { useChips } from "../../src/store/provider";
 import { barFrame, barLift } from "../../src/ui/barShape";
+import { usePadSidebar } from "../../src/ui/chrome";
+import { useDuo } from "../../src/ui/duo";
 import { alpha } from "../../src/ui/Glass";
+import { useLayout } from "../../src/ui/layout";
+import { useMenuCommand } from "../../src/ui/menuBar";
 import { OpenedProvider } from "../../src/ui/opened";
 import { PhoneBar, shrinkTo } from "../../src/ui/PhoneBar";
 import { chooseTab, ReadingFeed } from "../../src/ui/phoneBarNative";
+import { Sidebar } from "../../src/ui/Sidebar";
+import { COLUMN_PLUS, SideColumn } from "../../src/ui/SideColumn";
 import { TabBarAsideProvider, useTabBarAside } from "../../src/ui/tabBarAside";
 import { inBar, TAB_ORDER, TABS, type TabName, tabsShown } from "../../src/ui/tabs";
 import { usePalette } from "../../src/ui/theme";
@@ -79,11 +93,19 @@ export default function TabsLayout() {
  * takes its list to the top. With the phone on its side they are the size they are upright, a
  * little higher, and stay shrunk.
  *
- * On an iPad the bar is UIKit's, which stands it at the top of the window (ADR 0177), and its own
- * + is the button: a tab of the search kind that is never selected (`disabled`), whose press opens
- * the window out of the top of the screen, since the bar does not say where its + is. The gold +
- * stood alone at the foot of the screen there, over the room's send button (the iPad simulator, 15
- * October 2026). On Android the + floats above the end of Material's bar.
+ * On an iPad wide enough for a list beside what it opens, the tabs are Chips' own and UIKit's bar is
+ * hidden, as on an iPhone: a capsule at the window's bottom left with the gold + beside it, and the
+ * sidebar ☰ grows out of it, floating over the list (`Sidebar.tsx`, ADR 0276). Until 3 November 2026
+ * they were iPadOS's pill at the top middle, with the gold + measured past its end, under 1100 points
+ * across or with a space's details open, and a sidebar beside the list above that (ADR 0256). In a
+ * narrow window, where iPadOS puts its bar at the foot, the + is still the bar's own: a tab of the
+ * search kind that is never selected (`disabled`). The gold + stood alone at the foot of the screen
+ * there once, over the room's send button (the iPad simulator, 15 October 2026). On Android the +
+ * floats above the end of Material's bar.
+ *
+ * On the iPhone Duo they stand in the column iOS keeps down the edge of the screen for an app's bars
+ * instead, the tabs at its foot and the gold + under them (`SideColumn.tsx`, ADR 0256), folded or
+ * open; at the foot of the open Duo the bar ran across the room's composer.
  *
  * Both step aside while a screen puts a bar of its own in their place: the Spaces list's, while
  * spaces are being picked (ADR 0181). Neither + is there for a member or a guest, who are added to
@@ -98,6 +120,9 @@ function Tabs({ store, selfId }: { readonly store: Store; readonly selfId: strin
   const router = useRouter();
   const still = useReduceMotion();
   const chosen = useChosenTab();
+  const { wide } = useLayout();
+  const pad = usePadSidebar();
+  const column = useColumn();
   const landscape = width > height;
   // On its side a phone has little height to spare, so there the bar is always shrunk.
   const rest = DRAWN && landscape ? 1 : 0;
@@ -128,54 +153,172 @@ function Tabs({ store, selfId }: { readonly store: Store; readonly selfId: strin
       open(topMiddle(width, insets.top));
       return;
     }
-    at.measureInWindow((x, y, w, h) => open({ x, y, width: w, height: h }));
+    at.measureInWindow((x, y, w, h) => open({ x, y, width: w, height: h }, plus));
   }, [open, width, insets.top]);
+  useTabCommands(choose, { opens, aside, grow });
+  const gold = (style: StyleProp<ViewStyle>) => (
+    <Plus ref={plus} onPress={grow} away={aside} style={style} testID="new-space" />
+  );
   return (
     <OpenedProvider>
-      <View style={styles.fill}>
-        <ReadingFeed.Provider value={DRAWN ? reading : null}>
-          <Bar onNewSpace={grow} hidden={DRAWN || aside} opens={opens} />
-        </ReadingFeed.Provider>
-        {DRAWN ? (
-          <PhoneBar
+      <View style={styles.row}>
+        <View style={styles.fill}>
+          <ReadingFeed.Provider value={DRAWN && column === undefined ? reading : null}>
+            <Bar
+              onNewSpace={grow}
+              hidden={DRAWN || aside || pad}
+              opens={opens}
+              slot={SLOT && !wide}
+            />
+          </ReadingFeed.Provider>
+          <Foot
+            chosen={chosen}
+            opens={opens}
+            aside={aside}
+            shrink={shrink}
+            onChoose={choose}
+            plus={<BarPlus plus={plus} onPress={grow} away={aside} shrink={shrink} />}
+            gold={gold}
+          />
+        </View>
+        {pad ? (
+          <Sidebar
+            store={store}
+            selfId={selfId}
             tabs={SHOWN}
             chosen={chosen}
-            plus={opens}
-            shrink={shrink}
-            aside={aside}
             onChoose={choose}
+            onOpenSpace={(id) => router.push(`/spaces/${id}`)}
+            plus={opens ? gold(styles.sidePlus) : null}
+            aside={aside}
           />
-        ) : null}
-        {GOLD_PLUS && opens ? (
-          <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-            <Plus
-              ref={plus}
-              onPress={grow}
-              away={aside}
-              shrink={DRAWN ? shrink : undefined}
-              style={
-                ANDROID
-                  ? [styles.fab, { bottom: insets.bottom + MATERIAL_BAR + PLUS_GAP }]
-                  : [
-                      styles.plus,
-                      {
-                        bottom: insets.bottom + barLift(landscape) - PLUS_SIZE / 2,
-                        right: barFrame(width, height, true, SHOWN.length, insets).right,
-                      },
-                    ]
-              }
-            />
-          </View>
         ) : null}
       </View>
     </OpenedProvider>
   );
 }
 
+/** The side the Duo's column is on, where an iPhone's tabs and + stand instead of at the foot. */
+function useColumn(): "left" | "right" | undefined {
+  const { side, column } = useDuo();
+  return DRAWN && side !== undefined && column > 0 ? side : undefined;
+}
+
+/**
+ * The tabs and the + where an iPhone has them: at the foot of the screen (ADR 0233), or in the
+ * Duo's column (ADR 0256); and the + above Material's bar on Android. An iPad's are UIKit's.
+ */
+function Foot({
+  chosen,
+  opens,
+  aside,
+  shrink,
+  onChoose,
+  plus,
+  gold,
+}: {
+  readonly chosen: TabName;
+  readonly opens: boolean;
+  readonly aside: boolean;
+  readonly shrink: SharedValue<number>;
+  readonly onChoose: (tab: TabName) => void;
+  /** The + at the bar's end. */
+  readonly plus: ReactNode;
+  /** The + in a place of its own, as the column has it. */
+  readonly gold: (style: StyleProp<ViewStyle>) => ReactNode;
+}) {
+  const side = useColumn();
+  const { column, bar } = useDuo();
+  if (side !== undefined) {
+    return (
+      <SideColumn
+        side={side}
+        width={column}
+        lane={bar}
+        tabs={SHOWN}
+        chosen={chosen}
+        plus={opens ? gold(styles.columnPlus) : null}
+        aside={aside}
+        onChoose={onChoose}
+      />
+    );
+  }
+  return (
+    <>
+      {DRAWN ? (
+        <PhoneBar
+          tabs={SHOWN}
+          chosen={chosen}
+          plus={opens}
+          shrink={shrink}
+          aside={aside}
+          onChoose={onChoose}
+        />
+      ) : null}
+      {GOLD_PLUS && opens ? plus : null}
+    </>
+  );
+}
+
+/**
+ * The menu bar's (ADR 0256): the tabs on ⌘1 to ⌘4, a new space while the + is there to grow it
+ * from, and Search with its field taking the keys.
+ */
+function useTabCommands(
+  choose: (tab: TabName) => void,
+  plus: { readonly opens: boolean; readonly aside: boolean; readonly grow: () => void },
+) {
+  useMenuCommand("tab-spaces", () => choose("index"));
+  useMenuCommand("tab-agents", () => choose("agents"));
+  useMenuCommand("tab-search", () => choose("search"));
+  useMenuCommand("tab-you", () => choose("you"));
+  useMenuCommand("new-space", plus.opens && !plus.aside ? plus.grow : undefined);
+  useMenuCommand("search-everything", () => {
+    summonSearch();
+    choose("search");
+  });
+}
+
+/** The gold + at a bar's end: an iPhone's drawn bar, shrinking with it, or above Material's on Android. */
+function BarPlus({
+  plus,
+  onPress,
+  away,
+  shrink,
+}: {
+  readonly plus: RefObject<View | null>;
+  readonly onPress: () => void;
+  readonly away: boolean;
+  readonly shrink: SharedValue<number>;
+}) {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const place: StyleProp<ViewStyle> = ANDROID
+    ? [styles.fab, { bottom: insets.bottom + MATERIAL_BAR + PLUS_GAP }]
+    : [
+        styles.plus,
+        {
+          bottom: insets.bottom + barLift(width > height) - PLUS_SIZE / 2,
+          right: barFrame(width, height, true, SHOWN.length, insets).right,
+        },
+      ];
+  return (
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <Plus
+        ref={plus}
+        onPress={onPress}
+        away={away}
+        shrink={DRAWN ? shrink : undefined}
+        style={place}
+      />
+    </View>
+  );
+}
+
 /** Whether the bar is the one this app draws, over UIKit's hidden one: on an iPhone (ADR 0233). */
 const DRAWN = Platform.OS === "ios" && !Platform.isPad;
 
-/** Whether the + is the gold one: on an iPhone, at the drawn bar's end, and on Android. */
+/** Whether the + is the gold one at a bar's end: on an iPhone and on Android (an iPad: `padPlus`). */
 const GOLD_PLUS = !(Platform.OS === "ios" && Platform.isPad);
 
 /** Whether the + is the bar's own slot, a tab of the search kind: on an iPad. */
@@ -218,6 +361,7 @@ const Bar = memo(function Bar({
   onNewSpace,
   hidden,
   opens,
+  slot,
 }: {
   readonly onNewSpace: () => void;
   /**
@@ -227,6 +371,8 @@ const Bar = memo(function Bar({
   readonly hidden: boolean;
   /** Whether there is a + at all: for an owner or an admin (ADR 0196). */
   readonly opens: boolean;
+  /** Whether the + is the bar's own slot: an iPad in a narrow window (ADR 0256). */
+  readonly slot: boolean;
 }) {
   const palette = usePalette();
 
@@ -258,7 +404,7 @@ const Bar = memo(function Bar({
       <NativeTabs.Trigger
         name="new"
         role="search"
-        hidden={!SLOT || !opens}
+        hidden={!slot || !opens}
         disabled
         listeners={{ tabPress: onNewSpace }}
         testID="tab-new"
@@ -290,6 +436,9 @@ function materialLook(palette: Palette) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  row: { flex: 1, flexDirection: "row" },
   plus: { position: "absolute" },
+  sidePlus: { width: 44, height: 44, borderRadius: 22 },
+  columnPlus: { width: COLUMN_PLUS, height: COLUMN_PLUS, borderRadius: COLUMN_PLUS / 2 },
   fab: { position: "absolute", right: PLUS_GAP },
 });

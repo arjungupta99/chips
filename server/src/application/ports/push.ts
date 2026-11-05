@@ -44,6 +44,11 @@ export interface PushRegistry {
   /** Forget a device: unregistered by the phone, revoked by a person, or swept. */
   readonly remove: (deviceId: string) => Promise<void>;
   /**
+   * Forget a token wherever it is held: the push service said no phone has it any more (its
+   * receipt said `DeviceNotRegistered`). How many rows held it.
+   */
+  readonly removeToken: (token: string) => Promise<number>;
+  /**
    * Forget every token whose device has been revoked. `forPeople` already leaves them out, so
    * this is housekeeping rather than safety: the sweep runs it so the table does not keep rows
    * for phones that were withdrawn months ago.
@@ -99,12 +104,29 @@ export interface PushTicket {
 }
 
 /**
+ * What became of a push the service took, asked of it later by its ticket's id: delivered to
+ * Apple or Google, or why not. `DeviceNotRegistered` here is how a deleted app is learned of.
+ */
+export interface PushReceipt {
+  readonly ok: boolean;
+  readonly error?: string | undefined;
+  readonly message?: string | undefined;
+}
+
+/**
  * Whether a push can go at all (ADR 0244). `no_access_token`: the sender posts to Expo, and this
  * server has no access token, which the Chips app's Expo project requires. `refused`: the push
  * service turned this server away (a 401 or 403), so its token is wrong or was revoked. Neither
  * mends itself; it stays so until Chips restarts with a token that works.
  */
 export type PushReadiness = "ready" | "no_access_token" | "refused";
+
+/**
+ * What the server says of its pushes, on `GET /v1/server` and `/v1/health`: its readiness, or
+ * `failing` when it is ready and its last pushes didn't get through to the push service (ADR
+ * 0244, 2 November 2026). That one mends itself: the next pushes the service takes clear it.
+ */
+export type PushStanding = PushReadiness | "failing";
 
 export interface PushSender {
   /** Send a batch. One ticket per message, in the same order. */
@@ -114,4 +136,17 @@ export interface PushSender {
    * not take the banner from the person's computer.
    */
   readonly readiness: () => PushReadiness;
+  /**
+   * Its readiness, or `failing` from a batch the push service didn't answer or didn't take (it
+   * was unreachable, a 5xx, the push relay's `push_unavailable`) until a later batch gets its
+   * tickets. A failing sender still sends: that is how it learns the service is back.
+   */
+  readonly standing: () => PushStanding;
+  /**
+   * What became of the pushes with these tickets' ids, by id; an id the service doesn't answer
+   * for isn't there yet. Or why it couldn't say. Absent: a sender that has no receipts.
+   */
+  readonly receipts?:
+    | ((ids: readonly string[]) => Promise<ReadonlyMap<string, PushReceipt> | string>)
+    | undefined;
 }

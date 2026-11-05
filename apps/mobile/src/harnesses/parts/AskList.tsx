@@ -3,6 +3,9 @@
  * the day it was asked, and All, Yes and No at the top when they are not all one or the other. A
  * row opens the ask whole (`app/needs/[id].tsx`), where an answered one says when it was answered
  * and opens its space, and one still waiting is answered.
+ *
+ * With no harness it is every ask in the workspace, from the dots on You's Allowed always: a row
+ * still says who asked and where.
  */
 
 import {
@@ -31,7 +34,8 @@ export function AskList({
   selfId,
 }: {
   readonly snapshot: Snapshot;
-  readonly harnessId: string;
+  /** Whose asks; none, every harness's. */
+  readonly harnessId: string | undefined;
   readonly selfId: string;
 }) {
   const palette = usePalette();

@@ -11,7 +11,9 @@
  * - the extension's list the shared one;
  * - both Info.plists name it as `ChipsKeychainGroup`, which is how the Swift finds it.
  *
- * Signed by the app's team (`ios.appleTeamId`), automatically, as the app is.
+ * Signed by the app's team (`ios.appleTeamId`), automatically, as the app is. The team and the
+ * bundle id are whatever `app.config.js` resolved, and are written again at every prebuild, so an
+ * `ios/` made for another team is signed for this one.
  */
 
 const fs = require("node:fs");
@@ -84,17 +86,20 @@ function entitlementsPlist(group) {
 `;
 }
 
-/** The app target's build settings, for what the extension must match. */
-function appSettings(project) {
-  const app = project.getFirstTarget().firstTarget;
-  const list = project.pbxXCConfigurationList()[app.buildConfigurationList];
-  const first = list.buildConfigurations[0].value;
-  return project.pbxXCBuildConfigurationSection()[first].buildSettings;
+/** A target's build settings, one for each configuration: Debug and Release. */
+function settingsOf(project, target) {
+  const list = project.pbxXCConfigurationList()[target.buildConfigurationList];
+  const section = project.pbxXCBuildConfigurationSection();
+  return list.buildConfigurations.map((one) => section[one.value].buildSettings);
 }
 
-/** The target, its files, and how it is built; nothing when a prebuild already made it. */
+/** The app target's build settings, for what the extension must match. */
+function appSettings(project) {
+  return settingsOf(project, project.getFirstTarget().firstTarget)[0];
+}
+
+/** The target, its files, and how it is built, on the first prebuild; its id. */
 function addTarget(project, config) {
-  if (project.pbxTargetByName(TARGET) !== null) return;
   const app = appSettings(project);
   const objects = project.hash.project.objects;
   // The library assumes both sections exist; a project with no extension yet has neither.
@@ -110,12 +115,8 @@ function addTarget(project, config) {
   project.addBuildPhase([SWIFT], "PBXSourcesBuildPhase", "Sources", target.uuid);
   project.addBuildPhase([], "PBXResourcesBuildPhase", "Resources", target.uuid);
   project.addBuildPhase([], "PBXFrameworksBuildPhase", "Frameworks", target.uuid);
-  project.addTargetAttribute("DevelopmentTeam", config.ios.appleTeamId, target);
 
-  const settings = project.pbxXCBuildConfigurationSection();
-  for (const key of Object.keys(settings)) {
-    const build = settings[key].buildSettings;
-    if (build?.PRODUCT_NAME !== `"${TARGET}"`) continue;
+  for (const build of settingsOf(project, target.pbxNativeTarget)) {
     Object.assign(build, {
       CODE_SIGN_ENTITLEMENTS: `${TARGET}/${ENTITLEMENTS}`,
       CODE_SIGN_STYLE: "Automatic",
@@ -125,6 +126,22 @@ function addTarget(project, config) {
       PRODUCT_BUNDLE_IDENTIFIER: bundleId,
       SWIFT_VERSION: "5.0",
       TARGETED_DEVICE_FAMILY: app.TARGETED_DEVICE_FAMILY ?? '"1,2"',
+    });
+  }
+  return target.uuid;
+}
+
+/**
+ * Whose the target is: the app's team, and a bundle id under the app's, which Xcode insists on for
+ * an extension. Written at every prebuild, not only the first, because a target made for one team
+ * is otherwise signed for it ever after.
+ */
+function nameTarget(project, config, uuid) {
+  project.addTargetAttribute("DevelopmentTeam", config.ios.appleTeamId, { uuid });
+  for (const build of settingsOf(project, project.pbxNativeTargetSection()[uuid])) {
+    Object.assign(build, {
+      DEVELOPMENT_TEAM: config.ios.appleTeamId,
+      PRODUCT_BUNDLE_IDENTIFIER: `${config.ios.bundleIdentifier}.notifications`,
     });
   }
 }
@@ -139,7 +156,11 @@ function withPushSeal(config) {
     return mod;
   });
   made = withEntitlementsPlist(made, (mod) => {
-    const groups = mod.modResults["keychain-access-groups"] ?? [];
+    // A group is its team's, by its prefix, and no other team can sign it: a group left by a
+    // prebuild for another team goes.
+    const groups = (mod.modResults["keychain-access-groups"] ?? []).filter(
+      (one) => !/^[A-Z0-9]{10}\./.test(one) || one.startsWith(`${config.ios.appleTeamId}.`),
+    );
     mod.modResults["keychain-access-groups"] = [
       ...new Set([own, ...groups.filter((one) => one !== own), group]),
     ];
@@ -157,7 +178,8 @@ function withPushSeal(config) {
     },
   ]);
   return withXcodeProject(made, (mod) => {
-    addTarget(mod.modResults, config);
+    const uuid = mod.modResults.findTargetKey(TARGET) ?? addTarget(mod.modResults, config);
+    nameTarget(mod.modResults, config, uuid);
     return mod;
   });
 }

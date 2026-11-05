@@ -60,6 +60,19 @@ describe("registering", () => {
     expect(await registry.forPeople(ws.workspaceId, [ws.arjun.participantId])).toEqual([]);
     await expect(registry.remove("dev_nobody")).resolves.toBeUndefined();
   });
+
+  it("forgets a token wherever it is held, once no phone has it, and nobody else's", async () => {
+    const registry = createPushRegistry(ws.db);
+    await register(registry, ws.arjun, { token: "ExponentPushToken[deleted]" });
+    await register(registry, ws.dana, { token: "ExponentPushToken[alive]" });
+    expect(await registry.removeToken("ExponentPushToken[deleted]")).toBe(1);
+    expect(await registry.removeToken("ExponentPushToken[deleted]")).toBe(0);
+    const left = await registry.forPeople(ws.workspaceId, [
+      ws.arjun.participantId,
+      ws.dana.participantId,
+    ]);
+    expect(left.map((each) => each.token)).toEqual(["ExponentPushToken[alive]"]);
+  });
 });
 
 describe("reading a group", () => {

@@ -22,6 +22,8 @@ export const SETTINGS = {
   picks: "picks",
   /** What was searched for here, newest first (`search/recent.ts`, ADR 0132). */
   recentSearches: "search.recent",
+  /** The change each space's Universe was last opened at here (`spaces/universeSeen.ts`). */
+  universeSeen: "universe.seen",
   /** The made-up workspace kept after its film, Look around (ADR 0213). */
   demo: "demo",
 } as const;

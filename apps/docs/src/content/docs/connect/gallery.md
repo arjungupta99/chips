@@ -44,11 +44,13 @@ newest release of that major, checks it against the registry, and runs it on the
 All four are on npm at major 1 (Apache-2.0), each published from its own repository.
 
 In Chips for Mac, a bridge's card asks where the harness runs. **On this Mac**, Connect runs the
-card's line for you and ticks off its four steps: getting the bridge, checking the harness, joining
-Chips, and keeping it running. Where the bridge stops, it says why and what to do, and Try again
-runs the same line with the same link. **On another computer**, and in a browser or on the phone,
-the card gives `curl -fsSL https://chipschat.ai/install | CHIPS_JOIN_LINK='<link>' sh -s -- connect
-<id>`, which installs Chips on that computer when it isn't there. The link goes in the environment,
+card's line for you and ticks off its four steps, listed under What Connect does: getting the
+bridge, checking the harness, joining Chips, and keeping it running. Where the bridge stops, it says
+why and what to do, and Try again runs the same line with the same link. **On another computer**,
+and in a browser or on the phone, the card gives `curl -fsSL https://chipschat.ai/install |
+CHIPS_JOIN_LINK='<link>' sh -s -- connect <id>`, which installs Chips on that computer when it isn't
+there. Every line a person runs themselves says **Run in Terminal** on its box
+([ADR 0257](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0257-connect-says-what-its-steps-are-and-where-a-line-runs.md)). The link goes in the environment,
 not among the command's words, which anybody else on that computer can list. A card's `needs` says
 what has to be running first: after "You need" on this Mac, and after "That computer needs" on
 every card. Each card also says where its link works: on the computer Chips runs on, for a link on

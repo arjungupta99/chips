@@ -209,6 +209,13 @@ describe("Connect a harness on the phone", () => {
     // A bridge's card: the installer's line, which installs Chips on that computer first (ADR 0218).
     const line = `curl -fsSL https://chipschat.ai/install | CHIPS_JOIN_LINK='${LINK}' sh -s -- connect openclaw`;
     expect(await screen.findByTestId("connect-line-words")).toHaveTextContent(line);
+    // A line to run says so in its box (ADR 0257); the page's head says where it goes.
+    expect(screen.getByTestId("connect-line-run")).toHaveTextContent(/Run in Terminal$/);
+    expect(
+      screen.getByText(
+        "This goes on the computer where OpenClaw runs, and installs Chips there if it needs to.",
+      ),
+    ).toBeTruthy();
     await userEvent.press(screen.getByLabelText("Copy"));
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(line);
     // Copy says Copied itself; the note under it stays as it was, so the page keeps its height.
@@ -284,8 +291,9 @@ describe("Connect a harness on the phone", () => {
     expect(await screen.findByTestId("connect-here-already")).toHaveTextContent(
       /Hermes is connected here already/,
     );
-    // Nothing to run on a page that asks first, so its head does not say to run anything.
-    expect(screen.queryByText(/Paste this into a terminal/)).toBeNull();
+    // Nothing to run on a page that asks first, so nothing says to run anything.
+    expect(screen.queryByText(/This goes on the computer/)).toBeNull();
+    expect(screen.queryByTestId("connect-line-run")).toBeNull();
     // Nothing is made for a harness that is here until another is asked for.
     expect(store.calls.some((each) => each.name === "makeJoinLink")).toBe(false);
     await userEvent.press(screen.getByLabelText("New Hermes agent"));
@@ -304,6 +312,14 @@ describe("Connect a harness on the phone", () => {
         params: { id: "sp_asked" },
       }),
     );
+  });
+
+  it("says Build your own, not Or, when the server has no gallery, as the demo has none", async () => {
+    mockChips.store = { ...testStore(snapshot()), connectors: async () => [] };
+    await render(app());
+    await userEvent.press(screen.getByLabelText("Open"));
+    expect(await screen.findByText("Build your own")).toBeOnTheScreen();
+    expect(screen.queryByText("Or build your own")).toBeNull();
   });
 
   it("cancels a link while it waits: withdrawn, the gallery again, the tile no longer waiting", async () => {
@@ -366,6 +382,8 @@ describe("the sheet's motion, as walked on the simulator (18 October 2026)", () 
       /^curl -fsSL https:\/\/chipschat\.ai\/install \| CHIPS_JOIN_LINK='http:\/\/192\.168\.1\.20:4431\/j\/chips_j_x{32}' sh -s -- connect openclaw$/,
     );
     expect(drawn("connect-line-stand-in").opacity).toBe(0);
+    // Run in Terminal stands over it already, so the box does not grow when the line comes.
+    expect(screen.getByTestId("connect-line-run")).toHaveTextContent(/Run in Terminal$/);
     // The three steps stand already, the first under way, and What it may do under them.
     expect(screen.getByTestId("connect-step-link")).toHaveTextContent(/Making a link/);
     expect(screen.getByTestId("connect-step-link").props["accessibilityState"]).toMatchObject({

@@ -15,6 +15,9 @@
  * one code pairs one device, once. While the code is good the sheet reads the person's devices
  * every few seconds, and the first one paired after the code was made turns it to say so, so
  * nobody has to walk to the computer to find out whether it worked.
+ *
+ * Beside the list on an iPad the same is a page (`PairPage`): a code is asked for as it opens, and
+ * Done once the computer is paired goes back to nothing open.
  */
 
 import type { PairedDeviceRecord, Store } from "@chipschat/core";
@@ -28,6 +31,7 @@ import { Sheet } from "../ui/Sheet";
 import { shareText } from "../ui/share";
 import { usePalette } from "../ui/theme";
 import { SPACE, TEXT } from "../ui/tokens";
+import { SheetPage } from "./pages";
 import { SheetHead } from "./SheetHead";
 import { hostOf } from "./words";
 
@@ -73,40 +77,45 @@ export function arrivedSince(
   );
 }
 
-export function PairSheet({
-  open,
-  onClose,
-  onPaired,
-  store,
-  serverUrl,
-}: {
-  readonly open: boolean;
+interface Pair {
+  /** Done, once a computer is paired: the sheet closes, the page goes. */
   readonly onClose: () => void;
   /** A computer paired with this sheet's code: the list of devices is read again. */
   readonly onPaired?: (() => void) | undefined;
   readonly store: Store;
   /** Where this phone reaches the server, for a server too old to say where it is itself. */
   readonly serverUrl: string | undefined;
-}) {
+}
+
+const TITLE = "Pair a computer";
+
+export function PairSheet({ open, ...rest }: Pair & { readonly open: boolean }) {
+  return (
+    <Sheet open={open} onClose={rest.onClose} testID="pair-sheet">
+      <SheetHead title={TITLE} />
+      <PairBody open={open} {...rest} />
+    </Sheet>
+  );
+}
+
+export function PairPage(props: Pair) {
+  return (
+    <SheetPage title={TITLE} testID="pair-page">
+      <PairBody open {...props} />
+    </SheetPage>
+  );
+}
+
+/** What the sheet and the page hold: the code, or in the demo why there is none. */
+function PairBody({ open, ...rest }: Pair & { readonly open: boolean }) {
   // The demo's workspace lives on this phone: no code is asked for, and none would pair (ADR 0213).
   const demo = useInDemo();
-  return (
-    <Sheet open={open} onClose={onClose} testID="pair-sheet">
-      <SheetHead title="Pair a computer" />
-      {demo ? (
-        <View style={styles.body}>
-          <NotInDemo />
-        </View>
-      ) : (
-        <Pairing
-          open={open}
-          onClose={onClose}
-          onPaired={onPaired}
-          store={store}
-          serverUrl={serverUrl}
-        />
-      )}
-    </Sheet>
+  return demo ? (
+    <View style={styles.body}>
+      <NotInDemo />
+    </View>
+  ) : (
+    <Pairing open={open} {...rest} />
   );
 }
 

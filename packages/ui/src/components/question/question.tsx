@@ -44,15 +44,25 @@ export interface QuestionCardProps {
   readonly className?: string;
 }
 
-function whatHappens(onNoAnswer: NoAnswer, harnessName: string): string {
+/** What happens if nobody answers, in the phone's words (`apps/mobile/src/needs/Ask.tsx`). */
+function whatHappens(onNoAnswer: NoAnswer): string {
   switch (onNoAnswer) {
     case "use_default":
-      return `${harnessName} will take the default`;
+      return "it takes its own default";
     case "cancel":
-      return `${harnessName} will stop`;
+      return "the run stops";
     case "continue":
-      return `${harnessName} will carry on without an answer`;
+      return "it carries on without an answer";
   }
+}
+
+/** `in 57 min`, `in 3 h`: how long is left before the question lapses, as the phone says it. */
+function leftWords(remainingMs: number): string {
+  const minute = 60_000;
+  if (remainingMs < minute) return "in under a minute";
+  if (remainingMs < 60 * minute) return `in ${Math.round(remainingMs / minute)} min`;
+  if (remainingMs < 24 * 60 * minute) return `in ${Math.round(remainingMs / (60 * minute))} h`;
+  return `in ${Math.round(remainingMs / (24 * 60 * minute))} d`;
 }
 
 /** `Answered by Arjun · 10:50: 26 September`, or what the harness did when nobody answered. */
@@ -107,12 +117,7 @@ function Options({
                 disabled={disabled}
               />
               <span className="ui-question__option-text">
-                <span className="ui-question__option-label">
-                  {option.label}
-                  {option.value === defaultValue && (
-                    <span className="ui-question__default">default</span>
-                  )}
-                </span>
+                <span className="ui-question__option-label">{option.label}</span>
                 {option.description !== undefined && (
                   <span className="ui-question__option-description">{option.description}</span>
                 )}
@@ -152,19 +157,34 @@ function QuestionHead({
   );
 }
 
+/**
+ * Under the options, as the phone's card says it: which option it takes if nobody answers, and when
+ * it lapses and what happens then.
+ */
 function Hint({
   remainingMs,
   onNoAnswer,
-  harnessName,
+  defaultLabel,
 }: {
   readonly remainingMs: number | undefined;
   readonly onNoAnswer: NoAnswer;
-  readonly harnessName: string;
+  readonly defaultLabel: string | undefined;
 }) {
-  const then = whatHappens(onNoAnswer, harnessName);
-  const inTime =
-    remainingMs !== undefined && remainingMs > 0 ? ` in ${formatRemaining(remainingMs)}` : "";
-  return <span className="ui-question__hint">{`If nobody answers${inTime}, ${then}.`}</span>;
+  const then = whatHappens(onNoAnswer);
+  return (
+    <span className="ui-question__hint">
+      {defaultLabel !== undefined && (
+        <span>{`It will take “${defaultLabel}” if nobody answers.`}</span>
+      )}
+      {remainingMs !== undefined && (
+        <span>
+          {remainingMs <= 0
+            ? `It lapsed, so ${then}.`
+            : `Lapses ${leftWords(remainingMs)} — then ${then}.`}
+        </span>
+      )}
+    </span>
+  );
 }
 
 export function QuestionCard({
@@ -240,10 +260,10 @@ export function QuestionCard({
           />
           {allowFreeText && (
             <label className="ui-question__free">
-              <span className="ui-visually-hidden">Or type an answer</span>
+              <span className="ui-visually-hidden">Or say it in your own words</span>
               <textarea
                 rows={2}
-                placeholder="Or type an answer…"
+                placeholder="Or say it in your own words"
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 disabled={disabled}
@@ -251,9 +271,13 @@ export function QuestionCard({
             </label>
           )}
           <footer className="ui-question__foot">
-            <Hint remainingMs={remainingMs} onNoAnswer={onNoAnswer} harnessName={harnessName} />
+            <Hint
+              remainingMs={remainingMs}
+              onNoAnswer={onNoAnswer}
+              defaultLabel={options.find((option) => option.value === defaultValue)?.label}
+            />
             <Button variant="primary" onClick={submit} disabled={!canAnswer}>
-              Answer
+              Send the answer
             </Button>
           </footer>
         </>

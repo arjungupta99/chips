@@ -23,16 +23,18 @@
  * The springs and the delays are the approved mock's (`docs/proposals/new-space-mocks.html`,
  * FIG 1), transcribed from its stiffness and damping.
  *
- * On an iPad (ADR 0177) the card stands in the middle at a card's width rather than across the
- * screen, it grows out of the top of the screen where the bar's own + is, and a send fills the
- * half beside the list, where the room opens, with square corners, rather than the whole screen
- * (`cardAcross`, `topMiddle`, `fillRect`).
+ * On an iPad (ADR 0177) a send fills the half beside the list, where the room opens, with square
+ * corners, rather than the whole screen (`fillRect`). The card is a card's width rather than across
+ * the screen, and hangs under the gold + at the top of the window that it pours out of, which keeps
+ * a ring while it is up; it stands on the keys only if they would come over it (ADR 0256,
+ * `cardUnder`). It stood in the middle at the foot, and poured down across the whole window to get
+ * there. A turned iPad moves the +, and the window follows it (`useFollowed`).
  */
 
 import type { Participant } from "@chipschat/core";
 import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BackHandler,
   Platform,
@@ -58,14 +60,27 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Path, Svg } from "react-native-svg";
+import { type Seen, type SheetFrom, watch } from "../ui/beside";
+import { useChrome } from "../ui/chrome";
+import { type Duo, pageOffFold, useDuo } from "../ui/duo";
 import { useGlassy, useLiquid } from "../ui/Glass";
 import { alpha } from "../ui/glassDial";
 import { useLayout } from "../ui/layout";
-import { LIST_WIDTH } from "../ui/Split";
+import { useEscape } from "../ui/menuBar";
+import { pagesOf } from "../ui/Split";
 import { RAIL_WIDTH } from "../ui/TabBar";
 import { usePalette, useScheme } from "../ui/theme";
 import { useReduceMotion } from "../ui/useReduceMotion";
-import { cardAcross, clamp01, clipsFor, fillRect, type Rect, windowRect } from "./geometry";
+import {
+  cardAcross,
+  cardTop,
+  cardUnder,
+  clamp01,
+  clipsFor,
+  fillRect,
+  type Rect,
+  windowRect,
+} from "./geometry";
 import { PLUS_TINT, usePlusGlass } from "./Plus";
 import { CARD_INSET, Field, Head, INK } from "./Words";
 
@@ -78,6 +93,8 @@ export type Stage =
 
 export interface WindowProps {
   readonly stage: Exclude<Stage, { readonly kind: "closed" }>;
+  /** The + it was opened from, followed when the window turns; its place at the press is `from`. */
+  readonly plus?: SheetFrom | undefined;
   readonly harnesses: readonly Participant[];
   /** Who will be in the room: the first is asked for it, and the rest are added beside it. */
   readonly picked: readonly Participant[];
@@ -105,6 +122,11 @@ export interface WindowProps {
 
 /** Between the card and the screen's sides, and the keyboard under it. */
 const GAP = 10;
+/** The least a card hung under an iPad's + stands off the window's edges: the mock's. */
+const EDGE = 16;
+/** The ring the + keeps while its window is up on an iPad, and the page's colour between them. */
+const RING = 2;
+const RING_GAP = 3;
 /** The card's corner, and the whole screen's at the end of a send: a phone's own. */
 const CORNER = 30;
 const SCREEN_CORNER = 56;
@@ -241,24 +263,17 @@ export function Window(props: WindowProps) {
   useKeyboard(values);
   useMotion(props, values, input, still);
   useBack(stage.kind === "open", props.onClose);
+  useEscape(stage.kind === "open", props.onClose);
 
   const { across, down, keyboard, cardHeight } = values;
-  const from = stage.from;
+  const from = useFollowed(props.plus, stage.from);
   const foot = insets.bottom;
-  // On an iPad the card stands in the middle at a card's width, and a send fills the half beside
-  // the list, where the room it makes opens (`geometry.ts`); an iPad mini upright has no list
-  // beside its rooms, so a send fills it all, as a phone (`roomy`, `wide`).
-  const { wide, roomy } = useLayout();
-  const place = cardAcross(screen.width, GAP, roomy);
-  const fill = fillRect(
-    screen,
-    wide ? LIST_WIDTH + (Platform.OS === "web" ? RAIL_WIDTH : 0) : undefined,
-  );
+  const { wide, place, hang, fill } = usePlace(from, screen);
   const rect = useDerivedValue(() => {
     const lift = Math.max(keyboard.value, foot);
     const card = {
       x: place.x,
-      y: screen.height - lift - GAP - cardHeight.value,
+      y: cardTop(screen.height, lift, GAP, cardHeight.value, hang),
       width: place.width,
       height: cardHeight.value,
     };
@@ -287,6 +302,7 @@ export function Window(props: WindowProps) {
       >
         <Animated.View style={[StyleSheet.absoluteFill, styles.scrim, scrim]} />
       </Pressable>
+      {hang === undefined ? null : <Ringed at={from} values={values} />}
       <Clips
         rect={rect}
         values={values}
@@ -294,8 +310,117 @@ export function Window(props: WindowProps) {
         filled={wide ? PANE_CORNER : SCREEN_CORNER}
       >
         <Layers rect={rect} values={values} />
-        <Card {...props} values={values} input={input} x={place.x} width={place.width} />
+        <Card
+          {...props}
+          values={values}
+          input={input}
+          x={place.x}
+          width={place.width}
+          hang={hang}
+        />
       </Clips>
+    </Animated.View>
+  );
+}
+
+/**
+ * Where the card stands and what a send fills. A send fills the room's side beside the list, unless
+ * the list is put away, where the room it makes opens (`geometry.ts`, ADR 0256). A + at the top of
+ * the window has the card hang under it at a card's width; one at the foot, as an iPad's capsule
+ * has it since ADR 0276 and Android's and the web's, has the card in the middle on the keys. The
+ * sidebar floats over the list and takes nothing from the room.
+ */
+function usePlace(from: Rect, screen: Size) {
+  const { wide, roomy } = useLayout();
+  const { listHidden } = useChrome();
+  const duo = useDuo();
+  const pages = pagesOf(duo.fold, screen.width);
+  const page = besideColumn(duo, screen);
+  const hung =
+    roomy && from.y < screen.height / 2 ? cardUnder(screen.width, EDGE, from) : undefined;
+  const fill = fillRect(
+    page,
+    wide
+      ? (listHidden ? 0 : pages.across + pages.gap) + (Platform.OS === "web" ? RAIL_WIDTH : 0)
+      : undefined,
+  );
+  // Half open, the card stands on the page beside the column, off the fold (`pageOffFold`).
+  const held = pageOffFold(duo, screen.width) ?? page;
+  const across = cardAcross(held.width, GAP, roomy);
+  return {
+    wide,
+    place: hung ?? { x: held.x + across.x, width: across.width },
+    hang: hung?.top,
+    fill,
+  };
+}
+
+/**
+ * On the iPhone Duo the card and the room it fills stand on the page beside the column, as the
+ * room's composer does; folded, the card ran on under the column (the simulator, 2 November 2026).
+ * Open, the list runs to the fold (`pagesOf`).
+ */
+function besideColumn({ side, column }: Duo, screen: Size) {
+  return {
+    x: side === "left" ? column : 0,
+    width: screen.width - (side === undefined ? 0 : column),
+    height: screen.height,
+  };
+}
+
+/**
+ * Where the + is while the window is up: where it was pressed, and once the window turns, where it
+ * stands then, looked at each frame for a moment as a popover's button is (`watch`, ADR 0256). The
+ * card hangs from it on an iPad, its ring is drawn on it, and the window folds back into it.
+ */
+function useFollowed(plus: SheetFrom | undefined, from: Rect): Rect {
+  const { width, height } = useWindowDimensions();
+  const [seen, setSeen] = useState<Seen>();
+  const size = useRef({ width, height });
+  useEffect(() => {
+    const was = size.current;
+    if (was.width === width && was.height === height) return;
+    size.current = { width, height };
+    const view = plus?.current;
+    if (view === null || view === undefined) return;
+    return watch(view, { at: from, seen: false }, height, setSeen);
+  }, [plus, from, width, height]);
+  return seen?.seen === true ? seen.at : from;
+}
+
+/**
+ * The gold + in a ring while its window is up on an iPad (the mock's section 8): over the dimmed
+ * screen and under the window pouring out of it, so the button it hangs from is still seen. Drawn
+ * here, since the + itself is under the dim; it comes and goes with the dim.
+ */
+function Ringed({ at, values }: { readonly at: Rect; readonly values: Values }) {
+  const palette = usePalette();
+  const { scrim } = values;
+  const shown = useAnimatedStyle(() => ({ opacity: scrim.value }));
+  const out = RING + RING_GAP;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.ring,
+        {
+          left: at.x - out,
+          top: at.y - out,
+          width: at.width + 2 * out,
+          height: at.height + 2 * out,
+          borderRadius: at.height / 2 + out,
+          borderColor: palette.gold,
+          backgroundColor: palette.bg,
+        },
+        shown,
+      ]}
+      testID="new-space-ring"
+    >
+      <View style={[styles.ringed, { borderRadius: at.height / 2, backgroundColor: palette.gold }]}>
+        <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
+          <Path d="M12 4.5v15M4.5 12h15" stroke={INK} strokeWidth={2.6} strokeLinecap="round" />
+        </Svg>
+      </View>
     </Animated.View>
   );
 }
@@ -681,18 +806,28 @@ function Card(
   props: WindowProps & {
     readonly values: Values;
     readonly input: React.RefObject<TextInput | null>;
-    /** Where the card stands across the screen, and how wide (`cardAcross`). */
+    /** Where the card stands across the screen, and how wide (`cardAcross`, `cardUnder`). */
     readonly x: number;
     readonly width: number;
+    /** Where its top hangs on an iPad, under the + (`cardUnder`); on a phone it stands on the keys. */
+    readonly hang: number | undefined;
   },
 ) {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
+  const screen = useWindowDimensions();
   const { keyboard, cardHeight, shown, rise } = props.values;
+  const { hang } = props;
   const foot = insets.bottom;
-  const card = useAnimatedStyle(() => ({
-    transform: [{ translateY: -Math.max(keyboard.value, foot) }],
-  }));
+  // Standing on the keys, its foot is laid out at the screen's and lifted; hung, its top is laid
+  // out at the screen's and put down, so what it holds grows away from the +.
+  const card = useAnimatedStyle(() => {
+    const lift = Math.max(keyboard.value, foot);
+    if (hang === undefined) return { transform: [{ translateY: -lift }] };
+    return {
+      transform: [{ translateY: cardTop(screen.height, lift, GAP, cardHeight.value, hang) }],
+    };
+  });
   const head = useAnimatedStyle(() => ({
     opacity: shown.value,
     transform: [{ translateY: rise.value }],
@@ -704,7 +839,12 @@ function Card(
   const rim = useAnimatedStyle(() => ({ opacity: shown.value }));
   return (
     <Animated.View
-      style={[styles.card, { left: props.x, width: props.width }, card]}
+      style={[
+        styles.card,
+        hang === undefined ? styles.onKeys : styles.hung,
+        { left: props.x, width: props.width },
+        card,
+      ]}
       onLayout={(event) => {
         cardHeight.value = event.nativeEvent.layout.height;
       }}
@@ -748,11 +888,14 @@ const styles = StyleSheet.create({
   glyph: { position: "absolute", left: 0, top: 0, width: 28, height: 28 },
   card: {
     position: "absolute",
-    bottom: GAP,
     paddingTop: 16,
     paddingHorizontal: CARD_INSET,
     paddingBottom: 14,
   },
+  onKeys: { bottom: GAP },
+  hung: { top: 0 },
+  ring: { position: "absolute", borderWidth: RING, padding: RING_GAP },
+  ringed: { flex: 1, alignItems: "center", justifyContent: "center" },
   rim: {
     position: "absolute",
     top: 0,

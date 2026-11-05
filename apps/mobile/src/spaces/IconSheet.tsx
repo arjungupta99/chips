@@ -12,6 +12,7 @@
 import type { SpaceIcon } from "@chipschat/protocol";
 import { useRef } from "react";
 import type { AvatarKind } from "../ui/Avatar";
+import type { SheetFrom } from "../ui/beside";
 import { Sheet } from "../ui/Sheet";
 import { SPACE } from "../ui/tokens";
 import { FacePicker, type FacePickerHandle } from "./FacePicker";
@@ -29,6 +30,7 @@ export function IconSheet({
   chosen,
   onChoose,
   failed,
+  from,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -43,6 +45,8 @@ export function IconSheet({
   readonly onChoose: (icon: SpaceIcon | undefined) => void;
   /** Why the last pick did not stick, when it did not. */
   readonly failed?: string | undefined;
+  /** The face pressed, or where a row was pressed and held: on an iPad it opens beside it. */
+  readonly from?: SheetFrom | undefined;
 }) {
   const picker = useRef<FacePickerHandle>(null);
   // Closing saves what was typed: the X, the scrim, a drag, all of them.
@@ -58,6 +62,7 @@ export function IconSheet({
       sizing="bounded"
       cap={THREE_QUARTERS}
       keyboard
+      from={from}
       testID="icon-sheet"
     >
       <FacePicker
@@ -72,20 +77,4 @@ export function IconSheet({
       />
     </Sheet>
   );
-}
-
-/**
- * Why a face did not stick, in words a person can act on. A 404 from this route is not "no such
- * room" (the row was pressed, so the room is there) and is worth saying plainly: the app is newer
- * than the server it is talking to, which is what a server that has not been restarted since the
- * faces went in looks like from here.
- */
-export function whyNotSaved(error: unknown): string {
-  const said = error instanceof Error ? error.message : "";
-  // A server that predates the route answers 404, and says so in words rather than in the code:
-  // "No route matches that." is what one actually replied on the phone.
-  if (/404|no route matches/i.test(said)) {
-    return "Not saved: this server is older than the app, and has no icons yet.";
-  }
-  return said === "" ? "Not saved: the server would not take it." : `Not saved: ${said}`;
 }

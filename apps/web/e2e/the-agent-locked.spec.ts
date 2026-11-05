@@ -59,7 +59,7 @@ test("an agent's changes are locked from its page, and its harness is never told
     await title.fill("Wren");
     await title.press("Enter");
     await expect(page.getByRole("main", { name: "Space: Wren" })).toBeVisible();
-    await expect(page.getByTestId("room-sheet-add-done")).toBeVisible();
+    await expect(page.getByTestId("room-sheet-add-page")).toBeVisible();
     await addMember(page, { id: wrenId });
     await expect((await sheetBack(page)).getByTestId("member")).toHaveCount(2);
     await closeSheet(page);

@@ -160,3 +160,51 @@ Chips for Mac and hands the ask over."
   doesn't, since opening the person's own Chips for Mac would show them a room it could not find.
 - Under the Desktop tab's list it now says "These happen in Chips for Mac, on your Mac.", and Open
   folder on Mac's words no longer say it has to be open.
+
+## Addendum, 3 November 2026: Universe calls the reader, and the agents say where it is
+
+In the Cc check space Arjun asked Miro "Where is the html?", and Miro sent him to "the space's file
+list". There, the report showed as 40 KB of source, with Open page under all of it. He wrote: "the
+file is present in the universe tool. Spaces should also point the user to tap the Universe button
+on the top right of the space", then "when file becomes available / updated in universe, the button
+should animate to get attention". Of the three motions on the mock he picked "A · Orbit once". He
+turned down the gold dot it first left behind ("I dont like the yellow dot, maybe make the logo zoom
+in and out"), and asked for "the default icon size can be slightly larger, and it should keep
+pulsing until person taps it".
+
+- **The room note says where the project opens.** Once a space's project has had a push, the rules a
+  turn's note ends with (ADR 0250) end with "People open the space's project with the Universe
+  button at the top right of the space, so when someone asks where a file is, point them there."
+  (`UNIVERSE_WORDS`). The server asks its project store whether `main` exists, once a turn. It is the
+  server's to say, not the bridge's: words about the app's own buttons go with the server that
+  serves the app, and every harness hears them without a release of its bridge.
+- **Universe calls about a change the reader hasn't opened it at.** The project's newest change,
+  made by somebody else, and newer than the change this device last opened Universe at, is the
+  one Universe calls about (`universeCalling` in core). A change of the reader's own calls nothing.
+  Opening Universe from the button answers the call. Each device keeps where it last opened each
+  space's Universe (`prefs` on the phone, `localStorage` on the web and the Mac). The server never
+  hears it, so the Mac still calls about a report already read on the phone.
+- **It goes round once, then pulses.** The mark grows by 30%, its planets go once round their rings
+  at the Orbit's paces made quicker (0.9–1.25 s), and it settles. Then it pulses (to 122% and back,
+  1.4 s) until it is opened. A newer change goes round again. With Reduce Motion on it fades and
+  comes back instead. On the phone the planets move on the native driver, so the call costs the
+  JavaScript thread nothing. On the web and the Mac they move by SMIL along their rings from where
+  they stand, and the grow and the pulse are CSS.
+- **The mark is larger.** 26 points on the phone (from 22), 24 on the web and the Mac (from 20).
+
+## Addendum, 3 November 2026: Universe on an iPad, and full screen
+
+Arjun, in Cc check on an iPad: "it currently renders as a portrait sheet, want to be able to make
+use of ipad width", and "We also need a full screen view button maybe somewhere so we can view
+content full screen when possible".
+
+- **A wide card.** Wider than a phone, Universe is a card as wide as the window less a margin each
+  side (`Sheet`'s `wide`), where every other sheet there is a form's 540 points. On the iPhone Duo
+  half open it fills the page beside the column. The tabs stand in the middle of the head's line.
+  Lists and words keep a reading width (560 points) in the middle.
+- **iPad, not Phone.** The device's own tab is called iPad on an iPad. A program's words say it
+  doesn't open "here" rather than "on the phone".
+- **Full screen.** While the tab draws a page, a button the size of the sheet's X stands beside it.
+  It opens the page over everything in the page sheet a link already opens (`PageSheet`), from the
+  words already read, so it is there at once and nothing is asked of the server again. Done closes
+  it, and so does Esc on an iPad's keys.

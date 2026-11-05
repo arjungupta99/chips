@@ -223,7 +223,9 @@ and asked whether it would only appear when something is unread: no, "keep in pl
   room is opened.
 - **A room is read as far as opening it would read it** (`readMark`). Core's `markSpacesRead` does
   it for many rooms with one save and one render (`Store.markSpacesRead`); read marks stay kept on
-  each device, so Read all on the phone leaves the Mac's counts as they are. The app icon's number
+  each device, so Read all on the phone leaves the Mac's counts as they are. *(Replaced by ADR 0262,
+  3 November 2026: the marks are the person's, kept at the server, and Read all reads the rooms on
+  every device of theirs.)* The app icon's number
   is unchanged too: it counts asks waiting on an answer, which reading doesn't give.
 - **The counts swell a little and shrink away, down the screen a beat a row** (`Counted`,
   `readWave` in `SelectMotion.tsx`), 40 ms a row for up to twelve rows, and each keeps its room in

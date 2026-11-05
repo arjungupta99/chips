@@ -14,7 +14,7 @@ import { buildModel } from "@chipschat/core";
 import { render } from "@testing-library/react";
 import { act } from "react";
 import { describe, expect, it } from "vitest";
-import type { Decision, Desktop, FoundServer } from "../native.ts";
+import type { ChipsLink, Decision, Desktop, FoundServer } from "../native.ts";
 import { useDesktop } from "./useDesktop.ts";
 
 const FIXTURES = `${resolve(import.meta.dirname, "../../../../packages/protocol/fixtures")}/`;
@@ -171,6 +171,20 @@ describe("the desktop bridge", () => {
     const asked = { id: APPROVAL };
     act(() => shell.answer?.({ approvalId: asked.id, decision: "dismissed" }));
     act(() => shell.answer?.({ approvalId: asked.id, decision: "opened" }));
+    expect(store.resolved).toEqual([]);
+  });
+
+  it("opens the space a banner is about when the banner itself is clicked, as a tap on the phone's does (ADR 0267)", () => {
+    const store = fakeStore(snapshotOf(waiting()));
+    const shell = fakeDesktop();
+    const opened: ChipsLink[] = [];
+    function Opening() {
+      useDesktop({ store, desktop: shell, onOpen: (link) => opened.push(link) });
+      return null;
+    }
+    render(<Opening />);
+    act(() => shell.answer?.({ approvalId: APPROVAL, decision: "opened" }));
+    expect(opened).toEqual([{ kind: "approval", id: APPROVAL }]);
     expect(store.resolved).toEqual([]);
   });
 

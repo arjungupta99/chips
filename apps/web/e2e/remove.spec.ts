@@ -34,19 +34,21 @@ test("a harness removed from its card leaves Harnesses and the +, and its token 
   await expect(dialog.getByRole("checkbox", { name: /^Tumbleweed/ })).toBeVisible();
   await closePlus(page);
   await page.getByRole("button", { name: /^Agents/ }).click();
-  // Every harness's card, under the shelf's View all (ADR 0185).
-  await page.getByRole("button", { name: "View all harnesses" }).click();
+  // Its page, from its tile on the shelf (ADR 0254).
+  const shelf = page.getByTestId("harness-shelf");
+  await shelf.getByRole("button", { name: "Tumbleweed" }).click();
   const card = page.getByRole("region", { name: "Tumbleweed" });
   await expect(card).toBeVisible();
 
-  // Asked first, then removed; the card goes once the directory is read again.
+  // Asked first, then removed; the page goes once the directory is read again, back to the list.
   await card.getByTestId("remove-harness").click();
   const asking = page.getByTestId("confirm-dialog");
   await expect(asking).toContainText("Remove Tumbleweed?");
   await asking.getByTestId("confirm-go").click();
   await expect(asking).toHaveCount(0);
   await expect(card).toHaveCount(0);
-  await expect(page.getByRole("region", { name: "Scout" })).toBeVisible();
+  await expect(shelf.getByRole("button", { name: "Scout" })).toBeVisible();
+  await expect(shelf.getByRole("button", { name: "Tumbleweed" })).toHaveCount(0);
 
   // Gone from the + too, which still offers the demo's harness.
   dialog = await plus(page);

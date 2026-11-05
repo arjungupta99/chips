@@ -144,18 +144,23 @@ test("the golden scenario's events produce the expected UI states, step by step"
       .getByText("Confirmed PO #4471 with Northwind and updated the tracker.")
       .last();
     await expect(summary).toBeVisible();
-    await expect(runPanel(page).getByTestId("run-controls")).toHaveCount(0);
-    await expect(runPanel(page).getByTestId("run-meta")).toContainText("took");
-    // And gone: the calls belong to the receipt now, not to the room.
+    // The run is over, so its panel goes and the room has the width (ADR 0268).
+    await expect(runPanel(page)).toHaveCount(0);
+    // And gone: the calls belong to the reply's receipt now, asked for from its menu as on the
+    // phone, and not drawn in the room (ADR 0268).
     await expect(page.getByTestId("doing")).toHaveCount(0);
-    const receipt = page.getByTestId("receipt-card").last();
-    await expect(receipt).toBeVisible();
-    await expect(receipt.locator("summary")).toContainText("4 steps");
-    await expect(receipt.locator("summary")).toContainText("≈$1.47");
-    expect(await receipt.locator("details").evaluate((el) => (el as HTMLDetailsElement).open)).toBe(
-      false,
-    );
-    await receipt.locator("summary").click();
+    await expect(page.getByTestId("receipt-card")).toHaveCount(0);
+    await page
+      .getByTestId("messages")
+      .locator(".msg", { hasText: "Confirmed PO #4471 with Northwind and updated the tracker." })
+      .last()
+      .click({ button: "right" });
+    const item = page.getByTestId("line-menu").getByRole("menuitem", { name: "What the run did" });
+    await expect(item).toContainText("4 steps");
+    await expect(item).toContainText("≈$1.47");
+    await item.click();
+    const receipt = page.getByTestId("run-did");
+    await expect(receipt).toContainText("4 steps");
     await expect(receipt.getByText("Drive", { exact: true })).toBeVisible();
     await expect(receipt.getByText("CRM", { exact: true })).toBeVisible();
 
@@ -240,13 +245,12 @@ test("a person pauses, steers and stops a run, and the harness hears each", asyn
       "the harness's receipt for the message",
     );
 
-    // Stop, after the confirmation: the harness gets run.cancel; the panel goes final.
+    // Stop, after the confirmation: the harness gets run.cancel; the panel goes (ADR 0268).
     await runPanel(page).getByRole("button", { name: "Stop" }).click();
     await runPanel(page).getByTestId("stop-confirm").getByRole("button", { name: "Stop" }).click();
     const cancel = await harness.event("run.cancel");
     expect(cancel).toMatchObject({ by: demo().person.id });
-    await expect(runPanel(page).getByTestId("run-controls")).toHaveCount(0);
-    await expect(runPanel(page).getByTestId("run-meta")).toContainText("took");
+    await expect(runPanel(page)).toHaveCount(0);
 
     const late = await harness.send("step.log", { step_id: "email-dana", status: "done" });
     expect(late).toMatchObject({ frame: "error", code: "invalid_event" });

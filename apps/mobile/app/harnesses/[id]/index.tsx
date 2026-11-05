@@ -9,6 +9,7 @@ import { Redirect, Stack, useLocalSearchParams } from "expo-router";
 import { useFocusCount } from "../../../src/context/useFocusCount";
 import { Profile } from "../../../src/harnesses/Profile";
 import { useChips, useSnapshot } from "../../../src/store/provider";
+import { BackToTabs } from "../../../src/ui/backToTabs";
 import { useLayout } from "../../../src/ui/layout";
 import { Empty, Screen } from "../../../src/ui/Screen";
 
@@ -25,7 +26,7 @@ export default function HarnessScreen() {
       />
     );
   }
-  if (wide) return <Redirect href={{ pathname: "/(tabs)/agents", params: { harness: id } }} />;
+  if (wide) return <BackToTabs tab="/(tabs)/agents" params={{ harness: id }} />;
   return <One store={paired.store} selfId={paired.device.participantId} harnessId={id} />;
 }
 

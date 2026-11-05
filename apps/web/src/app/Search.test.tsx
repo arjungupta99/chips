@@ -9,7 +9,13 @@ import type { Directory, SearchHit, SearchInput, SearchPage, Space, Store } from
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RECENT_KEY, resetRecentSearches } from "./recentSearches.ts";
-import { Search, type SearchProps, type SearchSession, useSearchSession } from "./Search.tsx";
+import {
+  type Beside,
+  Search,
+  type SearchProps,
+  type SearchSession,
+  useSearchSession,
+} from "./Search.tsx";
 
 const ARJUN = "usr_arjun";
 const KIT = "usr_kit";
@@ -186,10 +192,16 @@ describe("the Search page", () => {
     expect(within(leaving).getAllByTestId("backdrop-face")).toHaveLength(faces);
     act(() => vi.advanceTimersByTime(199));
     expect(screen.getByTestId("search-backdrop")).toBe(leaving);
+    expect(leaving.hasAttribute("data-resting")).toBe(false);
     act(() => vi.advanceTimersByTime(1));
-    expect(screen.queryByTestId("search-backdrop")).toBeNull();
+    // Faded, it is kept out of sight, its faces still, and not drawn afresh to come back.
+    expect(screen.getByTestId("search-backdrop")).toBe(leaving);
+    expect(leaving.hasAttribute("data-resting")).toBe(true);
+    expect(leaving.hasAttribute("data-leaving")).toBe(false);
     type("");
-    expect(screen.getByTestId("search-backdrop").hasAttribute("data-leaving")).toBe(false);
+    expect(screen.getByTestId("search-backdrop")).toBe(leaving);
+    expect(leaving.hasAttribute("data-leaving")).toBe(false);
+    expect(leaving.hasAttribute("data-resting")).toBe(false);
   });
 
   it("keys each row for the motion, and grounds the rows only once something is typed", () => {
@@ -291,6 +303,24 @@ describe("the Search page", () => {
     expect(JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]")).toEqual(["chinatown"]);
   });
 
+  it("says a message was said in an archived space, and opens it to read all the same", async () => {
+    const old = space("spc_old", { title: "Old trip", state: "closed", members: [ARJUN, KIT] });
+    const { search, answer } = server();
+    const { props } = draw(search, {
+      model: { ...model, spaces: [...model.spaces, old] } as SearchProps["model"],
+    });
+    type("chinatown");
+    act(() => vi.advanceTimersByTime(200));
+    const there = { ...hit, spaceId: "spc_old", lineId: "ln_old" };
+    await answer({ hits: [there, hit], nextCursor: null });
+    const [archived, open] = screen.getAllByTestId("search-hit");
+    expect(archived?.textContent).toContain("Archived · ");
+    expect(archived?.getAttribute("aria-label")).toMatch(/in Old trip, archived$/);
+    expect(open?.textContent).not.toContain("Archived");
+    fireEvent.click(archived as HTMLElement);
+    expect(props.onOpenHit).toHaveBeenCalledWith(there, "chinatown");
+  });
+
   it("keeps the recent searches on this computer: run one again, forget one, clear them", () => {
     localStorage.setItem(RECENT_KEY, JSON.stringify(["tea", "chinatown"]));
     resetRecentSearches();
@@ -365,6 +395,110 @@ describe("the Search page", () => {
     expect(asked).toHaveLength(1);
   });
 
+  it("wears the phone's clock on a recent search, and its marks on the two notices", async () => {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(["tea"]));
+    resetRecentSearches();
+    const { search, fail } = server();
+    const page = draw(search, { online: false });
+    expect(screen.getByTestId("recent-tea").querySelector('[data-icon="clock"]')).not.toBeNull();
+    type("dim sum");
+    expect(
+      screen.getByTestId("search-offline").querySelector('[data-icon="offline"]'),
+    ).not.toBeNull();
+    page.rerender({ online: true });
+    act(() => vi.advanceTimersByTime(200));
+    await fail();
+    expect(screen.getByTestId("search-failed").querySelector('[data-icon="alert"]')).not.toBeNull();
+  });
+});
+
+describe("the Search page from the keys (ADR 0263)", () => {
+  const lit = () => document.querySelector<HTMLElement>(".search-item[data-lit]");
+  const press = (key: string) => fireEvent.keyDown(field(), { key });
+
+  it("lights the results in turn while the field keeps the keys, and Enter opens the one lit", () => {
+    const { props } = draw(server().search);
+    type("chinatown");
+    expect(lit()).toBeNull();
+    press("ArrowDown");
+    expect(lit()?.dataset["key"]).toBe("space:spc_dinner");
+    const button = screen.getByTestId("result-space-spc_dinner");
+    expect(field().getAttribute("aria-activedescendant")).toBe(button.id);
+    expect(document.activeElement).toBe(field());
+    press("ArrowDown");
+    press("ArrowDown");
+    press("ArrowDown");
+    // The three spaces All shows, then their See all.
+    expect(lit()?.dataset["key"]).toBe("all:spaces");
+    press("ArrowUp");
+    press("Enter");
+    expect(props.onOpenSpace).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]")).toEqual(["chinatown"]);
+  });
+
+  it("gives the keys back to the words on ↑ from the first, and stops at the last on ↓", () => {
+    draw(server().search, { online: false });
+    type("santa");
+    press("ArrowDown");
+    expect(lit()?.dataset["key"]).toBe("space:spc_trip");
+    press("ArrowDown");
+    press("ArrowDown");
+    expect(lit()?.dataset["key"]).toBe("space:spc_trip");
+    press("ArrowUp");
+    expect(lit()).toBeNull();
+    expect(field().hasAttribute("aria-activedescendant")).toBe(false);
+  });
+
+  it("runs a recent search lit by the arrows", () => {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(["tea", "chinatown"]));
+    resetRecentSearches();
+    draw(server().search);
+    press("ArrowDown");
+    press("ArrowDown");
+    press("Enter");
+    expect((field() as HTMLInputElement).value).toBe("chinatown");
+    // A new search lights nothing until ↓ again.
+    expect(lit()).toBeNull();
+  });
+
+  it("puts the light out as the pointer moves over the list", () => {
+    draw(server().search);
+    type("chinatown");
+    press("ArrowDown");
+    fireEvent.mouseMove(screen.getByTestId("search-results"));
+    expect(lit()).toBeNull();
+  });
+
+  it("empties the field on Esc, and lets Esc by when there is nothing to empty", () => {
+    draw(server().search);
+    type("chinatown");
+    press("ArrowDown");
+    const emptied = fireEvent.keyDown(field(), { key: "Escape" });
+    expect(emptied).toBe(false);
+    expect((field() as HTMLInputElement).value).toBe("");
+    expect(lit()).toBeNull();
+    expect(fireEvent.keyDown(field(), { key: "Escape" })).toBe(true);
+  });
+
+  it("is one stop for Tab across the chips, ← and → choosing the one beside", () => {
+    draw(server().search);
+    type("chinatown");
+    const tabs = within(screen.getByTestId("scope-chips")).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1]);
+    tabs[0]?.focus();
+    fireEvent.keyDown(tabs[0] as HTMLElement, { key: "ArrowRight" });
+    const spaces = screen.getByRole("tab", { name: "Spaces" });
+    expect(spaces.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(spaces);
+    fireEvent.keyDown(spaces, { key: "ArrowLeft" });
+    fireEvent.keyDown(screen.getByRole("tab", { name: "All" }), { key: "ArrowLeft" });
+    expect(screen.getByRole("tab", { name: "Messages" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+  });
+});
+
+describe("the Search page's pages of messages", () => {
   it("asks for the next page as the list nears its end", async () => {
     let seen: ((entries: { isIntersecting: boolean }[]) => void) | undefined;
     const observe = vi.fn();
@@ -391,5 +525,184 @@ describe("the Search page", () => {
     } finally {
       vi.stubGlobal("IntersectionObserver", undefined);
     }
+  });
+});
+
+describe("the Search page beside what it opens, on a wide window (ADR 0269)", () => {
+  const wide = (matches: boolean) =>
+    vi.stubGlobal("matchMedia", () => ({
+      matches,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  const besides = (opened?: Beside) => {
+    const onOpen = vi.fn();
+    return { onOpen, props: { beside: { opened, onOpen, pane: <p>the room</p> } } };
+  };
+
+  it("drifts the faces beside the results before anything is opened, and says where to look once typed", () => {
+    wide(true);
+    const { props } = besides();
+    draw(server().search, props);
+    const pane = screen.getByTestId("search-pane");
+    expect(within(pane).getByTestId("search-backdrop")).toBeTruthy();
+    // Under the field, no faces: they are the pane's.
+    expect(screen.getAllByTestId("search-backdrop")).toHaveLength(1);
+    type("chin");
+    expect(within(pane).getByTestId("search-nothing-open").textContent).toBe(
+      "Nothing openChoose a result on the left.",
+    );
+  });
+
+  it("opens a result beside the results on a press, and its own page on a double click", () => {
+    wide(true);
+    const { onOpen, props } = besides();
+    const page = draw(server().search, props);
+    type("chinatown");
+    fireEvent.click(screen.getByTestId("result-space-spc_dinner"));
+    expect(onOpen).toHaveBeenCalledWith({
+      kind: "space",
+      key: "space:spc_dinner",
+      spaceId: "spc_dinner",
+    });
+    expect(page.props.onOpenSpace).not.toHaveBeenCalled();
+    fireEvent.doubleClick(screen.getByTestId(`result-agent-${TOUR}`));
+    expect(page.props.onOpenAgent).toHaveBeenCalledWith(TOUR);
+  });
+
+  it("opens beside what the arrows light, and Enter takes it to its own page", () => {
+    wide(true);
+    const { onOpen, props } = besides();
+    const page = draw(server().search, props);
+    type("chinatown");
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    expect(onOpen).toHaveBeenLastCalledWith({
+      kind: "space",
+      key: "space:spc_dinner",
+      spaceId: "spc_dinner",
+    });
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(page.props.onOpenSpace).toHaveBeenCalledWith("spc_dinner");
+  });
+
+  it("draws what is open beside the results, its row marked as open", () => {
+    wide(true);
+    const { props } = besides({ kind: "space", key: "space:spc_dinner", spaceId: "spc_dinner" });
+    draw(server().search, props);
+    type("chinatown");
+    expect(within(screen.getByTestId("search-pane")).getByText("the room")).toBeTruthy();
+    expect(screen.getByTestId("result-space-spc_dinner").getAttribute("aria-current")).toBe("true");
+  });
+
+  it("is one column on a narrower window, a result taking the page as before", () => {
+    wide(false);
+    const { onOpen, props } = besides();
+    const page = draw(server().search, props);
+    expect(screen.queryByTestId("search-split")).toBeNull();
+    type("chinatown");
+    fireEvent.click(screen.getByTestId("result-space-spc_dinner"));
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(page.props.onOpenSpace).toHaveBeenCalledWith("spc_dinner");
+  });
+});
+
+describe("the Search page changing smoothly (3 November 2026)", () => {
+  /** The browser's animations, as the page asks for them: on which element, and how. */
+  const animate = vi.fn(function (this: Element, _how: Keyframe[] | PropertyIndexedKeyframes) {
+    return { cancel() {}, addEventListener() {}, playState: "finished", effect: null };
+  });
+  /** A window as wide as asked, with or without less motion asked for. */
+  const windowIs = (wide: boolean, less = false) =>
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("reduced-motion") ? less : wide,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  beforeEach(() => {
+    animate.mockClear();
+    Object.assign(HTMLElement.prototype, { animate });
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, "animate");
+  });
+
+  it("says nothing was found only once the typing pauses, while the messages are still to be asked", async () => {
+    const { search, answer } = server();
+    draw(search);
+    // One letter: names only, the messages not yet asked for, so the line waits for a pause.
+    type("z");
+    const list = screen.getByTestId("search-results");
+    const waiting = list.querySelector<HTMLElement>('.search-item[data-kind="nothing"]');
+    expect(waiting?.hasAttribute("data-hold")).toBe(true);
+    type("zebra");
+    act(() => vi.advanceTimersByTime(200));
+    await answer({ hits: [], nextCursor: null });
+    // Answered: nothing it is, at once.
+    const answered = list.querySelector<HTMLElement>('.search-item[data-kind="nothing"]');
+    expect(answered?.hasAttribute("data-hold")).toBe(false);
+  });
+
+  it("fades the chips where they stood as the field empties, the chosen one still chosen", () => {
+    draw(server().search);
+    type("chin");
+    fireEvent.click(screen.getByRole("tab", { name: "Messages" }));
+    type("");
+    const going = document.querySelector<HTMLElement>(".search-chips[data-leaving]");
+    expect(going?.getAttribute("aria-hidden")).toBe("true");
+    expect(going?.hasAttribute("inert")).toBe(true);
+    expect(going?.querySelector("[data-chosen]")?.textContent).toBe("Messages");
+    // A copy: no tabs to reach, and none the tests find as the chips.
+    expect(screen.queryByTestId("scope-chips")).toBeNull();
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    act(() => vi.advanceTimersByTime(120));
+    expect(document.querySelector(".search-chips")).toBeNull();
+  });
+
+  it("brings the chips in with the first letter typed here, not as Search opens on words typed before", () => {
+    const page = draw(server().search);
+    type("chin");
+    expect(screen.getByTestId("scope-chips").hasAttribute("data-arriving")).toBe(true);
+    page.unmount();
+    page.rerender();
+    expect(screen.getByTestId("scope-chips").hasAttribute("data-arriving")).toBe(false);
+    type("");
+    type("ch");
+    expect(screen.getByTestId("scope-chips").hasAttribute("data-arriving")).toBe(true);
+  });
+
+  it("scrolls to the row the arrows light, at once with less motion asked for", () => {
+    const scrolled = vi.fn();
+    Object.assign(Element.prototype, { scrollIntoView: scrolled });
+    windowIs(false);
+    draw(server().search);
+    type("chinatown");
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    expect(scrolled).toHaveBeenLastCalledWith({ block: "nearest", behavior: "smooth" });
+    windowIs(false, true);
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    expect(scrolled).toHaveBeenLastCalledWith({ block: "nearest", behavior: "auto" });
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
+  it("brings a page in beside the results as You's pages come, not another line of the same room", () => {
+    windowIs(true);
+    const onOpen = vi.fn();
+    const beside = (opened: Beside) => ({ beside: { opened, onOpen, pane: <p>the page</p> } });
+    const dinner: Beside = { kind: "space", key: "space:spc_dinner", spaceId: "spc_dinner" };
+    const page = draw(server().search, beside(dinner));
+    const pane = screen.getByTestId("search-pane");
+    const paneMoves = () =>
+      animate.mock.calls.filter((_, at) => animate.mock.contexts[at] === pane).map(([how]) => how);
+    // Search opened on what was open: it is simply there.
+    expect(paneMoves()).toHaveLength(0);
+    page.rerender(beside({ ...dinner, key: "message:line:l1", hit }));
+    expect(paneMoves()).toHaveLength(0);
+    page.rerender(beside({ kind: "agent", key: `agent:${TOUR}`, agentId: TOUR }));
+    expect(paneMoves()).toEqual([{ opacity: [0, 1], transform: ["translateX(8px)", "none"] }]);
+    // With less motion asked for, it only fades up.
+    windowIs(true, true);
+    page.rerender(beside(dinner));
+    expect(paneMoves().at(-1)).toEqual({ opacity: [0, 1] });
+    expect(paneMoves()).toHaveLength(2);
   });
 });

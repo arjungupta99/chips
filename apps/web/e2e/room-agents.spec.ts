@@ -51,7 +51,7 @@ test("an agent is in one room at a time: Move, an archive while it works, and Mo
     // Its sheet comes up on Add (ADR 0148). Tern's agent is in its direct room, so it is offered
     // in other rooms, and picking it asks before it moves.
     const sheet = page.getByTestId("room-sheet");
-    await expect(sheet.getByTestId("room-sheet-add-done")).toBeVisible();
+    await expect(sheet.getByTestId("room-sheet-add-page")).toBeVisible();
     await sheet.getByTestId("room-sheet-other-rooms").click();
     const offered = sheet.locator('[data-testid^="room-sheet-agent-"]', { hasText: "Tern" });
     await expect(offered).toHaveCount(1);

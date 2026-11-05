@@ -6,7 +6,8 @@
 
 import { type Device, isDemo } from "@chipschat/core";
 import * as Notifications from "expo-notifications";
-import { readSetting, SETTINGS, writeSetting } from "../prefs";
+import { readSetting, SETTINGS } from "../prefs";
+import { choosePush } from "./chosen";
 import {
   buildTakesPush,
   type PushRefusal,
@@ -34,7 +35,7 @@ export async function turnOnPush(device: Device): Promise<TurnedOn> {
     if ("refused" in asked) return { kind: asked.refused };
     if ("noToken" in asked) return { kind: "no_token", why: asked.noToken };
     await registerToken(device, asked.token);
-    await writeSetting(SETTINGS.push, "on").catch(() => undefined);
+    await choosePush("on");
     return { kind: "on" };
   } catch (error) {
     return { kind: "failed", why: error instanceof Error ? error.message : "no answer" };

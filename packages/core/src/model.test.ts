@@ -25,6 +25,7 @@ import {
   capsDraft,
   capsFromDraft,
   capsSentence,
+  capsWords,
   createFold,
   draftAddress,
   exchangeLine,
@@ -3918,6 +3919,15 @@ describe("what may be attached (ADR 0047)", () => {
     expect(capsSentence({ ...caps, image: 209_715_200 }, 104_857_600)).toMatch(
       /^Photos up to the server's 100 MB,/,
     );
+  });
+
+  it("says the caps at the right of You's row as one size, or the range they run over", () => {
+    const MB = 1024 * 1024;
+    const none = { image: null, video: null, file: null };
+    expect(capsWords(none, undefined)).toBe("Server's limit");
+    expect(capsWords(none, 100 * MB)).toBe("100 MB");
+    expect(capsWords({ ...none, image: 25 * MB }, 100 * MB)).toBe("25–100 MB");
+    expect(capsWords({ image: 25 * MB, video: 25 * MB, file: 25 * MB }, undefined)).toBe("25 MB");
   });
 
   it("goes to a settings form as megabytes and back, refusing what is not a number", () => {

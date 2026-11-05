@@ -139,6 +139,21 @@ export function wordMarks(text: string, terms: readonly string[]): readonly Sear
     .map((word) => ({ start: word.start, end: word.end }));
 }
 
+/**
+ * Whether a message holds what was searched for, as the server's FTS5 finds it: each term before
+ * the last a whole word in it, the last the start of one. The demo's search asks this, where it
+ * stands in for the server (ADR 0263): "mi" finds Milo, not the "mi" inside "family".
+ */
+export function holdsTerms(text: string, terms: readonly string[]): boolean {
+  const typing = terms.at(-1);
+  if (typing === undefined) return false;
+  const words = wordsOf(text).map((word) => word.folded);
+  return (
+    terms.slice(0, -1).every((term) => words.includes(term)) &&
+    words.some((word) => word.startsWith(typing))
+  );
+}
+
 /** Adds a piece, joined to the one before it when both are marked alike. Nothing empty. */
 function addPart(parts: SearchPart[], text: string, marked: boolean): void {
   if (text === "") return;

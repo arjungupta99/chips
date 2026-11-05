@@ -45,7 +45,6 @@ export const KEYS: Readonly<Record<ProjectionTable, readonly string[]>> = {
   questions: ["id"],
   attachments: ["id"],
   lanes: ["id"],
-  read_state: ["space_id", "participant_id"],
   harness_policy: ["harness_id", "space_id"],
   workspace_policy: ["workspace_id"],
   session_rules: ["run_id", "approval_id"],

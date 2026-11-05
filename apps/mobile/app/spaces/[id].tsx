@@ -19,14 +19,17 @@
  */
 
 import { ownsWorkspace, type Store, serverHost } from "@chipschat/core";
-import { Redirect, Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { RoomDrop } from "../../src/spaces/RoomDrop";
 import { RoomName, UniverseButton, useRoom } from "../../src/spaces/RoomHead";
 import { RoomSheet } from "../../src/spaces/RoomSheet";
 import { SpaceView } from "../../src/spaces/SpaceView";
 import { UniverseSheet } from "../../src/spaces/Universe";
+import { useUniverseCall } from "../../src/spaces/universeSeen";
 import { useChips } from "../../src/store/provider";
+import { BackToTabs } from "../../src/ui/backToTabs";
 import { ConnectionMark, useMarking } from "../../src/ui/Connection";
 import { useGlassy } from "../../src/ui/Glass";
 import { useLayout } from "../../src/ui/layout";
@@ -57,7 +60,7 @@ export default function SpaceScreen() {
       ...(add === undefined ? {} : { add }),
       ...(sheet === undefined ? {} : { sheet }),
     };
-    return <Redirect href={{ pathname: "/(tabs)", params }} />;
+    return <BackToTabs tab="/(tabs)" params={params} />;
   }
   return (
     <Open
@@ -110,8 +113,14 @@ function Open({
   const [headHeight, setHeadHeight] = useState(0);
   // Whether the room's list has laid out, when UIKit's edge settings are handed to it again.
   const [listed, setListed] = useState(false);
-  // Universe, from the bar's right (ADR 0227).
+  // Universe, from the bar's right (ADR 0227), calling while the project has a change for this
+  // reader that they haven't opened it at.
   const [universe, setUniverse] = useState(false);
+  const universeCall = useUniverseCall(spaceId, space?.project, selfId);
+  const openUniverse = () => {
+    universeCall.opened();
+    setUniverse(true);
+  };
   const inView = useArrival("transitionStart");
   return (
     <Screen>
@@ -191,7 +200,9 @@ function Open({
                     ) : null
                   }
                 >
-                  {beside ? <UniverseButton onPress={() => setUniverse(true)} /> : null}
+                  {beside ? (
+                    <UniverseButton calling={universeCall.calling} onPress={openUniverse} />
+                  ) : null}
                 </MarkBeside>
               </View>
             ),
@@ -207,28 +218,30 @@ function Open({
           ...(held ? {} : { animation: "default" as const }),
         }}
       />
-      <SpaceView
-        store={store}
-        snapshot={snapshot}
-        spaceId={spaceId}
-        selfId={selfId}
-        onOpenSpace={(id) => router.push(`/spaces/${id}`)}
-        onOpenAgent={(id) => router.push(`/agents/${id}`)}
-        at={at}
-        words={words}
-        onDetails={(item) => router.push(`/needs/${item.id}`)}
-        onTakenSeen={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-        headHeight={glassy ? headHeight : 0}
-        inView={inView}
-        onOpenRoom={room.sheet.show}
-        onListed={() => {
-          setListed(true);
-          // A frame on, so what was laid out has been drawn.
-          requestAnimationFrame(drawn);
-        }}
-        // A room not here yet says so: the window goes into those words, not a blank page.
-        onDrawn={() => requestAnimationFrame(drawn)}
-      />
+      <RoomDrop>
+        <SpaceView
+          store={store}
+          snapshot={snapshot}
+          spaceId={spaceId}
+          selfId={selfId}
+          onOpenSpace={(id) => router.push(`/spaces/${id}`)}
+          onOpenAgent={(id) => router.push(`/agents/${id}`)}
+          at={at}
+          words={words}
+          onDetails={(item) => router.push(`/needs/${item.id}`)}
+          onTakenSeen={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+          headHeight={glassy ? headHeight : 0}
+          inView={inView}
+          onOpenRoom={room.sheet.show}
+          onListed={() => {
+            setListed(true);
+            // A frame on, so what was laid out has been drawn.
+            requestAnimationFrame(drawn);
+          }}
+          // A room not here yet says so: the window goes into those words, not a blank page.
+          onDrawn={() => requestAnimationFrame(drawn)}
+        />
+      </RoomDrop>
       {space === undefined ? null : (
         <RoomSheet
           store={store}
@@ -239,6 +252,7 @@ function Open({
           open={room.sheet.open}
           opensOn={room.sheet.opensOn}
           onClose={room.sheet.close}
+          from={room.sheet.from}
           files={paired?.files}
           workspace={paired?.device.workspaceName ?? "the workspace"}
           // A file's viewer's *Go to message*: the room lands on the line, as a link does, with

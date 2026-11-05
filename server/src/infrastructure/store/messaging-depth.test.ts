@@ -224,6 +224,26 @@ describe("search", () => {
     expect((await search("read po")).hits).toHaveLength(1);
   });
 
+  it("leaves out the steps of a turn that passed with NO_REPLY, which drew nothing (ADR 0105)", async () => {
+    const scout = { kind: "harness" as const, id: ws.scout.participantId };
+    const run = async (step: string, summary: string) => {
+      const runId = ws.ids.next("run");
+      await append("run.started", { run_id: runId, goal: "Look at the guide", plan: [] }, scout);
+      await append(
+        "step.log",
+        { run_id: runId, step_id: "cat-1", status: "done", title: step, summary: "guide.md" },
+        scout,
+      );
+      await append("run.completed", { run_id: runId, summary }, scout);
+      return runId;
+    };
+    const said = await run("Read the carbon section", "The carbon section is done.");
+    await run("Read the carbon list", "NO_REPLY");
+    await run("Read the carbon notes", "**NO_REPLY.**");
+    const steps = (await search("carbon")).hits.filter((hit) => hit.kind === "receipt");
+    expect(steps.map((hit) => hit.run_id)).toEqual([said]);
+  });
+
   it("finds a voice note by what was said in it, and says the snippet was heard (ADR 0054)", async () => {
     const note = (transcript: string, n: number) => ({
       attachment_id: `att_01K4ZQPX00000000000000000${n}`,

@@ -13,6 +13,7 @@ import {
   runRecipe,
   START_PAGE,
 } from "@chipschat/protocol";
+import type { RoomProject } from "./model/types.js";
 import { myRole, type WorkspaceModel } from "./model.js";
 import { fileNameOf } from "./projectPage.js";
 import type { RecipeRead } from "./projectRun.js";
@@ -45,6 +46,28 @@ export function shownFiles<File extends { readonly path: string }>(
   files: readonly File[],
 ): readonly File[] {
   return files.filter((file) => !isChips(file.path));
+}
+
+/**
+ * The change Universe calls the reader to (ADR 0227's addendum): the project's newest, when
+ * somebody else made it and this device hasn't opened Universe since (`seen`, the change it was
+ * last opened at). The button goes round once for it and pulses until it is opened. Arjun, 2
+ * November 2026: "when file becomes available / updated in universe, the button should animate to
+ * get attention", and "it should keep pulsing until person taps it".
+ */
+export function universeCalling(
+  project: RoomProject | undefined,
+  selfId: string,
+  seen: string | undefined,
+): string | undefined {
+  const newest = project?.changes[0];
+  if (newest === undefined || newest.by === selfId || newest.commit === seen) return undefined;
+  return newest.commit;
+}
+
+/** The change Universe is opened at, kept as what this device has seen: the project's newest. */
+export function universeSeenAt(project: RoomProject | undefined): string | undefined {
+  return project?.changes[0]?.commit;
 }
 
 /** What a space made, to read and to run. */
@@ -163,10 +186,10 @@ export function noStartPageWords(count: number): string {
   return `${count} documents and no start page yet. Ask the agents for one.`;
 }
 
-/** On the phone's own tab, for a space whose only thing is a program. */
+/** On the phone's own tab, or an iPad's, for a space whose only thing is a program. */
 export const PROGRAMS_ON_MAC = {
   title: "Programs run on your Mac",
-  body: "This space made a program, so it doesn't open on the phone. Start it from Desktop, and it runs on your Mac.",
+  body: "This space made a program, so it doesn't open here. Start it from Desktop, and it runs on your Mac.",
 } as const;
 
 /**
@@ -198,7 +221,7 @@ export const GUEST_READS_PROJECT =
 /** The same tab, for somebody who isn't an owner: the program runs on the owner's Mac. */
 export const PROGRAMS_ON_OWNERS_MAC = {
   title: "Programs run on the owner's Mac",
-  body: "This space made a program, so it doesn't open on the phone. The workspace's owner runs it on their Mac.",
+  body: "This space made a program, so it doesn't open here. The workspace's owner runs it on their Mac.",
 } as const;
 
 /**

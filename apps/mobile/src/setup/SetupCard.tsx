@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, AppState, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { isPad } from "../device/word";
 import { readSetting, SETTINGS, writeSetting } from "../prefs";
+import { onPushChosen } from "../push/chosen";
 import { pushIsOn, turnOnPush } from "../push/turnOn";
 import { Arrive } from "../ui/Arrive";
 import { Card } from "../ui/Card";
@@ -32,6 +33,7 @@ import { Icon } from "../ui/Icon";
 import { RiseIn } from "../ui/SwitchMotion";
 import { usePalette } from "../ui/theme";
 import { SPACE, TEXT } from "../ui/tokens";
+import { useReduceMotion } from "../ui/useReduceMotion";
 
 /** How long "You're set up" stands before the card folds, and how long the fold takes. */
 export const SET_UP_STANDS_MS = 1800;
@@ -106,7 +108,10 @@ export function useSetup(store: Store, snapshot: Snapshot, device: Device | unde
   const [hidden, setHidden] = useState<boolean | undefined>(
     () => lastRead.get(hiddenKey) as boolean | undefined,
   );
+  // Read again whenever pushes are turned on or off, here or anywhere else: from the ask at an
+  // agent's first question, the word is kept only after iOS's alert has handed the front back.
   const [pushTick, setPushTick] = useState(0);
+  useEffect(() => onPushChosen(() => setPushTick((tick) => tick + 1)), []);
   useEffect(() => {
     let live = true;
     void readSetting(hiddenKey)
@@ -135,7 +140,7 @@ export function useSetup(store: Store, snapshot: Snapshot, device: Device | unde
     owner && hidden === false ? 15_000 : undefined,
     `devices.${deviceId}`,
   );
-  // biome-ignore lint/correctness/useExhaustiveDependencies: read again when turned on from here.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: read again when turned on or off.
   const readPush = useCallback(() => pushIsOn(), [pushTick]);
   const push = useEvery(readPush, undefined, "push");
   const read = facts !== undefined && devices !== undefined && push !== undefined;
@@ -158,7 +163,7 @@ export function useSetup(store: Store, snapshot: Snapshot, device: Device | unde
     },
     onTurnOn: () => {
       if (device === undefined) return;
-      void turnOnPush(device).then(() => setPushTick((tick) => tick + 1));
+      void turnOnPush(device);
     },
   };
 }
@@ -268,7 +273,8 @@ function railPhase(now: RailPhase, theirs: boolean, all: boolean): RailPhase {
 
 /**
  * The card while it has something to say: drawn while steps are left, and, once the last is done
- * while it is on screen, "You're set up" for a moment before it folds up. A phone that was set up
+ * while it is on screen, "You're set up" for a moment before it folds up. The × folds it up the
+ * same way and puts it away once it has: it went in a frame, and the rooms under it jumped up. A phone that was set up
  * before it ever drew the card never draws it: what is left is first decided once every step has
  * been read, since a cold start mounts the rail before anything has answered, and a rail that took
  * that as "steps left" stood "You're set up" up on every start as the answers came in.
@@ -284,6 +290,8 @@ export function SetupRail({
   const router = useRouter();
   const all = setup.steps.every((step) => step.done);
   const [phase, setPhase] = useState<RailPhase>("unread");
+  const [hiding, setHiding] = useState(false);
+  const less = useReduceMotion();
   const height = useRef<number | undefined>(undefined);
   const fold = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -294,12 +302,25 @@ export function SetupRail({
     const timer = setTimeout(() => {
       Animated.timing(fold, {
         toValue: 0,
-        duration: SET_UP_FOLDS_MS,
+        duration: less ? 0 : SET_UP_FOLDS_MS,
         useNativeDriver: false,
       }).start(() => setPhase("gone"));
     }, SET_UP_STANDS_MS);
     return () => clearTimeout(timer);
-  }, [phase, fold]);
+  }, [phase, fold, less]);
+  // Read when the fold ends, so a new `setup` drawn meanwhile neither restarts it nor is missed.
+  const onHide = useRef(setup.onHide);
+  onHide.current = setup.onHide;
+  useEffect(() => {
+    if (!hiding) return;
+    Animated.timing(fold, {
+      toValue: 0,
+      duration: less ? 0 : SET_UP_FOLDS_MS,
+      useNativeDriver: false,
+    }).start(({ finished }) => {
+      if (finished) onHide.current();
+    });
+  }, [hiding, fold, less]);
   if (!setup.theirs || phase === "unread" || phase === "gone") return null;
   const act = (id: SetupStepId) => {
     if (id === "notify") setup.onTurnOn();
@@ -314,7 +335,7 @@ export function SetupRail({
       }}
       style={[
         styles.fold,
-        phase === "standing" && height.current !== undefined
+        (phase === "standing" || hiding) && height.current !== undefined
           ? {
               opacity: fold,
               maxHeight: fold.interpolate({ inputRange: [0, 1], outputRange: [0, height.current] }),
@@ -322,7 +343,7 @@ export function SetupRail({
           : null,
       ]}
     >
-      <SetupCard steps={setup.steps} onHide={setup.onHide} onAction={act} />
+      <SetupCard steps={setup.steps} onHide={() => setHiding(true)} onAction={act} />
     </Animated.View>
   );
   return rising ? <RiseIn order={0}>{rail}</RiseIn> : rail;

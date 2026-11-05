@@ -4,9 +4,9 @@
  * an agent made — the messages agents sent agents since, and whether a person paused them. The
  * protocol's `exchangeFactsOf` turns this into the facts; nothing here decides a stage.
  *
- * Whether anybody has the room open is not known here: how far each person has read is kept by
- * their own device, and the server's `read_state` is never written. So it is `null`, which the
- * facts say means Chips cannot say.
+ * Whether anybody has the room open is not known here: `read_state` says how far each person has
+ * read (ADR 0262), not whether they are looking. So it is `null`, which the facts say means Chips
+ * cannot say.
  *
  * As of a seq, so a message delivered again is handed the same facts it was the first time.
  */

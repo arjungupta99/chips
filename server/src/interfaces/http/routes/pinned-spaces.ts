@@ -26,8 +26,8 @@ function person(principal: Principal): Principal {
 export function registerPinnedSpaceRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps): void {
   app.get("/v1/me/pinned-spaces", async (c) => {
     const me = person(c.get("principal"));
-    const spaces = await deps.pinnedSpaces.forPerson(me.workspaceId, me.participantId);
-    return c.json({ spaces });
+    const pinned = await deps.pinnedSpaces.forPerson(me.workspaceId, me.participantId);
+    return c.json({ spaces: await unarchived(deps, me, pinned) });
   });
 
   app.put("/v1/me/pinned-spaces/:spaceId", async (c) => {
@@ -54,6 +54,24 @@ export function registerPinnedSpaceRoutes(app: Hono<GatewayEnv>, deps: GatewayDe
     });
     return c.body(null, 204);
   });
+}
+
+/**
+ * The pins on rooms not archived. One archived without its pins let go (before 4 November 2026,
+ * or by a road that does not pass `submitEvent`) is let go as it is read.
+ */
+async function unarchived(
+  deps: GatewayDeps,
+  me: Principal,
+  pinned: readonly string[],
+): Promise<string[]> {
+  const kept: string[] = [];
+  for (const spaceId of pinned) {
+    const space = await deps.readModels.space(me.workspaceId, spaceId);
+    if (space?.state === "closed") await deps.pinnedSpaces.forgetSpace(me.workspaceId, spaceId);
+    else kept.push(spaceId);
+  }
+  return kept;
 }
 
 /** A room the caller is in, or a `not_found` that says nothing about whether it exists. */

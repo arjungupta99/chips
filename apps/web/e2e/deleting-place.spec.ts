@@ -9,12 +9,12 @@ import { expect, type Locator, type Page, type TestInfo, test } from "@playwrigh
 import { Harness, newRunId, pair, registerSpecialist } from "./support.ts";
 
 /**
- * A row is seventy pixels, and a jump moves it all in one frame. The ease opens and closes by less
- * than a third of that in a frame, but a first frame that comes late on a loaded machine carries
- * half (35 px on the CI runner, 1 November 2026, then 12, 8, 5...): still a glide, and well short
- * of a row.
+ * A row is forty pixels (a bubble of a turn, ADR 0268), and a jump moves it all in one frame. The
+ * ease opens and closes by less than a third of that in a frame, but a first frame that comes late
+ * on a loaded machine carries half (35 px of a seventy-pixel row on the CI runner, 1 November 2026,
+ * then 12, 8, 5...): still a glide, and well short of a row.
  */
-const MOST_IN_A_FRAME = 50;
+const MOST_IN_A_FRAME = 30;
 /** What a row under the place may drift by, all told: rounding, and nothing a reader would see. */
 const STILL = 4;
 
@@ -89,6 +89,11 @@ async function longRoom(
   const messages = page.getByTestId("messages");
   const row = (n: number) => messages.locator(".msg").filter({ hasText: words(n) });
   await expect(row(40)).toBeVisible();
+  // What Tide's run stands in the room — its thinking bubble under the lines, its panel beside them
+  // — comes the thinking beat after the run starts (ADR 0268 addendum): read the rows once it has,
+  // or its coming moves the room's end while they are read.
+  await expect(page.getByTestId("doing")).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Run" })).toBeVisible();
   return { harness, messages, row };
 }
 
@@ -126,7 +131,7 @@ async function deleteAndUndo(
   }
   // The place closed and opened: the line over it went down by about a row, and came back.
   const over = tops(series, 1);
-  expect(Math.max(...over) - Math.min(...over)).toBeGreaterThan(40);
+  expect(Math.max(...over) - Math.min(...over)).toBeGreaterThan(30);
   for (const column of [3, 4]) {
     const under = tops(series, column);
     expect(Math.max(...under) - Math.min(...under), `line ${around[column]}`).toBeLessThan(STILL);

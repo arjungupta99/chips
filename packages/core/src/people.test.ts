@@ -15,6 +15,7 @@ import {
   enterSpaceAsking,
   guestElsewhereAsking,
   guestRefusal,
+  guestStandingWords,
   invitedByWords,
   invitedWords,
   inviteRowWords,
@@ -46,6 +47,7 @@ import {
   spaceLinkAsking,
   spacesShared,
   standingInRoom,
+  standingWords,
   takeOutAsking,
 } from "./people.js";
 import type { Invite } from "./store.js";
@@ -489,6 +491,31 @@ describe("how the reader reads themselves among people (NP-1)", () => {
     expect(selfLabel("You")).toBe("You");
     // A person who chose "you" in another case is somebody's name, and said as one.
     expect(selfLabel("you")).toBe("you (you)");
+  });
+});
+
+describe("the line under your name on You (ADR 0085)", () => {
+  it("names the role and the workspace, or only the workspace while joining", () => {
+    expect(standingWords("owner", "Demo")).toBe("Owner · Demo");
+    expect(standingWords("admin", "Demo")).toBe("Admin · Demo");
+    expect(standingWords(undefined, "Demo")).toBe("Demo");
+  });
+
+  it("names a guest's one space and who let them in, and nothing before they have one", () => {
+    const model = {
+      spaces: [
+        { id: "spc_old", title: "Old trip", state: "archived", members: ["usr_gus"] },
+        { id: "spc_japan", title: "Japan trip", state: "open", members: ["usr_arjun", "usr_gus"] },
+      ],
+      people: { usr_gus: { participantId: "usr_gus", role: "guest", invitedBy: "usr_arjun" } },
+    } as unknown as WorkspaceModel;
+    const directory: Directory = {
+      usr_arjun: { id: "usr_arjun", kind: "person", displayName: "Arjun" },
+    };
+    expect(guestStandingWords(model, directory, "usr_gus")).toBe(
+      "Guest in Japan trip · invited by Arjun",
+    );
+    expect(guestStandingWords({ ...model, spaces: [] }, directory, "usr_gus")).toBeUndefined();
   });
 });
 

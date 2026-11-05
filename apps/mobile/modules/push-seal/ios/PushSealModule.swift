@@ -41,7 +41,7 @@ enum SealKeychain {
     return "\(account).\(deviceId)"
   }
 
-  /** `<team>.chat.chips.app.shared`, which the config plugin writes into Info.plist. */
+  /** `<team>.<bundle id>.shared`, which the config plugin writes into Info.plist. */
   static var group: String? {
     Bundle.main.object(forInfoDictionaryKey: "ChipsKeychainGroup") as? String
   }

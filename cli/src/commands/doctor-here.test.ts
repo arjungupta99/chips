@@ -67,6 +67,12 @@ describe("the server on this machine", () => {
     );
     const ready = await serverHereChecks(here, machine(page, relay, "ready"));
     expect(ready.find((each) => each.check === "push")?.health).toBe("ok");
+    const failing = await serverHereChecks(here, machine(page, relay, "failing"));
+    expect(failing.find((each) => each.check === "push")).toMatchObject({
+      health: "warn",
+      detail: "Its last pushes to phones didn't get through: the push service didn't take them.",
+      fix: expect.stringContaining("`push.not_sent`"),
+    });
     // An older server says nothing of it, and nothing is said.
     const older = await serverHereChecks(here, machine(page, relay));
     expect(older.find((each) => each.check === "push")).toBeUndefined();

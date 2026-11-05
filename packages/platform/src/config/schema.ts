@@ -24,6 +24,15 @@ export const CHIPS_RELAY = "wss://relay.chipschat.ai";
 export const EXPO_PUSH = "https://exp.host/--/api/v2/push/send";
 
 /**
+ * Where a push service says what became of the pushes it took, by their tickets' ids: beside
+ * Expo's `/send`, its `/getReceipts`; beside a push relay's `/v1/push`, its `/v1/push/receipts`.
+ */
+export function receiptsUrlOf(pushUrl: string): string {
+  if (pushUrl.endsWith("/send")) return `${pushUrl.slice(0, -"/send".length)}/getReceipts`;
+  return `${pushUrl.replace(/\/+$/, "")}/receipts`;
+}
+
+/**
  * The push relay Chips runs (ADR 0246): Chips's relay, sending pushes to the Chips app with the
  * app's access token, for a server that has none.
  */

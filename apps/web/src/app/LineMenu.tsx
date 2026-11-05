@@ -1,8 +1,10 @@
 /**
  * What a reader may do to a line (M3.4, M5.4), on the right button rather than under every
- * bubble: Reply (ADR 0219), Not right? (ADR 0200, in place of the thumbs and a note about what
- * went wrong), a pin, an edit, a deletion for the reader alone or for everyone (ADR 0167) — the
- * second asked about first, in core's words, as on the phone.
+ * bubble, in the phone's order and words (ADR 0200, ADR 0268): who said it and when at its head;
+ * then what is done to its words where they are — Reply (ADR 0219), Copy, Edit, Pin — and, under a
+ * rule, the rest: Not right? (in place of the thumbs and a note about what went wrong), What the
+ * run did on the line that closed a run, and a deletion for the reader alone or for everyone
+ * (ADR 0167) — the second asked about first, in core's words.
  *
  * It used to be two bars standing open under every message in the room — four controls each,
  * on lines nobody was ever going to react to. A room read like a form. The actions are the
@@ -19,8 +21,8 @@
  */
 
 import type { Asking, Line } from "@chipschat/core";
-import { DELETE_FOR_EVERYONE, DELETE_FOR_ME, mayReply } from "@chipschat/core";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { DELETE_FOR_EVERYONE, DELETE_FOR_ME, mayReply, notRightWords } from "@chipschat/core";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { OnFeedback } from "./Feedback.tsx";
 import type { LineHandlers, LineMay } from "./LineActions.tsx";
@@ -50,6 +52,16 @@ export interface LineMenuProps {
   readonly onDelete: (deletion: "me" | "everyone") => void;
   /** Not right?, when this line takes feedback — only a harness's does. */
   readonly onFeedback?: OnFeedback | undefined;
+  /** Who said it and when, at the menu's head: `Theo · Today 1:05 AM`. */
+  readonly head?: string | undefined;
+  /** Who a Not right? goes to, for the line under it. */
+  readonly name?: string | undefined;
+  /**
+   * What the run did, on the line that closed a run with something to show (ADR 0050, rule 3):
+   * its receipt's one line, said under the item. The row opens the receipt.
+   */
+  readonly runDid?: string | undefined;
+  readonly onRunDid?: (() => void) | undefined;
   /** Reply, first, where the line can be replied to and the room takes replies (ADR 0219). */
   readonly onReply?: (() => void) | undefined;
   /** The row draws the forms; the menu only says the reader asked for one. */
@@ -65,6 +77,10 @@ interface Item {
   /** What it does, under it, where that is not plain from the label. */
   readonly hint?: string;
   readonly danger?: boolean;
+  /** Said in place of the label once done, before the menu goes: Copy's *Copied*. */
+  readonly done?: string;
+  /** The first of the second group, which a rule sets off from the quick ones. */
+  readonly ruled?: boolean;
   readonly run: () => void;
 }
 
@@ -72,14 +88,39 @@ interface Item {
  * Whether a line offers anything at all, so a row knows before it opens an empty menu. `replies`
  * is whether the room takes replies, which a line can then be given (ADR 0219).
  */
-export function hasMenu(may: LineMay, line: Line, feedback: boolean, replies = false): boolean {
-  return (replies && mayReply(line)) || feedback || may.pin || may.edit || may.remove || may.hide;
+export function hasMenu(
+  may: LineMay,
+  line: Line,
+  feedback: boolean,
+  replies = false,
+  receipt = false,
+): boolean {
+  return (
+    (replies && mayReply(line)) ||
+    hasWords(line) ||
+    feedback ||
+    receipt ||
+    may.pin ||
+    may.edit ||
+    may.remove ||
+    may.hide
+  );
 }
+
+/** A line with words to copy: not a tombstone, not files alone. */
+function hasWords(line: Line): boolean {
+  return line.deleted !== true && line.text.trim() !== "";
+}
+
+/** How long Copy says *Copied* before the menu goes. */
+const DONE_MS = 700;
 
 export function LineMenu(props: LineMenuProps) {
   const { onClose } = props;
   const id = useId();
   const [confirming, setConfirming] = useState(false);
+  // The item that has said its word, while the menu waits a beat to go.
+  const [done, setDone] = useState<string | undefined>(undefined);
   const menu = useRef<HTMLDivElement>(null);
   const at = useClamped(menu, props.at);
   const moved = useFollow(props.row, onClose);
@@ -89,6 +130,15 @@ export function LineMenu(props: LineMenuProps) {
   const act = (run: () => void) => () => {
     run();
     onClose();
+  };
+  useEffect(() => {
+    if (done === undefined) return;
+    const timer = setTimeout(onClose, DONE_MS);
+    return () => clearTimeout(timer);
+  }, [done, onClose]);
+  const said = (key: string, run: () => void) => () => {
+    run();
+    setDone(key);
   };
   const { asking } = props;
   const items: Item[] = confirming
@@ -101,7 +151,7 @@ export function LineMenu(props: LineMenuProps) {
         },
         { key: "keep", label: "Cancel", run: () => setConfirming(false) },
       ]
-    : ordinary(props, act, () => setConfirming(true));
+    : ordinary(props, act, said, () => setConfirming(true));
 
   return createPortal(
     <div
@@ -117,6 +167,11 @@ export function LineMenu(props: LineMenuProps) {
         walk(event);
       }}
     >
+      {!confirming && props.head !== undefined && (
+        <div className="line-menu-head" data-testid="line-menu-head">
+          {props.head}
+        </div>
+      )}
       {confirming && (
         <div className="line-menu-ask" data-testid="line-menu-asking">
           <b>{asking.title}</b>
@@ -125,55 +180,127 @@ export function LineMenu(props: LineMenuProps) {
         </div>
       )}
       {items.map((item, index) => (
-        <button
-          key={item.key}
-          type="button"
-          role="menuitem"
-          className="line-menu-item"
-          data-danger={item.danger === true ? "true" : undefined}
-          disabled={props.busy}
-          ref={index === 0 ? focusFirst : undefined}
-          onClick={item.run}
-          // Named by its label alone; what it does is said as its description.
-          aria-label={item.hint === undefined ? undefined : item.label}
-          aria-describedby={item.hint === undefined ? undefined : `${id}-${item.key}`}
-        >
-          <span className="line-menu-label">{item.label}</span>
-          {item.hint !== undefined && (
-            <span className="line-menu-hint" id={`${id}-${item.key}`}>
-              {item.hint}
-            </span>
-          )}
-        </button>
+        <Fragment key={item.key}>
+          {item.ruled === true && index > 0 && <hr className="line-menu-rule" />}
+          <MenuItem
+            item={item}
+            first={index === 0}
+            done={done === item.key}
+            busy={props.busy}
+            hintId={`${id}-${item.key}`}
+          />
+        </Fragment>
       ))}
     </div>,
     document.body,
   );
 }
 
-/** Everything but the confirmation, in the order a hand reaches for them. */
+/** One line of the menu: its label, or the word it says once done, and what it does under it. */
+function MenuItem(props: {
+  readonly item: Item;
+  readonly first: boolean;
+  readonly done: boolean;
+  readonly busy: boolean;
+  readonly hintId: string;
+}) {
+  const { item } = props;
+  const hinted = item.hint !== undefined;
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className="line-menu-item"
+      data-danger={item.danger === true ? "true" : undefined}
+      data-done={props.done ? "true" : undefined}
+      disabled={props.busy}
+      ref={props.first ? focusFirst : undefined}
+      onClick={item.run}
+      // Named by its label alone; what it does is said as its description.
+      aria-label={hinted ? item.label : undefined}
+      aria-describedby={hinted ? props.hintId : undefined}
+    >
+      <span className="line-menu-label" aria-live={item.done === undefined ? undefined : "polite"}>
+        {props.done && item.done !== undefined ? item.done : item.label}
+      </span>
+      {hinted && (
+        <span className="line-menu-hint" id={props.hintId}>
+          {item.hint}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Everything but the confirmation, in the phone's order (ADR 0200): the capsule's quick actions,
+ * then the card's rows under a rule. Select and Share are a phone's: on a Mac the words select
+ * where they stand.
+ */
 function ordinary(
   props: LineMenuProps,
   act: (run: () => void) => () => void,
+  said: (key: string, run: () => void) => () => void,
   remove: () => void,
+): Item[] {
+  return [...quick(props, act, said), ...ruled(rest(props, act, remove))];
+}
+
+/** Reply, Copy, Edit and Pin: what is done to the words where they are. */
+function quick(
+  props: LineMenuProps,
+  act: (run: () => void) => () => void,
+  said: (key: string, run: () => void) => () => void,
 ): Item[] {
   const { line, may, spaceId, on } = props;
   const items: Item[] = [];
   // First, as on the phone's capsule: the thing a hand reaches for most (ADR 0219).
   if (props.onReply !== undefined)
     items.push({ key: "reply", label: "Reply", run: act(props.onReply) });
-  if (props.onFeedback !== undefined) {
-    items.push({ key: "note", label: "Not right?", run: act(props.onNote) });
+  if (hasWords(line)) {
+    items.push({
+      key: "copy",
+      label: "Copy",
+      done: "Copied",
+      // The words as they were written, Markdown and all, as the phone's Copy takes them.
+      run: said(
+        "copy",
+        () => void navigator.clipboard?.writeText(line.text).catch(() => undefined),
+      ),
+    });
   }
+  if (may.edit) items.push({ key: "edit", label: "Edit", run: act(props.onEdit) });
   if (may.pin) {
     const unpin = props.pinned;
     items.push({
       key: "pin",
-      label: unpin ? "Unpin from the top" : "Pin to the top",
+      label: unpin ? "Unpin" : "Pin",
       run: act(() => (unpin ? on.unpin(spaceId, line) : on.pin(spaceId, line))),
     });
   }
-  if (may.edit) items.push({ key: "edit", label: "Edit", run: act(props.onEdit) });
+  return items;
+}
+
+/** Not right?, What the run did and the deletions: the card under the phone's capsule. */
+function rest(
+  props: LineMenuProps,
+  act: (run: () => void) => () => void,
+  remove: () => void,
+): Item[] {
+  const { may } = props;
+  const items: Item[] = [];
+  if (props.onFeedback !== undefined) {
+    const words = notRightWords(props.name ?? "the agent");
+    items.push({ key: "note", label: words.label, hint: words.hint, run: act(props.onNote) });
+  }
+  if (props.runDid !== undefined && props.onRunDid !== undefined) {
+    items.push({
+      key: "run-did",
+      label: "What the run did",
+      hint: props.runDid,
+      run: act(props.onRunDid),
+    });
+  }
   if (may.hide) {
     items.push({
       key: "delete-for-me",
@@ -186,6 +313,12 @@ function ordinary(
     items.push({ key: "delete", ...DELETE_FOR_EVERYONE, danger: true, run: remove });
   }
   return items;
+}
+
+/** The second group, its first set off by a rule. */
+function ruled(items: Item[]): Item[] {
+  const [first, ...others] = items;
+  return first === undefined ? [] : [{ ...first, ruled: true }, ...others];
 }
 
 /**

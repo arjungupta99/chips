@@ -8,8 +8,10 @@
 
 import type { Snapshot } from "@chipschat/core";
 import { fireEvent, render, screen, userEvent, within } from "@testing-library/react-native";
+import { Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore } from "../testing/fixtures";
+import { Split } from "../ui/Split";
 import { Profile } from "./Profile";
 import { WhenItAsks } from "./parts/WhenItAsks";
 import { harnessRuns } from "./words";
@@ -133,6 +135,14 @@ function asksView(over: Parameters<typeof state>[0] = {}) {
 }
 
 describe("a harness's profile", () => {
+  it("reads as one column across the whole pane beside the list (ADR 0276)", async () => {
+    const { element } = view();
+    await render(<Split away list={<Text>the agents</Text>} detail={element} />);
+    expect(screen.queryByTestId("columns")).toBeNull();
+    expect(screen.getByTestId("harness-set-up")).toBeTruthy();
+    expect(screen.getByTestId("harness-history")).toBeTruthy();
+  });
+
   it("says what it is doing, in words as well as a ring", async () => {
     await render(view().element);
     expect(screen.getByText("Working")).toBeTruthy();

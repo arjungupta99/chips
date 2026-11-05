@@ -43,8 +43,10 @@ test("stands blank agents until the first list, then lists what it kept at once 
   await expect(main).not.toContainText("No agents yet");
   await expect(main).not.toContainText("No harnesses yet");
   await expect(main.getByRole("button", { name: "Connect a harness" })).toHaveCount(0);
-  // Nor does the rail's list of harnesses say there are none.
-  await expect(page.getByTestId("fleet")).not.toContainText("No harnesses yet");
+  // Nor does the rail, which lists no harnesses since 3 November 2026 (ADR 0261's addendum).
+  await expect(page.getByRole("complementary", { name: "Workspace" })).not.toContainText(
+    "No harnesses yet",
+  );
   await shoot(page, "1-first-load");
 
   await release();

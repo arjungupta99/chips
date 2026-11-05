@@ -15,6 +15,7 @@ import {
   aimWordsOf,
   awaitsAgents,
   betweenHarnesses,
+  CLOSED_FIELD_PLACEHOLDER,
   type ConnectionState,
   cantAnswer,
   cantAnswerIn,
@@ -24,7 +25,9 @@ import {
   type Doing,
   deleteForEveryoneAsking,
   type ExchangeLine,
+  endsTurn,
   exchangeLine,
+  FIELD_PLACEHOLDER,
   faceKind,
   filesChangedWords,
   formatBytes,
@@ -41,7 +44,9 @@ import {
   mayReply,
   nameOf,
   namesAuthors,
+  opensTurn,
   type PersonModel,
+  type Place,
   pauseWords,
   peopleIn,
   pinnedLines,
@@ -60,10 +65,14 @@ import {
   type Space,
   searchTerms,
   routeWords as sentToWords,
+  separatorLabel,
   spaceDoing,
   spaceSubtitle,
   spaceTitle,
+  spaceWorking,
+  THINKING_GRACE_MS,
   takesFeedback,
+  turnsOf,
   type UnsentNote,
   visibleLines,
   WAITING_ROOM,
@@ -78,24 +87,26 @@ import {
   Composer,
   FaceGroup,
   faceGround,
+  formatTokens,
   type HarnessStatus,
   Icon,
   Pill,
   Receipt,
   type ReceiptStep,
   RouteCard,
+  receiptSummary,
   TaskCard,
   type TrailHop,
 } from "@chipschat/ui";
 import {
   type ClipboardEvent,
-  type DragEvent,
   Fragment,
   memo,
   type ReactNode,
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -111,7 +122,6 @@ import {
   Clock,
   LitDots,
   STRIP_GLYPHS,
-  Swap,
   useHeld,
   useHeldReplies,
   useInTouch,
@@ -135,9 +145,13 @@ import { type RouteMark, RouteOver } from "./RouteOver.tsx";
 import type { SpaceActions } from "./room/actions.ts";
 import { type Breaking, DustProvider, returning, useCrumble, useDustRoom } from "./room/Dust.tsx";
 import { BackPill, type BackTo, RepliesMark, ReplyCard, ReplyStrip } from "./room/Reply.tsx";
+import { RoomDropOver, useRoomDrop } from "./room/RoomDrop.tsx";
 import { RoomSheet } from "./room/RoomSheet.tsx";
 import { type Undoing, UndoPill } from "./room/UndoPill.tsx";
 import { UniverseMark } from "./room/UniverseMark.tsx";
+import { useUniverseCall } from "./room/universeSeen.ts";
+import { spaceAvatar } from "./Sidebar.tsx";
+import { Swap } from "./Swap.tsx";
 import { TaskBubble } from "./TaskBubble.tsx";
 import { clockTime, relativeTime } from "./time.ts";
 import { useNarrow } from "./useNarrow.ts";
@@ -235,10 +249,19 @@ export interface SpaceViewProps {
   readonly people?: Readonly<Record<string, PersonModel>> | undefined;
   /** The workspace, for where each agent is and who may move one (ADR 0087). */
   readonly model?: WorkspaceModel | undefined;
-  /** A room just made empty from the +: when it is this one, its sheet comes up on Add (ADR 0148). */
-  readonly membersFor?: string | undefined;
-  /** Its sheet came up for `membersFor`: once, so the room met again later opens as any room. */
-  readonly onMembersShown?: (() => void) | undefined;
+  /**
+   * A room whose sheet is asked for from outside it: when it is this one, its sheet comes up on
+   * that page. Add, for a room just made empty from the + (ADR 0148); Icon, from Change icon on
+   * its row in the rail (ADR 0264's addendum).
+   */
+  readonly sheetFor?: SheetFor | undefined;
+  /** Its sheet came up for `sheetFor`: once, so the room met again later opens as any room. */
+  readonly onSheetShown?: (() => void) | undefined;
+  /**
+   * What stands last at the right of the room's header, for a room shown somewhere else than
+   * Spaces: beside Search's results, its Open in Spaces (ADR 0269).
+   */
+  readonly headEnd?: ReactNode | undefined;
 }
 
 /** A line to jump to; the nonce makes the same line again a jump. */
@@ -260,16 +283,6 @@ interface Marking {
  * then the line is as it was. The phone's own (`MARKS_MS`, ADR 0133).
  */
 const MARKS_MS = 2500;
-
-/**
- * The light on the header's face while its run is live. A run that has ended draws nothing there,
- * as on the phone (ADR 0050, ADR 0151): the reply is the proof it finished.
- */
-const LIVE_STATUS: Partial<Record<Run["state"], HarnessStatus>> = {
-  running: "working",
-  waiting: "waiting",
-  queued: "thinking",
-};
 
 /** Words for a room's field from outside the room, by space, taken once as the room is drawn. */
 const seeds = new Map<string, string>();
@@ -301,7 +314,7 @@ export function SpaceView(props: SpaceViewProps) {
   }, [made]);
   const staged = useStaged(files, props.attachmentCaps);
   const picker = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
+  const drop = useRoomDrop(staged.add);
   const voice = useVoiceNotes(staged.add);
   // The Steer chip: while it is on, what is typed goes to the run as a steer.
   const [steering, setSteering] = useState(false);
@@ -352,17 +365,27 @@ export function SpaceView(props: SpaceViewProps) {
   // Out of touch with the server, or a beat after it is back while it catches up: the bubbles say
   // what was known, and stand still.
   const inTouch = useInTouch(props.connection);
-  const rows = rowsOf(
-    space,
-    visibleLines(space, props.lanes ?? []).filter((line) => !held.has(line.id)),
-    directory,
-    props.model?.exchangeLimits,
+  // A thinking bubble waits a beat from its run's start, and for the reader's own line to be the
+  // server's, so a quick answer comes without one (ADR 0050 rule 6, ADR 0268).
+  const thinking = useBeat(spaceDoing(space), space.lines.at(-1)?.pending !== true);
+  const limits = props.model?.exchangeLimits;
+  const rows = useMemo(
+    () =>
+      rowsOf(
+        space,
+        visibleLines(space, props.lanes ?? []).filter((line) => !held.has(line.id)),
+        directory,
+        limits,
+      ),
+    [space, props.lanes, held, directory, limits],
   );
   // Chips holds the agents' messages to each other here until a person acts (ADR 0097).
   const paused = pauseWords(space, directory);
   // A jump comes from a pin here or a search hit outside; either way the list lands on the line,
   // and a hit's words are marked in it for a moment.
   const [focus, setFocus] = useState<LineFocus | undefined>(undefined);
+  // Lines of yours sent: the room follows each to its end, as the phone's does (`useFollowOwn`).
+  const [sent, setSent] = useState(0);
   const [marking, setMarking] = useState<Marking | undefined>(undefined);
   // A reply's card goes to the message it quotes, and a pill comes back (ADR 0219).
   const goToLine = useCallback((lineId: string) => setFocus({ lineId, nonce: Date.now() }), []);
@@ -386,7 +409,7 @@ export function SpaceView(props: SpaceViewProps) {
     run.state !== "failed" &&
     run.state !== "cancelled";
   const now = useNow();
-  const sheet = useRoomSheet(space.id, props.membersFor, props.onMembersShown);
+  const sheet = useRoomSheet(space.id, props.sheetFor, props.onSheetShown);
 
   // Mark the space read to its last line, or past a run that has ended — its card in Needs
   // you carries the run's last event, the completion after its message when the summary closes
@@ -412,17 +435,12 @@ export function SpaceView(props: SpaceViewProps) {
   }, [mark]);
   const name = (id: string) => nameOf(directory, id);
 
-  // Files arrive three ways — the clip, a paste, a drop — and stage the same way.
+  // Files arrive three ways — the clip, a paste, a drop (`useRoomDrop`) — and stage the same way.
   const onPaste = (event: ClipboardEvent) => {
     const pasted = [...event.clipboardData.files];
     if (pasted.length === 0) return;
     event.preventDefault();
     staged.add(pasted);
-  };
-  const onDrop = (event: DragEvent) => {
-    event.preventDefault();
-    setDragging(false);
-    staged.add(event.dataTransfer.files);
   };
   const uploading = staged.staged.some((item) => item.status === "uploading");
   const send = (text: string) => {
@@ -436,6 +454,8 @@ export function SpaceView(props: SpaceViewProps) {
     setDraft("");
     aiming.sent();
     answering.letGo();
+    // A command puts no line in the room, and takes nobody anywhere.
+    if (!text.trimStart().startsWith("/")) setSent((count) => count + 1);
   };
 
   return (
@@ -449,14 +469,9 @@ export function SpaceView(props: SpaceViewProps) {
       <main
         className="conv"
         aria-label={`Space: ${spaceTitle(space, directory, selfId)}`}
-        data-dragging={dragging ? "true" : undefined}
+        data-dragging={drop.over ? "true" : undefined}
         onPaste={onPaste}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
+        {...drop.handlers}
       >
         <Top
           space={space}
@@ -472,6 +487,7 @@ export function SpaceView(props: SpaceViewProps) {
           icon={props.faces?.get(space.id)}
           onOpenAgent={props.onOpenAgent}
           sheet={sheet}
+          headEnd={props.headEnd}
         />
         <Pins space={space} onJump={(lineId) => setFocus({ lineId, nonce: Date.now() })} />
 
@@ -507,6 +523,7 @@ export function SpaceView(props: SpaceViewProps) {
               onLine={props.onLine}
               standing={props.standing}
               focus={focus}
+              sent={sent}
               marking={marking}
               onQuote={replying.quote}
               onReplies={goToLine}
@@ -555,7 +572,7 @@ export function SpaceView(props: SpaceViewProps) {
               ))}
             </Fragment>
           ))}
-          {spaceDoing(space).map((doing) => (
+          {thinking.map((doing) => (
             <Thinking
               key={doing.harnessId}
               doing={doing}
@@ -640,6 +657,7 @@ export function SpaceView(props: SpaceViewProps) {
             },
           ]}
         />
+        <RoomDropOver over={drop.over} />
       </main>
     </ViewerHost>
   );
@@ -701,6 +719,8 @@ function Rows(props: {
   readonly onLine: LineHandlers | undefined;
   readonly standing: Standing | undefined;
   readonly focus: LineFocus | undefined;
+  /** How many lines of yours have been sent here: each takes the reader to the end. */
+  readonly sent: number;
   readonly marking: Marking | undefined;
   /** Goes to the message a reply quotes, and to a reply from the mark under its message (ADR 0219). */
   readonly onQuote: (reply: Line, quoted: string, mine: boolean) => void;
@@ -741,13 +761,7 @@ function Rows(props: {
           asking,
         };
   const focusIndex =
-    focus === undefined
-      ? -1
-      : props.rows.findIndex((row) =>
-          row.kind === "line"
-            ? row.line.id === focus.lineId
-            : row.lines.some((line) => line.id === focus.lineId),
-        );
+    focus === undefined ? -1 : props.rows.findIndex((row) => rowHolds(row, focus.lineId));
   // A route or task line is drawn from its lane, looked up by id, rather than from its text.
   const lanes = new Map(props.lanes.map((lane) => [lane.laneId, lane]));
   // Which visit a line came from is only worth saying when there is more than one to tell apart.
@@ -759,7 +773,7 @@ function Rows(props: {
   // The words a search looked for, in the line it landed on, while they are marked.
   const marksOn = (line: Line) =>
     props.marking?.lineId === line.id ? props.marking.terms : undefined;
-  const draw = (line: Line) =>
+  const draw = (line: Line, place: Place = "only") =>
     line.fork !== undefined && model !== undefined ? (
       <ForkLine
         key={line.id}
@@ -805,6 +819,7 @@ function Rows(props: {
         marks={marksOn(line)}
         offline={props.offline}
         onDiscard={props.onDiscard}
+        place={place}
         reply={replyOf(space, line, directory)}
         replies={repliesTo(space, line)}
         onQuote={props.onQuote}
@@ -819,13 +834,17 @@ function Rows(props: {
     <WaitsProvider space={space} directory={directory}>
       <MessageList
         items={props.rows}
+        keyOf={keyOf}
         scroller={props.scroller}
+        sent={props.sent}
         {...(focus !== undefined && focusIndex >= 0
           ? { focus: { index: focusIndex, nonce: focus.nonce } satisfies Focus }
           : {})}
         row={(item) =>
           item.kind === "line" ? (
-            draw(item.line)
+            draw(item.line, item.place)
+          ) : item.kind === "day" ? (
+            <DayLine key={item.id} at={item.at} />
           ) : (
             <Chatter
               key={item.id}
@@ -849,7 +868,9 @@ function Rows(props: {
  * the referee's words under it once the talk is worth one (ADR 0097).
  */
 type Row =
-  | { readonly kind: "line"; readonly line: Line }
+  | { readonly kind: "line"; readonly line: Line; readonly place: Place }
+  /** The day and the hour, over the first line and after a quiet spell (ADR 0050, ADR 0268). */
+  | { readonly kind: "day"; readonly id: string; readonly at: string }
   | {
       readonly kind: "chatter";
       readonly id: string;
@@ -857,12 +878,22 @@ type Row =
       readonly guard?: ExchangeLine | undefined;
     };
 
+/** What a row is, wherever it stands in the list: the key it is drawn with. */
+function keyOf(row: Row): string {
+  return row.kind === "line" ? row.line.id : row.id;
+}
+
 /**
  * Consecutive harness-to-harness lines become one row — collapsed by default, always one tap
  * from inspectable, never gone (blueprint, the eleven calls) — so a room with two harnesses in
  * it reads as what they told the people, with their exchange behind a fold. A line Chips held
  * is theirs too, and the fold carries the referee's line (core's `exchangeLine`), as of its
  * newest line, so it grows as they go on.
+ *
+ * The rest read as the phone's room does (ADR 0050, ADR 0268): one author's bubbles said close
+ * together are a turn (core's `turnsOf`), and the day and the hour stand over the first line and
+ * after a quarter of an hour's quiet. A route over a message, and the agents' talk either side,
+ * start turns of their own.
  */
 function rowsOf(
   space: Space,
@@ -870,15 +901,43 @@ function rowsOf(
   directory: Directory,
   limits: ExchangeLimits | undefined,
 ): Row[] {
+  const between = (line: Line) => betweenHarnesses(line, (id) => isHarness(directory, id));
+  const routed = routesIn(space, directory);
+  const turned = turnsOf(
+    lines,
+    (line) => saidBy(line, directory).id,
+    (line, before) => routed.has(line.id) || between(line) || between(before),
+  );
   const rows: Row[] = [];
-  for (const line of lines) {
-    if (betweenHarnesses(line, (id) => isHarness(directory, id))) {
+  for (const { line, place, separator } of turned) {
+    const folding = between(line);
+    // A fold already open carries on under its own first line's separator.
+    if (separator && !(folding && rows.at(-1)?.kind === "chatter")) {
+      rows.push({ kind: "day", id: `day:${line.id}`, at: line.ts });
+    }
+    if (folding) {
       foldInto(rows, line, refereeAt(space, line, directory, limits));
     } else {
-      rows.push({ kind: "line", line });
+      rows.push({ kind: "line", line, place });
     }
   }
   return rows;
+}
+
+/** Whether a row draws this line: its own, or the fold it is in. */
+function rowHolds(row: Row, lineId: string): boolean {
+  if (row.kind === "line") return row.line.id === lineId;
+  if (row.kind === "chatter") return row.lines.some((line) => line.id === lineId);
+  return false;
+}
+
+/** The day and the hour over a line, centred and quiet, as the phone's separator is. */
+function DayLine({ at }: { readonly at: string }) {
+  return (
+    <div className="msg-day" data-testid="day-line">
+      {separatorLabel(at, Date.now())}
+    </div>
+  );
 }
 
 /** A line of the agents' talk, into the fold the rows end with, or a new one. */
@@ -1236,6 +1295,7 @@ function Top(props: {
   /** An agent's row in the sheet: its page (ADR 0111's addendum). */
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
   readonly sheet: RoomSheetState;
+  readonly headEnd?: ReactNode | undefined;
 }) {
   const { space, directory, sheet } = props;
   const title = spaceTitle(space, directory, props.selfId);
@@ -1251,6 +1311,8 @@ function Top(props: {
         onSheet={props.actions === undefined ? undefined : sheet.show}
         onUniverse={props.actions === undefined ? undefined : sheet.showUniverse}
         titleRef={sheet.titleRef}
+        end={props.headEnd}
+        icon={props.icon}
       />
       {sheet.open !== undefined && props.actions !== undefined && (
         <RoomSheet
@@ -1294,8 +1356,9 @@ function connectionWords(connection: ConnectionState): string {
 }
 
 /**
- * The room's header, as the phone's bar reads (ADR 0151): its face, its name, which opens the room's
- * sheet as the phone's capsule does, the line under it (core's `spaceSubtitle`) and how many of its
+ * The room's header, as the phone's bar reads (ADR 0151): the room's own face, as its row in the
+ * list and the head of its sheet wear it (ADR 0268; until 3 November 2026 the last run's agent's),
+ * its name, which opens the room's sheet as the phone's capsule does, the line under it (core's `spaceSubtitle`) and how many of its
  * agents can't answer; at the right, for a room with a project, Universe's four rings, which open
  * the sheet on Universe (ADR 0227), who is here, which opens the same sheet, and the connection
  * when it is not plainly open. No run state: the thinking bubble says what is going on, and the
@@ -1314,26 +1377,21 @@ function Header(props: {
   /** Opens it on Universe: what the space made, to read and to run (ADR 0227). */
   readonly onUniverse?: ((from: HTMLElement) => void) | undefined;
   readonly titleRef: RefObject<HTMLButtonElement | null>;
+  /** Last at the right: what the place showing the room adds (Search's Open in Spaces). */
+  readonly end?: ReactNode | undefined;
+  /** The face the person chose for the room, which its row and its sheet wear too. */
+  readonly icon: SpaceIcon | undefined;
 }) {
   const { space, directory, connection, onSheet } = props;
   const count = space.members.length;
-  const run = space.run;
   const name = spaceTitle(space, directory, props.selfId);
   // How many of its agents can't answer now, in amber under the name (ADR 0083).
   const warning = cantAnswerWords(cantAnswerIn(space, directory).length);
-  const live = run === undefined ? undefined : LIVE_STATUS[run.state];
+  // Universe calls while the project has a change for this reader they haven't opened it at.
+  const universe = useUniverseCall(space.id, space.project, props.selfId);
   return (
     <header className="conv-h">
-      {run !== undefined ? (
-        <Avatar
-          name={nameOf(directory, run.harnessId)}
-          kind={faceKind(directory, run.harnessId) === "agent" ? "agent" : "harness"}
-          icon={agentFace(directory, run.harnessId)}
-          {...(live === undefined ? {} : { status: live })}
-        />
-      ) : (
-        <Avatar name={name} />
-      )}
+      {spaceAvatar(space, directory, name, props.icon, spaceWorking(space))}
       <div className="conv-h-t">
         <h1>
           {onSheet === undefined ? (
@@ -1361,19 +1419,21 @@ function Header(props: {
             type="button"
             className="conv-members conv-universe"
             data-testid="room-universe-button"
-            aria-label="Universe"
+            aria-label={universe.calling === undefined ? "Universe" : "Universe, updated"}
             title="Universe"
             aria-haspopup="dialog"
-            onClick={(event) => props.onUniverse?.(event.currentTarget)}
+            onClick={(event) => {
+              universe.opened();
+              props.onUniverse?.(event.currentTarget);
+            }}
           >
-            <UniverseMark size={20} />
+            <UniverseMark size={24} calling={universe.calling} />
           </button>
         )}
         <button
           type="button"
           className="conv-members"
           data-testid="members"
-          aria-label="Members"
           aria-haspopup="dialog"
           aria-expanded={props.sheetOpen}
           disabled={onSheet === undefined}
@@ -1383,6 +1443,7 @@ function Header(props: {
           {count} {count === 1 ? "member" : "members"}
         </button>
         <Reach connection={connection} link={props.link} />
+        {props.end}
       </div>
     </header>
   );
@@ -1460,6 +1521,11 @@ interface MessageRowProps {
   readonly named?: boolean | undefined;
   /** Where a person's message went, when that changed with it (ADR 0081), drawn over it. */
   readonly route?: RouteMark | undefined;
+  /**
+   * Where its bubble stands in its author's turn (ADR 0268): the face beside the last, the name in
+   * the first, the time in the last, and the corners that meet another closed up.
+   */
+  readonly place?: Place | undefined;
   /** Feedback on this line is on its way (M3.4). */
   readonly busy?: boolean | undefined;
   /** The reader's Not right? on this line, turned away by the server: said under it (PM-4). */
@@ -1520,6 +1586,7 @@ const MessageRow = memo(
     previous.line.ts === next.line.ts &&
     previous.sessionTag === next.sessionTag &&
     previous.named === next.named &&
+    previous.place === next.place &&
     sameRoute(previous.route, next.route) &&
     attachmentKey(previous.line) === attachmentKey(next.line) &&
     previous.receipt === next.receipt &&
@@ -1588,6 +1655,8 @@ function SpaceRow(props: {
   readonly named: boolean;
   /** The route over this line, when it is a person's message whose address changed. */
   readonly route: RouteMark | undefined;
+  /** Where its bubble stands in its author's turn (ADR 0268); alone when not said. */
+  readonly place?: Place | undefined;
   readonly busy: boolean;
   readonly unsent?: UnsentNote | undefined;
   readonly onFeedback: OnFeedback | undefined;
@@ -1639,6 +1708,7 @@ function SpaceRow(props: {
         : {})}
       named={props.named}
       route={props.route}
+      place={props.place}
       busy={props.busy}
       unsent={props.unsent}
       onFeedback={props.onFeedback}
@@ -1763,6 +1833,25 @@ function SaidFace(props: {
       pinsOut
     />
   );
+}
+
+/**
+ * The face beside a turn's last bubble, and the room it keeps beside the others so they align. A
+ * room of two draws no faces, nor do your own lines (ADR 0268, the phone's ADR 0050 rule 5).
+ */
+function TurnFace(props: {
+  readonly shown: boolean;
+  readonly place: Place;
+  readonly name: string;
+  readonly said: { readonly id: string; readonly kind: string };
+  readonly directory: Directory;
+}) {
+  if (!props.shown) return null;
+  if (endsTurn(props.place))
+    return <SaidFace name={props.name} said={props.said} directory={props.directory} />;
+  // As wide as the face it keeps room for: an agent's pins stand out past its box.
+  const kind = props.said.kind === "person" ? "person" : faceKind(props.directory, props.said.id);
+  return <span className="msg-face-gap" data-kind={kind} aria-hidden="true" />;
 }
 
 /**
@@ -1920,6 +2009,39 @@ function withCards(space: Space): readonly Run[] {
 }
 
 /**
+ * The harnesses at work whose bubbles stand: each once its run has been going `THINKING_GRACE_MS`
+ * and the room's newest line is the server's, and each from then until it stops, whatever is sent
+ * meanwhile — taken down at each send, it folded shut and opened again under every message typed
+ * while the harness worked (the phone, 23 September 2026). The beat is counted from the run's own
+ * start, so a room opened on a run long going shows its bubble at once; a clock ahead of the
+ * server's waits no more than the beat.
+ */
+function useBeat(doing: readonly Doing[], confirmed: boolean): readonly Doing[] {
+  const standing = useRef<ReadonlySet<string>>(new Set());
+  const [, again] = useState(0);
+  const now = Date.now();
+  const left = (each: Doing) => {
+    const started = each.startedAt === undefined ? Number.NaN : new Date(each.startedAt).getTime();
+    if (Number.isNaN(started)) return 0;
+    return Math.min(THINKING_GRACE_MS, Math.max(0, started + THINKING_GRACE_MS - now));
+  };
+  const shown = doing.filter(
+    (each) => standing.current.has(each.harnessId) || (confirmed && left(each) === 0),
+  );
+  const waits = confirmed ? doing.filter((each) => !shown.includes(each)).map(left) : [];
+  const next = waits.length === 0 ? undefined : Math.max(1, Math.min(...waits));
+  useLayoutEffect(() => {
+    standing.current = new Set(shown.map((each) => each.harnessId));
+  });
+  useEffect(() => {
+    if (next === undefined) return;
+    const timer = setTimeout(() => again((n) => n + 1), next);
+    return () => clearTimeout(timer);
+  }, [next]);
+  return shown;
+}
+
+/**
  * What a harness is doing, while it is doing it, and gone the moment it answers.
  *
  * A harness like Jacobian makes ten tool calls to answer one question — `memory_recall`,
@@ -2007,16 +2129,9 @@ function Thinking({
   );
 }
 
-/** The receipt under a summary: what the run did, collapsed until somebody asks (blueprint). */
-function RunReceipt({
-  run,
-  change,
-}: {
-  readonly run: Run;
-  /** The change the reply carries (ADR 0222), ending the line. */
-  readonly change?: { readonly words: string; readonly onOpen: () => void } | undefined;
-}) {
-  const steps: ReceiptStep[] = run.steps
+/** The steps a receipt counts: what the run did, not the ticks on its rail nor a plan not begun. */
+function receiptStepsOf(run: Run): ReceiptStep[] {
+  return run.steps
     .filter((step) => step.kind !== "tick" && step.status !== "planned")
     .map((step) => ({
       id: step.stepId,
@@ -2026,21 +2141,102 @@ function RunReceipt({
       ...(step.durationMs === undefined ? {} : { durationMs: step.durationMs }),
       ...(step.error === undefined ? {} : { error: step.error }),
     }));
-  // A run that only answered still shows what it cost; with no cost either, there is no receipt.
-  if (steps.length === 0 && run.costUsd === undefined && change === undefined) return null;
-  const took =
-    run.startedAt !== undefined && run.endedAt !== undefined
-      ? new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime()
-      : undefined;
+}
+
+/** How long the run took, from the events that said when it began and ended. */
+function tookOf(run: Run): number | undefined {
+  if (run.startedAt === undefined || run.endedAt === undefined) return undefined;
+  return new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime();
+}
+
+/**
+ * Whether a run has a receipt worth asking for: steps, or a cost. A run that only answered still
+ * cost something (ADR 0050's addendum of 20 October 2026); with neither, there is none.
+ */
+function hasRunReceipt(run: Run): boolean {
+  return receiptStepsOf(run).length > 0 || run.costUsd !== undefined;
+}
+
+/** The receipt's one line, `5 steps · 52s · ≈$0.42`, said under What the run did. */
+function runDidWords(run: Run): string {
+  return receiptSummary(receiptStepsOf(run), tookOf(run), run.costUsd);
+}
+
+/**
+ * The model and the tokens, when the run reported them: `gpt-5.6-sol · 30.2k in (19.8k cached) ·
+ * 232 out`, as the phone's receipt page ends. A count the harness did not give is left out.
+ */
+function toldBy(run: Run): string {
+  const tokensIn =
+    run.inputTokens === undefined
+      ? undefined
+      : run.cacheReadTokens === undefined || run.cacheReadTokens <= 0
+        ? `${formatTokens(run.inputTokens)} in`
+        : `${formatTokens(run.inputTokens)} in (${formatTokens(Math.min(run.cacheReadTokens, run.inputTokens))} cached)`;
+  return [
+    run.model,
+    tokensIn,
+    run.outputTokens === undefined ? undefined : `${formatTokens(run.outputTokens)} out`,
+  ]
+    .filter((part) => part !== undefined)
+    .join(" · ");
+}
+
+/**
+ * A run's receipt in the margin: under the status line a failed run left, the one receipt worth
+ * reading where it stands (the phone keeps it behind a press there too, ADR 0050).
+ */
+function RunReceipt({ run }: { readonly run: Run }) {
+  if (!hasRunReceipt(run)) return null;
+  const took = tookOf(run);
   return (
     <div className="msg-receipt" data-testid="receipt-card">
       <Receipt
-        steps={steps}
+        steps={receiptStepsOf(run)}
         {...(took === undefined ? {} : { durationMs: took })}
         {...(run.costUsd === undefined ? {} : { costUsd: run.costUsd })}
-        change={change}
       />
     </div>
+  );
+}
+
+/**
+ * What the run did (ADR 0050, rule 3, and ADR 0268): asked for from the menu of the line that
+ * closed the run, and standing open under it until it is put away — its one line, its steps, and
+ * who did them at what length. The room draws no receipt under a reply otherwise.
+ */
+function RunDid({ run, onClose }: { readonly run: Run; readonly onClose: () => void }) {
+  const took = tookOf(run);
+  const foot = toldBy(run);
+  return (
+    <section
+      className="run-did"
+      aria-label="What the run did"
+      data-testid="run-did"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") onClose();
+      }}
+    >
+      <div className="run-did-head">
+        <b>What the run did</b>
+        <button
+          type="button"
+          className="run-did-close"
+          aria-label="Close"
+          ref={(element) => element?.focus({ preventScroll: true })}
+          onClick={onClose}
+        >
+          <Icon name="x" size={13} />
+        </button>
+      </div>
+      <Receipt
+        steps={receiptStepsOf(run)}
+        {...(took === undefined ? {} : { durationMs: took })}
+        {...(run.costUsd === undefined ? {} : { costUsd: run.costUsd })}
+        open
+      />
+      {foot !== "" && <p className="run-did-foot">{foot}</p>}
+    </section>
   );
 }
 
@@ -2098,6 +2294,8 @@ function MarginLine({ line, directory, run, onOpenAgent }: MessageRowProps) {
 function MessageRowBody(props: MessageRowProps) {
   const [editing, setEditing] = useState(false);
   const [noting, setNoting] = useState(false);
+  // What the run did, asked for from the menu and standing open under the bubble.
+  const [showingRun, setShowingRun] = useState(false);
   const [menu, setMenu] = useState<Point | undefined>(undefined);
   const row = useRef<HTMLDivElement>(null);
   const breaking = useBreaking(props, row);
@@ -2111,31 +2309,31 @@ function MessageRowBody(props: MessageRowProps) {
   const mine = said.id === props.selfId;
   const name = nameOf(directory, said.id);
   const { feedback, offers, reply } = offering(props, breaking.drawn !== undefined);
+  const place = props.place ?? "only";
   // The time lives in the bubble's bottom-right corner, so it is a fact about the message
   // rather than a column of its own; where there is no bubble to put it in — a message that is
-  // only files — `Under` puts it after them.
-  const stamp = (
-    <span className="bub-stamp">
-      <Stamp line={line} offline={props.offline} onDiscard={props.onDiscard} />
-    </span>
-  );
+  // only files — `Under` puts it after them. A turn says it once, in its last bubble (ADR 0268);
+  // a line still on its way, or refused, says so wherever it stands.
+  const stamp = turnStamp(props, place);
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click is a shortcut to the menu, not the way in — the `⋯` beside the bubble opens the same one and is in the tab order
     <div
       ref={row}
       className="msg"
-      data-line={line.id}
-      data-mine={mine ? "true" : undefined}
-      data-pending={line.pending ? "true" : undefined}
-      data-failed={line.failed === undefined ? undefined : "true"}
-      data-focused={props.focused === true ? "true" : undefined}
+      {...rowMarks(props, mine, place)}
       onContextMenu={(event) => {
         if (!offers) return;
         event.preventDefault();
         setMenu({ x: event.clientX, y: event.clientY });
       }}
     >
-      {!mine && <SaidFace name={name} said={said} directory={directory} />}
+      <TurnFace
+        shown={!mine && props.named === true}
+        place={place}
+        name={name}
+        said={said}
+        directory={directory}
+      />
       <div className="msg-body">
         <RouteOver route={props.route} line={line} mine={mine} directory={directory} />
         <Tags
@@ -2150,7 +2348,7 @@ function MessageRowBody(props: MessageRowProps) {
           mine={mine}
           editing={editing}
           actions={props.actions}
-          who={props.named === true && !mine ? name : undefined}
+          who={props.named === true && !mine && opensTurn(place) ? name : undefined}
           stamp={stamp}
           marks={props.marks}
           came={breaking.came}
@@ -2165,6 +2363,8 @@ function MessageRowBody(props: MessageRowProps) {
           noting={noting}
           feedback={feedback}
           onDoneNoting={() => setNoting(false)}
+          runDid={showingRun ? receiptOf(props) : undefined}
+          onDoneRunDid={() => setShowingRun(false)}
         />
         <Waits lineId={line.id} />
       </div>
@@ -2182,6 +2382,10 @@ function MessageRowBody(props: MessageRowProps) {
           asking={actions.asking}
           onDelete={breaking.choose}
           onFeedback={feedback}
+          head={`${name} · ${separatorLabel(line.ts, Date.now())}`}
+          name={name}
+          runDid={runDidOf(props)}
+          onRunDid={() => setShowingRun(true)}
           onReply={reply}
           onEdit={() => setEditing(true)}
           onNote={() => setNoting(true)}
@@ -2190,6 +2394,46 @@ function MessageRowBody(props: MessageRowProps) {
       )}
     </div>
   );
+}
+
+/** What a row says of itself for the stylesheet and the tests: whose, how far along, where in its turn. */
+function rowMarks(
+  props: MessageRowProps,
+  mine: boolean,
+  place: Place,
+): Readonly<Record<`data-${string}`, string | undefined>> {
+  const { line } = props;
+  return {
+    "data-line": line.id,
+    "data-mine": mine ? "true" : undefined,
+    "data-pending": line.pending ? "true" : undefined,
+    "data-failed": line.failed === undefined ? undefined : "true",
+    "data-focused": props.focused === true ? "true" : undefined,
+    "data-place": place === "only" ? undefined : place,
+  };
+}
+
+/** The time in a turn's last bubble, or where a line still on its way, or refused, is. */
+function turnStamp(props: MessageRowProps, place: Place): ReactNode {
+  const { line } = props;
+  if (!endsTurn(place) && line.pending !== true && line.failed === undefined) return null;
+  return (
+    <span className="bub-stamp">
+      <Stamp line={line} offline={props.offline} onDiscard={props.onDiscard} />
+    </span>
+  );
+}
+
+/** The run this line closed, when it has a receipt to ask for: a summary's (ADR 0050, rule 3). */
+function receiptOf(props: MessageRowProps): Run | undefined {
+  const { line, run } = props;
+  return line.kind === "summary" && run !== undefined && hasRunReceipt(run) ? run : undefined;
+}
+
+/** The receipt's one line, for under the menu's What the run did. */
+function runDidOf(props: MessageRowProps): string | undefined {
+  const run = receiptOf(props);
+  return run === undefined ? undefined : runDidWords(run);
 }
 
 /**
@@ -2213,7 +2457,13 @@ function offering(
     actions !== undefined &&
     line.pending !== true &&
     !breaking &&
-    hasMenu(actions.may, line, feedback !== undefined, onReply !== undefined);
+    hasMenu(
+      actions.may,
+      line,
+      feedback !== undefined,
+      onReply !== undefined,
+      receiptOf(props) !== undefined,
+    );
   const reply =
     onReply !== undefined && !breaking && mayReply(line) ? () => onReply(line) : undefined;
   return { feedback, offers, reply };
@@ -2428,6 +2678,9 @@ function Under(
     readonly noting: boolean;
     readonly feedback: OnFeedback | undefined;
     readonly onDoneNoting: () => void;
+    /** The run whose receipt the reader asked for, standing open under the bubble. */
+    readonly runDid: Run | undefined;
+    readonly onDoneRunDid: () => void;
   },
 ) {
   const { line, directory, feedback } = props;
@@ -2437,19 +2690,15 @@ function Under(
         <Attachments attachments={line.attachments} files={props.files} lineId={line.id} />
       )}
       {line.text === "" && line.deleted !== true && props.reply === undefined && props.stamp}
-      {line.kind === "summary" && props.run !== undefined && (
-        <RunReceipt run={props.run} change={changeMark(props)} />
+      {line.change !== undefined && props.changeWords !== undefined && (
+        <div className="msg-receipt">
+          <Receipt steps={[]} change={changeMark(props)} />
+        </div>
       )}
-      {line.change !== undefined &&
-        (line.kind !== "summary" || props.run === undefined) &&
-        props.changeWords !== undefined && (
-          <div className="msg-receipt">
-            <Receipt steps={[]} change={changeMark(props)} />
-          </div>
-        )}
       <FeedbackGiven line={line} directory={directory} unsent={props.unsent} />
       <Heard line={line} directory={directory} />
       <RepliesMark replies={props.replies ?? []} onGo={props.onReplies} />
+      {props.runDid !== undefined && <RunDid run={props.runDid} onClose={props.onDoneRunDid} />}
       {props.noting && feedback !== undefined && (
         <NoteForm
           line={line}
@@ -2661,6 +2910,12 @@ function halfIn(el: Element, row: Element): boolean {
   return shown > 0 && shown >= Math.min(edge.height, box.height) / 2;
 }
 
+/** A room's sheet asked for from outside the room, and the page it is to come up on. */
+export interface SheetFor {
+  readonly spaceId: string;
+  readonly on: "add" | "icon";
+}
+
 /** The room's sheet: what opened it and on which page, while it is up (ADR 0151). */
 interface RoomSheetState {
   /**
@@ -2670,7 +2925,7 @@ interface RoomSheetState {
   readonly open:
     | {
         readonly from: HTMLElement | null;
-        readonly on: "who" | "add" | "universe";
+        readonly on: "who" | "add" | "universe" | "icon";
         readonly n: number;
         /** The change it opens on, from under the reply that made it (ADR 0222). */
         readonly change?: string | undefined;
@@ -2697,7 +2952,7 @@ function changeOpener(onSpace: SpaceActions | undefined, sheet: RoomSheetState) 
 
 function useRoomSheet(
   spaceId: string,
-  membersFor: string | undefined,
+  sheetFor: SheetFor | undefined,
   onShown: (() => void) | undefined,
 ): RoomSheetState {
   const [open, setOpen] = useState<RoomSheetState["open"]>(undefined);
@@ -2718,10 +2973,11 @@ function useRoomSheet(
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new room is what puts it away.
   useEffect(() => setOpen(undefined), [spaceId]);
   useEffect(() => {
-    if (membersFor !== spaceId) return;
-    add();
+    if (sheetFor?.spaceId !== spaceId) return;
+    opened.current += 1;
+    setOpen({ from: titleRef.current, on: sheetFor.on, n: opened.current });
     shown.current?.();
-  }, [membersFor, spaceId, add]);
+  }, [sheetFor, spaceId]);
   return {
     open,
     show: (from) => {
@@ -2999,8 +3255,9 @@ function Stamp({
  * one that carries the reply and the cost.
  */
 /**
- * What the empty field says: what a steer is for while the Steer chip is on; who the words are for,
- * in a room of several harnesses (*Message Everyone*, Arjun's A); else that commands go here too.
+ * What the empty field says: what a steer is for while the Steer chip is on; that a closed space
+ * takes nothing; who the words are for, in a room of several harnesses (*Message Everyone*, Arjun's
+ * A); else that commands go here too.
  */
 function placeholderOf(
   steering: boolean,
@@ -3011,8 +3268,9 @@ function placeholderOf(
 ): string {
   if (steering)
     return narrow ? "What should it do instead?" : "Steer the run: what should it do instead?";
-  // A phone's field has room for a word, not the slash commands (JR-15).
-  if (aim === undefined) return narrow ? "Message" : "Message, or type / to steer, pause, or stop…";
+  // The phone's words (ADR 0268): short enough for a narrow window's field, and the same on both.
+  if (space.state === "closed") return CLOSED_FIELD_PLACEHOLDER;
+  if (aim === undefined) return FIELD_PLACEHOLDER;
   return `Message ${aimWordsOf(aim, space, directory)}`;
 }
 

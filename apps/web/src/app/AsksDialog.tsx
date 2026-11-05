@@ -3,7 +3,8 @@
  * parts/AskList.tsx`) in the desktop's terms: a dialog that grows out of the dots on When it asks
  * you, the asks newest first under their days, All, Yes and No at the top when they are not all one
  * or the other. A row opens the ask whole in the same dialog: the question and its preview, the
- * answer and when it came, and Open in its space.
+ * answer and when it came, and Open in its space. With no harness it is every ask in the workspace,
+ * from the dots on You's Allowed always.
  */
 
 import {
@@ -38,7 +39,8 @@ import { Segmented } from "./you/controls.tsx";
 export function AsksDialog(props: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
-  readonly harnessId: string;
+  /** Whose asks; none, every harness's. */
+  readonly harnessId: string | undefined;
   readonly selfId: string | undefined;
   /** The dots it grows out of. */
   readonly from: HTMLElement | null;
@@ -99,7 +101,7 @@ export function AsksDialog(props: {
 function List(props: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
-  readonly harnessId: string;
+  readonly harnessId: string | undefined;
   readonly selfId: string | undefined;
   readonly titleId: string;
   readonly now: number;
@@ -110,12 +112,14 @@ function List(props: {
   const rows = askRows(props.model, props.directory, props.harnessId, props.selfId, props.now);
   const filters = askFilters(rows);
   const shown = filters.some((each) => each.id === filter) ? rowsUnder(rows, filter) : rows;
-  const name = nameOf(props.directory, props.harnessId);
+  const name = props.harnessId === undefined ? undefined : nameOf(props.directory, props.harnessId);
   return (
     <>
       <div className="new-space-head">
-        <Avatar name={name} kind="harness" size="sm" />
-        <h2 id={props.titleId}>{`${name}'s ${ASKS_TITLE.toLowerCase()}`}</h2>
+        {name === undefined ? null : <Avatar name={name} kind="harness" size="sm" />}
+        <h2 id={props.titleId}>
+          {name === undefined ? ASKS_TITLE : `${name}'s ${ASKS_TITLE.toLowerCase()}`}
+        </h2>
         <Close onClose={props.onClose} />
       </div>
       {filters.length === 0 ? null : (

@@ -297,6 +297,29 @@ describe("a server that cannot push (ADR 0244)", () => {
   });
 });
 
+describe("a server whose pushes don't get through (ADR 0244)", () => {
+  it("says so to the phone, and gives the banner back to the computer", async () => {
+    await ws.close();
+    // Nothing listens on port 9: the push service is down.
+    ws = await createTestWorkspace({
+      config: { push: { url: "http://127.0.0.1:9/send" } } as Partial<TestWorkspace["config"]>,
+    });
+    expect((await registerPhone(ws.arjun)).status).toBe(200);
+    const server = async () =>
+      (await call("GET", "/v1/server", signed(ws.arjun, "GET", "/v1/server"))).body["pushes"];
+    expect(await server()).toBe("ready");
+
+    const { approvalId } = await raiseAsk();
+    expect(await server()).toBe("failing");
+
+    // The phone's push didn't go, so its claim was given back and the computer may raise it.
+    const claims = "/v1/me/notifications/claims";
+    const body = { keys: [`decision:${approvalId}`] };
+    const asked = await call("POST", claims, signed(ws.arjun, "POST", claims, body));
+    expect(asked.body["granted"]).toEqual([`decision:${approvalId}`]);
+  });
+});
+
 describe("an agent's @ reaching a phone (ADR 0158)", () => {
   const key = randomBytes(32).toString("base64");
 

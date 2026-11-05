@@ -415,7 +415,9 @@ takes its pushes only with the project's access token. A server without it sends
 through the Chips push relay at `relay.chipschat.ai`, which has the token and passes them on to
 Expo ([ADR 0246](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0246-chips-sends-pushes-for-any-server-through-its-relay.md)). The relay checks that each is a Chips push, pushes one phone at most
 thirty times a minute, logs no token or words, and counts how many it sent each day. A server
-with the token (`CHIPS_PUSH_ACCESS_TOKEN`) posts to Expo itself.
+with the token (`CHIPS_PUSH_ACCESS_TOKEN`) posts to Expo itself. A build of the app under your own
+Apple team pushes through an Expo project of your own, so the server it pairs with needs that
+project's token ([push, with a paid team](/contribute/phone/#push-with-a-paid-team)).
 
 A server that can't push leaves the banner to your computer
 ([ADR 0244](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0244-a-server-that-cannot-push-says-so-and-claims-no-banner.md)).
@@ -428,8 +430,9 @@ it on the server's machine. What needs you still waits in Chips.
 
 It says what is wrong rather than failing quietly:
 
-- **This build has no Expo project id.** A build from this checkout has one, in `app.json`; a
-  fork of it needs `eas init` in `apps/mobile`, once, with an Expo account.
+- **This build has no Expo project id.** A build from this checkout has Chips' own, in `app.json`;
+  a build under your own Apple team needs one of its own ([push, with a paid
+  team](/contribute/phone/#push-with-a-paid-team)).
 - **This phone is not allowing notifications.** Settings → Notifications → Chips.
 - **This build cannot receive push.** It was signed by a free team, so it has no push
   entitlement and iOS will not issue a token. The switch stays off until the build changes: the
@@ -440,6 +443,9 @@ It says what is wrong rather than failing quietly:
 - **Your server can't send notifications**, with the switch on or off: it has no access token
   for Expo, or Expo refused the one it has ([above](#what-push-needs)). The switch still works,
   and the phone is pushed to the day the server can.
+- **Your server's last notifications didn't get through**: the service that delivers them,
+  Expo or the Chips relay, didn't answer or didn't accept them. The next one tries again, and the
+  line goes once one gets through. A decision the phone missed comes up on your computer instead.
 
 ## What is not there yet
 

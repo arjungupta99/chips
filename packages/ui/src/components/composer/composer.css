@@ -16,6 +16,19 @@
   gap: 6px;
 }
 
+/* A file staged fades up where it lands; the field grows under it at once, and the room over it
+   moves on its own spring. */
+.ui-composer__attachments > li {
+  animation: ui-composer-staged var(--motion-base) var(--ease);
+}
+
+@keyframes ui-composer-staged {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
 .ui-composer__row {
   display: flex;
   align-items: flex-end;

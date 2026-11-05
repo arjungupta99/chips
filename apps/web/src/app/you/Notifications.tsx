@@ -1,62 +1,50 @@
 /**
- * Notifications on You (M5.6, ADR 0085): the person's settings, the same on every device of
- * theirs and saved whole to the server on every change, and one switch that is this device's
- * alone — whether this workspace raises banners here at all.
+ * Notifications on You (M5.6, ADR 0085, ADR 0265): one card, as the phone's is. First this
+ * device's one switch, whether this workspace raises banners here at all, which the server is not
+ * told. Then the person's settings, the same on every device of theirs and saved whole to the
+ * server on every change: each a row with what it is set to, opening a form that sets it, as the
+ * phone's rows open sheets.
  *
- * Each row says what it covers in the person's words rather than the tier's name: Decisions are
- * what an agent is waiting on, Finished work is runs that end and questions an agent will answer
- * itself, Checkpoints are an agent saying where it has got to. The quiet hours say what gets
- * through them as it is set, not as it usually is. Agents says what each of its three words
- * lets through, and that the word is a harness's, covering every agent it runs.
+ * Decisions are what an agent is waiting on; Finished work is runs that end and questions an agent
+ * will answer itself; Checkpoints are an agent saying where it has got to. The phone has no rows
+ * for the last two, which the server never pushes; the open app raises them here as banners. The
+ * quiet hours say their window, and under it what gets through them. Agents says what is turned
+ * down, and its form one word per harness, covering every agent it runs.
  */
 
-import { type Directory, type Participant, workspaceHarnesses } from "@chipschat/core";
+import {
+  agentsWords,
+  DECIDE_WORDS,
+  type Directory,
+  FYI_WORDS,
+  HEAR_WORDS,
+  type Participant,
+  quietSub,
+  quietWords,
+  REVIEW_WORDS,
+  workspaceHarnesses,
+} from "@chipschat/core";
 import type { HarnessNotifications, NotificationSettings, QuietHours } from "@chipschat/protocol";
-import { Avatar, Button } from "@chipschat/ui";
-import { Fragment, useEffect, useRef, useState } from "react";
-import { Card, Choice, Problem, Row, reasonOf, Switch } from "./controls.tsx";
+import { Avatar } from "@chipschat/ui";
+import { useEffect, useRef, useState } from "react";
+import { Choice, reasonOf, Switch } from "./controls.tsx";
+import { ChoiceList, FormPage } from "./Form.tsx";
+import { Group, HUES, ListRow, RowMark } from "./list.tsx";
 import type { NotificationsService } from "./services.ts";
 
-const DECIDE_WORDS = [
-  ["now", "Right away"],
-  ["off", "Off"],
-] as const;
-const REVIEW_WORDS = [
-  ["hourly", "At most one an hour"],
-  ["off", "Never"],
-] as const;
-const FYI_WORDS = [
-  ["daily", "At most one a day"],
-  ["off", "Never"],
-] as const;
+/** A new window's hours: the evening to the morning, with decisions let through. */
+const NIGHT: QuietHours = { from: "22:00", to: "07:00", breakthrough: "decide" };
+
 const HARNESS_WORDS = [
   ["all", "Everything"],
   ["decide", "Decisions only"],
   ["none", "Nothing"],
 ] as const satisfies readonly (readonly [HarnessNotifications, string])[];
 
-/** A new window's hours: the evening to the morning, with decisions let through. */
-const NIGHT: QuietHours = { from: "22:00", to: "07:00", breakthrough: "decide" };
-
-/**
- * A time the server keeps as `22:00`, as this computer says times — "10:00 PM" on a twelve-hour
- * clock — so the line agrees with the time fields beside it, which the browser draws its own way.
- */
-export function clockWords(time: string): string {
-  const [hours = 0, minutes = 0] = time.split(":").map(Number);
-  return new Date(2026, 0, 1, hours, minutes).toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-/** What the quiet hours line says: the window, and what gets through it as it is set. */
-export function quietWords(quiet: QuietHours | undefined): string {
-  if (quiet === undefined) return "Off: a banner may come at any hour";
-  const through =
-    quiet.breakthrough === "decide" ? "decisions still get through" : "nothing gets through";
-  return `${clockWords(quiet.from)} to ${clockWords(quiet.to)} · ${through}`;
-}
+/** Which form is open, and the row that opened it. */
+type Open =
+  | { readonly form: "decide" | "review" | "fyi" | "quiet" | "agents"; readonly from: HTMLElement }
+  | undefined;
 
 export function Notifications(props: {
   readonly service: NotificationsService | undefined;
@@ -67,57 +55,85 @@ export function Notifications(props: {
   readonly muted: boolean;
   readonly onMute: ((muted: boolean) => void) | undefined;
 }) {
+  const { service, onMute } = props;
   return (
-    <Card
-      label="Notifications"
-      testId="notifications"
-      title="Notifications"
-      aside={
-        <small>
-          {props.onMute === undefined
-            ? "Yours on every device"
-            : "Yours on every device, except the first switch"}
-        </small>
-      }
-    >
-      {props.onMute !== undefined && (
+    <Group heading="Notifications" label="Notifications" testId="notifications">
+      {(onMute !== undefined || service?.browser !== undefined) && (
         <Banners
           workspace={props.workspace}
           desktop={props.desktop}
           muted={props.muted}
-          onMute={props.onMute}
+          onMute={onMute}
+          browser={service?.browser}
         />
       )}
-      {props.service !== undefined && (
-        <Settings service={props.service} directory={props.directory} />
-      )}
-    </Card>
+      {service !== undefined && <Settings service={service} directory={props.directory} />}
+    </Group>
   );
 }
 
-/** This device's one switch: whether this workspace raises banners here. The server is not told. */
+type Leave = NonNullable<NotificationsService["browser"]>["state"];
+
+/**
+ * Banners here, one switch, as the phone's Notify me is: on only while a banner can be raised. In a
+ * browser that is the person's word for this workspace and the browser's own leave together, so a
+ * browser that has refused shows the switch off, held, with where to allow it under it; one not
+ * asked yet shows it off, and turning it on asks. The desktop app needs no leave.
+ */
 function Banners(props: {
   readonly workspace: string;
   readonly desktop: boolean;
   readonly muted: boolean;
-  readonly onMute: (muted: boolean) => void;
+  readonly onMute: ((muted: boolean) => void) | undefined;
+  readonly browser: NotificationsService["browser"];
 }) {
+  const { browser, onMute } = props;
+  const [leave, setLeave] = useState<Leave>(browser?.state ?? "granted");
   const here = props.desktop ? "Banners on this computer" : "Banners in this browser";
+  const on = !props.muted && leave !== "denied" && leave !== "default";
+  const turn = (to: boolean) => {
+    if (!to) return onMute?.(true);
+    if (leave !== "default" || browser === undefined) return onMute?.(false);
+    browser.ask().then(
+      (given) => {
+        setLeave(given);
+        if (given === "granted") onMute?.(false);
+      },
+      () => undefined,
+    );
+  };
   return (
-    <Row
-      testId="mute"
+    <ListRow
       label={here}
-      sub={`Off, and nothing from ${props.workspace} reaches a banner${props.desktop ? " or the menu bar" : ""} here`}
-    >
-      <Switch label={here} checked={!props.muted} onChange={(on) => props.onMute(!on)} />
-    </Row>
+      sub={bannersSub(leave, on, props.workspace, props.desktop)}
+      mark={<RowMark icon="bell" tint="var(--red)" />}
+      trailing={
+        <Switch
+          label={here}
+          checked={on}
+          disabled={leave === "denied" || onMute === undefined}
+          onChange={turn}
+        />
+      }
+      testId="mute"
+    />
   );
+}
+
+/** What the switch's line says: why it is off, and how to turn it on, where it is off. */
+function bannersSub(leave: Leave, on: boolean, workspace: string, desktop: boolean) {
+  if (leave === "denied") {
+    return "This browser has refused banners. Allow them in its settings to hear from here.";
+  }
+  if (leave === "default") return "This browser hasn't been asked yet. Turning this on asks it.";
+  if (on) return undefined;
+  return `Off. Nothing from ${workspace} reaches a banner${desktop ? " or the menu bar" : ""} here.`;
 }
 
 /**
  * The settings as the store holds them, with a change shown at once while it saves. The store's
  * word wins once the save is answered, so a refusal puts back what the server has, with the
- * reason above it, and a change made on the phone shows here when the store reads it again.
+ * reason under the card, and a change made on the phone shows here when the store reads it again.
  */
 function useSettings(service: NotificationsService) {
   const [pending, setPending] = useState<NotificationSettings | undefined>(undefined);
@@ -151,176 +167,289 @@ function Settings(props: {
   readonly directory: Directory;
 }) {
   const { settings, error, change } = useSettings(props.service);
+  const [open, setOpen] = useState<Open>(undefined);
   // Every agent in the workspace, not only those that have worked yet: one can be quietened
   // before its first run.
   const agents = workspaceHarnesses(props.directory);
+  const opener = (form: NonNullable<Open>["form"]) => (from: HTMLElement) =>
+    setOpen({ form, from });
+  const gone = () => setOpen(undefined);
   return (
     <>
-      <Problem error={error} />
-      <Row label="Decisions" sub="An approval or a question an agent is waiting on">
-        <Choice
-          label="Decisions"
-          value={settings.decide}
-          options={DECIDE_WORDS}
-          onChange={(decide) => change({ ...settings, decide })}
-        />
-      </Row>
-      <Row
+      <ListRow
+        label="Decisions"
+        value={DECIDE_WORDS[settings.decide]}
+        mark={<RowMark icon="check" tint="var(--gold)" ink="#231a00" />}
+        onOpen={opener("decide")}
+        testId="decisions-row"
+      />
+      <ListRow
         label="Finished work"
-        sub="Runs that finish or fail, and questions an agent will answer itself"
-      >
-        <Choice
-          label="Finished work"
-          value={settings.review}
-          options={REVIEW_WORDS}
-          onChange={(review) => change({ ...settings, review })}
-        />
-      </Row>
-      <Row label="Checkpoints" sub="An agent saying where it's got to">
-        <Choice
-          label="Checkpoints"
-          value={settings.fyi}
-          options={FYI_WORDS}
-          onChange={(fyi) => change({ ...settings, fyi })}
-        />
-      </Row>
-      <Quiet quiet={settings.quiet} onChange={(quiet) => change({ ...settings, quiet })} />
+        value={REVIEW_WORDS[settings.review]}
+        mark={<RowMark icon="inbox" tint={HUES.teal} />}
+        onOpen={opener("review")}
+        testId="review-row"
+      />
+      <ListRow
+        label="Checkpoints"
+        value={FYI_WORDS[settings.fyi]}
+        mark={<RowMark icon="bookmark" tint={HUES.green} />}
+        onOpen={opener("fyi")}
+        testId="fyi-row"
+      />
+      <ListRow
+        label="Quiet hours"
+        sub={quietSub(settings.quiet)}
+        value={quietWords(settings.quiet)}
+        mark={<RowMark icon="moon" tint={HUES.violet} />}
+        onOpen={opener("quiet")}
+        testId="quiet-row"
+      />
       {agents.length > 0 && (
-        <Agents
+        <ListRow
+          label="Agents"
+          value={agentsWords(
+            agents.map((each) => ({ id: each.id, name: each.displayName })),
+            settings.harnesses,
+          )}
+          mark={<RowMark icon="chip" tint={HUES.blue} />}
+          onOpen={opener("agents")}
+          testId="agents-row"
+        />
+      )}
+      {error !== undefined && (
+        <p className="you-lrow-error" role="alert" data-testid="notifications-error">
+          {error}
+        </p>
+      )}
+      {open?.form === "decide" && (
+        <OneOf
+          title="Decisions"
+          from={open.from}
+          testId="decide-form"
+          value={settings.decide}
+          options={[
+            {
+              value: "now",
+              words: DECIDE_WORDS.now,
+              sub: "An approval or a question an agent is waiting on, as it comes",
+            },
+            {
+              value: "off",
+              words: DECIDE_WORDS.off,
+              sub: "Nothing an agent waits on raises a banner",
+            },
+          ]}
+          onChange={(decide) => change({ ...settings, decide })}
+          onGone={gone}
+        />
+      )}
+      {open?.form === "review" && (
+        <OneOf
+          title="Finished work"
+          from={open.from}
+          testId="review-form"
+          value={settings.review}
+          options={[
+            {
+              value: "hourly",
+              words: "At most one an hour",
+              sub: "Runs that finish or fail, and questions an agent will answer itself, gathered into one banner",
+            },
+            { value: "off", words: REVIEW_WORDS.off, sub: "They wait in their spaces" },
+          ]}
+          onChange={(review) => change({ ...settings, review })}
+          onGone={gone}
+        />
+      )}
+      {open?.form === "fyi" && (
+        <OneOf
+          title="Checkpoints"
+          from={open.from}
+          testId="fyi-form"
+          value={settings.fyi}
+          options={[
+            {
+              value: "daily",
+              words: "At most one a day",
+              sub: "An agent saying where it's got to, gathered into one banner",
+            },
+            { value: "off", words: FYI_WORDS.off, sub: "They wait in their spaces" },
+          ]}
+          onChange={(fyi) => change({ ...settings, fyi })}
+          onGone={gone}
+        />
+      )}
+      {open?.form === "quiet" && (
+        <QuietForm
+          from={open.from}
+          quiet={settings.quiet}
+          onChange={(quiet) => change({ ...settings, quiet })}
+          onGone={gone}
+        />
+      )}
+      {open?.form === "agents" && (
+        <AgentsForm
+          from={open.from}
           agents={agents}
           heard={settings.harnesses}
           onChange={(harnesses) => change({ ...settings, harnesses })}
+          onGone={gone}
         />
       )}
-      {props.service.browser !== undefined && <BrowserLeave browser={props.service.browser} />}
     </>
+  );
+}
+
+/** A setting of two or three answers: picked, it saves, and the form stays up to show the tick. */
+function OneOf<T extends string>(props: {
+  readonly title: string;
+  readonly from: HTMLElement;
+  readonly testId: string;
+  readonly value: T;
+  readonly options: readonly { readonly value: T; readonly words: string; readonly sub?: string }[];
+  readonly onChange: (value: T) => void;
+  readonly onGone: () => void;
+}) {
+  return (
+    <FormPage
+      title={props.title}
+      from={props.from}
+      testId={props.testId}
+      focus=".you-choice input:checked"
+      onGone={props.onGone}
+    >
+      {() => (
+        <>
+          <ChoiceList
+            label={props.title}
+            value={props.value}
+            options={props.options}
+            onChange={props.onChange}
+          />
+          <p className="you-form-foot">Yours on every device of yours.</p>
+        </>
+      )}
+    </FormPage>
   );
 }
 
 /** Quiet hours: on or off, the window, and whether a decision still gets through it. */
-function Quiet(props: {
+function QuietForm(props: {
+  readonly from: HTMLElement;
   readonly quiet: QuietHours | undefined;
   readonly onChange: (quiet: QuietHours | undefined) => void;
+  readonly onGone: () => void;
 }) {
   const { quiet } = props;
   return (
-    <>
-      <Row label="Quiet hours" sub={quietWords(quiet)}>
-        <Switch
-          label="Quiet hours"
-          checked={quiet !== undefined}
-          onChange={(on) => props.onChange(on ? NIGHT : undefined)}
-        />
-      </Row>
-      {quiet !== undefined && (
-        <div className="you-row you-row-more" data-testid="quiet-window">
-          <label className="you-time">
-            From
-            <input
-              type="time"
-              aria-label="Quiet from"
-              value={quiet.from}
-              required
-              onChange={(event) => {
-                if (event.target.value !== "")
-                  props.onChange({ ...quiet, from: event.target.value });
-              }}
-            />
-          </label>
-          <label className="you-time">
-            to
-            <input
-              type="time"
-              aria-label="Quiet to"
-              value={quiet.to}
-              required
-              onChange={(event) => {
-                if (event.target.value !== "") props.onChange({ ...quiet, to: event.target.value });
-              }}
-            />
-          </label>
-          <span className="you-grow" />
-          <span className="you-time">
-            <span aria-hidden="true">Let decisions through</span>
-            <Switch
-              label="Let decisions through"
-              checked={quiet.breakthrough === "decide"}
-              onChange={(on) => props.onChange({ ...quiet, breakthrough: on ? "decide" : "none" })}
-            />
-          </span>
-        </div>
+    <FormPage title="Quiet hours" from={props.from} testId="quiet-form" onGone={props.onGone}>
+      {() => (
+        <>
+          <div className="you-form-group">
+            <div className="you-form-row">
+              <span>Use quiet hours</span>
+              <Switch
+                label="Quiet hours"
+                checked={quiet !== undefined}
+                onChange={(on) => props.onChange(on ? NIGHT : undefined)}
+                testId="quiet-switch"
+              />
+            </div>
+            {quiet !== undefined && (
+              <>
+                <div className="you-form-row" data-testid="quiet-window">
+                  <label className="you-time">
+                    From
+                    <input
+                      type="time"
+                      aria-label="Quiet from"
+                      value={quiet.from}
+                      required
+                      onChange={(event) => {
+                        if (event.target.value !== "")
+                          props.onChange({ ...quiet, from: event.target.value });
+                      }}
+                    />
+                  </label>
+                  <label className="you-time">
+                    to
+                    <input
+                      type="time"
+                      aria-label="Quiet to"
+                      value={quiet.to}
+                      required
+                      onChange={(event) => {
+                        if (event.target.value !== "")
+                          props.onChange({ ...quiet, to: event.target.value });
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="you-form-row">
+                  <span>Let decisions through</span>
+                  <Switch
+                    label="Let decisions through"
+                    checked={quiet.breakthrough === "decide"}
+                    onChange={(on) =>
+                      props.onChange({ ...quiet, breakthrough: on ? "decide" : "none" })
+                    }
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <p className="you-form-foot" data-testid="quiet-words">
+            {quiet === undefined
+              ? "Nothing buzzes while they last, except what you let through."
+              : `${quietWords(quiet)}. ${quietSub(quiet)}.`}
+          </p>
+        </>
       )}
-    </>
+    </FormPage>
   );
 }
 
-/** What each word for a harness lets through, under Agents. A reply is never a notification. */
-const HEAR_WORDS = [
-  "One choice per harness, for every agent it runs.",
-  "Everything: its decisions, finished work, checkpoints, and messages that @ you.",
-  "Decisions only: just what it's stopped on until you answer.",
-  "Nothing: it never notifies you. Its spaces still show everything.",
-] as const;
-
 /** How much the person hears from each harness in the workspace, one word each. */
-function Agents(props: {
+function AgentsForm(props: {
+  readonly from: HTMLElement;
   readonly agents: readonly Participant[];
   readonly heard: NotificationSettings["harnesses"];
   readonly onChange: (harnesses: NotificationSettings["harnesses"]) => void;
+  readonly onGone: () => void;
 }) {
   return (
-    <div className="you-row you-agents" data-testid="notify-harnesses">
-      <span className="you-row-lab">
-        <span>Agents</span>
-        {HEAR_WORDS.map((line) => (
-          <small key={line}>{line}</small>
-        ))}
-      </span>
-      <div className="you-agents-grid">
-        {props.agents.map(({ id, displayName }) => (
-          <Fragment key={id}>
-            <span className="you-agent">
-              <Avatar name={displayName} kind="harness" size="xs" />
-              {displayName}
-            </span>
-            <Choice
-              label={`Hear from ${displayName}`}
-              value={props.heard[id] ?? "all"}
-              options={HARNESS_WORDS}
-              onChange={(word) => props.onChange({ ...props.heard, [id]: word })}
-            />
-          </Fragment>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** The browser's own leave to show banners, and the asking; the desktop app needs none. */
-function BrowserLeave(props: { readonly browser: NonNullable<NotificationsService["browser"]> }) {
-  const [state, setState] = useState(props.browser.state);
-  if (state === "unsupported") return null;
-  return (
-    <Row
-      testId="browser-notifications"
-      className="you-row-quiet"
-      label={
-        state === "granted"
-          ? "This browser shows banners."
-          : state === "denied"
-            ? "This browser has refused banners; allow them in its settings to hear from here."
-            : "This browser shows no banners yet."
-      }
-    >
-      {state === "default" && (
-        <Button
-          onClick={() => {
-            props.browser.ask().then(setState, () => undefined);
-          }}
-        >
-          Allow banners here
-        </Button>
+    <FormPage title="Agents" from={props.from} testId="agents-form" onGone={props.onGone}>
+      {() => (
+        <>
+          <div className="you-form-group" data-testid="notify-harnesses">
+            {props.agents.map(({ id, displayName }) => {
+              const word = props.heard[id] ?? "all";
+              return (
+                <div key={id} className="you-form-row you-agent-row">
+                  <span className="you-agent">
+                    <Avatar name={displayName} kind="harness" size="xs" />
+                    <span className="you-choice-lab">
+                      <span>{displayName}</span>
+                      <small>{HEAR_WORDS[word]}</small>
+                    </span>
+                  </span>
+                  <Choice
+                    label={`Hear from ${displayName}`}
+                    value={word}
+                    options={HARNESS_WORDS}
+                    onChange={(next) => props.onChange({ ...props.heard, [id]: next })}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <p className="you-form-foot">
+            One word per harness, for every agent it runs. Whatever you choose, its spaces still
+            show everything it says.
+          </p>
+        </>
       )}
-    </Row>
+    </FormPage>
   );
 }

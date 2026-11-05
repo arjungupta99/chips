@@ -1,6 +1,7 @@
 /**
  * `/v1/me/pinned-spaces` (ADR 0240): a room pinned is the person's own, for a room they are in,
- * read back the newest pin first, and nobody else's to read.
+ * read back the newest pin first, and nobody else's to read; and an archived room is pinned by
+ * nobody, then or after it is unarchived.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -70,6 +71,54 @@ describe("a room a person pinned to the top of their own list", () => {
     expect((await call("DELETE", one, signed(ws.arjun, "DELETE", one))).status).toBe(204);
     const gone = await call("GET", list, signed(ws.arjun, "GET", list));
     expect(gone.body["spaces"]).toEqual([]);
+  });
+
+  it("lets go of every pin on a room as it is archived, and does not bring them back with it", async () => {
+    const one = `/v1/me/pinned-spaces/${ws.spaceId}`;
+    await call("PUT", one, signed(ws.arjun, "PUT", one, {}));
+    await call("PUT", one, signed(ws.dana, "PUT", one, {}));
+    const asArjun = (state: "open" | "closed") =>
+      ws.gateway.deps.submitEvent({
+        event: {
+          type: "space.updated",
+          space_id: ws.spaceId,
+          state,
+          idempotency_key: ws.ids.next("event"),
+        },
+        principal: {
+          kind: "person",
+          participantId: ws.arjun.participantId,
+          workspaceId: ws.workspaceId,
+          displayName: "Arjun",
+          via: "device_key",
+          role: "owner",
+        },
+      });
+    expect((await asArjun("closed")).ok).toBe(true);
+    expect((await call("GET", list, signed(ws.arjun, "GET", list))).body["spaces"]).toEqual([]);
+    expect((await call("GET", list, signed(ws.dana, "GET", list))).body["spaces"]).toEqual([]);
+    expect((await asArjun("open")).ok).toBe(true);
+    expect((await call("GET", list, signed(ws.arjun, "GET", list))).body["spaces"]).toEqual([]);
+  });
+
+  it("leaves out a room archived without its pins let go, and lets them go as it is read", async () => {
+    const one = `/v1/me/pinned-spaces/${ws.spaceId}`;
+    await call("PUT", one, signed(ws.arjun, "PUT", one, {}));
+    // Archived straight into the log, by a road that does not pass the door.
+    await ws.gateway.deps.store.append({
+      v: 1,
+      type: "space.updated",
+      id: ws.ids.next("event"),
+      ts: new Date().toISOString(),
+      workspace_id: ws.workspaceId,
+      space_id: ws.spaceId,
+      actor: { kind: "person", id: ws.arjun.participantId },
+      idempotency_key: ws.ids.next("event"),
+      state: "closed",
+    } as Parameters<typeof ws.gateway.deps.store.append>[0]);
+    expect((await call("GET", list, signed(ws.arjun, "GET", list))).body["spaces"]).toEqual([]);
+    const rows = await ws.db.selectFrom("pinned_spaces").selectAll().execute();
+    expect(rows).toEqual([]);
   });
 
   it("reads back the newest pin first, and pinning one again keeps its place", async () => {

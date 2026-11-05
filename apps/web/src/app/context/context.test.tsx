@@ -186,6 +186,7 @@ const agents: AgentsService = {
   archive: vi.fn(),
   remove: vi.fn(),
   lock: vi.fn(),
+  face: vi.fn(),
 };
 
 function tab(
@@ -486,11 +487,11 @@ describe("the editor", () => {
   });
 });
 
-describe("a harness's page and card", () => {
-  it("opens a shared file on its harness's page, the file flashing there, and goes back", async () => {
+describe("a harness's page and its context files", () => {
+  it("opens a shared file on its harness's context files, the file flashing there, and goes back", async () => {
     tab(reads().service);
     fireEvent.click(await screen.findByTestId("context-row-PURPOSE.md"));
-    const page = await screen.findByRole("main", { name: "Lathe" });
+    const page = await screen.findByRole("main", { name: "Lathe: Context files" });
     const shared = await within(page).findByTestId("harness-context-shared");
     const row = within(shared).getByTestId("context-row-PURPOSE.md");
     expect(words(row)).toContain("12");
@@ -502,21 +503,30 @@ describe("a harness's page and card", () => {
     expect(await screen.findByTestId("agent-card")).toBeTruthy();
   });
 
-  it("opens a shared file to read from the harness's page, going back to it", async () => {
+  it("opens the harness's page from the foot, its files a row there, and a file to read, going back", async () => {
     tab(reads().service);
     fireEvent.click(await screen.findByTestId("context-foot-link"));
+    const page = await screen.findByRole("main", { name: "Lathe" });
+    // How many its agents share, at the row's right (ADR 0254).
+    const row = await within(page).findByTestId("harness-context-row");
+    await waitFor(() => expect(words(row)).toContain("1 shared"));
+    fireEvent.click(row);
     fireEvent.click(await screen.findByTestId("context-row-PURPOSE.md"));
-    const page = await screen.findByTestId("context-read-only");
-    expect(words(within(page).getByTestId("context-used-by"))).toContain("12 agents");
+    const file = await screen.findByTestId("context-read-only");
+    expect(words(within(file).getByTestId("context-used-by"))).toContain("12 agents");
+    fireEvent.click(screen.getByRole("button", { name: "‹ Context files" }));
+    expect(await screen.findByRole("main", { name: "Lathe: Context files" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "‹ Lathe" }));
     expect(await screen.findByRole("main", { name: "Lathe" })).toBeTruthy();
   });
 
-  it("lists what its agents share on its card in every harness's list, for its owner only", async () => {
+  it("lists what its agents share for its owner only, from every harness's list", async () => {
     const { service } = reads();
     const { unmount } = tab(service, { agent: null });
-    // Under the shelf's View all (ADR 0185).
+    // Under the shelf's View all (ADR 0185), the harness's card opens its page.
     fireEvent.click(await screen.findByRole("button", { name: "View all harnesses" }));
+    fireEvent.click(await screen.findByTestId(`harness-summary-${LATHE}`));
+    fireEvent.click(await screen.findByTestId("harness-context-row"));
     const shared = await screen.findByTestId("harness-context-shared");
     expect(words(shared)).toContain("Built into Lathe, so it is read only here.");
     // How many read it, and no faces: Chips knows how many, not which (AC-4).
@@ -528,8 +538,9 @@ describe("a harness's page and card", () => {
     const other = reads();
     tab(other.service, { selfId: DANA, agent: null, model: withScout });
     fireEvent.click(await screen.findByRole("button", { name: "View all harnesses" }));
+    fireEvent.click(await screen.findByTestId(`harness-summary-${LATHE}`));
     await screen.findByTestId("harness-card");
-    expect(screen.queryByTestId("harness-context")).toBeNull();
+    expect(screen.queryByTestId("harness-context-row")).toBeNull();
     expect(other.service.harnessContext).not.toHaveBeenCalled();
   });
 });

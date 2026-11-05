@@ -7,9 +7,12 @@ import type { Line, Space, WorkspaceModel } from "./model/types.js";
 import { findSpaces, searchIndex, searchTerms } from "./search.js";
 import {
   closesRun,
+  hitArchived,
   hitAuthor,
   hitPlace,
   hitWords,
+  SEARCH_LOOKS_AT,
+  SEARCH_LOOKS_AT_NAMES,
   type SearchFound,
   searchItems,
   spaceFoundLine,
@@ -146,6 +149,19 @@ describe("what a Search page lists", () => {
     expect(kinds(found({ messages: idle }))).toEqual(["nothing"]);
   });
 
+  it("says under nothing found what was looked at: the names alone before messages are asked for", () => {
+    const idle = { ...done([]), status: "idle" as const, answered: false };
+    const said = (over: Partial<SearchFound>) => {
+      const [item] = searchItems(found(over));
+      return item?.kind === "nothing" ? item.looksAt : undefined;
+    };
+    // One letter in All: names only, not everything said.
+    expect(said({ messages: idle })).toBe(SEARCH_LOOKS_AT_NAMES);
+    // Answered, or under a chip: what that search looks at, as before.
+    expect(said({ messages: done([]) })).toBe(SEARCH_LOOKS_AT.all);
+    expect(said({ scope: "messages", messages: done([]) })).toBe(SEARCH_LOOKS_AT.messages);
+  });
+
   it("says why there are no messages when the server can't be reached, or the ask failed", () => {
     expect(kinds(found({ online: false }))).toEqual(["heading", "offline"]);
     expect(kinds(found({ messages: { ...done([]), status: "failed" } }))).toEqual([
@@ -213,6 +229,16 @@ describe("what a result row says", () => {
     const [room, thread] = model.spaces as Space[];
     expect(hitPlace(room as Space, model, directory, ARJUN)).toBe("Chinatown dinner");
     expect(hitPlace(thread as Space, model, directory, ARJUN)).toBe("Chinatown dinner · thread");
+  });
+
+  it("says whether it was said in an archived space, or in a thread off one", () => {
+    const [room, thread] = model.spaces as Space[];
+    expect(hitArchived(room as Space, model)).toBe(false);
+    expect(hitArchived(thread as Space, model)).toBe(false);
+    const archived = { ...(room as Space), state: "closed" as const };
+    const put = { ...model, spaces: [archived, thread as Space] } as typeof model;
+    expect(hitArchived(archived, put)).toBe(true);
+    expect(hitArchived(thread as Space, put)).toBe(true);
   });
 });
 

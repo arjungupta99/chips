@@ -43,7 +43,7 @@ import {
   workspaceOwnerName,
 } from "@chipschat/core";
 import type { JobSpend } from "@chipschat/protocol";
-import { Button, Icon } from "@chipschat/ui";
+import { Icon } from "@chipschat/ui";
 import {
   type KeyboardEvent,
   type ReactNode,
@@ -55,7 +55,7 @@ import {
 import type { FileService } from "../files.ts";
 import { SharedTag } from "../SharedTag.tsx";
 import type { SpaceActions } from "./actions.ts";
-import { Chev, Face, Group, Row } from "./parts.tsx";
+import { Chev, CloseX, Face, Group, Row } from "./parts.tsx";
 import {
   LeadTile,
   LockTile,
@@ -74,8 +74,13 @@ export function Who(props: {
   readonly selfId: string;
   readonly model: WorkspaceModel | undefined;
   readonly actions: SpaceActions;
-  /** The room's face, as its row in the rail wears it (ADR 0202): it opens nothing here. */
+  /** The room's face, as its row in the rail wears it (ADR 0202). */
   readonly face: ReactNode;
+  /**
+   * The face pressed: the Icon page (ADR 0264's addendum), as the phone's sheet head opens it.
+   * Without it the face opens nothing.
+   */
+  readonly onIcon?: (() => void) | undefined;
   /** What the room's lines carry, newest first: the Media & files card's (ADR 0202). */
   readonly media: readonly CarriedFile[];
   /** The room's files, once the server has said (ADR 0100): how many the card says. */
@@ -103,7 +108,6 @@ export function Who(props: {
   readonly onHide: (hidden: boolean) => void;
   /** Pin the room to the top of the reader's list, or let it go (ADR 0240). */
   readonly onPin: (pinned: boolean) => void;
-  readonly onClose: () => void;
 }) {
   const { space, directory, selfId, actions, model } = props;
   const main = leadOf(space, directory);
@@ -115,9 +119,7 @@ export function Who(props: {
   return (
     <>
       <div className="sheet-head">
-        <span className="sheet-room-face" data-testid="room-sheet-icon">
-          {props.face}
-        </span>
+        <RoomFace face={props.face} onIcon={props.onIcon} />
         <div className="sheet-head-words">
           <RoomTitle
             titleId={props.titleId}
@@ -133,15 +135,7 @@ export function Who(props: {
             <p className="sheet-hint">{whoIsHere(space, directory)}</p>
           </div>
         </div>
-        <button
-          type="button"
-          className="new-space-close"
-          aria-label="Close"
-          data-testid="room-sheet-close"
-          onClick={props.onClose}
-        >
-          <Icon name="x" size={14} />
-        </button>
+        <CloseX />
       </div>
       <Section
         name="In this space"
@@ -179,7 +173,6 @@ export function Who(props: {
         onPutAway={props.onPutAway}
         onHide={props.onHide}
         onPin={props.onPin}
-        onDone={props.onClose}
       />
     </>
   );
@@ -235,6 +228,32 @@ function hereIn(space: Space, directory: Directory) {
     people: space.members.filter((id) => directory[id]?.kind === "person"),
     harnesses: space.members.filter((id) => directory[id]?.kind === "harness"),
   };
+}
+
+/** The room's face at the sheet's head: with a pen on it where a press changes it, as on the phone. */
+function RoomFace(props: { readonly face: ReactNode; readonly onIcon: (() => void) | undefined }) {
+  if (props.onIcon === undefined) {
+    return (
+      <span className="sheet-room-face" data-testid="room-sheet-icon">
+        {props.face}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="sheet-room-face"
+      aria-label="Change icon"
+      title="Changes the space's icon"
+      onClick={props.onIcon}
+      data-testid="room-sheet-icon"
+    >
+      {props.face}
+      <span className="sheet-room-face-pen" aria-hidden="true">
+        <Icon name="pen" size={11} />
+      </span>
+    </button>
+  );
 }
 
 /**
@@ -440,7 +459,6 @@ function Foot(props: {
   readonly onPutAway: (asking: "archive" | "delete") => void;
   readonly onHide: (hidden: boolean) => void;
   readonly onPin: (pinned: boolean) => void;
-  readonly onDone: () => void;
 }) {
   const { space, actions } = props;
   const archived = space.state === "closed";
@@ -497,9 +515,6 @@ function Foot(props: {
           Delete space…
         </button>
       )}
-      <Button className="sheet-done" onClick={props.onDone} data-testid="room-sheet-done">
-        Done
-      </Button>
     </div>
   );
 }

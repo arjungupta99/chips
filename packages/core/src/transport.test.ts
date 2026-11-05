@@ -1586,3 +1586,31 @@ describe("how a run on the person's Mac stands (ADR 0226)", () => {
     expect(heard).toEqual([{ spaceId: "spc_01K4ZQPX000000000000000001", run }]);
   });
 });
+
+describe("how far the person has read on another device (ADR 0262)", () => {
+  it("says reads in its hello with a listener, and hands it each frame's marks", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("WebSocket", FakeSocket);
+    vi.stubGlobal(
+      "fetch",
+      async () => new Response(JSON.stringify({ ticket: "tkt_1" }), { status: 200 }),
+    );
+    const heard: unknown[] = [];
+    connect({
+      device,
+      since: 0,
+      onEvent: () => {},
+      onState: () => {},
+      onReads: (marks) => heard.push(marks),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    const socket = opened[0] as FakeSocket;
+    socket.onopen?.();
+    const hello = JSON.parse(socket.sent[0] as string) as { accepts?: string[] };
+    expect(hello.accepts).toEqual(["events", "presence", "join", "reads"]);
+
+    socket.say({ frame: "read", spaces: { spc_01K4ZQPX000000000000000001: 12 } });
+    socket.say({ frame: "read", spaces: { spc_01K4ZQPX000000000000000001: -1 } });
+    expect(heard).toEqual([{ spc_01K4ZQPX000000000000000001: 12 }]);
+  });
+});

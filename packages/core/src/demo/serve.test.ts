@@ -178,6 +178,14 @@ describe("the demo's reads", () => {
     expect(hits[0]?.snippet).toContain(`${SNIPPET_OPEN}Osteria${SNIPPET_CLOSE}`);
     expect((await read(`q=Osteria&space_id=${GARDEN}`)).hits).toEqual([]);
     expect((await read("q=+")).hits).toEqual([]);
+    // As the server finds them (ADR 0263): the start of a word, never the inside of one.
+    const mi = await read("q=mi&limit=20");
+    expect(
+      mi.hits.map((hit) => hit.snippet).filter((said) => said.includes("fa\u{E000}mi")),
+    ).toEqual([]);
+    expect((await read("q=card+sent")).hits[0]?.snippet).toContain(
+      `${SNIPPET_OPEN}card${SNIPPET_CLOSE} ${SNIPPET_OPEN}sent${SNIPPET_CLOSE}`,
+    );
   });
 
   it("lists a room's files, and what its job has spent since a person last acted", async () => {

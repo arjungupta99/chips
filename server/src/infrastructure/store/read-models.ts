@@ -2079,6 +2079,10 @@ async function messageHits(
   });
 }
 
+/**
+ * The steps found, each in its run's space. A step of a turn that ended on `NO_REPLY` is left out
+ * (ADR 0105): the turn drew nothing in the room, so a result for it had nowhere to open.
+ */
 async function receiptHits(
   db: Kysely<Database>,
   workspaceId: string,
@@ -2100,6 +2104,9 @@ async function receiptHits(
     where steps_fts match ${match}
       and workspace_id = ${workspaceId}
       and space_id in (${sql.join(spaces)})
+      and not exists (
+        select 1 from runs where runs.id = steps_fts.run_id and no_reply(runs.summary)
+      )
       ${olderThan(after, sql`updated_at`, sql`(run_id || '/' || step_id)`)}
     order by updated_at desc, run_id desc, step_id desc
     limit ${take}

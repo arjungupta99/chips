@@ -119,6 +119,7 @@ import { GROWS, GrowingView } from "../ui/growing";
 import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
 import { useColumn } from "../ui/Screen";
+import { useFootClear } from "../ui/Split";
 import { usePalette, useScheme } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import {
@@ -135,10 +136,23 @@ import { WIDTH as COLUMN_WIDTH } from "./faceColumnMath";
 import type { FileService } from "./files";
 import { useFirstFrame } from "./firstFrame";
 import { pick, type Source } from "./pick";
+import type { Picked } from "./picked";
 import { forgetPicks, keepPick, pickFor } from "./picks";
 import { ReplyStrip } from "./ReplyStrip";
+import { useDropInto } from "./RoomDrop";
 import type { Launch } from "./sendLanding";
 import { type Staged, useStaged } from "./useStaged";
+
+/**
+ * Photos and files dropped onto the room from other apps, staged as the + stages what it picks
+ * (ADR 0256), where the room takes files.
+ */
+function useDropStaging(takes: boolean, add: (picked: readonly Picked[]) => void) {
+  const latest = useRef(add);
+  latest.current = add;
+  const dropped = useCallback((picked: readonly Picked[]) => latest.current(picked), []);
+  useDropInto(takes ? dropped : undefined);
+}
 
 /** What was typed and not sent, by space, while the app runs. */
 const drafts = new Map<string, string>();
@@ -421,7 +435,7 @@ function placeholderOf(
   directory: Directory,
 ): string {
   if (hushed) return "";
-  if (space.state === "closed") return "This space is closed";
+  if (space.state === "closed") return "This space is archived";
   return aim === undefined ? "Message, or /command" : messageWords(aim, space, directory);
 }
 
@@ -820,13 +834,18 @@ export function Composer({
   const keyboard = useScheme();
   const input = useRef<TextInput>(null);
   const column = useColumn();
+  // On an iPad with the list away, the room starts under the tabs' capsule: its foot keeps clear.
+  const clear = useFootClear();
   const [text, setText] = useState(() => drafts.get(space.id) ?? "");
   const [measured, setMeasured] = useState<number | undefined>(undefined);
   const [notice, setNotice] = useState<string | undefined>(undefined);
   const [sheet, setSheet] = useState(false);
+  // The +, which on an iPad the sheet opens beside.
+  const plusRef = useRef<View>(null);
   const sent = useRef<Sent | undefined>(undefined);
   const [hushed, hush] = useHush();
   const staged = useStaged(files, caps);
+  useDropStaging(files !== undefined, staged.add);
   const look = useLook();
   const reply = useReplying(space.id, input);
   const under = useUnderFinger(space, directory, selfId);
@@ -984,27 +1003,29 @@ export function Composer({
           ))}
         </ScrollView>
       )}
-      <View style={[styles.row, column]}>
+      <View style={[styles.row, column, clear]}>
         {files === undefined ? null : (
           // A drop of the same glass beside the field, the whole of it the +'s: the mark is bare
           // because the glass is already the surface it needs, and a filled circle on it would
           // be a button on a button.
-          <Capsule style={styles.plus} interactive>
-            <IconButton
-              icon="plus"
-              label="Attach"
-              tone="bare"
-              size={SEND}
-              testID="composer-attach"
-              disabled={disabled}
-              // The keyboard goes down as the sheet comes up: on iOS it is a window above every
-              // other, and a sheet rising under it would arrive half hidden.
-              onPress={() => {
-                Keyboard.dismiss();
-                setSheet(true);
-              }}
-            />
-          </Capsule>
+          <View ref={plusRef} collapsable={false}>
+            <Capsule style={styles.plus} interactive>
+              <IconButton
+                icon="plus"
+                label="Attach"
+                tone="bare"
+                size={SEND}
+                testID="composer-attach"
+                disabled={disabled}
+                // The keyboard goes down as the sheet comes up: on iOS it is a window above every
+                // other, and a sheet rising under it would arrive half hidden.
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setSheet(true);
+                }}
+              />
+            </Capsule>
+          </View>
         )}
         {/*
          * The box is the target, not the glyphs in it: a press on the padding, or on the empty
@@ -1163,6 +1184,7 @@ export function Composer({
       {files === undefined ? null : (
         <AttachSheet
           open={sheet}
+          from={plusRef}
           onPick={(source) => void choose(source)}
           onRecorded={(picked) => {
             staged.add([picked]);

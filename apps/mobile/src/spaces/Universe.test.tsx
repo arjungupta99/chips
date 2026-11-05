@@ -10,10 +10,12 @@ import {
   screen,
   userEvent,
   waitFor,
+  within,
 } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore, snapshot } from "../testing/fixtures";
+import { SheetDock } from "../ui/Sheet";
 import { UniverseSheet } from "./Universe";
 
 const IPHONE = {
@@ -161,6 +163,31 @@ describe("Universe on the phone (ADR 0227)", () => {
     await act(async () => view.props["onLoadEnd"]());
     await waitFor(() => expect(screen.queryByText("Opening…")).toBeNull());
     expect(screen.getByTestId("page-view")).toBeOnTheScreen();
+  });
+
+  // 3 November 2026: "We also need a full screen view button maybe somewhere so we can view
+  // content full screen when possible".
+  it("opens the start page full screen from the words it already read", async () => {
+    const store = storeWith({ ".chips/index.html": "<h1>Terafab</h1>" });
+    let asked = 0;
+    (store as { projectPage: Store["projectPage"] }).projectPage = async () => {
+      asked += 1;
+      return "<h1>Terafab</h1>";
+    };
+    await open(store);
+    await screen.findByTestId("page-view", { includeHiddenElements: true });
+    await userEvent.press(screen.getByRole("button", { name: "Full screen" }));
+    expect(await screen.findByTestId("page-sheet")).toBeOnTheScreen();
+    await waitFor(() =>
+      expect(screen.getAllByTestId("page-view", { includeHiddenElements: true })).toHaveLength(2),
+    );
+    expect(asked).toBe(1);
+  });
+
+  it("has no Full screen where the tab draws no page", async () => {
+    await open(storeWith({ "a.html": "<h1>A</h1>", "b.html": "<h1>B</h1>" }));
+    expect(await screen.findByTestId("universe-document-a.html")).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Full screen" })).toBeNull();
   });
 
   it("lists several documents when there is no start page, and says so", async () => {
@@ -316,5 +343,29 @@ describe("Universe on the phone (ADR 0227)", () => {
       expect(screen.getByText("Nothing here opens on your Mac yet.")).toBeOnTheScreen(),
     );
     expect(screen.getByTestId("universe-open-folder")).toBeOnTheScreen();
+  });
+});
+
+describe("Universe in the column beside a room (ADR 0276)", () => {
+  const sheet = () => (
+    <UniverseSheet
+      store={storeWith({ "main.py": "print(1)" })}
+      space={space}
+      selfId="per_arjun"
+      title="Terra Fab Research"
+      open
+      onClose={() => undefined}
+    />
+  );
+
+  it("stands its tabs on the name's line on a wide sheet", async () => {
+    await render(sheet());
+    expect(within(screen.getByTestId("universe-head")).getByTestId("universe-tabs")).toBeTruthy();
+  });
+
+  it("stands its tabs under the name in the column, where on its line they ran over it", async () => {
+    await render(<SheetDock.Provider value={420}>{sheet()}</SheetDock.Provider>);
+    expect(within(screen.getByTestId("universe-head")).queryByTestId("universe-tabs")).toBeNull();
+    expect(screen.getByTestId("universe-tabs")).toBeOnTheScreen();
   });
 });

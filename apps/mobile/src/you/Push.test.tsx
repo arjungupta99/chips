@@ -132,6 +132,15 @@ describe("the switch", () => {
     );
     await second.unmount();
 
+    // Pushes that didn't get through: said, and the switch is as it was.
+    const third = await render(<Push device={DEVICE} store={facts("failing")} />);
+    await ready();
+    expect(await screen.findByTestId("push-problem")).toHaveTextContent(
+      /Your server's last notifications didn't get through/,
+    );
+    expect(screen.getByTestId("push-switch")).toBeEnabled();
+    await third.unmount();
+
     await render(<Push device={DEVICE} store={facts("ready")} />);
     await ready();
     expect(screen.queryByTestId("push-problem")).toBeNull();

@@ -2,7 +2,11 @@ import { HARNESS_CAPABILITIES } from "@chipschat/protocol";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
+  askingName,
+  askingTitle,
   capabilityWords,
+  codeWords,
+  decidedWords,
   JOIN_STEPS,
   type JoinRequest,
   joinCardState,
@@ -171,6 +175,19 @@ describe("the switches a person sees", () => {
     expect([...OFFERED].sort()).toEqual(Object.values(HARNESS_CAPABILITIES).sort());
     for (const name of OFFERED) expect(capabilityWords(name).label).not.toBe(name);
   });
+
+  it("give every switch a short sentence for its hover, and an unknown one none (ADR 0257)", () => {
+    for (const name of OFFERED) {
+      const hint = capabilityWords(name).hint ?? "";
+      // A whole sentence, short enough for one or two lines of a small bubble.
+      expect(hint).toMatch(/^[A-Z].*\.$/);
+      expect(hint.length).toBeLessThanOrEqual(70);
+    }
+    expect(capabilityWords(HARNESS_CAPABILITIES.followsRooms).hint).toBe(
+      "When you archive or delete a space, it does too.",
+    );
+    expect(capabilityWords("email.send")).toEqual({ name: "email.send", label: "email.send" });
+  });
 });
 
 describe("the next request a person is asked about", () => {
@@ -288,5 +305,57 @@ describe("a link made from a gallery card (ADR 0171)", () => {
     expect(linkStarts()).toEqual(LINK_DEFAULTS);
     expect(linkStarts({})).toEqual(LINK_DEFAULTS);
     expect(linkStarts({ capabilities: ["teleport"] })).toEqual(LINK_DEFAULTS);
+  });
+});
+
+describe("what a request says once decided, as the phone's sheet (ADR 0271)", () => {
+  const asked = {
+    requestId: "jrq_1",
+    kind: "harness",
+    state: "redeemed",
+    startedBy: "requester",
+    wants: [],
+    capabilities: [],
+    url: "http://127.0.0.1:4431",
+    createdAt: "2026-11-03T16:00:00.000Z",
+    expiresAt: "2026-11-03T16:15:00.000Z",
+  } as const satisfies JoinRequest;
+
+  it("says who joined, and where to find them", () => {
+    expect(decidedWords(asked, "Tide")).toEqual({
+      ok: true,
+      title: "Tide joined",
+      line: "Its space is on your Spaces.",
+    });
+    expect(decidedWords({ ...asked, kind: "invite" }, "Priya").line).toBe("They're in People now.");
+    expect(decidedWords({ ...asked, kind: "device" }, "iPad", "Noor")).toEqual({
+      ok: true,
+      title: "iPad is paired",
+      line: "It opens on Noor's Spaces.",
+    });
+  });
+
+  it("says it is on its way once allowed, and why it stopped otherwise", () => {
+    expect(decidedWords({ ...asked, state: "allowed" }, "Tide").line).toBe(
+      "Tide is collecting its key.",
+    );
+    expect(decidedWords({ ...asked, state: "denied" }, "Tide")).toEqual({
+      ok: false,
+      title: "Not allowed",
+      line: "Somebody said no.",
+    });
+    expect(decidedWords({ ...asked, state: "expired" }, "Tide").title).toBe("It expired");
+  });
+});
+
+describe("what the allow sheet says around a request, on both clients (ADR 0271)", () => {
+  it("names it, says what it wants, and how to check its code", () => {
+    const harness = request({ name: undefined });
+    expect(askingName(harness)).toBe("A harness");
+    expect(askingName(request({ kind: "device", name: undefined }))).toBe("A device");
+    expect(askingTitle(request({ name: "Tide" }), "Tide")).toBe("Tide wants to join");
+    expect(askingTitle(request({ kind: "device" }), "iPad")).toBe("iPad wants to pair");
+    expect(codeWords("iPad", true)).toBe("Type the code iPad shows.");
+    expect(codeWords("Tide", false)).toBe("Check it matches the code Tide printed.");
   });
 });

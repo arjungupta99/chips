@@ -85,3 +85,48 @@ should look polished and delightful".
   row already listed has neither.
 - Walked on a simulator (a Release build with this bundle, over a copy of his data) and in a
   browser (frame by frame). Not walked: his iPhone at 120 Hz, the Mac app's WebKit, Reduce Motion.
+
+## Addendum, 3 November 2026: nothing on the Mac and the web changes in a frame
+
+Arjun: "everything should have smooth transitions and look highly polished", for the web and Chips
+for Mac. Walked in Playwright's WebKit on the Demo at 1280 and 900 wide, light and dark, with each
+frame logged by `requestAnimationFrame`. What still changed in a frame, and what cost frames:
+
+- **The list moved under what was fading.** The chips come under the field with the first letter
+  and go with the last, so the whole list moves 36 pixels in that frame. The rows going and the
+  backdrop jumped with it while they faded. Now `searchMotion.ts` keeps where the list stood on the
+  screen (`at`: the scrolling column's place, less its scroll). A row that stays, a row that goes
+  and anything over the list marked `data-leaving` are taken from where they were seen, not where
+  they were in the list.
+- **"Nothing for …" flashed between letters.** One letter in All looks at names alone, so a letter
+  no name starts with said nothing was found. The next letter swapped that line for the messages
+  on their way (3 frames, measured). While the messages are still to be asked for (`idle` or
+  `waiting`), the line is held (`data-hold`). It arrives once typing has paused as long as the
+  messages wait (`SEARCH_PAUSE_MS`, 200 ms), so a quick next letter takes it away unseen. Once the
+  server has answered, it comes at once.
+- **The chips went in a frame.** As the field empties, a copy of them fades where they stood
+  (`--motion-fast`), the chip that was chosen still chosen. The copy can't be reached and isn't
+  read out, and the room under the field has already closed. They come in with the phone's 6-point
+  settle on `--motion-base` and `--ease`. That happens only when typed on this visit: Search opened
+  on words typed before shows the chips as they were, under the shell's change of section (ADR
+  0274).
+- **Hover, press, the lit row and the open row snapped.** Each now changes on `--motion-fast`. A
+  chip not chosen dims to 0.7 when pressed, as on the phone. See all and Clear dim to 0.6, as the
+  phone's See all does. A row pressed goes a step stronger, to the open row's colour. Open in
+  Spaces presses in as the room's pills do. The arrows scroll to the row they light rather than
+  jumping (`"auto"` with less motion asked for).
+- **The backdrop was drawn afresh each time the field emptied.** It was unmounted after its fade
+  and built again: 18 faces with SVG silhouettes, 30 to 63 ms over two or three frames (23 ms at
+  most with the faces hidden). Now it is kept once drawn, as the phone keeps its own. It rests out
+  of sight with its faces still (`data-resting`, `visibility: hidden`, animations paused) and fades
+  up from nothing when the field empties: 24 to 36 ms. What remains is the faces' first paint. Kept
+  at opacity 0 instead was worse (up to 76 ms).
+- **Timings come from the design system.** The chips, the backdrop's fade out and "Nothing open"
+  use `--motion-fast`/`--motion-base` and `--ease`. The backdrop's 450 ms fade up stays: it is the
+  phone's `SHOW_MS`.
+- **With less motion asked for**, `base.css` stops every CSS animation. The chips' copy and a
+  leaving backdrop are hidden at once rather than standing whole until their fade would have ended.
+
+Not changed: the placeholder rows arriving take one frame of 21 to 24 ms when typed at a normal
+pace, with or without their breathing. Frames over 30 ms come only when fast typing stacks changes,
+on a machine under load.

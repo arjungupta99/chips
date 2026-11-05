@@ -19,12 +19,17 @@ describe("a wide window", () => {
     expect(isWide(507, 1194)).toBe(false);
   });
 
-  it("is roomy before it is wide: an iPad mini upright, and never a phone", () => {
+  it("takes in an iPad mini upright, whose room is still wider than a phone's (ADR 0256)", () => {
+    expect(isWide(744, 1133)).toBe(true);
     expect(isRoomy(744, 1133)).toBe(true);
-    expect(isWide(744, 1133)).toBe(false);
+    expect(isWide(699, 1133)).toBe(false);
     expect(isRoomy(440, 956)).toBe(false);
     expect(isRoomy(956, 440)).toBe(false);
     expect(isRoomy(507, 1194)).toBe(false);
+  });
+
+  it("takes in an iPhone Duo open, 890 across: the list beside the room", () => {
+    expect(isWide(890, 626)).toBe(true);
   });
 
   it("is read off the window", async () => {

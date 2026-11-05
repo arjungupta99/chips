@@ -18,9 +18,12 @@
  */
 
 import {
+  ALLOW_WORDS,
   administers,
   allowArgs,
   arrivalWords,
+  askingName,
+  askingTitle,
   CANCEL_LINK,
   CONNECT_WAY_ORDER,
   CONNECT_WAYS,
@@ -28,14 +31,18 @@ import {
   type ConnectWay,
   type ConnectWhere,
   capabilityWords,
+  choiceKey,
+  codeWords,
+  connectedHereLine,
   connectHead,
   connectNote,
   curlRedeem,
   type Directory,
+  decidedWords,
   faceOf,
   fetchesBridge,
+  GALLERY_LEDE,
   hereAlreadyWords,
-  JOIN_STEPS,
   type JoinCard,
   type JoinRequest,
   joinCardOf,
@@ -48,20 +55,26 @@ import {
   nameOf,
   nextJoinAsk,
   OFFERED,
+  ownWayHeading,
   type PairAsChoice,
   pairAsChoices,
   pairedAsWords,
   sayOf,
   sdkLines,
   shellLine,
-  stallWords,
   switchesFor,
   type WorkspaceModel,
 } from "@chipschat/core";
 import { type Connector, isLinkKind, pairingCode, pairingCodeTyped } from "@chipschat/protocol";
 import { Avatar, Button, Icon } from "@chipschat/ui";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { BridgeWays, type ConnectHere, CopyBox, useConnectHere } from "./ConnectBridge.tsx";
+import {
+  BridgeWays,
+  type ConnectHere,
+  CopyBox,
+  LinkSteps,
+  useConnectHere,
+} from "./ConnectBridge.tsx";
 import { GrowingDialog } from "./GrowingDialog.tsx";
 import { useNow } from "./useNow.ts";
 import { Switch } from "./you/controls.tsx";
@@ -106,8 +119,10 @@ function Close(props: { readonly onClose: () => void; readonly testId: string })
 }
 
 /**
- * The docs' cards, then the two the app carries. Choosing one makes its link. With no docs to read,
- * it is the two.
+ * The docs' cards, then the two the app carries under "Or build your own", as the phone's gallery
+ * (ADR 0190, 0271). Choosing one makes its link. With no docs to read, it is the two, under "Build
+ * your own". A card for a harness here already says so, and that picking it offers another or a
+ * new agent.
  */
 export function Gallery(props: {
   readonly titleId: string;
@@ -120,41 +135,44 @@ export function Gallery(props: {
   /** The harnesses here already, by name (`connectedNames`): their cards say so. */
   readonly connected?: ReadonlySet<string> | undefined;
 }) {
+  const cards = props.cards ?? [];
   return (
     <section className="join-gallery" data-testid="join-gallery">
       <div className="new-space-head">
         <h2 id={props.titleId}>{props.title ?? "Connect a harness"}</h2>
         {props.onClose !== undefined && <Close onClose={props.onClose} testId="add-agent-close" />}
       </div>
-      <p className="join-lede">
-        {props.lede ??
-          "Pick how your harness connects. It joins as an agent you can talk to and supervise from your phone."}
-      </p>
+      <p className="join-lede">{props.lede ?? GALLERY_LEDE}</p>
+      {cards.length > 0 && (
+        <div className="join-cards">
+          {cards.map((card) => {
+            const kind = kindWords(card);
+            const here = props.connected?.has(card.name.toLowerCase()) === true;
+            return (
+              <button
+                type="button"
+                key={card.id}
+                className="join-card"
+                data-testid={`join-card-${card.id}`}
+                onClick={() => props.onPick(card)}
+              >
+                <Avatar name={card.name} kind="harness" size="sm" />
+                <b>
+                  {card.name}{" "}
+                  {here ? (
+                    <span className="join-kind here">Connected</span>
+                  ) : (
+                    <span className={kind.one ? "join-kind one" : "join-kind"}>{kind.words}</span>
+                  )}
+                </b>
+                <small>{here ? connectedHereLine("Click") : card.line}</small>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <h3 className="agents-h">{ownWayHeading(cards.length)}</h3>
       <div className="join-cards">
-        {(props.cards ?? []).map((card) => {
-          const kind = kindWords(card);
-          const here = props.connected?.has(card.name.toLowerCase()) === true;
-          return (
-            <button
-              type="button"
-              key={card.id}
-              className="join-card"
-              data-testid={`join-card-${card.id}`}
-              onClick={() => props.onPick(card)}
-            >
-              <Avatar name={card.name} kind="harness" size="sm" />
-              <b>
-                {card.name}{" "}
-                {here ? (
-                  <span className="join-kind here">Connected</span>
-                ) : (
-                  <span className={kind.one ? "join-kind one" : "join-kind"}>{kind.words}</span>
-                )}
-              </b>
-              <small>{card.line}</small>
-            </button>
-          );
-        })}
         {CONNECT_WAY_ORDER.map((way) => (
           <button
             type="button"
@@ -181,9 +199,111 @@ export function Gallery(props: {
 }
 
 /**
+ * The Agents page of a workspace with no harness and no agent yet (ADR 0261): the gallery the
+ * dialog opens, on the page itself, each docs card saying what has to be on the computer first.
+ * Choosing one opens the dialog at that card's link, grown out of the card. The two ways the app
+ * carries are for whoever writes their own, so they stand in the line under the cards; with no docs
+ * to read, they are the cards.
+ */
+export function PageGallery(props: {
+  readonly cards?: readonly Connector[] | undefined;
+  readonly onPick: (choice: Choice, from: HTMLElement) => void;
+}) {
+  const titleId = useId();
+  const cards = props.cards ?? [];
+  const pick = (choice: Choice) => (event: { readonly currentTarget: HTMLElement }) =>
+    props.onPick(choice, event.currentTarget);
+  return (
+    <section className="page-gallery" aria-labelledby={titleId} data-testid="page-gallery">
+      <h2 id={titleId}>Connect a harness to bring in your agents</h2>
+      <p className="page-gallery-lede">
+        {cards.length > 0
+          ? "A harness is the program your agents run in, on this computer or another one. Each one here connects with one command in Terminal, and its agents show on this page once it has."
+          : "A harness is the program your agents run in, on this computer or another one. Its agents show on this page once it connects."}
+      </p>
+      <ul className="page-gallery-cards">
+        {cards.map((card) => (
+          <li key={card.id}>
+            <button
+              type="button"
+              className="page-gallery-card"
+              aria-label={`Connect ${card.name}`}
+              data-testid={`page-card-${card.id}`}
+              onClick={pick(card)}
+            >
+              <span className="page-gallery-name">
+                <Avatar name={card.name} kind="harness" size="sm" />
+                <b>{card.name}</b>
+              </span>
+              <span className="page-gallery-line">{card.line}</span>
+              {card.needs !== undefined && (
+                <span className="page-gallery-needs">{`You need ${card.needs}`}</span>
+              )}
+              <span className="page-gallery-go" aria-hidden="true">
+                Connect
+              </span>
+            </button>
+          </li>
+        ))}
+        {cards.length === 0 &&
+          CONNECT_WAY_ORDER.map((way) => (
+            <li key={way}>
+              <button
+                type="button"
+                className="page-gallery-card"
+                aria-label={`Connect ${CONNECT_WAYS[way].name}`}
+                data-testid={`page-way-${way}`}
+                onClick={pick(way)}
+              >
+                <span className="page-gallery-name">
+                  <Avatar
+                    name={CONNECT_WAYS[way].name}
+                    kind="harness"
+                    icon={CONNECT_WAYS[way].face}
+                    size="sm"
+                  />
+                  <b>{CONNECT_WAYS[way].name}</b>
+                </span>
+                <span className="page-gallery-line">{CONNECT_WAYS[way].sub}</span>
+                <span className="page-gallery-go" aria-hidden="true">
+                  Connect
+                </span>
+              </button>
+            </li>
+          ))}
+      </ul>
+      {cards.length > 0 && (
+        <p className="page-gallery-foot">
+          If you're writing your own, start from{" "}
+          <button
+            type="button"
+            className="page-gallery-way"
+            data-testid="page-way-own"
+            onClick={pick("own")}
+          >
+            {CONNECT_WAYS.own.name}
+          </button>{" "}
+          or{" "}
+          <button
+            type="button"
+            className="page-gallery-way"
+            data-testid="page-way-http"
+            onClick={pick("http")}
+          >
+            {CONNECT_WAYS.http.name}
+          </button>
+          .
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
  * A card for a harness here already, as the phone's asks first (ADR 0190, point 1): a second link
- * makes a second harness, so none is made until another is asked for. The one here is put right,
- * or given a new agent, from its page.
+ * makes a second harness, so none is made until another is asked for. Whoever may ask it for an
+ * agent has New agent, as the phone's card has, which opens its page with the dialog up (ADR
+ * 0271); the one here is put right from its page.
  */
 export function HereAlready(props: {
   readonly titleId: string;
@@ -196,10 +316,14 @@ export function HereAlready(props: {
   readonly onBack: () => void;
   /** Its page on the Agents tab. Absent, there is no way there from here. */
   readonly onOpenHarness?: ((harnessId: string) => void) | undefined;
+  /** Its page with New agent open, for whoever may ask it for one. Absent, there is none. */
+  readonly onNewAgent?: ((harnessId: string) => void) | undefined;
   readonly onClose?: (() => void) | undefined;
 }) {
   const { card, harnessId } = props;
-  const mayAsk = mayAskFromPage(props.model, props.directory, props.selfId, harnessId);
+  const newAgent = props.onNewAgent;
+  const mayAsk =
+    newAgent !== undefined && mayAskFromPage(props.model, props.directory, props.selfId, harnessId);
   const words = hereAlreadyWords(nameOf(props.directory, harnessId), mayAsk);
   const open = props.onOpenHarness;
   return (
@@ -226,8 +350,22 @@ export function HereAlready(props: {
           {words.another}
         </Button>
         {open !== undefined && (
-          <Button variant="primary" data-testid="join-here-page" onClick={() => open(harnessId)}>
+          <Button
+            variant={mayAsk ? "default" : "primary"}
+            data-testid="join-here-page"
+            onClick={() => open(harnessId)}
+          >
             Open its page
+          </Button>
+        )}
+        {mayAsk && (
+          <Button
+            variant="primary"
+            data-testid="join-here-new-agent"
+            onClick={() => newAgent?.(harnessId)}
+          >
+            <Icon name="plus" size={14} />
+            {words.newAgent}
           </Button>
         )}
       </div>
@@ -235,7 +373,11 @@ export function HereAlready(props: {
   );
 }
 
-/** A switch row: what it may do, and the line under it. The harness's page draws them too. */
+/**
+ * A switch row: what it may do, and the line under it. The harness's page draws them too. In the
+ * connect card's two columns there is no room for the line, so its short sentence shows when the
+ * pointer rests on the row or the keyboard is on its switch (ADR 0257).
+ */
 export function CapabilityRow(props: {
   readonly name: string;
   readonly on: boolean;
@@ -245,6 +387,8 @@ export function CapabilityRow(props: {
   readonly compact?: boolean;
 }) {
   const words = capabilityWords(props.name);
+  const tipId = useId();
+  const tip = props.compact === true ? words.hint : undefined;
   return (
     <div className="join-switch" data-testid={`join-cap-${props.name}`}>
       <span>
@@ -256,87 +400,12 @@ export function CapabilityRow(props: {
         checked={props.on}
         disabled={props.disabled}
         onChange={props.onChange}
+        describedBy={tip === undefined ? undefined : tipId}
       />
-    </div>
-  );
-}
-
-/** Each step's words, and the line under it where there is one. */
-function stepWords(
-  step: (typeof JOIN_STEPS)[number],
-  request: JoinRequest,
-  selfId: string,
-  directory: Directory,
-): { label: string; detail?: string | undefined } {
-  const name = request.name ?? "It";
-  switch (step) {
-    case "waiting":
-      return {
-        label: request.startedBy === "person" ? "Waiting for your harness" : `${name} asked`,
-      };
-    case "asked": {
-      const where = [request.machine, request.fromAddr].filter((each) => each !== undefined);
-      return {
-        label: `${name} asked to join`,
-        detail: where.length > 0 ? `from ${where.join(" · ")}` : undefined,
-      };
-    }
-    case "allowed": {
-      const by = request.decidedBy;
-      const who = by === selfId ? "you" : (directory[by ?? ""]?.displayName ?? "a person");
-      return {
-        label: "Allowed",
-        detail: request.startedBy === "person" ? `${who} started it here` : `by ${who}`,
-      };
-    }
-    case "connected":
-      return { label: "Connected", detail: request.software };
-    case "hello":
-      return { label: "Said hello" };
-  }
-}
-
-/** The card that follows a request from waiting to its hello. */
-export function JoinProgress(props: {
-  readonly request: JoinRequest;
-  readonly card: JoinCard;
-  readonly selfId: string;
-  readonly directory: Directory;
-  readonly onRenew?: (() => void) | undefined;
-}) {
-  const { request, card } = props;
-  const stall = card.stall === undefined ? undefined : stallWords(card.stall, request.name);
-  const renews =
-    card.stall !== undefined && ["expired", "denied", "revoked"].includes(card.stall.kind);
-  return (
-    <div className="join-progress" data-testid="join-progress" data-done={card.done}>
-      <ol>
-        {JOIN_STEPS.map((step, index) => {
-          const words = stepWords(step, request, props.selfId, props.directory);
-          const state =
-            index < card.done ? "ok" : index === card.done && stall === undefined ? "wait" : "";
-          return (
-            <li key={step} className={state} data-testid={`join-step-${step}`} data-state={state}>
-              <i aria-hidden="true">{state === "ok" ? "✓" : ""}</i>
-              <span>
-                {words.label}
-                {words.detail !== undefined && <small>{words.detail}</small>}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      {stall !== undefined && (
-        <div className="join-stall" role="status" data-testid="join-stall">
-          <b>{stall.says}</b>
-          {renews && props.onRenew !== undefined ? (
-            <button type="button" className="join-link" onClick={props.onRenew}>
-              {stall.doing}
-            </button>
-          ) : (
-            <span>{stall.doing}.</span>
-          )}
-        </div>
+      {tip === undefined ? null : (
+        <span className="join-tip" role="tooltip" id={tipId}>
+          {tip}
+        </span>
       )}
     </div>
   );
@@ -371,12 +440,23 @@ export function ConnectPage(props: {
    * absent; `null` for none, as in a browser.
    */
   readonly connectHere?: ConnectHere | null | undefined;
+  /**
+   * The link this card made before the dialog was put away, while it waits (ADR 0271): the card
+   * opens on it rather than making another. With `onKept`, told each link the card makes.
+   */
+  readonly kept?: KeptLink | undefined;
+  readonly onKept?: ((kept: KeptLink) => void) | undefined;
 }) {
   const listed = typeof props.way === "string" ? undefined : props.way;
   const bridge = fetchesBridge(props.way) ? props.way : undefined;
   // A card that has a sentence opens on it: saying one sentence is less than running a line.
   const [asking, setAsking] = useState(listed?.sentence !== undefined);
-  const { made, granted, error, makeLink, flip } = useLink(listed, props.join);
+  const { made, granted, error, makeLink, flip } = useLink(
+    props.way,
+    props.join,
+    props.kept,
+    props.onKept,
+  );
   const here = useConnectHere(bridge === undefined ? null : props.connectHere);
   const [where, setWhere] = useState<ConnectWhere>("here");
   const nowMs = useNow(1000);
@@ -435,14 +515,14 @@ export function ConnectPage(props: {
           onFlip={(name, on) => void flip(name, on)}
         />
         <ConnectFoot
+          way={props.way}
+          nowMs={nowMs}
           listed={listed}
           bridge={bridge !== undefined}
           onThisMac={onThisMac}
           request={request}
           card={card}
           error={made === undefined ? undefined : error}
-          selfId={props.selfId}
-          directory={props.directory}
           join={props.join}
           footer={props.footer}
           onRenew={() => void makeLink(granted)}
@@ -456,18 +536,19 @@ export function ConnectPage(props: {
 }
 
 /**
- * Under a card's way in: the link followed in five steps (a bridge's card draws its own), what
- * went wrong, and the ways out: the welcome's, Cancel link while the link waits, and its room.
+ * Under a card's way in: the link followed in the phone's three steps from the first frame (a
+ * bridge's card draws its own, ADR 0271), what went wrong, and the ways out: the welcome's, Cancel
+ * link while the link waits, and its room.
  */
 function ConnectFoot(props: {
+  readonly way: Choice;
+  readonly nowMs: number;
   readonly listed: Connector | undefined;
   readonly bridge: boolean;
   readonly onThisMac: boolean;
   readonly request: JoinRequest | undefined;
   readonly card: JoinCard | undefined;
   readonly error: string | undefined;
-  readonly selfId: string;
-  readonly directory: Directory;
   readonly join: JoinService;
   readonly footer: ReactNode;
   readonly onRenew: () => void;
@@ -478,12 +559,13 @@ function ConnectFoot(props: {
   const { listed, request, card } = props;
   return (
     <>
-      {!props.bridge && request !== undefined && card !== undefined && (
-        <JoinProgress
+      {!props.bridge && (
+        <LinkSteps
+          choice={props.way}
           request={request}
-          card={card}
-          selfId={props.selfId}
-          directory={props.directory}
+          joinCard={card}
+          nowMs={props.nowMs}
+          testId="join-steps"
           onRenew={props.onRenew}
         />
       )}
@@ -690,8 +772,10 @@ function Switches(props: {
  * again on asking, and its grant changed by the switches until it is used.
  */
 function useLink(
-  listed: Connector | undefined,
+  way: Choice,
   join: JoinService,
+  kept: KeptLink | undefined,
+  onKept: ((kept: KeptLink) => void) | undefined,
 ): {
   readonly made: { readonly id: string; readonly link: string } | undefined;
   readonly granted: readonly string[];
@@ -700,8 +784,14 @@ function useLink(
   readonly makeLink: (capabilities: readonly string[]) => Promise<string | undefined>;
   readonly flip: (name: string, on: boolean) => Promise<void>;
 } {
-  const [made, setMade] = useState<{ id: string; link: string } | undefined>(undefined);
-  const [granted, setGranted] = useState<readonly string[]>(() => linkStarts(listed));
+  // A link this card made before the dialog was put away is its link again (ADR 0271).
+  const [held] = useState(() =>
+    kept !== undefined && choiceKey(kept.choice) === choiceKey(way) ? kept : undefined,
+  );
+  const [made, setMade] = useState<{ id: string; link: string } | undefined>(held);
+  const [granted, setGranted] = useState<readonly string[]>(
+    () => held?.granted ?? linkStarts(typeof way === "string" ? undefined : way),
+  );
   const [error, setError] = useState<string | undefined>(undefined);
   const making = useRef(false);
   const makeLink = async (capabilities: readonly string[]) => {
@@ -711,6 +801,12 @@ function useLink(
     try {
       const answer = await join.makeLink(capabilities);
       setMade({ id: answer.request.requestId, link: answer.link });
+      onKept?.({
+        id: answer.request.requestId,
+        link: answer.link,
+        choice: way,
+        granted: capabilities,
+      });
       return answer.link;
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
@@ -722,12 +818,13 @@ function useLink(
   // The link is made as the page opens: the mock's card shows the line at once.
   // biome-ignore lint/correctness/useExhaustiveDependencies: once, as the page opens.
   useEffect(() => {
-    void makeLink(granted);
+    if (held === undefined) void makeLink(granted);
   }, []);
   const flip = async (name: string, on: boolean) => {
     if (made === undefined) return;
     const next = toggled(granted, name, on);
     setGranted(next);
+    onKept?.({ ...made, choice: way, granted: next });
     try {
       await join.allow(made.id, next);
     } catch (failure) {
@@ -735,6 +832,18 @@ function useLink(
     }
   };
   return { made, granted, error, makeLink, flip };
+}
+
+/**
+ * A link a card made, kept above the dialog while it waits to be used (ADR 0271), as the phone keeps
+ * it: put away, the dialog leaves it working, the shelf's last tile counts it down, and the card
+ * opens on it again with what it was allowed.
+ */
+export interface KeptLink {
+  readonly id: string;
+  readonly link: string;
+  readonly choice: Choice;
+  readonly granted: readonly string[];
 }
 
 /** A grant with one capability turned on or off. */
@@ -863,6 +972,7 @@ function CardCommands(props: {
         testId={said.testId}
         block={said.kind === "command"}
         prose={said.kind === "sentence"}
+        run={said.kind === "command"}
       />
       <CardNote card={card} link={link} />
     </>
@@ -965,7 +1075,7 @@ function Commands(props: {
   }
   return (
     <>
-      <CopyBox text={curlRedeem(props.link)} testId="join-curl" block />
+      <CopyBox text={curlRedeem(props.link)} testId="join-curl" block run />
       <p className="join-note">{note}</p>
       {props.onAdvanced !== undefined && (
         <button
@@ -999,7 +1109,6 @@ export function JoinRequestDialog(props: {
   const { request } = props;
   const words = linkWordsOf(request, props);
   const titleId = useId();
-  const nowMs = useNow(1000);
   const [leaving, setLeaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -1009,7 +1118,7 @@ export function JoinRequestDialog(props: {
   const [code, setCode] = useState("");
   const device = request.kind === "device";
   const { choices, as, setAs } = usePairAs(request, props.model, props.directory, props.selfId);
-  const name = request.name ?? (device ? "A device" : "A harness");
+  const name = askingName(request);
   const where = [request.software, request.machine, request.fromAddr].filter(
     (each) => each !== undefined,
   );
@@ -1042,9 +1151,7 @@ export function JoinRequestDialog(props: {
       <div className="harness-dialog-card join-ask">
         <div className="join-ask-head">
           <Avatar name={name} kind={request.kind === "harness" ? "harness" : "person"} size="lg" />
-          <h2 id={titleId}>
-            {words?.title ?? `${name} wants to ${request.kind === "device" ? "pair" : "join"}`}
-          </h2>
+          <h2 id={titleId}>{words?.title ?? askingTitle(request, name)}</h2>
           {words !== undefined ? (
             <small data-testid="join-line">{words.line}</small>
           ) : (
@@ -1055,10 +1162,8 @@ export function JoinRequestDialog(props: {
         {decided || elsewhere ? (
           <AfterDecision
             request={request}
-            model={props.model}
+            name={name}
             directory={props.directory}
-            selfId={props.selfId}
-            nowMs={nowMs}
             onOpen={(spaceId) => {
               props.onOpen(spaceId);
               setLeaving(true);
@@ -1161,29 +1266,29 @@ function Ask(props: {
           <input
             className="join-code join-code-field"
             data-testid="join-code-field"
-            aria-label="The code on the device"
+            aria-label={ALLOW_WORDS.codeLabel}
             value={props.code}
             onChange={(event) => props.onCode(event.target.value)}
-            placeholder="ABC-234"
+            placeholder={ALLOW_WORDS.codePlaceholder}
             autoCapitalize="characters"
             autoComplete="one-time-code"
             spellCheck={false}
             maxLength={7}
             disabled={props.busy}
           />
-          <p className="join-note center">Type the code {props.name} shows.</p>
+          <p className="join-note center">{codeWords(props.name, true)}</p>
         </>
       ) : (
         <>
           <div className="join-code" data-testid="join-code">
             {request.code}
           </div>
-          <p className="join-note center">Check it matches the code {props.name} printed.</p>
+          <p className="join-note center">{codeWords(props.name, false)}</p>
         </>
       )}
       {switches.length > 0 && (
         <fieldset className="join-switches">
-          <legend className="join-label">It asks to</legend>
+          <legend className="join-label">{ALLOW_WORDS.asksTo}</legend>
           {switches.map((each) => (
             <CapabilityRow
               key={each.name}
@@ -1199,7 +1304,7 @@ function Ask(props: {
       )}
       {props.choices.length > 1 && (
         <fieldset className="join-switches" data-testid="join-pair-as">
-          <legend className="join-label">Pair it as</legend>
+          <legend className="join-label">{ALLOW_WORDS.pairAs}</legend>
           {props.choices.map((each) => (
             <label key={each.id} className="join-switch join-as">
               <span className="join-as-face" aria-hidden="true">
@@ -1221,9 +1326,7 @@ function Ask(props: {
       )}
       {props.words === undefined && (
         <p className="join-note" data-testid="join-paired-words">
-          {device
-            ? pairedAsWords(props.choices, props.as)
-            : "Every agent can talk in the spaces it's in, and asks you before anything risky."}
+          {device ? pairedAsWords(props.choices, props.as) : ALLOW_WORDS.agentsNote}
         </p>
       )}
       {props.error !== undefined && (
@@ -1239,7 +1342,7 @@ function Ask(props: {
           disabled={props.busy || !ready}
           onClick={() => props.onDecide(true)}
         >
-          Allow
+          {ALLOW_WORDS.allow}
         </button>
         <button
           type="button"
@@ -1248,39 +1351,40 @@ function Ask(props: {
           disabled={props.busy}
           onClick={() => props.onDecide(false)}
         >
-          Don't allow
+          {ALLOW_WORDS.deny}
         </button>
       </div>
     </>
   );
 }
 
-/** After Allow: the card that follows it, or what was decided elsewhere. */
+/**
+ * Once decided, here or elsewhere: the phone's words (core's `decidedWords`, ADR 0271), a tick and
+ * who joined, or that it was allowed and is on its way, or that it was refused or ran out. Done
+ * puts it away; a harness's space opens from here once it has one.
+ */
 function AfterDecision(props: {
   readonly request: JoinRequest;
-  readonly model: WorkspaceModel;
+  readonly name: string;
   readonly directory: Directory;
-  readonly selfId: string;
-  readonly nowMs: number;
   readonly onOpen: (spaceId: string) => void;
   readonly onDone: () => void;
 }): ReactNode {
   const { request } = props;
-  const card = cardOf(request, props.model, props.directory, props.nowMs);
+  const pairedAs =
+    request.pairAs === undefined ? undefined : nameOf(props.directory, request.pairAs);
+  const words = decidedWords(request, props.name, pairedAs);
   return (
     <>
-      {request.kind === "harness" ? (
-        <JoinProgress
-          request={request}
-          card={card}
-          selfId={props.selfId}
-          directory={props.directory}
-        />
-      ) : (
-        <p className="join-note center" data-testid="join-device-state">
-          {deviceState(request, props.directory, card)}
-        </p>
-      )}
+      <div className="join-decided" data-testid="join-decided" aria-live="polite">
+        {words.ok && (
+          <span className="join-decided-tick" aria-hidden="true">
+            ✓
+          </span>
+        )}
+        <b className="join-decided-title">{words.title}</b>
+        <span className="join-decided-line">{words.line}</span>
+      </div>
       <div className="harness-add-actions">
         {request.kind === "harness" && request.spaceId !== undefined && (
           <Button variant="ghost" onClick={() => props.onOpen(request.spaceId ?? "")}>
@@ -1293,22 +1397,6 @@ function AfterDecision(props: {
       </div>
     </>
   );
-}
-
-/** Where a device's request, or a link's (ADR 0232), stands once decided, in a line. */
-function deviceState(request: JoinRequest, directory: Directory, card: JoinCard): string {
-  if (request.state === "redeemed") {
-    if (request.kind === "invite") return "Joined.";
-    return request.pairAs === undefined
-      ? "Paired."
-      : `Paired as ${nameOf(directory, request.pairAs)}.`;
-  }
-  if (request.state === "allowed") {
-    return request.kind === "invite"
-      ? "Allowed. They're on the way in."
-      : "Allowed. It is collecting its key.";
-  }
-  return stallWords(card.stall ?? { kind: "expired" }).says;
 }
 
 /** The request a person is asked about next, if they may decide (core's `nextJoinAsk`). */

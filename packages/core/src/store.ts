@@ -73,6 +73,7 @@ import {
   type ProjectToken,
   type ProjectUndoAnswer,
   parseSpaceIcon,
+  READ_MARKS_MAX,
   type RoomFile,
   readConnectors,
   type SpaceIcon,
@@ -132,6 +133,8 @@ import { type PendingMessage, type QueuedMessage, withPending } from "./pending.
 import {
   markRead as advanceRead,
   markSpacesRead as advanceSpaces,
+  aheadOf,
+  furthest,
   type ReadState,
 } from "./read-state.js";
 import { type RelayFacts, type RelayView, relayFactsOf } from "./relaySwitch.js";
@@ -1022,9 +1025,17 @@ export interface IssuedPairingCode {
  * Whether the server can push to a phone (ADR 0244): `ready`, or why not. With no access token
  * for Expo, or one Expo refused, a phone's switch can be on and nothing comes.
  */
-export type ServerPushes = "ready" | "no_access_token" | "refused";
+export type ServerPushes = "ready" | "no_access_token" | "refused" | "failing";
 
-const SERVER_PUSHES: readonly string[] = ["ready", "no_access_token", "refused"];
+const SERVER_PUSHES: readonly string[] = ["ready", "no_access_token", "refused", "failing"];
+
+/**
+ * Whether the server can't push to a phone at all, until whoever runs it changes something (ADR
+ * 0244). `failing`, its last pushes not getting through, isn't that: it mends itself.
+ */
+export function serverCantPush(pushes: ServerPushes | undefined): boolean {
+  return pushes === "no_access_token" || pushes === "refused";
+}
 
 /** The server as `GET /v1/server` says it (ADR 0170): the welcome and the setup card read it. */
 export interface ServerFacts {
@@ -1347,6 +1358,13 @@ export function createStore(options: StoreOptions): Store {
   /** Which visit this person pinned in each space (ADR 0040); no entry means the harness chooses. */
   let pins: ReadonlyMap<string, string> = new Map();
   let spaceIcons: ReadonlyMap<string, SpaceIcon> = new Map();
+  /** The faces chosen for rooms as the server holds them, and the picks on their way: `spaceIcons`. */
+  const iconsHeld = onTheirWay<
+    ReadonlyMap<string, SpaceIcon>,
+    { readonly icon: SpaceIcon | undefined }
+  >(withIcons, new Map(), (now) => {
+    spaceIcons = now;
+  });
   /**
    * Where `spaceIcons` came from: the cache as the store started, or the server. A face is not on
    * the log, so nothing replays it; without the cache a launch drew every room's initials until
@@ -1363,11 +1381,6 @@ export function createStore(options: StoreOptions): Store {
   let iconsRead: Promise<void> | undefined;
   let iconsStale = false;
   /**
-   * Faces picked for rooms that the server has not answered for yet. A read that lands meanwhile
-   * is from before the pick, so it is drawn with the pick over it.
-   */
-  const iconsOnTheirWay = new Map<string, { readonly icon: SpaceIcon | undefined }>();
-  /**
    * The rooms this person hid (ADR 0205), as the cache or the server last said, with the hides
    * still on their way drawn over them. Not on the log either, so the cache keeps them: without it
    * a launch would list a hidden room until the server answered.
@@ -1376,8 +1389,14 @@ export function createStore(options: StoreOptions): Store {
   let hiddenFrom: "cache" | "server" | undefined;
   /** A read of them that failed: owed at the next hello, the cache's standing meanwhile. */
   let hiddenOwed = false;
-  /** Hides and unhides the server has not answered for yet, by room. */
-  const hidingOnTheirWay = new Map<string, { readonly hidden: boolean }>();
+  /** The rooms hidden as the server holds them, and the hides on their way: `hiddenSpaces`. */
+  const hiddenHeld = onTheirWay<ReadonlySet<string>, { readonly hidden: boolean }>(
+    withHiding,
+    new Set(),
+    (now) => {
+      hiddenSpaces = now;
+    },
+  );
   /**
    * The rooms this person pinned (ADR 0240), newest first, as the cache or the server last said,
    * with the pins still on their way drawn over them; kept in the cache for the reason the rooms
@@ -1387,16 +1406,29 @@ export function createStore(options: StoreOptions): Store {
   let pinnedFrom: "cache" | "server" | undefined;
   /** A read of them that failed: owed at the next hello, the cache's standing meanwhile. */
   let pinnedOwed = false;
-  /** Pins and unpins the server has not answered for yet, by room. */
-  const pinningOnTheirWay = new Map<string, { readonly pinned: boolean }>();
+  /** The rooms pinned as the server holds them, and the pins on their way: `pinnedSpaces`. */
+  const pinnedHeld = onTheirWay<readonly string[], { readonly pinned: boolean }>(
+    withPinning,
+    [],
+    (now) => {
+      pinnedSpaces = now;
+    },
+  );
   /** Join requests this person may decide (ADR 0122), by id. */
   let joins: ReadonlyMap<string, JoinRequest> = new Map();
   let directory: Directory = {};
   /**
-   * Faces chosen for agents that the server has not answered for yet (ADR 0089). A directory read
-   * that lands meanwhile is from before the choice, so it is drawn with the choice over it.
+   * Who is who as the server holds it, and the faces chosen for agents and for you that it has
+   * not answered for yet (ADRs 0089, 0139): `directory`. A read that lands meanwhile is from
+   * before the choice, so it is drawn with the choice over it.
    */
-  const facesOnTheirWay = new Map<string, { readonly face: SpaceIcon | undefined }>();
+  const facesHeld = onTheirWay<Directory, { readonly face: SpaceIcon | undefined }>(
+    withFaces,
+    {},
+    (now) => {
+      directory = now;
+    },
+  );
   /** One face is sent at a time, so two quick taps reach the server in the order they were made. */
   let faceWrites: Promise<void> = Promise.resolve();
   /** How many times the socket has said hello, so a reconnect is told from the first connect. */
@@ -1421,6 +1453,17 @@ export function createStore(options: StoreOptions): Store {
   let namingRefresh = false;
   let connectedRefresh = false;
   let readState: ReadState = {};
+  /**
+   * How far the person has read is theirs, kept at the server (ADR 0262). These are this device's
+   * marks the server has not taken yet: sent one write at a time, what moves meanwhile gathered
+   * for the next, and owed to the next hello when a write fails.
+   */
+  const marksOwed = new Map<string, number>();
+  let marksSending = false;
+  /** A read of the person's marks that failed, owed to the next hello. */
+  let marksReadOwed = false;
+  /** False once the server has said it keeps no marks: an older one, counted from this device's. */
+  let serverKeepsMarks = true;
   let connection: ConnectionState = "connecting";
   let link: LinkKind | undefined;
   /** The snapshot's `linkSince` and `linkBefore`. */
@@ -1601,14 +1644,15 @@ export function createStore(options: StoreOptions): Store {
    * share it (ADR 0087): from the `presence` frame, or from an answer that carries it.
    */
   const heardState = (participantId: string, state: AgentState): void => {
-    const changed = Object.values(directory).filter(
+    const held = facesHeld.held();
+    const changed = Object.values(held).filter(
       (each) => each.id === participantId || each.harnessId === participantId,
     );
     if (changed.length === 0) return;
-    directory = {
-      ...directory,
+    facesHeld.heard({
+      ...held,
       ...Object.fromEntries(changed.map((each) => [each.id, { ...each, state }])),
-    };
+    });
     notify();
   };
 
@@ -1788,6 +1832,10 @@ export function createStore(options: StoreOptions): Store {
       noticeConnected(fresh);
       uncached.push(...fresh);
       heardRenames(fresh);
+      // A room archived is pinned by nobody (ADR 0240's addendum): the server let its pins go as it
+      // was archived, and so does this reader, so it is not on top again if it is unarchived. Heard
+      // now and archived still: the cache and a history read replay archives undone since.
+      forgetPinned(archivedNow(fresh));
     }
     notify();
   };
@@ -1846,11 +1894,7 @@ export function createStore(options: StoreOptions): Store {
     for (const message of [...pending.values()]) {
       if (gone.has(message.spaceId)) withdraw(message.key);
     }
-    const kept = Object.fromEntries(Object.entries(readState).filter(([id]) => !gone.has(id)));
-    if (Object.keys(kept).length !== Object.keys(readState).length) {
-      readState = kept;
-      void cache.saveReadState(readState).catch(() => undefined);
-    }
+    forgetMarks(gone);
     pins = new Map([...pins].filter(([id]) => !gone.has(id)));
     forgetIcons(gone);
     forgetHidden(gone);
@@ -2142,7 +2186,7 @@ export function createStore(options: StoreOptions): Store {
     transport = connect({
       device,
       since: cursor,
-      greetAfter: folded,
+      greetAfter: withFirstMarks(folded),
       ...(options.silenceMs === undefined ? {} : { silenceMs: options.silenceMs }),
       onState: (state) => {
         // The account is gone: nothing the socket does after says otherwise.
@@ -2229,6 +2273,8 @@ export function createStore(options: StoreOptions): Store {
       onRunState: (spaceId, run) => {
         for (const listen of runListeners) listen(spaceId, run);
       },
+      // How far the person read on another of their devices (ADR 0262).
+      onReads: heardMarks,
     });
     for (const event of early.splice(0)) transport.send(event);
     try {
@@ -2244,7 +2290,8 @@ export function createStore(options: StoreOptions): Store {
    */
   const showCached = async () => {
     const cached = await cache.loadEvents();
-    readState = await cache.loadReadState();
+    // The server's marks, read first on a device never sent anything, are kept over the cache's.
+    readState = furthest(await cache.loadReadState(), readState);
     const held = await cache.loadOutbox();
     const made = await cache.loadMadeHere();
     const kept = await cache.loadParticipants();
@@ -2256,7 +2303,7 @@ export function createStore(options: StoreOptions): Store {
     // agents are listed and everybody named before the server answers, and without it. An answer
     // that landed while the cache was read (a tab asked for one) is newer, and stays.
     if (kept !== undefined && directoryFrom === undefined) {
-      directory = directoryOf(kept);
+      facesHeld.heard(directoryOf(kept));
       directoryFrom = "cache";
     }
     keptForThePerson(keptIcons, keptHidden, keptPinned);
@@ -2273,6 +2320,7 @@ export function createStore(options: StoreOptions): Store {
     void loadIcons();
     void loadHidden();
     void loadPinned();
+    if (cursor !== 0) void loadMarks();
   };
 
   /** A directory read under way, and whether another was asked for while it was. */
@@ -2285,30 +2333,20 @@ export function createStore(options: StoreOptions): Store {
    * that did nothing. One write at a time, in the order they were chosen.
    */
   async function chooseFace(id: string, path: string, face: SpaceIcon | undefined): Promise<void> {
-    const before = directory[id]?.face;
-    const choice = { face };
-    facesOnTheirWay.set(id, choice);
-    directory = withFaces(directory, facesOnTheirWay);
+    const change = facesHeld.ask(id, { face });
     notify();
     const sent = faceWrites.then(async () => {
       if (face === undefined) await remove(device, path);
       else await put(device, path, face);
     });
     faceWrites = sent.catch(() => undefined);
-    const mine = () => facesOnTheirWay.get(id) === choice;
     try {
       await sent;
     } catch (error) {
-      // A later choice for the same face is still on its way: it settles the face, not this.
-      if (mine()) {
-        facesOnTheirWay.set(id, { face: before });
-        directory = withFaces(directory, facesOnTheirWay);
-        facesOnTheirWay.delete(id);
-        notify();
-      }
+      if (change.refused()) notify();
       throw error;
     }
-    if (mine()) facesOnTheirWay.delete(id);
+    if (change.taken()) notify();
   }
 
   /**
@@ -2336,7 +2374,7 @@ export function createStore(options: StoreOptions): Store {
   async function readDirectory(): Promise<void> {
     try {
       const wire = await read<{ participants: WireParticipant[] }>(device, "/v1/participants");
-      directory = directoryOf(wire.participants);
+      facesHeld.heard(directoryOf(wire.participants));
       directoryFrom = "server";
       directoryFailed = false;
       directoryOwed = false;
@@ -2394,7 +2432,7 @@ export function createStore(options: StoreOptions): Store {
       const wire = await read<{ icons?: unknown }>(device, "/v1/me/space-icons");
       if (typeof wire.icons !== "object" || wire.icons === null) throw new Error("no icons");
       const icons = wire.icons as Record<string, unknown>;
-      spaceIcons = withIcons(iconsOf(icons), iconsOnTheirWay);
+      iconsHeld.heard(iconsOf(icons));
       iconsFrom = "server";
       iconsOwed = false;
       iconsRetries = 0;
@@ -2434,15 +2472,15 @@ export function createStore(options: StoreOptions): Store {
     pinned: readonly string[] | undefined,
   ): void {
     if (icons !== undefined && iconsFrom === undefined) {
-      spaceIcons = withIcons(iconsOf(icons), iconsOnTheirWay);
+      iconsHeld.heard(iconsOf(icons));
       iconsFrom = "cache";
     }
     if (hidden !== undefined && hiddenFrom === undefined) {
-      hiddenSpaces = withHiding(new Set(hidden), hidingOnTheirWay);
+      hiddenHeld.heard(new Set(hidden));
       hiddenFrom = "cache";
     }
     if (pinned !== undefined && pinnedFrom === undefined) {
-      pinnedSpaces = withPinning(pinned, pinningOnTheirWay);
+      pinnedHeld.heard(pinned);
       pinnedFrom = "cache";
     }
   }
@@ -2456,6 +2494,7 @@ export function createStore(options: StoreOptions): Store {
     if (hellos > 1 || iconsOwed) void loadIcons();
     if (hellos > 1 || hiddenOwed) void loadHidden();
     if (hellos > 1 || pinnedOwed) void loadPinned();
+    if (hellos > 1 || marksReadOwed) void loadMarks();
   }
 
   /**
@@ -2467,7 +2506,7 @@ export function createStore(options: StoreOptions): Store {
       const wire = await read<{ spaces?: unknown }>(device, "/v1/me/hidden-spaces");
       if (!Array.isArray(wire.spaces)) throw new Error("no hidden spaces");
       const ids = wire.spaces.filter((id): id is string => typeof id === "string");
-      hiddenSpaces = withHiding(new Set(ids), hidingOnTheirWay);
+      hiddenHeld.heard(new Set(ids));
       hiddenFrom = "server";
       hiddenOwed = false;
       notify();
@@ -2480,13 +2519,17 @@ export function createStore(options: StoreOptions): Store {
   /** The rooms hidden that are gone, let go here and in the cache. */
   function forgetHidden(gone: ReadonlySet<string>): void {
     if (![...hiddenSpaces].some((id) => gone.has(id))) return;
+    hiddenHeld.heard(new Set([...hiddenHeld.held()].filter((id) => !gone.has(id))));
     hiddenSpaces = new Set([...hiddenSpaces].filter((id) => !gone.has(id)));
     keepHidden();
   }
 
-  /** The rooms hidden as they stand, kept for the next launch to list without them. */
+  /**
+   * The rooms hidden as the server holds them, kept for the next launch to list without them: not
+   * a hide still on its way, which may yet be refused.
+   */
   function keepHidden(): void {
-    void cache.saveHiddenSpaces([...hiddenSpaces]).catch(() => undefined);
+    void cache.saveHiddenSpaces([...hiddenHeld.held()]).catch(() => undefined);
   }
 
   /**
@@ -2498,7 +2541,7 @@ export function createStore(options: StoreOptions): Store {
       const wire = await read<{ spaces?: unknown }>(device, "/v1/me/pinned-spaces");
       if (!Array.isArray(wire.spaces)) throw new Error("no pinned spaces");
       const ids = wire.spaces.filter((id): id is string => typeof id === "string");
-      pinnedSpaces = withPinning(ids, pinningOnTheirWay);
+      pinnedHeld.heard(ids);
       pinnedFrom = "server";
       pinnedOwed = false;
       notify();
@@ -2508,35 +2551,154 @@ export function createStore(options: StoreOptions): Store {
     }
   }
 
+  /** The rooms these events archive that stand archived now. */
+  function archivedNow(events: readonly ClientEvent[]): ReadonlySet<string> {
+    const archived = new Set<string>();
+    const { spaces } = fold.model();
+    for (const event of events) {
+      if (event.type !== "space.updated" || event["state"] !== "closed") continue;
+      const space = spaces.find((each) => each.id === event.space_id);
+      if (space?.state === "closed") archived.add(space.id);
+    }
+    return archived;
+  }
+
   /** The rooms pinned that are gone, let go here and in the cache. */
   function forgetPinned(gone: ReadonlySet<string>): void {
     if (!pinnedSpaces.some((id) => gone.has(id))) return;
+    pinnedHeld.heard(pinnedHeld.held().filter((id) => !gone.has(id)));
     pinnedSpaces = pinnedSpaces.filter((id) => !gone.has(id));
     keepPinned();
   }
 
-  /** The rooms pinned as they stand, kept for the next launch to draw them on top. */
+  /**
+   * The rooms pinned as the server holds them, kept for the next launch to draw them on top: not
+   * a pin still on its way, which may yet be refused.
+   */
   function keepPinned(): void {
-    void cache.savePinnedSpaces(pinnedSpaces).catch(() => undefined);
+    void cache.savePinnedSpaces(pinnedHeld.held()).catch(() => undefined);
+  }
+
+  /**
+   * How far the person has read, from the server (ADR 0262), taken where it is further than this
+   * device's; and this device's marks further than the server's sent up, read here while out of
+   * reach or before the server kept them. A read that fails is owed to the next hello; an older
+   * server, which has no marks to give, is not asked again.
+   */
+  async function loadMarks(): Promise<void> {
+    if (!serverKeepsMarks) return;
+    try {
+      const wire = await read<{ spaces?: unknown }>(device, "/v1/me/read");
+      const marks = marksOf(wire.spaces);
+      marksReadOwed = false;
+      heardMarks(marks);
+      owe(aheadOf(readState, marks, roomIds()));
+    } catch (error) {
+      if (statusOf(error) === 404) serverKeepsMarks = false;
+      else marksReadOwed = true;
+    }
+  }
+
+  /** The rooms this device holds, by id. */
+  function roomIds(): Set<string> {
+    return new Set(fold.model().spaces.map((space) => space.id));
+  }
+
+  /** Marks heard, from the server or another of the person's devices: forward only. */
+  function heardMarks(marks: Readonly<Record<string, number>>): void {
+    const next = furthest(readState, marks);
+    if (next === readState) return;
+    readState = next;
+    void cache.saveReadState(readState).catch(() => undefined);
+    notify();
+  }
+
+  /**
+   * A device that has never been sent anything greets once it knows how far its person has read,
+   * or a moment on (ADR 0262): its history is replayed onto those marks, and a room read on
+   * another device is never counted unread here, not even for a frame.
+   */
+  function withFirstMarks(folded: Promise<void>): Promise<unknown> {
+    if (cursor !== 0) return folded;
+    const aMoment = new Promise((resolve) => setTimeout(resolve, MARKS_WAIT_MS));
+    return Promise.all([folded, Promise.race([loadMarks(), aMoment])]);
+  }
+
+  /** Marks moved on this device, for the server to keep for the person. */
+  function owe(marks: Readonly<Record<string, number>>): void {
+    if (!serverKeepsMarks) return;
+    oweAgain(marks);
+    void sendMarks();
+  }
+
+  /** Owed, where further than what is owed already. */
+  function oweAgain(marks: Readonly<Record<string, number>>): void {
+    for (const [spaceId, seq] of Object.entries(marks)) {
+      if (seq > (marksOwed.get(spaceId) ?? 0)) marksOwed.set(spaceId, seq);
+    }
+  }
+
+  /** One write at a time, of what is owed, a write's worth at a time. */
+  async function sendMarks(): Promise<void> {
+    if (marksSending || marksOwed.size === 0 || closed) return;
+    marksSending = true;
+    const spaces = Object.fromEntries([...marksOwed].slice(0, READ_MARKS_MAX));
+    for (const spaceId of Object.keys(spaces)) marksOwed.delete(spaceId);
+    const goOn = await put(device, "/v1/me/read", { spaces }).then(
+      () => true,
+      (error: unknown) => markWriteFailed(error, spaces),
+    );
+    marksSending = false;
+    if (goOn) void sendMarks();
+  }
+
+  /**
+   * Whether to go on after a write of marks that failed. An older server, which keeps none, is not
+   * written to again; marks it turned down as not marks are let go; marks that didn't get there are
+   * owed again, and sent at the next hello or the next mark.
+   */
+  function markWriteFailed(error: unknown, spaces: Readonly<Record<string, number>>): boolean {
+    const status = statusOf(error);
+    if (status === 404) {
+      serverKeepsMarks = false;
+      return false;
+    }
+    if (status !== undefined && status < 500) return true;
+    oweAgain(spaces);
+    marksReadOwed = true;
+    return false;
+  }
+
+  /** The marks of rooms that are gone, let go here, in the cache and from what is owed. */
+  function forgetMarks(gone: ReadonlySet<string>): void {
+    for (const id of gone) marksOwed.delete(id);
+    const kept = Object.fromEntries(Object.entries(readState).filter(([id]) => !gone.has(id)));
+    if (Object.keys(kept).length === Object.keys(readState).length) return;
+    readState = kept;
+    void cache.saveReadState(readState).catch(() => undefined);
   }
 
   /** The faces of rooms that are gone, let go here and in the cache. */
   function forgetIcons(gone: ReadonlySet<string>): void {
     const icons = new Map([...spaceIcons].filter(([id]) => !gone.has(id)));
     if (icons.size === spaceIcons.size) return;
+    iconsHeld.heard(new Map([...iconsHeld.held()].filter(([id]) => !gone.has(id))));
     spaceIcons = icons;
     keepIcons();
   }
 
-  /** The faces as they stand, kept for the next launch to draw before the server answers. */
+  /**
+   * The faces the server took, kept for the next launch to draw before the server answers: not a
+   * pick still on its way, which may yet be refused.
+   */
   function keepIcons(): void {
-    void cache.saveSpaceIcons(Object.fromEntries(spaceIcons)).catch(() => undefined);
+    void cache.saveSpaceIcons(Object.fromEntries(iconsHeld.held())).catch(() => undefined);
   }
 
   /** The directory from the server's rows, or from the ones kept of its last answer. */
   function directoryOf(rows: readonly unknown[]): Directory {
     const entries = rows.filter(isWireParticipant).map((p) => [p.id, participantOf(p)] as const);
-    return withFaces(withForkNames(Object.fromEntries(entries)), facesOnTheirWay);
+    return withForkNames(Object.fromEntries(entries));
   }
 
   /** A lane can name a participant the directory does not have yet; fetch it, once per id. */
@@ -3333,6 +3495,7 @@ export function createStore(options: StoreOptions): Store {
       readState = next;
       void cache.saveReadState(readState);
       notify();
+      owe({ [spaceId]: seq });
     },
 
     markSpacesRead(spaceIds) {
@@ -3343,6 +3506,7 @@ export function createStore(options: StoreOptions): Store {
       readState = next;
       void cache.saveReadState(readState);
       notify();
+      owe(aheadOf(readState, {}, ids));
     },
 
     notificationSettings() {
@@ -3703,81 +3867,55 @@ export function createStore(options: StoreOptions): Store {
     },
 
     async setSpaceIcon(spaceId, icon) {
-      const before = spaceIcons.get(spaceId);
-      const choice = { icon };
       // The face changes first and the server is told after. Waiting for the round trip meant a
       // tap that looked like it did nothing — and a server that would not take it looked exactly
       // the same as one that had (the Chess Game space, 15 September 2026). A refusal puts the
-      // old face back and is thrown, so whoever asked can say why rather than swallowing it.
-      iconsOnTheirWay.set(spaceId, choice);
-      spaceIcons = withIcons(spaceIcons, iconsOnTheirWay);
+      // face the server holds back and is thrown, so whoever asked can say why rather than
+      // swallowing it.
+      const change = iconsHeld.ask(spaceId, { icon });
       notify();
-      const mine = () => iconsOnTheirWay.get(spaceId) === choice;
       try {
         if (icon === undefined) await remove(device, `/v1/me/space-icons/${spaceId}`);
         else await put(device, `/v1/me/space-icons/${spaceId}`, icon);
       } catch (error) {
-        // A later pick for the same room is still on its way: it settles the face, not this.
-        if (mine()) {
-          iconsOnTheirWay.delete(spaceId);
-          spaceIcons = withIcons(spaceIcons, new Map([[spaceId, { icon: before }]]));
-          notify();
-        }
+        if (change.refused()) notify();
         throw error;
       }
-      if (mine()) iconsOnTheirWay.delete(spaceId);
+      if (change.taken()) notify();
       keepIcons();
     },
 
     async setSpaceHidden(spaceId, hidden) {
-      const before = hiddenSpaces.has(spaceId);
-      const choice = { hidden };
       // Off the list, or back on it, first, and the server told after, as a face is (ADR 0205). A
-      // refusal puts it back where it was and is thrown.
-      hidingOnTheirWay.set(spaceId, choice);
-      hiddenSpaces = withHiding(hiddenSpaces, hidingOnTheirWay);
+      // refusal puts it back as the server holds it and is thrown.
+      const change = hiddenHeld.ask(spaceId, { hidden });
       notify();
-      const mine = () => hidingOnTheirWay.get(spaceId) === choice;
       const path = `/v1/me/hidden-spaces/${encodeURIComponent(spaceId)}`;
       try {
         if (hidden) await put(device, path, {});
         else await remove(device, path);
       } catch (error) {
-        // A later hide or unhide of the same room is still on its way: it settles the room.
-        if (mine()) {
-          hidingOnTheirWay.delete(spaceId);
-          hiddenSpaces = withHiding(hiddenSpaces, new Map([[spaceId, { hidden: before }]]));
-          notify();
-        }
+        if (change.refused()) notify();
         throw error;
       }
-      if (mine()) hidingOnTheirWay.delete(spaceId);
+      if (change.taken()) notify();
       keepHidden();
     },
 
     async setSpacePinned(spaceId, pinned) {
-      const before = pinnedSpaces;
-      const choice = { pinned };
       // On top, or back in its place, first, and the server told after, as a hide is (ADR 0240). A
-      // refusal puts the pins back as they were and is thrown.
-      pinningOnTheirWay.set(spaceId, choice);
-      pinnedSpaces = withPinning(pinnedSpaces, pinningOnTheirWay);
+      // refusal puts the pins back as the server holds them, the room where it stood, and is thrown.
+      const change = pinnedHeld.ask(spaceId, { pinned });
       notify();
-      const mine = () => pinningOnTheirWay.get(spaceId) === choice;
       const path = `/v1/me/pinned-spaces/${encodeURIComponent(spaceId)}`;
       try {
         if (pinned) await put(device, path, {});
         else await remove(device, path);
       } catch (error) {
-        // A later pin or unpin of the same room is still on its way: it settles the room.
-        if (mine()) {
-          pinningOnTheirWay.delete(spaceId);
-          pinnedSpaces = pinnedAsBefore(pinnedSpaces, spaceId, before);
-          notify();
-        }
+        if (change.refused()) notify();
         throw error;
       }
-      if (mine()) pinningOnTheirWay.delete(spaceId);
+      if (change.taken()) notify();
       keepPinned();
     },
 
@@ -3888,6 +4026,30 @@ const DIRECTORY_RETRY_MS = 2000;
 /** The faces chosen for rooms are tried as often, and as far apart, as the directory is. */
 const ICON_RETRIES = DIRECTORY_RETRIES;
 const ICON_RETRY_MS = DIRECTORY_RETRY_MS;
+
+/**
+ * How long a device never sent anything waits for its person's marks before it greets (ADR 0262):
+ * a beat on the network it is on. Out of reach, it greets on time and counts from its own.
+ */
+const MARKS_WAIT_MS = 1500;
+
+/** The status a failed read or write was answered with, when it was answered. */
+function statusOf(error: unknown): number | undefined {
+  const status = (error as { status?: unknown } | undefined)?.status;
+  return typeof status === "number" ? status : undefined;
+}
+
+/** The server's marks as it gave them: each room's `seq`, a whole number from nought. */
+function marksOf(wire: unknown): Record<string, number> {
+  if (typeof wire !== "object" || wire === null || Array.isArray(wire)) {
+    throw new Error("no marks");
+  }
+  const marks: Record<string, number> = {};
+  for (const [spaceId, seq] of Object.entries(wire)) {
+    if (typeof seq === "number" && Number.isInteger(seq) && seq >= 0) marks[spaceId] = seq;
+  }
+  return marks;
+}
 
 /**
  * The events in `incoming` this store has not seen, now marked seen. An event that carries the
@@ -4305,6 +4467,68 @@ function iconsOf(raw: Readonly<Record<string, unknown>>): ReadonlyMap<string, Sp
     if (parsed.ok) icons.set(spaceId, parsed.value);
   }
   return icons;
+}
+
+/**
+ * Something of the person's own that is not on the log (a room's face, the rooms hidden, the rooms
+ * pinned, somebody's face): what the server holds, so far as the store knows, and the changes to
+ * it asked here and not yet answered, drawn over it for `show`. A change shows at once; taken, it
+ * joins what the server holds; refused, it is dropped. Nothing is put back from what showed when
+ * a change was asked, which could be an earlier change, refused in turn: two quick picks the
+ * server both turned away left the first one showing (3 November 2026).
+ */
+interface OnTheirWay<T, C> {
+  /** What the server holds: what it or the cache last said, and the changes it took since. */
+  readonly held: () => T;
+  /** What the server or the cache says it holds now; what shows is drawn again. */
+  readonly heard: (now: T) => void;
+  /**
+   * A change asked for, by key, shown at once. Its answer, taken or refused, says whether what
+   * shows moved: a later change for the same key, still on its way, settles what shows instead.
+   */
+  readonly ask: (
+    key: string,
+    change: C,
+  ) => { readonly taken: () => boolean; readonly refused: () => boolean };
+}
+
+function onTheirWay<T, C>(
+  draw: (held: T, changes: ReadonlyMap<string, C>) => T,
+  start: T,
+  show: (now: T) => void,
+): OnTheirWay<T, C> {
+  let held = start;
+  const changes = new Map<string, C>();
+  const drawn = () => show(draw(held, changes));
+  return {
+    held: () => held,
+    heard: (now) => {
+      held = now;
+      drawn();
+    },
+    ask: (key, change) => {
+      changes.set(key, change);
+      drawn();
+      const mine = () => changes.get(key) === change;
+      return {
+        taken: () => {
+          held = draw(held, new Map([[key, change]]));
+          if (mine()) {
+            changes.delete(key);
+            return false;
+          }
+          drawn();
+          return true;
+        },
+        refused: () => {
+          if (!mine()) return false;
+          changes.delete(key);
+          drawn();
+          return true;
+        },
+      };
+    },
+  };
 }
 
 /** The rooms hidden, with the hides and unhides still on their way to the server drawn over them. */

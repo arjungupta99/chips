@@ -25,6 +25,7 @@ import {
   demoDevice,
   forgetDevice,
   isDemo,
+  myRole,
   type Store,
   setDeviceMuted,
   switchDevice,
@@ -572,12 +573,18 @@ function PairedWith({
     each.deviceId === device.deviceId
       ? called
       : others.stores.get(each.deviceId)?.getSnapshot().workspaceName;
+  // The person's role in each, as its store last heard it, for the switcher to say (ADR 0197).
+  const roleIn = (each: Device) => {
+    const kept = each.deviceId === device.deviceId ? store : others.stores.get(each.deviceId);
+    return kept === undefined ? undefined : myRole(kept.getSnapshot().model, each.participantId);
+  };
   const workspaces: WorkspaceTab[] = devices.map((each) => ({
     deviceId: each.deviceId,
     label: heard(each) ?? workspaceLabel(each),
     current: each.deviceId === device.deviceId,
     muted: each.muted === true,
     needsYou: each.deviceId === device.deviceId ? undefined : others.needs[each.deviceId],
+    role: roleIn(each),
     ...(isDemo(each) ? { demo: true } : {}),
   }));
 

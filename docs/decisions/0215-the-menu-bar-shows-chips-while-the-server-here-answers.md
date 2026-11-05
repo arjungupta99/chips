@@ -113,3 +113,46 @@ showed as Chips.
    it again. It had been so since this ADR made the window late, so the `open` agent's copy would
    have hung the same way. The link is now kept and the page told at once, and the window is made
    from a thread of its own, as a banner's click already makes it.
+
+## Addendum, 3 November 2026: the icon greys and stays
+
+His words: "Yes, grey it out", after he found Chips for Mac running on his Mac mini with no icon in
+the menu bar. The copy opened at login drew its icon at 00:13. At 00:28, with the Mac swapping
+hard, the server missed three checks and the app took the icon away. Its main thread never ran
+again: Apple events to it timed out, and its last work had been that removal. So the server
+answered and the app ran, but the menu bar showed nothing, until the app was quit and opened again.
+Hiding the icon removed it from the menu bar, and showing it made a new one, both on the main
+thread, and a Mac busy enough to miss three checks is the one where that is most likely to stall.
+
+1. **The icon is never taken away.** Three misses in a row (about 15 seconds) grey it: the same
+   mark at a third of its ink, which macOS draws grey, as a menu bar item that is turned off. An
+   answer draws it at full strength at once, as before. Opened at login, the icon starts grey and
+   is drawn on the server's first answer.
+2. **The menu's first line says which.** *Chips is running on this Mac* while the server answers,
+   *Chips is not answering on this Mac* while it does not.
+3. **Open Chips asks for the server too.** From the icon, it shows the window and starts the
+   server's login service when the server does not answer, as opening the app does (the addendum
+   of 20 October). It used to only show the window, since there was no icon to click while the
+   server was down.
+
+Consequences: a grey icon means the server here is not answering; no icon means Chips for Mac is
+not running. On a Mac with no server here the icon is drawn as before, never grey. This replaces
+decision 2's "three misses hide it" and the first consequence's "the icon going away means the
+server stopped answering".
+
+## Addendum, 3 November 2026: closing the window keeps the Dock icon
+
+His pick, "Keep it in the Dock", from the mock of ADR 0267 (Chips for Mac as a Mac app). Closing the
+window took the Dock icon away with it (decision 4), so the count ADR 0267 put on the Dock icon was
+seen only while the window was open, and ⌘Tab no longer listed Chips.
+
+1. **Closing the window hides the window alone.** The Dock icon stays, with the count on it, until
+   Chips is quit, as Messages' and Mail's do. Clicking it brings the window back, as it already did.
+2. **Opened at login, nothing changes.** The app is the menu bar's icon and nothing more, with no
+   Dock icon, until the window is opened the first time; from then on the Dock icon stays.
+3. **A menu command with the window closed brings it back.** With Chips in front and its window
+   closed, the menus are there, and New Space, a section or Settings shows the window doing it.
+
+This replaces decision 4's "and the Dock icon with it" and the consequence that nothing of Chips is
+on screen with the server down and the window closed: the Dock icon is, once the window has been
+opened.

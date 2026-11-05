@@ -69,6 +69,16 @@ export function roomName(
     : here.map((id) => nameOf(directory ?? {}, id)).join(", ");
 }
 
+/**
+ * What an empty field says (ADR 0268, the phone's words since its composer was built): a message,
+ * or a command, which goes in the same field; and, in a closed space, that nothing goes.
+ */
+export const FIELD_PLACEHOLDER = "Message, or /command";
+export const CLOSED_FIELD_PLACEHOLDER = "This space is closed";
+
+/** Said over a room while photos or files are dragged over it (ADR 0256 §6, ADR 0268). */
+export const ROOM_DROP_WORDS = "Drop to add to your message";
+
 /** What the notice above the field says when no agent is left in a room (rule 10). */
 export interface NoAgentNotice {
   readonly title: string;

@@ -2,7 +2,8 @@
  * The notification settings (ADR 0085). They are the person's, not the phone's — they live on the
  * server and the desktop's banners follow them too — so what matters is that a row says what is
  * saved, a sheet changes exactly what it shows, and a refusal is not hidden. Quiet hours were the
- * broken part: they could not be turned off, and typing one end saved the other as a guess.
+ * broken part: they could not be turned off, and typing one end saved the other as a guess. Beside
+ * the list on an iPad the sheets are pages, which the rows beside them follow.
  */
 
 import type { Store } from "@chipschat/core";
@@ -14,10 +15,11 @@ import {
   userEvent,
   waitFor,
 } from "@testing-library/react-native";
-import type { ReactElement, ReactNode } from "react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Group } from "../ui/Group";
 import { useNotificationsGroup } from "./Notifications";
+import { isYouSheet, YouBeside, type YouPage } from "./pages";
 import { clockWords } from "./words";
 
 /** A sheet asks where the home indicator is, as the app always can from the router. */
@@ -47,6 +49,38 @@ function Shown(props: {
       <Group>{rows}</Group>
       {foot}
       {overlays}
+    </>
+  );
+}
+
+/** The same beside the list on an iPad: the rows, and beside them the page open, if any. */
+function Beside(props: {
+  readonly store: Store;
+  readonly harnesses: readonly { readonly id: string; readonly name: string }[];
+}) {
+  const [open, setOpen] = useState<YouPage | undefined>(undefined);
+  return (
+    <YouBeside value={{ open, go: setOpen }}>
+      <BesideShown {...props} open={open} />
+    </YouBeside>
+  );
+}
+
+function BesideShown({
+  open,
+  ...props
+}: {
+  readonly store: Store;
+  readonly harnesses: readonly { readonly id: string; readonly name: string }[];
+  readonly open: YouPage | undefined;
+}) {
+  const { rows, foot, overlays, pages } = useNotificationsGroup(props);
+  return (
+    <>
+      <Group>{rows}</Group>
+      {foot}
+      {overlays}
+      {isYouSheet(open) ? pages[open] : null}
     </>
   );
 }
@@ -239,5 +273,68 @@ describe("Agents", () => {
     // What the choice lets through is said under it.
     expect(screen.getByText("Nothing from it notifies you")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Agents, Scout muted" })).toBeTruthy();
+  });
+});
+
+describe("beside the list on an iPad", () => {
+  it("opens each as a page, chooses its row, and opens no sheet", async () => {
+    const { store } = fake();
+    await render(<Beside store={store} harnesses={HARNESSES} />);
+    for (const [row, page, sheet] of [
+      ["decisions-row", "decide-page", "decide-sheet"],
+      ["quiet-row", "quiet-page", "quiet-sheet"],
+      ["agents-row", "agents-page", "agents-sheet"],
+    ] as const) {
+      await userEvent.press(screen.getByTestId(row));
+      expect(screen.getByTestId(page)).toBeOnTheScreen();
+      expect(screen.getByTestId(row)).toBeSelected();
+      expect(screen.queryByTestId(sheet)).toBeNull();
+    }
+  });
+
+  it("saves quiet hours once the wheel has rested, and the row beside the page says them", async () => {
+    const { store, saved } = fake();
+    await render(<Beside store={store} harnesses={HARNESSES} />);
+    await userEvent.press(screen.getByTestId("quiet-row"));
+    await fireEvent(screen.getByTestId("quiet-switch"), "valueChange", true);
+    expect(saved).toHaveLength(0);
+    await waitFor(() =>
+      expect(saved.at(-1)?.quiet).toEqual({ from: "22:00", to: "07:00", breakthrough: "decide" }),
+    );
+    expect(saved).toHaveLength(1);
+    expect(
+      screen.getByRole("button", {
+        name: `Quiet hours, ${clockWords("22:00")}–${clockWords("07:00")}`,
+      }),
+    ).toBeSelected();
+    expect(screen.getByTestId("quiet-page")).toBeOnTheScreen();
+  });
+
+  it("saves what the wheel has not rested on yet as the page goes, and nothing unchanged", async () => {
+    const { store, saved } = fake(NIGHT);
+    await render(<Beside store={store} harnesses={HARNESSES} />);
+    await screen.findByRole("button", {
+      name: `Quiet hours, ${clockWords("23:00")}–${clockWords("07:30")}`,
+    });
+    await userEvent.press(screen.getByTestId("quiet-row"));
+    await userEvent.press(screen.getByTestId("decisions-row"));
+    expect(saved).toHaveLength(0);
+    await userEvent.press(screen.getByTestId("quiet-row"));
+    await userEvent.press(screen.getByTestId("quiet-to"));
+    await fireEvent(screen.getByTestId("quiet-wheel"), "valueChange", {}, at(6, 15));
+    await userEvent.press(screen.getByTestId("decisions-row"));
+    expect(saved).toEqual([
+      { ...NIGHT, quiet: { from: "23:00", to: "06:15", breakthrough: "decide" } },
+    ]);
+  });
+
+  it("keeps the page of choices open as one is made: the tick moves, and the row says it", async () => {
+    const { store, saved } = fake();
+    await render(<Beside store={store} harnesses={HARNESSES} />);
+    await userEvent.press(screen.getByTestId("agents-row"));
+    await userEvent.press(screen.getAllByRole("radio", { name: "Nothing" })[0] as never);
+    await waitFor(() => expect(saved.at(-1)?.harnesses).toEqual({ har_scout: "none" }));
+    expect(screen.getByRole("button", { name: "Agents, Scout muted" })).toBeSelected();
+    expect(screen.getByTestId("agents-page")).toBeOnTheScreen();
   });
 });

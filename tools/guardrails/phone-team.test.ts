@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { profileFacts, teamOf } from "../phone/team.mjs";
+import { freeTeamEntitlements, profileFacts, teamIds, teamOf } from "../phone/team.mjs";
 
 /** Xcode's preferences as `plutil -p` prints them, as they stood on 11 October 2026. */
 const PREFS = `
@@ -80,5 +80,54 @@ describe("the team Xcode signs with", () => {
 
   it("is nothing when Xcode lists no team", () => {
     expect(teamOf("", [PAID])).toBeUndefined();
+  });
+});
+
+describe("Xcode's teams", () => {
+  it("are every team its preferences list, which the build's team has to be one of", () => {
+    expect(teamIds(PREFS)).toEqual(["W9K648WB82"]);
+    expect(
+      teamIds(
+        PREFS.replace(
+          '"teamID" => "W9K648WB82"',
+          '"teamID" => "ABCDE12345"\n        "teamID" => "W9K648WB82"',
+        ),
+      ),
+    ).toEqual(["ABCDE12345", "W9K648WB82"]);
+    expect(teamIds("")).toEqual([]);
+  });
+});
+
+/** The app's entitlements as a prebuild writes them for a paid team. */
+const ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>aps-environment</key>
+    <string>development</string>
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+      <string>applinks:relay.chipschat.ai</string>
+    </array>
+    <key>keychain-access-groups</key>
+    <array>
+      <string>W9K648WB82.chat.chips.app</string>
+      <string>W9K648WB82.chat.chips.app.shared</string>
+    </array>
+  </dict>
+</plist>`;
+
+describe("the entitlements a free team can sign", () => {
+  it("are without push and the link domain, and keep the keychain groups", () => {
+    const signable = freeTeamEntitlements(ENTITLEMENTS);
+    expect(signable.gone).toEqual(["push", "the link domain"]);
+    expect(signable.text).not.toMatch(/aps-environment|associated-domains|applinks/);
+    expect(signable.text).toContain("<string>W9K648WB82.chat.chips.app.shared</string>");
+    expect(freeTeamEntitlements(signable.text)).toEqual({ text: signable.text, gone: [] });
+  });
+
+  it("name only what was there", () => {
+    const noLinks = ENTITLEMENTS.replace(/\s*<key>com\.apple[\s\S]*?<\/array>/, "");
+    expect(freeTeamEntitlements(noLinks).gone).toEqual(["push"]);
   });
 });

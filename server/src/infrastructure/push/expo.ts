@@ -15,19 +15,28 @@
  * enhanced security on, so a post to Expo without an access token is refused, every time: a
  * server pointed at Expo with none says so once as it starts and sends nothing. (A server with
  * no `CHIPS_PUSH_URL` and no token isn't pointed at Expo: it sends through the push relay.) A 401 or 403 means the token it
- * has is wrong or was revoked: said once, and nothing more is sent until Chips restarts.
+ * has is wrong or was revoked: said once, and nothing more is sent until Chips restarts. A batch
+ * the service didn't answer or didn't take leaves the sender `failing` until one it takes.
  */
 
-import type { Logger } from "@chipschat/platform";
+import { type Logger, receiptsUrlOf } from "@chipschat/platform";
 import type {
   PushMessage,
   PushReadiness,
+  PushReceipt,
   PushSender,
+  PushStanding,
   PushTicket,
 } from "../../application/ports/push.js";
 
 /** Expo takes up to a hundred messages in one request. */
 const BATCH = 100;
+
+/** Ids asked about in one request for receipts: Expo takes a thousand, the push relay 300. */
+const RECEIPT_BATCH = 300;
+
+/** What a push service with no receipts door (a push relay older than one) is said to have. */
+const NO_RECEIPTS = "the push service gives no receipts";
 
 const TIMEOUT_MS = 10_000;
 
@@ -63,6 +72,37 @@ function ticketFrom(raw: ExpoTicket): PushTicket {
   };
 }
 
+/** One of Expo's receipts, `{ status, message, details: { error } }`, as a receipt. */
+function receiptFrom(raw: ExpoTicket): PushReceipt {
+  const { ok, error, message } = ticketFrom(raw);
+  return {
+    ok,
+    ...(error === undefined ? {} : { error }),
+    ...(message === undefined ? {} : { message }),
+  };
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The receipts in a service's answer for the ids asked about; or why it holds none. */
+async function receiptsIn(
+  response: Response,
+  ids: readonly string[],
+): Promise<Map<string, PushReceipt> | string> {
+  const data = await response.json().then(
+    (body: unknown) => (isRecord(body) ? body["data"] : undefined),
+    () => undefined,
+  );
+  if (!isRecord(data)) return "the push service answered with receipts of its own";
+  const found = new Map<string, PushReceipt>();
+  for (const id of ids) {
+    const raw = data[id];
+    if (isRecord(raw)) found.set(id, receiptFrom(raw as ExpoTicket));
+  }
+  return found;
+}
+
 function allFailed(count: number, message: string): PushTicket[] {
   return Array.from({ length: count }, () => ({ ok: false, message }));
 }
@@ -86,18 +126,20 @@ export function createExpoPushSender(options: ExpoPushOptions): PushSender {
     );
   }
 
+  const headers = {
+    "content-type": "application/json",
+    accept: "application/json",
+    ...(options.accessToken === undefined
+      ? {}
+      : { authorization: `Bearer ${options.accessToken}` }),
+  };
+
   /** The request itself. A `string` in place of a response is why it did not happen. */
   async function post(batch: readonly PushMessage[]): Promise<Response | string> {
     try {
       const response = await call(options.url, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          accept: "application/json",
-          ...(options.accessToken === undefined
-            ? {}
-            : { authorization: `Bearer ${options.accessToken}` }),
-        },
+        headers,
         body: JSON.stringify(batch),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
@@ -119,21 +161,60 @@ export function createExpoPushSender(options: ExpoPushOptions): PushSender {
     }
   }
 
-  async function sendBatch(batch: readonly PushMessage[]): Promise<PushTicket[]> {
+  /** Whether the last batch went unanswered or untaken: the service's trouble, not a phone's. */
+  let failing = false;
+
+  /** The service's tickets for a batch, or why there are none. */
+  async function ticketsFor(batch: readonly PushMessage[]): Promise<PushTicket[] | string> {
     const response = await post(batch);
-    if (typeof response === "string") return allFailed(batch.length, response);
+    if (typeof response === "string") return response;
     let body: { data?: unknown };
     try {
       body = (await response.json()) as { data?: unknown };
     } catch {
-      return allFailed(batch.length, "the push service answered with something that is not JSON");
+      return "the push service answered with something that is not JSON";
     }
     if (!Array.isArray(body.data) || body.data.length !== batch.length) {
       // Expo answers one ticket per message, in order. Anything else and the tickets cannot be
       // matched to the phones they were for, so none of them is trusted.
-      return allFailed(batch.length, "the push service answered with a ticket list of its own");
+      return "the push service answered with a ticket list of its own";
     }
     return body.data.map((raw) => ticketFrom(raw as ExpoTicket));
+  }
+
+  async function sendBatch(batch: readonly PushMessage[]): Promise<PushTicket[]> {
+    const tickets = await ticketsFor(batch);
+    failing = typeof tickets === "string";
+    return typeof tickets === "string" ? allFailed(batch.length, tickets) : tickets;
+  }
+
+  const receiptsUrl = receiptsUrlOf(options.url);
+  /** Set once the push service turns out to have no receipts door, which is asked no more. */
+  let noReceipts = false;
+
+  /** The service's receipts for these ids, by id; or why there are none. Nothing here throws. */
+  async function receiptsFor(ids: readonly string[]): Promise<Map<string, PushReceipt> | string> {
+    let response: Response;
+    try {
+      response = await call(receiptsUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ids }),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (error) {
+      return error instanceof Error ? error.message : "unreachable";
+    }
+    if (response.status === 404) {
+      noReceipts = true;
+      return NO_RECEIPTS;
+    }
+    if (!response.ok) return `http ${response.status}`;
+    return receiptsIn(response, ids);
+  }
+
+  function standing(): PushStanding {
+    return readiness === "ready" && failing ? "failing" : readiness;
   }
 
   return {
@@ -148,5 +229,17 @@ export function createExpoPushSender(options: ExpoPushOptions): PushSender {
       return tickets;
     },
     readiness: () => readiness,
+    standing,
+    async receipts(ids) {
+      if (noReceipts) return NO_RECEIPTS;
+      if (readiness !== "ready") return readiness;
+      const found = new Map<string, PushReceipt>();
+      for (let from = 0; from < ids.length; from += RECEIPT_BATCH) {
+        const some = await receiptsFor(ids.slice(from, from + RECEIPT_BATCH));
+        if (typeof some === "string") return some;
+        for (const [id, receipt] of some) found.set(id, receipt);
+      }
+      return found;
+    },
   };
 }

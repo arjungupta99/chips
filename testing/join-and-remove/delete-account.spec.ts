@@ -20,6 +20,7 @@ import {
   newRoom,
   openSpace,
   openYou,
+  openYouPage,
   personId,
   roomLines,
   say,
@@ -42,17 +43,20 @@ test("she deletes her account, is told she left, and the rooms say so", async ({
     await openSpace(dana.page, title);
     await say(dana.page, "Leaving you the tulip order.");
 
-    // She is told what goes and what stays, and Delete waits for the workspace's name.
+    // She is told what goes and what stays, on its page (ADR 0265's addendum), and its button
+    // asks the last time, where Delete waits for the workspace's name.
     await openYou(dana.page);
     await dana.page.getByTestId("delete-account").click();
-    const dialog = dana.page.getByTestId("delete-account-dialog");
-    await expect(dialog.getByRole("heading", { level: 2 })).toHaveText("Delete your account");
-    await expect(dialog.getByTestId("delete-goes")).toContainText(
+    const told = dana.page.getByTestId("delete-account-page");
+    await expect(told.getByRole("heading", { level: 2 })).toHaveText("Delete your account");
+    await expect(told.getByTestId("delete-goes")).toContainText(
       "This device and its sign-in, and push to it",
     );
-    await expect(dialog.getByTestId("delete-stays")).toContainText(
+    await expect(told.getByTestId("delete-stays")).toContainText(
       `${ledger.name}, which you connected: it goes to`,
     );
+    await told.getByTestId("delete-account-ask").click();
+    const dialog = dana.page.getByTestId("delete-account-dialog");
     const confirm = dialog.getByTestId("delete-account-confirm");
     await expect(confirm).toBeDisabled();
     await dialog.getByTestId("delete-account-typed").fill("demo");
@@ -69,7 +73,7 @@ test("she deletes her account, is told she left, and the rooms say so", async ({
     await openSpace(owner, title);
     await expect(roomLines(owner)).toContainText(`${dana.name} left the workspace`);
     await expect(roomLines(owner)).toContainText("Leaving you the tulip order.");
-    await openYou(owner);
+    await openYouPage(owner, "people-row");
     await expect(owner.getByTestId("person-row").filter({ hasText: dana.name })).toHaveCount(0);
 
     // OK forgets the key: the first screen, with no "pair again".

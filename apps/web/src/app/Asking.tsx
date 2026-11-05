@@ -1,7 +1,8 @@
 /**
  * When it asks you (ADR 0195, Arjun's pick of the mock "When it asks you, simpler", version 2): the
- * harness card's section for every harness, the phone's (`apps/mobile/src/harnesses/Asking.tsx`)
- * in the desktop's terms, with the same words from core.
+ * page a harness's When it asks you row opens (ADR 0254, here since ADR 0266), for every harness,
+ * the phone's (`apps/mobile/src/harnesses/Asking.tsx`) in the desktop's terms, with the same words
+ * from core. The page's name is its heading.
  *
  * - **The ask travels**: the harness's face, a dotted path, the face of whoever its asks go to; an
  *   ask leaves the harness, lands with them in amber, a ring pulses and a green tick pops, and the
@@ -67,7 +68,6 @@ export function Asking(props: {
   const removed = always.removed;
   return (
     <section className="asking" aria-label="When it asks you" data-testid="asking">
-      <h3>When it asks you</h3>
       <Hero
         harness={name}
         person={to.kind === "you" ? "You" : to.kind === "owner" ? to.name : "A person"}

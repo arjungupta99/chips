@@ -28,7 +28,17 @@
  */
 
 import type { Attachment } from "@chipschat/core";
-import { formatBytes, formatDuration, inAlbum, isVoiceNoteName, kindOf } from "@chipschat/core";
+import {
+  ALONE_TILE_HEIGHT,
+  ALONE_TILE_WIDTH,
+  aloneTile,
+  formatBytes,
+  formatDuration,
+  inAlbum,
+  isVoiceNoteName,
+  kindOf,
+  tileShape,
+} from "@chipschat/core";
 import { Image } from "expo-image";
 import { lazy, type ReactNode, Suspense, useEffect, useState } from "react";
 import {
@@ -63,8 +73,8 @@ const VoicePlayer = lazy(async () => ({
 export const GRID_MAX = 4;
 /** What a tile before the album's last stands for besides itself. */
 const NONE: readonly TileKey[] = [];
-/** The tallest a tile alone is drawn, at its own shape (figure 1). */
-export const ALONE_HEIGHT = 200;
+/** The tallest a tile alone is drawn, at its own shape (figure 1): core's, the Mac's too. */
+export const ALONE_HEIGHT = ALONE_TILE_HEIGHT;
 /** An album is as wide as a bubble may be, and no wider than the desktop's grid (420 pixels). */
 const ALBUM_MAX = 420;
 /** A video tile's play disc: the viewer's, at the size Messages gives one in a bubble (ADR 0163). */
@@ -76,17 +86,14 @@ const TILE_PLAY = 44;
  * stood taller than half the screen, which is a scroll rather than a glance (Arjun, 20 September
  * 2026). The picture itself is a tap away, at the size it deserves.
  */
-export const TILE_MAX = 240;
-const TALLEST = 3 / 4;
-const WIDEST = 1.8;
+export const TILE_MAX = ALONE_TILE_WIDTH;
 
 /**
- * A picture's own shape, within reason: no taller than `TALLEST`, no wider than `WIDEST`. The
- * pictures a message draws in its words (`Markdown`) keep to the same shapes.
+ * A picture's own shape, within reason: no taller than 3:4, no wider than 1.8:1 (core's, which the
+ * Mac and the web draw by too). The pictures a message draws in its words (`Markdown`) keep to the
+ * same shapes.
  */
-export function tileShape(ratio: number): number {
-  return Math.min(Math.max(ratio, TALLEST), WIDEST);
-}
+export { tileShape };
 
 /** A URI once it is loaded, or nothing while it is on its way, and why if it failed. */
 function useUri(load: (() => Promise<string>) | undefined): {
@@ -248,15 +255,8 @@ function shapes(
  * lays nothing out, had passed it.
  */
 function aloneShape(attachment: Attachment): ViewStyle {
-  const video = kindOf(attachment.mimeType) === "video";
-  const ratio =
-    attachment.width !== undefined && attachment.height !== undefined && attachment.height > 0
-      ? tileShape(attachment.width / attachment.height)
-      : video
-        ? tileShape(16 / 9)
-        : 1;
-  const height = Math.min(ALONE_HEIGHT, Math.round(TILE_MAX / ratio));
-  return { width: Math.round(height * ratio), height, maxWidth: "100%" };
+  // Core's sum (`aloneTile`), so the Mac and the web hold a lone tile at the same size.
+  return { ...aloneTile(attachment), maxWidth: "100%" };
 }
 
 /**

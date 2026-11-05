@@ -69,7 +69,7 @@ test("an agent is archived, brought back and deleted from its page, with its roo
     await title.fill("Nest");
     await title.press("Enter");
     await expect(page.getByRole("main", { name: "Space: Nest" })).toBeVisible();
-    await expect(page.getByTestId("room-sheet-add-done")).toBeVisible();
+    await expect(page.getByTestId("room-sheet-add-page")).toBeVisible();
     await addMember(page, { id: nestId });
     await expect((await sheetBack(page)).getByTestId("member")).toHaveCount(2);
     await closeSheet(page);

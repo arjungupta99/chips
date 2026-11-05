@@ -9,8 +9,10 @@
  * something a test can insist on.
  */
 
-import { describe, expect, it } from "vitest";
-import { advertise, browse, SERVICE_TYPE } from "./discovery.js";
+import os from "node:os";
+import { Bonjour, type Service } from "bonjour-service";
+import { describe, expect, it, vi } from "vitest";
+import { advertise, browse, hostFor, SERVICE_TYPE } from "./discovery.js";
 
 describe("mDNS", () => {
   it("publishes a service and takes it away again", async () => {
@@ -28,6 +30,34 @@ describe("mDNS", () => {
       expect(server.port).toBeGreaterThan(0);
     }
     await advertised.stop();
+  });
+
+  it("answers under the workspace's name, never the machine's, so the system keeps its own", async () => {
+    const publish = vi.spyOn(Bonjour.prototype, "publish");
+    const advertised = advertise({
+      name: "Chips under test",
+      port: 4488,
+      workspaceId: "ws_01TEST",
+      version: "1",
+    });
+    const service = publish.mock.results[0]?.value as Service;
+    publish.mockRestore();
+
+    const records = service.records();
+    const target = records.find((record) => record.type === "SRV")?.data.target;
+    expect(target).toBe("chips-ws-01test.local");
+    expect(target).not.toBe(os.hostname());
+    for (const record of records.filter((each) => each.type === "A" || each.type === "AAAA")) {
+      expect(record.name).toBe("chips-ws-01test.local");
+    }
+    await advertised.stop();
+  });
+
+  it("makes a name a network can carry out of any workspace id", () => {
+    expect(hostFor("ws_01M1QS7VXYY26ADKHEF7TNZ7WY")).toBe(
+      "chips-ws-01m1qs7vxyy26adkhef7tnz7wy.local",
+    );
+    expect(hostFor("x".repeat(80))).toMatch(/^[a-z0-9-]{1,63}\.local$/);
   });
 
   it("is one service type, which the desktop app looks for by name", () => {

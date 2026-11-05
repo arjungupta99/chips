@@ -4,9 +4,10 @@
  * shelf; on a wide screen it still does, and the list opens beside the tab's own.
  */
 
-import { Redirect, Stack, useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { All } from "../../src/harnesses/All";
 import { useChips } from "../../src/store/provider";
+import { BackToTabs } from "../../src/ui/backToTabs";
 import { useLayout } from "../../src/ui/layout";
 import { Screen } from "../../src/ui/Screen";
 
@@ -15,7 +16,7 @@ export default function HarnessesScreen() {
   const router = useRouter();
   const { wide } = useLayout();
   if (paired === undefined) return null;
-  if (wide) return <Redirect href={{ pathname: "/(tabs)/agents", params: { harnesses: "all" } }} />;
+  if (wide) return <BackToTabs tab="/(tabs)/agents" params={{ harnesses: "all" }} />;
   return (
     <Screen>
       <Stack.Screen options={{ title: "Harnesses" }} />

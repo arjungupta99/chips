@@ -73,6 +73,23 @@ export function kindWords(card: Connector): { words: string; one: boolean } {
   }
 }
 
+/** What the gallery says under its title, as the phone has said it since ADR 0190. */
+export const GALLERY_LEDE =
+  "Pick what runs your agents. You run one line on that computer, and it shows up here.";
+
+/**
+ * The heading over the two ways the app carries: "Or" only after the docs' cards. A server told no
+ * docs, and the demo, have none.
+ */
+export function ownWayHeading(cards: number): string {
+  return cards === 0 ? "Build your own" : "Or build your own";
+}
+
+/** A docs card's line for a harness here already: picking it offers another, or a new agent. */
+export function connectedHereLine(press: "Tap" | "Click"): string {
+  return `Connected here. ${press} for another, or a new agent.`;
+}
+
 /** A choice's name: the card's, or the way's. */
 export function choiceName(choice: ConnectChoice): string {
   return typeof choice === "string" ? CONNECT_WAYS[choice].name : choice.name;
@@ -126,8 +143,9 @@ export function hereAlreadyWords(
 
 /**
  * The connect page's head: whose face, what it is called, and the line under it, which says what to
- * do with what the page shows: where it goes, and what to press ("please be more clear in the
- * instructions", Arjun, 18 October 2026). A docs card's face is none, so it is drawn by its name,
+ * do with what the page shows and where it goes ("please be more clear in the instructions", Arjun,
+ * 18 October 2026). A line to run says Run in Terminal on its own box (`RUN_IN_TERMINAL`), so the
+ * line under the name says only where (ADR 0257). A docs card's face is none, so it is drawn by its name,
  * as the harness it brings is on the arrival, the shelf and every list after: the face picked is
  * the face that arrives (ADR 0190, addendum of 18 October 2026).
  */
@@ -150,7 +168,7 @@ export function connectHead(
     sub:
       choice === "own"
         ? "Add this to your harness's code, where it starts."
-        : "Run this in a terminal, then give your harness the key it answers with.",
+        : "It answers with a key. Give that key to your harness.",
   };
 }
 
@@ -170,11 +188,26 @@ const CARD_SAYS: Readonly<
 > = {
   sentence: (name) => `Paste this into your chat with ${name}, wherever you talk to it.`,
   install: (name) =>
-    `Paste this into a terminal on the computer where ${name} runs, then press Return. It installs Chips there if it needs to.`,
-  command: (name) =>
-    `Paste this into a terminal on the computer where ${name} runs, then press Return.`,
+    `This goes on the computer where ${name} runs, and installs Chips there if it needs to.`,
+  command: (name) => `This goes on the computer where ${name} runs.`,
   link: (name) => `Give ${name} this link, on the computer where it runs.`,
 };
+
+/**
+ * Over every line a person runs themselves, on its box (Arjun, 1 November 2026: "whenever we are
+ * asking user to run a command in terminal, we should say 'run in terminal'"; ADR 0257).
+ */
+export const RUN_IN_TERMINAL = "Run in Terminal";
+
+/**
+ * Whether what a choice's box holds is a line to run in a terminal: a card's line, or the curl for
+ * anything with HTTP. Not a sentence to say, a link to hand over, or code for a harness's source.
+ */
+export function runsInTerminal(choice: ConnectChoice, asking: boolean): boolean {
+  if (typeof choice === "string") return choice === "http";
+  const says = cardSays(choice, asking);
+  return says === "install" || says === "command";
+}
 
 /** Where `curl … | sh` fetches Chips's installer (ADR 0119). */
 export const INSTALL_URL = "https://chipschat.ai/install";
@@ -488,8 +521,60 @@ export function linkWaiting(card: JoinCard | undefined): boolean {
  * Where a bridge's card runs (ADR 0218, phase 5): Chips for Mac, which carries `chips`, runs its
  * line itself on this Mac; anywhere else gets the installer's line, to paste where it runs.
  */
+/**
+ * A link a card made that waits to be used, as the shelf's last tile counts it down (ADR 0190,
+ * point 2; on the desktop since ADR 0271): its minutes left, the share of its time left, and
+ * whether its harness has taken its key. Nothing once the harness is here or the link has stopped.
+ */
+export interface WaitingLink {
+  readonly left: string;
+  readonly share: number;
+  readonly taken: boolean;
+}
+
+export function waitingLink(
+  request: JoinRequest | undefined,
+  card: JoinCard | undefined,
+  nowMs: number,
+): WaitingLink | undefined {
+  if (request === undefined || !linkWaiting(card)) return undefined;
+  return {
+    left: linkLeft(request, nowMs),
+    share: linkShare(request, nowMs),
+    taken: request.state === "redeemed",
+  };
+}
+
+/** The shelf's last tile: Connect a harness, or the link it waits on. */
+export function connectTileWords(waiting: WaitingLink | undefined): {
+  readonly name: string;
+  readonly line: string;
+  readonly label: string;
+} {
+  if (waiting === undefined) {
+    return { name: "Connect", line: "a harness", label: "Connect a harness" };
+  }
+  if (waiting.taken) {
+    return { name: "Connecting", line: "One moment…", label: "Connect a harness, connecting" };
+  }
+  return {
+    name: "Waiting",
+    line: waiting.left,
+    label: `Connect a harness, waiting, ${waiting.left} left`,
+  };
+}
+
 export const CONNECT_WHERE = { here: "On this Mac", another: "On another computer" } as const;
 export type ConnectWhere = keyof typeof CONNECT_WHERE;
+
+/**
+ * Over each place's steps, so they read as what will happen rather than rows to pick (Arjun,
+ * 1 November 2026: "the list with circles feels like I should tap it"; ADR 0257).
+ */
+export const STEPS_LABEL: Readonly<Record<ConnectWhere, string>> = {
+  here: "What Connect does",
+  another: "What happens",
+};
 
 /** On this Mac, before Connect is pressed: what it does. */
 export function hereSentence(name: string): string {
@@ -549,11 +634,15 @@ export interface HereStep {
   readonly state: "done" | "now" | "later" | "stopped";
 }
 
-/** Where it stopped: the bridge's own sentence, what to do, and a line to copy when it gives one. */
+/**
+ * Where it stopped: the bridge's own sentence, what to do, a line to copy when it gives one, and
+ * whether that line is run in a terminal, which its box then says (ADR 0257).
+ */
 export interface HereStop {
   readonly says: string;
   readonly doing?: string | undefined;
   readonly copy?: string | undefined;
+  readonly run: boolean;
 }
 
 export interface HereRun {
@@ -634,11 +723,19 @@ function sentenceOf(line: HereLine): string {
   return sentence.replace(/\s*The link is still good\b[\s\S]*$/, "") || sentence;
 }
 
+/**
+ * A setting, `NAME=value`, which goes in a file rather than being run: Hermes's
+ * `API_SERVER_ENABLED=true`, for its `.env`. Every other line a bridge gives to copy is a command.
+ */
+const SETTING = /^[A-Za-z_][A-Za-z0-9_]*=\S*$/;
+
 function stopOf(line: HereLine): HereStop {
+  const copy = textOf(line["copy"]);
   return {
     says: textOf(line["says"]) ?? sentenceOf(line),
     doing: textOf(line["doing"]),
-    copy: textOf(line["copy"]),
+    copy,
+    run: copy !== undefined && !SETTING.test(copy.trim()),
   };
 }
 

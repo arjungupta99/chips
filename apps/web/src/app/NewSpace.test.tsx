@@ -5,16 +5,16 @@
  * growing is a browser's to draw (`e2e/newSpace.spec.ts`).
  */
 
-import type { Participant } from "@chipschat/core";
+import type { Directory, Participant } from "@chipschat/core";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { NewSpace } from "./NewSpace.tsx";
+import { NewSpace, useNewSpaceDialog } from "./NewSpace.tsx";
 
 const SCOUT: Participant = { id: "hrn_scout", kind: "harness", displayName: "Scout" };
 const LEDGER: Participant = { id: "hrn_ledger", kind: "harness", displayName: "Ledger" };
 
-/** The dialog as the rail holds it: the draft outside it, so it outlives a fold. */
+/** The dialog as the rail holds it: the draft and the pick outside it, so they outlive a fold. */
 function open(harnesses: readonly Participant[], initial = "", lastAsked?: string) {
   const onAsk = vi.fn<(harnessIds: readonly string[], text: string) => void>();
   const onGroup = vi.fn<(title: string) => void>();
@@ -22,6 +22,7 @@ function open(harnesses: readonly Participant[], initial = "", lastAsked?: strin
   const drafts: string[] = [];
   function Held() {
     const [draft, setDraft] = useState(initial);
+    const [chosen, setChosen] = useState<readonly string[] | undefined>(undefined);
     return (
       <NewSpace
         harnesses={harnesses}
@@ -30,6 +31,8 @@ function open(harnesses: readonly Participant[], initial = "", lastAsked?: strin
           drafts.push(next);
           setDraft(next);
         }}
+        chosen={chosen}
+        onChosen={setChosen}
         lastAsked={lastAsked}
         onAsk={onAsk}
         onGroup={onGroup}
@@ -131,7 +134,7 @@ describe("the new-space dialog", () => {
     fireEvent.click(face("Scout"));
     fireEvent.click(face("Ledger"));
     const lead = screen.getByRole("button", { name: "Scout leads" });
-    expect(lead.getAttribute("title")).toBe("Hand the lead to Ledger");
+    expect(lead.getAttribute("title")).toBe("Hands the lead to Ledger");
     fireEvent.click(lead);
     // The faces are as they were; only who leads has changed, and the button keeps the keyboard.
     expect(checked()).toEqual(["Ledger", "Scout"]);
@@ -164,6 +167,12 @@ describe("the new-space dialog", () => {
     enter(field);
     expect(onGroup).not.toHaveBeenCalled();
     expect(onAsk).not.toHaveBeenCalled();
+    // As on the phone, Send waits for somebody to ask, with the words typed.
+    expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(face("Scout"));
+    expect((screen.getByRole("button", { name: "Send" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
   });
 
   it("makes an empty room with Empty picked, named by the words on one line (ADR 0148)", () => {
@@ -235,5 +244,67 @@ describe("the new-space dialog", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("the dialog the shell holds", () => {
+  const takes = { capabilities: ["new_spaces"] };
+  const directory = {
+    hrn_scout: { ...SCOUT, ...takes },
+    hrn_ledger: { ...LEDGER, ...takes },
+  } as Directory;
+
+  /** The rail's + and the dialog it opens, for one workspace, as the shell holds them. */
+  function Shell(props: { readonly onAsk: (ids: readonly string[], title: string) => void }) {
+    const dialog = useNewSpaceDialog({
+      directory,
+      workspace: "dev_one",
+      onAsk: props.onAsk,
+      onGroup: () => undefined,
+    });
+    return (
+      <>
+        <button type="button" onClick={(event) => dialog.open(event.currentTarget)}>
+          New space
+        </button>
+        {dialog.dialog}
+      </>
+    );
+  }
+  const plus = () => fireEvent.click(screen.getByRole("button", { name: "New space" }));
+  const fold = () => {
+    const dialog = screen.getByTestId("new-space-window");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    faded(dialog);
+  };
+
+  it("keeps who was picked when it folds away unsent, as the phone does", () => {
+    render(<Shell onAsk={vi.fn()} />);
+    plus();
+    expect(checked()).toEqual(["Ledger"]);
+    // The first click chooses, the next adds.
+    fireEvent.click(face("Scout"));
+    fireEvent.click(face("Ledger"));
+    expect(checked()).toEqual(["Ledger", "Scout"]);
+    fold();
+    plus();
+    expect(checked()).toEqual(["Ledger", "Scout"]);
+  });
+
+  it("opens on whoever was asked last, after a reload too", () => {
+    const onAsk = vi.fn();
+    render(<Shell onAsk={onAsk} />);
+    plus();
+    fireEvent.click(face("Scout"));
+    const field = screen.getByRole("textbox");
+    type(field, "Quotes");
+    enter(field);
+    expect(onAsk).toHaveBeenCalledWith(["hrn_scout"], "Quotes");
+    faded(screen.getByTestId("new-space-window"));
+    cleanup();
+    // The page loaded again: nothing in memory, the browser's storage kept.
+    render(<Shell onAsk={vi.fn()} />);
+    plus();
+    expect(checked()).toEqual(["Scout"]);
   });
 });

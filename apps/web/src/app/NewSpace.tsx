@@ -15,7 +15,10 @@
  * and people are added to it before anybody starts. Nobody picked sends nothing. Where no harness takes new spaces, Empty is all there is, so there are no faces.
  *
  * It grows out of the + that opened it and folds back into it (`GrowingDialog.tsx`). Escape, the ×
- * or a click outside it folds it away, and the words wait there for the next time. The rail's + is
+ * or a click outside it folds it away, and the words and who was picked wait there for the next
+ * time, as on the phone. Who was asked for the last room made opens the next one, after a reload
+ * too: it is kept in the browser for the workspace, as the phone keeps it (`remembered.ts`). Send
+ * waits until somebody, or Empty, is picked. The rail's + is
  * one way in; an empty workspace's Create a space is the other (ADR 0131), so the shell holds it
  * (`useNewSpaceDialog`).
  */
@@ -47,6 +50,9 @@ export interface NewSpaceProps {
   readonly onDraft: (draft: string) => void;
   /** Whom it opens on: whoever was asked for the last room made here, while they are offered. */
   readonly lastAsked?: string | undefined;
+  /** Who was clicked: nothing yet, and it is the dialog's own pick (core's `newSpacePicked`). */
+  readonly chosen: readonly string[] | undefined;
+  readonly onChosen: (chosen: readonly string[] | undefined) => void;
   /** The + that opened it, which it grows out of and folds back into. */
   readonly from?: HTMLElement | null | undefined;
   /** Ask the first of these for a room with this name; the rest are put in it (ADR 0149). */
@@ -65,6 +71,8 @@ export interface NewSpaceProps {
  */
 export function useNewSpaceDialog(input: {
   readonly directory: Directory;
+  /** The workspace in front, which who was asked last is kept for. */
+  readonly workspace: string;
   readonly onAsk: (harnessIds: readonly string[], title: string) => void;
   /** A room made empty, and what comes once the dialog has gone, in place of the keyboard going
    * back to the +: until then the page behind the modal dialog is inert and takes no focus. */
@@ -74,7 +82,8 @@ export function useNewSpaceDialog(input: {
   const harnesses = useMemo(() => newSpaceHarnesses(directory), [directory]);
   const [asking, setAsking] = useState(false);
   const [draft, setDraft] = useState("");
-  const [lastAsked, setLastAsked] = useState<string | undefined>(undefined);
+  const [chosen, setChosen] = useState<readonly string[] | undefined>(undefined);
+  const [lastAsked, setLastAsked] = useLastAsked(input.workspace);
   const opener = useRef<HTMLElement | null>(null);
   const then = useRef<(() => void) | undefined>(undefined);
   const open = useCallback((from: HTMLElement | null) => {
@@ -90,23 +99,26 @@ export function useNewSpaceDialog(input: {
   }, []);
   const ask = useCallback(
     (harnessIds: readonly string[], title: string) => {
-      setLastAsked(harnessIds[0]);
+      const first = harnessIds[0];
+      if (first !== undefined) setLastAsked(first);
       onAsk(harnessIds, title);
     },
-    [onAsk],
+    [onAsk, setLastAsked],
   );
   const group = useCallback(
     (title: string) => {
       setLastAsked(EMPTY_ROOM);
       then.current = onGroup(title);
     },
-    [onGroup],
+    [onGroup, setLastAsked],
   );
   const dialog = asking ? (
     <NewSpace
       harnesses={harnesses}
       draft={draft}
       onDraft={setDraft}
+      chosen={chosen}
+      onChosen={setChosen}
       lastAsked={lastAsked}
       from={opener.current}
       onAsk={ask}
@@ -118,10 +130,8 @@ export function useNewSpaceDialog(input: {
 }
 
 export function NewSpace(props: NewSpaceProps) {
-  const { harnesses, draft, onDraft, onClosed } = props;
+  const { harnesses, draft, onDraft, onClosed, chosen, onChosen: setChosen } = props;
   const titleId = useId();
-  // Nothing clicked yet: the dialog's own pick, whoever was asked last.
-  const [chosen, setChosen] = useState<readonly string[] | undefined>(undefined);
   const [leaving, setLeaving] = useState(false);
   const picked = newSpacePicked(harnesses, chosen, props.lastAsked);
   const empty = newSpaceEmpty(harnesses, chosen, props.lastAsked);
@@ -129,11 +139,15 @@ export function NewSpace(props: NewSpaceProps) {
     setChosen(newSpacePicks(newSpacePickIds(picked, empty), chosen !== undefined, harnessId));
   // The lead's name clicked: the next one picked leads, and the faces stay as they are.
   const handOn = () => setChosen(newSpaceNextLead(picked.map((each) => each.id)));
-  // Sent, the words are the room's name, and the next dialog opens empty; folded away unsent, they
-  // are the next draft. Cleared once it has gone, so they do not vanish while it fades.
+  // Sent, the words are the room's name and the pick is the room's, and the next dialog opens
+  // afresh; folded away unsent, they are the next one's, as they were left. Cleared once it has
+  // gone, so they do not vanish while it fades.
   const sent = useRef(false);
   const gone = () => {
-    if (sent.current) onDraft("");
+    if (sent.current) {
+      onDraft("");
+      setChosen(undefined);
+    }
     onClosed();
   };
   const leave = () => setLeaving(true);
@@ -191,6 +205,7 @@ export function NewSpace(props: NewSpaceProps) {
           label={words}
           placeholder={words}
           disabled={leaving}
+          sendable={picked.length > 0 || empty}
           maxRows={4}
         />
       </div>
@@ -308,7 +323,7 @@ function Lead(props: { readonly line: NewSpaceLine; readonly onLead: () => void 
       type="button"
       className="new-space-lead"
       onClick={props.onLead}
-      title={`Hand the lead to ${props.line.next ?? ""}`}
+      title={`Hands the lead to ${props.line.next ?? ""}`}
       data-testid="new-space-lead"
     >
       <b>{props.line.lead}</b>
@@ -316,4 +331,36 @@ function Lead(props: { readonly line: NewSpaceLine; readonly onLead: () => void 
       <span aria-hidden="true"> ⇄</span>
     </button>
   );
+}
+
+/**
+ * Who was asked for the last room made from the +, kept in this browser for the workspace, as the
+ * phone keeps it (`remembered.ts`): the next dialog opens on them, after a reload too. Storage can
+ * be missing or refuse (a private window), and then it lasts as long as the page.
+ */
+function useLastAsked(workspace: string): [string | undefined, (harnessId: string) => void] {
+  const key = `chips.newSpace.lastAsked.${workspace}`;
+  const [kept, setKept] = useState(() => ({ key, id: readKept(key) }));
+  // Another workspace in front: what was asked there.
+  const id = kept.key === key ? kept.id : readKept(key);
+  const remember = useCallback(
+    (harnessId: string) => {
+      setKept({ key, id: harnessId });
+      try {
+        globalThis.localStorage?.setItem(key, harnessId);
+      } catch {
+        // Held for the page above.
+      }
+    },
+    [key],
+  );
+  return [id, remember];
+}
+
+function readKept(key: string): string | undefined {
+  try {
+    return globalThis.localStorage?.getItem(key) ?? undefined;
+  } catch {
+    return undefined;
+  }
 }

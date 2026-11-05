@@ -6,7 +6,7 @@
 import type { SetupStep } from "@chipschat/core";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { SetupRail } from "./SetupCard.tsx";
+import { SetupCard, SetupRail } from "./SetupCard.tsx";
 
 const ALL: SetupStep[] = [
   { id: "running", title: "Chips is running", done: true },
@@ -34,5 +34,20 @@ describe("the setup rail", () => {
     expect((await screen.findByTestId("setup-count")).textContent).toBe("5 of 6");
     rerender(rail(true, ALL));
     expect(await screen.findByText("You're set up")).toBeTruthy();
+  });
+
+  it("offers nothing to press on a step that can't be done from here, as the phone doesn't", () => {
+    const steps = ALL.map((step) =>
+      step.id === "notify"
+        ? {
+            ...step,
+            done: false,
+            detail: "your server can't send them yet",
+            blocked: true as const,
+          }
+        : step,
+    );
+    render(<SetupCard steps={steps} actions={{ notify: () => {} }} onHide={() => {}} />);
+    expect(screen.getByTestId("setup-notify").querySelector("button")).toBeNull();
   });
 });

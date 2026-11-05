@@ -15,12 +15,13 @@ mod discovery;
 mod folder;
 mod here;
 mod login;
+mod menu;
 mod menubar;
 mod notify;
 mod page;
 mod shell_path;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -218,9 +219,12 @@ fn tell(app: AppHandle, title: String, body: String) {
     notify::tell(&app, title, body);
 }
 
-/// How many things are waiting on the person, in the menu bar. Zero takes the number away rather than showing a nought.
+/// How many things are waiting on the person, in the menu bar and on the Dock icon, as an
+/// iPhone's icon says it (ADR 0267). Zero takes the number away rather than showing a nought.
 #[tauri::command]
 fn set_badge(app: AppHandle, count: u32) -> Result<(), String> {
+    WAITING.store(count, Ordering::SeqCst);
+    dock_badge(&app, false);
     let Some(tray) = app.tray_by_id(menubar::TRAY) else {
         return Err("no tray icon".into());
     };
@@ -241,8 +245,32 @@ fn tooltip(count: u32) -> String {
     }
 }
 
+/// The page's commands it can do now, and their names, for the menus to dim and rename (ADR 0267).
+#[tauri::command]
+fn set_menu(commands: State<'_, menu::Commands>, standing: Vec<menu::Standing>) {
+    menu::stand(&commands, &standing);
+}
+
+/// The size the page is drawn at, which ⌘+ and ⌘− change (ADR 0267).
+#[tauri::command]
+fn page_zoom(app: AppHandle) -> f64 {
+    menu::kept_zoom(&app)
+}
+
+/// A link the page hands to the browser, as a link it opens itself goes (Help's Send Feedback…):
+/// a menu's row is not a click on the page, and WebKit opens no window for one.
+#[tauri::command]
+fn open_link(url: String) -> Result<(), String> {
+    let url: tauri::Url = url.parse().map_err(|_| "That isn't a link.".to_string())?;
+    if !opens_outside(&url) {
+        return Err("Only a web or mail link opens outside Chips.".to_string());
+    }
+    open_outside(&url);
+    Ok(())
+}
+
 /// The window's label, as `tauri.conf.json` names it.
-const WINDOW: &str = "main";
+pub(crate) const WINDOW: &str = "main";
 
 /// The window, brought forward for the page: the person's phone asked for a room's page to open here
 /// (ADR 0227), so it has to be seen, from the menu bar or behind other apps.
@@ -251,21 +279,97 @@ fn come_forward(app: AppHandle) {
     show_window(&app);
 }
 
+/// The page says it is drawn: the window made for it, waiting hidden, is shown now (ADR 0274).
+#[tauri::command]
+fn drawn(app: AppHandle) {
+    if UNSHOWN.swap(false, Ordering::SeqCst) {
+        reveal(&app);
+    }
+}
+
 /// Bring the window forward, which is what every path here ends in: a click on a banner, a
 /// `chips://` link, the menu bar's Open Chips, opening the app again. An app opened at login has
 /// no window yet (ADR 0215), so the first of these makes it, and the Dock icon comes with it.
+///
+/// A window just made is not shown until its page is drawn (`drawn`), so it never opens white, or
+/// empty while the page loads (ADR 0274); a page that never says so is shown all the same, after a
+/// moment. One asked for again meanwhile comes with it.
 fn show_window(app: &AppHandle) {
-    let Some(window) = app.get_webview_window(WINDOW).or_else(|| make_window(app)) else {
+    let made = app.get_webview_window(WINDOW).is_none();
+    if made {
+        // Waiting before the page can be, so a page drawn at once is not missed.
+        UNSHOWN.store(true, Ordering::SeqCst);
+        if make_window(app).is_none() {
+            UNSHOWN.store(false, Ordering::SeqCst);
+            return;
+        }
+    }
+    #[cfg(target_os = "macos")]
+    if !DOCKED.swap(true, Ordering::SeqCst) {
+        let _ = app.set_dock_visibility(true);
+        // macOS takes a moment to put the app in the Dock, and forgets a badge given before it has,
+        // which the page gives as soon as it loads; and a badge given again unchanged is not drawn.
+        // So, once it is there, the count is taken away and given again.
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            dock_badge(&app, true);
+        });
+    }
+    if made {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(DRAWN_PATIENCE);
+            if UNSHOWN.swap(false, Ordering::SeqCst) {
+                reveal(&app);
+            }
+        });
+    }
+    if !UNSHOWN.load(Ordering::SeqCst) {
+        reveal(app);
+    }
+}
+
+/// The window on screen, in front, and given the keys.
+fn reveal(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(WINDOW) else {
         return;
     };
-    #[cfg(target_os = "macos")]
-    let _ = app.set_dock_visibility(true);
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_focus();
 }
 
+/// A window made and waiting for its page to be drawn before it is shown (ADR 0274).
+static UNSHOWN: AtomicBool = AtomicBool::new(false);
+
+/// How long a window waits for its page before it is shown however it is: far longer than a page
+/// read from the app itself takes, and short enough not to seem lost.
+const DRAWN_PATIENCE: std::time::Duration = std::time::Duration::from_millis(1500);
+
+/// Whether the app is in the Dock: from the window's first showing until Quit (ADR 0215's addendum
+/// of 3 November), and not before it for an app opened at login.
+static DOCKED: AtomicBool = AtomicBool::new(false);
+
+/// How many things wait, as the page last said, for the Dock icon to say again (ADR 0267).
+static WAITING: AtomicU32 = AtomicU32::new(0);
+
+/// The count on the Dock icon, or none for nought. `afresh` takes it away first, so macOS draws it
+/// even when it is the count it was last given.
+fn dock_badge(app: &AppHandle, afresh: bool) {
+    let Some(window) = app.get_webview_window(WINDOW) else {
+        return;
+    };
+    let count = WAITING.load(Ordering::SeqCst);
+    if afresh {
+        let _ = window.set_badge_count(None);
+    }
+    let _ = window.set_badge_count((count > 0).then_some(i64::from(count)));
+}
+
 /// The window `tauri.conf.json` describes, which it does not make at start (`create: false`).
+/// It is made hidden, and shown by `show_window` once it stands where it stood last time and the
+/// page is drawn at the size it was (ADR 0267).
 fn make_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
     let config = app
         .config()
@@ -273,14 +377,36 @@ fn make_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
         .windows
         .iter()
         .find(|w| w.label == WINDOW)?;
-    tauri::WebviewWindowBuilder::from_config(app, config)
+    let window = tauri::WebviewWindowBuilder::from_config(app, config)
         .ok()?
         .on_new_window(|url, _| {
             open_outside(&url);
             tauri::webview::NewWindowResponse::Deny
         })
         .build()
-        .ok()
+        .ok()?;
+    let _ = window.set_zoom(menu::kept_zoom(app));
+    remember_frame(&window);
+    Some(window)
+}
+
+/// The window comes back where it was and as large, from one launch to the next, as a Mac's
+/// windows do: AppKit keeps the frame under a name and sets it again, on the screen it fits.
+fn remember_frame(window: &tauri::WebviewWindow) {
+    #[cfg(target_os = "macos")]
+    let _ = window.with_webview(|webview| {
+        use objc2_app_kit::NSWindow;
+        use objc2_foundation::NSString;
+        // SAFETY: Tauri hands over its own NSWindow, on the main thread, for this call alone.
+        let Some(window) = (unsafe { webview.ns_window().cast::<NSWindow>().as_ref() }) else {
+            return;
+        };
+        let name = NSString::from_str("Chips");
+        window.setFrameUsingName(&name);
+        window.setFrameAutosaveName(&name);
+    });
+    #[cfg(not(target_os = "macos"))]
+    let _ = window;
 }
 
 /// A link the page opens outside itself, a `target="_blank"` link or `window.open`, goes to the
@@ -302,18 +428,17 @@ fn opens_outside(url: &tauri::Url) -> bool {
     matches!(url.scheme(), "https" | "http" | "mailto")
 }
 
-/// Closing the window hides it, and the Dock icon with it: the menu bar keeps the app, and the
-/// page keeps the count and the banners going (ADR 0215). Quit, from either menu, ends it.
+/// Closing the window hides it, and the page keeps the count and the banners going (ADR 0215).
+/// The Dock icon stays, with the count on it, as a Mac app's does until it is quit (ADR 0215's
+/// addendum of 3 November); clicking it brings the window back. Quit, from any menu, ends it.
 fn hide_window(window: &tauri::Window) {
     let _ = window.hide();
-    #[cfg(target_os = "macos")]
-    let _ = window.app_handle().set_dock_visibility(false);
 }
 
-/// Opening the app is asking for Chips: when the server on this Mac does not answer, its login
-/// service is started, and the menu bar's icon follows it back (ADR 0215's addendum). Not at
-/// login, where launchd starts it unless `chips down` said not to. One start at a time, off the
-/// main thread; what stopped it is said in a banner.
+/// Opening the app, or Open Chips in the menu bar, is asking for Chips: when the server on this Mac
+/// does not answer, its login service is started, and the menu bar's icon follows it back (ADR
+/// 0215's addenda). Not at login, where launchd starts it unless `chips down` said not to. One
+/// start at a time, off the main thread; what stopped it is said in a banner.
 fn wake_server(app: &AppHandle) {
     static WAKING: AtomicBool = AtomicBool::new(false);
     let Ok(home) = app.path().home_dir() else {
@@ -347,6 +472,9 @@ pub fn run() {
         .manage(Links::default())
         .manage(page::Pages::default())
         .manage(connect::Runs::default())
+        .manage(menu::Commands::default())
+        .menu(menu::build)
+        .on_menu_event(|app, event| menu::chosen(app, event.id().as_ref()))
         // A held page, served once to the frame that asks for it, under its own policy.
         .register_uri_scheme_protocol(page::SCHEME, |context, request| {
             let pages = context.app_handle().state::<page::Pages>();
@@ -366,7 +494,11 @@ pub fn run() {
             hold_page,
             project_folder,
             server_here,
-            come_forward
+            come_forward,
+            set_menu,
+            open_link,
+            page_zoom,
+            drawn
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

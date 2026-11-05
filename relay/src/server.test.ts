@@ -560,6 +560,33 @@ describe("the push door (ADR 0246)", () => {
     expect(await pushesNow()).toBe("ready");
   });
 
+  it("asks Expo for receipts as a server asks, and never as a page can be made to", async () => {
+    const asked: string[] = [];
+    const upstream = (async (url: string | URL | Request) => {
+      asked.push(String(url));
+      return Response.json({ data: { "aaaa-1": { status: "ok" } } });
+    }) as unknown as typeof globalThis.fetch;
+    const relay = await relayOnAnyPort({
+      push: { accessToken: "app-token", upstream: "https://expo.example/send", fetch: upstream },
+    });
+    const receipts = (headers: Record<string, string>) =>
+      fetch(`http://127.0.0.1:${relay.port}/v1/push/receipts`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ids: ["aaaa-1"] }),
+      });
+    expect((await receipts({ "content-type": "text/plain" })).status).toBe(403);
+    expect((await receipts({ ...JSON_TYPE, origin: "https://somewhere.example" })).status).toBe(
+      403,
+    );
+    expect(asked).toEqual([]);
+    const response = await receipts(JSON_TYPE);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { "aaaa-1": { status: "ok" } } });
+    expect(asked).toEqual(["https://expo.example/getReceipts"]);
+    await relay.close();
+  });
+
   it("has no push door without the app's token", async () => {
     const relay = await relayOnAnyPort();
     const response = await fetch(`http://127.0.0.1:${relay.port}/v1/push`, {

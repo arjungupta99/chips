@@ -9,9 +9,12 @@ import { describe, expect, it } from "vitest";
 import {
   CARD_MOST,
   cardAcross,
+  cardTop,
+  cardUnder,
   clamp01,
   clipsFor,
   fillRect,
+  HANG,
   pour,
   type Rect,
   SETTLE_MS,
@@ -126,8 +129,45 @@ describe("the new-space window on a wide screen", () => {
   it("fills the whole screen on a phone, and the half beside the list on an iPad", () => {
     expect(fillRect(SCREEN, undefined)).toEqual(WHOLE);
     expect(fillRect(IPAD, 360)).toEqual({ x: 360, y: 0, width: 672, height: 1376 });
+    // The iPhone Duo open, beside its column on the right, and on the left.
+    expect(fillRect({ width: 867, height: 669 }, 476)).toEqual({
+      x: 476,
+      y: 0,
+      width: 391,
+      height: 669,
+    });
+    expect(fillRect({ x: 84, width: 867, height: 669 }, undefined)).toEqual({
+      x: 84,
+      y: 0,
+      width: 867,
+      height: 669,
+    });
     const half = fillRect(IPAD, 360);
     expect(windowRect(PLUS, CARD, half, 2, 2)).toEqual(half);
+  });
+
+  it("hangs under the gold + on an iPad, across from its middle until the edge stops it", () => {
+    // Beside the pill, upright: the + 44 across, 176 past the window's middle.
+    const plus = { x: 692, y: 24, width: 44, height: 44 };
+    expect(cardUnder(IPAD.width, 16, plus)).toEqual({
+      x: 714 - CARD_MOST / 2,
+      width: CARD_MOST,
+      top: 68 + HANG,
+    });
+    // Nearer the right edge, it stops short of it.
+    const right = cardUnder(IPAD.width, 16, { ...plus, x: 800 });
+    expect(right.x).toBe(IPAD.width - 16 - CARD_MOST);
+    // In the sidebar, at the left, it stops short of that edge.
+    expect(cardUnder(1376, 16, { x: 240, y: 32, width: 44, height: 44 }).x).toBe(16);
+    // A window narrower than a card and its edges narrows it.
+    expect(cardUnder(500, 16, plus)).toMatchObject({ x: 16, width: 468 });
+  });
+
+  it("stands on the keys on a phone, and on an iPad hangs where it hangs unless they would cover it", () => {
+    expect(cardTop(844, 336, 10, 180, undefined)).toBe(844 - 336 - 10 - 180);
+    expect(cardTop(1376, 400, 10, 180, 84)).toBe(84);
+    // An iPad mini on its side, with keys most of its height.
+    expect(cardTop(744, 480, 10, 230, 84)).toBe(744 - 480 - 10 - 230);
   });
 
   it("grows out of a point at the top in the middle when there is no + to measure", () => {

@@ -6,6 +6,10 @@
  * lot, so let's keep it as the last tile"; it is on You as well, ADR 0185's addendum); and View all under it, which opens their cards in a list of their own
  * (`All`). The cards stood at the foot of the tab until then, under every agent, three screens down.
  *
+ * Beside a room on an iPad the list has the height for every tile, so the shelf is a grid of them,
+ * two to a row, each with its face beside its words, and View all goes: nothing is cut off, and
+ * Connect is the last tile (ADR 0256).
+ *
  * Which harnesses, in what order, and the words that are not state are core's (`harnessShelf`), so
  * the desktop shelves them alike. The line under a name is why the harness can't answer, in amber;
  * or what it is doing, in the status's own word and tone (the card's pill, the verb held as the
@@ -20,12 +24,20 @@ import {
   harnessShelf,
   type Snapshot,
 } from "@chipschat/core";
-import { type ReactNode, useEffect, useRef } from "react";
+import {
+  createContext,
+  type ReactElement,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useRef,
+} from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Svg, { Path, Rect } from "react-native-svg";
 import { useHeld } from "../spaces/Thinking";
 import { Avatar, avatarCorner, avatarSide } from "../ui/Avatar";
 import { Icon } from "../ui/Icon";
+import { useSplitSide } from "../ui/Split";
 import { usePalette } from "../ui/theme";
 import type { Palette } from "../ui/tokens";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
@@ -64,8 +76,24 @@ export function Shelf({
   // The tiles there when the shelf was first drawn: one that comes after lands (ADR 0190).
   const seen = useRef<ReadonlySet<string> | undefined>(undefined);
   seen.current ??= new Set(tiles.map((tile) => tile.id));
+  const grid = useSplitSide() === "list";
   // Nothing to shelve and nothing to add: the agents' own empty words say the rest.
   if (tiles.length === 0 && adding === undefined) return null;
+  const drawn = [
+    ...tiles.map((tile) => (
+      <Landing key={tile.id} lands={seen.current?.has(tile.id) === false}>
+        <Tile snapshot={snapshot} tile={tile} selected={tile.id === selected} onOpen={onOpen} />
+      </Landing>
+    )),
+    ...(adding === undefined ? [] : [<AddTile key="add" adding={adding} />]),
+  ];
+  if (grid) {
+    return (
+      <ShelfGrid.Provider value>
+        <Grid cells={drawn} />
+      </ShelfGrid.Provider>
+    );
+  }
   return (
     <View style={styles.shelf}>
       <ScrollView
@@ -76,16 +104,76 @@ export function Shelf({
         accessibilityLabel="Harnesses"
         testID="harness-shelf"
       >
-        {tiles.map((tile) => (
-          <Landing key={tile.id} lands={seen.current?.has(tile.id) === false}>
-            <Tile snapshot={snapshot} tile={tile} selected={tile.id === selected} onOpen={onOpen} />
-          </Landing>
-        ))}
-        {adding === undefined ? null : <AddTile adding={adding} />}
+        {drawn}
       </ScrollView>
       {tiles.length === 0 ? null : <ViewAll onPress={onAll} />}
     </View>
   );
+}
+
+/** The tiles stand in the grid beside a room, rather than on the shelf. */
+const ShelfGrid = createContext(false);
+
+/**
+ * The tiles two to a row, each half of what the list leaves inside its margins: rows of two that
+ * share it, rather than tiles of a width worked out from the list's, which its hairline at the
+ * right made half a point too wide for two (the iPad simulator, 1 November 2026).
+ */
+function Grid({ cells }: { readonly cells: readonly ReactElement[] }) {
+  const rows: ReactElement[][] = [];
+  for (const [at, cell] of cells.entries()) {
+    if (at % 2 === 0) rows.push([cell]);
+    else rows.at(-1)?.push(cell);
+  }
+  return (
+    <View style={styles.grid} accessibilityLabel="Harnesses" testID="harness-shelf">
+      {rows.map((row) => (
+        <View key={row[0]?.key} style={styles.gridRow}>
+          {row.map((cell) => (
+            <View key={cell.key} style={styles.cell}>
+              {cell}
+            </View>
+          ))}
+          {row.length === 1 ? <View style={styles.cell} /> : null}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** A tile's face and words: stacked on the shelf, side by side in the grid. */
+function TileBody({
+  face,
+  name,
+  line,
+}: {
+  readonly face: ReactNode;
+  readonly name: ReactNode;
+  readonly line: ReactNode;
+}) {
+  if (!useContext(ShelfGrid)) {
+    return (
+      <>
+        {face}
+        {name}
+        {line}
+      </>
+    );
+  }
+  return (
+    <>
+      {face}
+      <View style={styles.words}>
+        {name}
+        {line}
+      </View>
+    </>
+  );
+}
+
+/** The tile's own box: a column on the shelf, its face beside its words in the grid. */
+function useTileBox() {
+  return useContext(ShelfGrid) ? styles.flat : styles.tile;
 }
 
 /** One harness: its face and ring, its name, and its line. */
@@ -107,6 +195,8 @@ function Tile({
   // went offline is not work going on.
   const says = tile.trouble === undefined && saysStatus(status) ? status : undefined;
   const ground = selected ? palette.surface3 : palette.surface2;
+  const box = useTileBox();
+  const flat = useContext(ShelfGrid);
   return (
     <Pressable
       accessibilityRole="button"
@@ -114,29 +204,30 @@ function Tile({
       aria-selected={selected}
       onPress={() => onOpen(tile.id)}
       testID={`harness-tile-${tile.id}`}
-      style={({ pressed }) => [
-        styles.tile,
-        { backgroundColor: pressed ? palette.surface3 : ground },
-      ]}
+      style={({ pressed }) => [box, { backgroundColor: pressed ? palette.surface3 : ground }]}
     >
-      <Avatar
-        name={tile.name}
-        kind="harness"
-        size="pick"
-        cantAnswer={tile.trouble !== undefined}
-        ground={ground}
-        {...(says === undefined ? {} : { status: says })}
+      <TileBody
+        face={
+          <Avatar
+            name={tile.name}
+            kind="harness"
+            size={flat ? "sm" : "pick"}
+            cantAnswer={tile.trouble !== undefined}
+            ground={ground}
+            {...(says === undefined ? {} : { status: says })}
+          />
+        }
+        name={<Name words={tile.name} />}
+        line={
+          tile.trouble !== undefined ? (
+            <Line words={tile.trouble} colour={palette.amberInk} />
+          ) : says === undefined ? (
+            <Line words={agentCountWords(tile.agents)} colour={palette.ink3} />
+          ) : (
+            <StatusLine snapshot={snapshot} status={says} harnessId={tile.id} />
+          )
+        }
       />
-      <Text style={[styles.name, { color: palette.ink }]} numberOfLines={1}>
-        {tile.name}
-      </Text>
-      {tile.trouble !== undefined ? (
-        <Line words={tile.trouble} colour={palette.amberInk} />
-      ) : says === undefined ? (
-        <Line words={agentCountWords(tile.agents)} colour={palette.ink3} />
-      ) : (
-        <StatusLine snapshot={snapshot} status={says} harnessId={tile.id} />
-      )}
     </Pressable>
   );
 }
@@ -167,6 +258,17 @@ function HeldLine({
   readonly colour: string;
 }) {
   return <Line words={useHeld(doing).label} colour={colour} />;
+}
+
+/** A tile's name: under the face on the shelf, beside it in the grid. */
+function Name({ words }: { readonly words: string }) {
+  const palette = usePalette();
+  const flat = useContext(ShelfGrid);
+  return (
+    <Text style={[flat ? styles.flatName : styles.name, { color: palette.ink }]} numberOfLines={1}>
+      {words}
+    </Text>
+  );
 }
 
 function Line({ words, colour }: { readonly words: string; readonly colour: string }) {
@@ -228,8 +330,10 @@ function Landing({ lands, children }: { readonly lands: boolean; readonly childr
  */
 function AddTile({ adding }: { readonly adding: Pick<Connecting, "open" | "waiting"> }) {
   const palette = usePalette();
-  const side = avatarSide("pick");
-  const corner = avatarCorner("pick", "harness");
+  const flat = useContext(ShelfGrid);
+  const box = useTileBox();
+  const side = avatarSide(flat ? "sm" : "pick");
+  const corner = avatarCorner(flat ? "sm" : "pick", "harness");
   const { waiting } = adding;
   const words = tileWords(waiting);
   return (
@@ -239,29 +343,46 @@ function AddTile({ adding }: { readonly adding: Pick<Connecting, "open" | "waiti
       onPress={adding.open}
       testID="add-agent"
       style={({ pressed }) => [
-        styles.tile,
+        box,
         styles.add,
+        flat ? styles.flatAdd : null,
         {
           borderColor: waiting === undefined ? palette.line2 : palette.blue,
           backgroundColor: pressed ? palette.surface2 : "transparent",
         },
       ]}
     >
-      <View
-        style={[
-          styles.plus,
-          { width: side, height: side, borderRadius: corner, backgroundColor: palette.surface2 },
-        ]}
-      >
-        <Icon name="plus" size={22} color={waiting === undefined ? palette.ink2 : palette.blue} />
-        {waiting === undefined ? null : (
-          <Countdown side={side} corner={corner} share={waiting.taken ? 1 : waiting.share} />
-        )}
-      </View>
-      <Text style={[styles.name, { color: palette.ink }]} numberOfLines={1}>
-        {words.name}
-      </Text>
-      <Line words={words.line} colour={waiting === undefined ? palette.ink3 : palette.blueInk} />
+      <TileBody
+        face={
+          <View
+            style={[
+              styles.plus,
+              {
+                width: side,
+                height: side,
+                borderRadius: corner,
+                backgroundColor: palette.surface2,
+              },
+            ]}
+          >
+            <Icon
+              name="plus"
+              size={flat ? 17 : 22}
+              color={waiting === undefined ? palette.ink2 : palette.blue}
+            />
+            {waiting === undefined ? null : (
+              <Countdown side={side} corner={corner} share={waiting.taken ? 1 : waiting.share} />
+            )}
+          </View>
+        }
+        name={<Name words={words.name} />}
+        line={
+          <Line
+            words={words.line}
+            colour={waiting === undefined ? palette.ink3 : palette.blueInk}
+          />
+        }
+      />
     </Pressable>
   );
 }
@@ -398,6 +519,27 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.xxl + 2,
   },
   add: { borderWidth: 1.5, borderStyle: "dashed" },
+  // Beside a room: the tiles two to a row, the list's own margins round them.
+  grid: {
+    gap: SPACE.sm,
+    paddingHorizontal: SPACE.lg,
+    paddingTop: SPACE.xs,
+    paddingBottom: SPACE.sm,
+  },
+  gridRow: { flexDirection: "row", gap: SPACE.sm },
+  cell: { flex: 1, minWidth: 0 },
+  flat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACE.sm + 2,
+    paddingVertical: SPACE.sm + 2,
+    paddingHorizontal: SPACE.sm + 2,
+    borderRadius: RADIUS.xl,
+  },
+  // Its dashed edge inside the grid's tile, so it stands as tall as the harnesses beside it.
+  flatAdd: { paddingVertical: SPACE.sm + 2 - 1.5, paddingHorizontal: SPACE.sm + 2 - 1.5 },
+  words: { flex: 1, minWidth: 0, gap: 1 },
+  flatName: { fontSize: TEXT.sm, fontWeight: "600" },
   plus: { alignItems: "center", justifyContent: "center" },
   ring: { position: "absolute" },
   name: { fontSize: TEXT.sm, fontWeight: "600", marginTop: SPACE.sm - 2, maxWidth: "100%" },

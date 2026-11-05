@@ -11,17 +11,41 @@
  *
  * A sheet takes all four from here too (`Sheet`). It covers the window, and a tab's bottom inset
  * is its tab bar's top, 49 points above the window's.
+ *
+ * On the iPhone Duo the status bar stands in the column (ADR 0256), and the window's top inset is 0,
+ * folded and open: Chips' names, a room's head and a page's bar stood against the top edge. UIKit
+ * stands its own bars 24 points down there, as on an iPad (Contacts' title and its Edit), and says
+ * so in its bar layout region (`useDuo().top`), so the window's top here is never less than that.
  */
 
-import { createContext, type ReactNode, useContext } from "react";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { type EdgeInsets, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useDuo } from "./duo";
 
 const WindowInsetsContext = createContext<EdgeInsets | null>(null);
+const RaisedContext = createContext(0);
 
 /** Read the window's insets for everything below: put at the root, above the navigators. */
 export function WindowInsets({ children }: { readonly children: ReactNode }) {
   const insets = useSafeAreaInsets();
-  return <WindowInsetsContext.Provider value={insets}>{children}</WindowInsetsContext.Provider>;
+  const bars = useDuo().top;
+  const window = useMemo(
+    () => (bars > insets.top ? { ...insets, top: bars } : insets),
+    [insets, bars],
+  );
+  return (
+    <WindowInsetsContext.Provider value={window}>
+      <RaisedContext.Provider value={window.top - insets.top}>{children}</RaisedContext.Provider>
+    </WindowInsetsContext.Provider>
+  );
+}
+
+/**
+ * How much lower the window's top is here than iOS says (above): what a list under a name lacks,
+ * whose own inset iOS adjusts by its safe area alone. 0 but on the iPhone Duo.
+ */
+export function useRaisedTop(): number {
+  return useContext(RaisedContext);
 }
 
 /** The window's insets; this view's own where nothing above has read them, as in a test. */

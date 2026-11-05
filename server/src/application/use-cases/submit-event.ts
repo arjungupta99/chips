@@ -213,6 +213,11 @@ export interface SubmitEventDeps {
    */
   readonly leaving?: (event: Readonly<Record<string, unknown>>) => Promise<void>;
   /**
+   * What Chips does once a room is archived: nobody has it pinned any more (ADR 0240's addendum).
+   * Injected, as `leaving` is.
+   */
+  readonly archived?: (workspaceId: string, spaceId: string) => Promise<void>;
+  /**
    * The most the server takes in one upload (ADR 0047). A workspace cap set above it is
    * refused as it is sent; absent, and any cap is accepted.
    */
@@ -344,6 +349,7 @@ async function land(
   if (event["type"] === "membership.removed") await deps.leaving?.(event);
   const appended = await appendOrRefusal(deps, event);
   if (!appended.ok) return appended;
+  if (!appended.duplicate) await archiving(appended.event, principal, deps);
   const resolution = appended.duplicate
     ? undefined
     : await settle(appended.event, principal, context, deps, verdict);
@@ -1292,6 +1298,13 @@ async function guestSpacesOf(
   if (count === 0 || typeof space !== "string") return count;
   const here = await deps.readModels.memberRole(workspaceId, space, named);
   return here === undefined ? count : 0;
+}
+
+/** A room just archived: what goes with it, its pins. */
+async function archiving(event: StoredEvent, principal: Principal, deps: SubmitEventDeps) {
+  if (event.type !== "space.updated" || event.payload["state"] !== "closed") return;
+  if (event.space_id === null) return;
+  await deps.archived?.(principal.workspaceId, event.space_id);
 }
 
 /**

@@ -16,17 +16,30 @@
  * say nothing about where the server is. A pairing link that did not work lands on that page with
  * what went wrong (`?problem=`). The demo's Set up my own Chips opens the first screen on That's
  * Chips (`?ways=1`).
+ *
+ * On an iPad (ADR 0256, the mock's section 9) every way in stands by the film from the start:
+ * beside it on its side, the mark and the film's name over them; under it upright, in two columns.
+ * Nothing waits for the film to end, so there is no Skip, and where it ends its frame gives way to
+ * That's Chips (`WideFilm`).
  */
 
 import { filmOf, lengthWords, workspaceLabel } from "@chipschat/core";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { type Ref, useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EndCard } from "../src/demo/EndCard";
+import { EndCard, type EndWays, EndWords, WaysIn } from "../src/demo/EndCard";
 import { Fades } from "../src/demo/FilmMotion";
-import { FilmBar, FilmFace, moreThan, Skip, useFilm } from "../src/demo/FilmPlayer";
+import { type Film, FilmBar, FilmFace, moreThan, Skip, useFilm } from "../src/demo/FilmPlayer";
 import { useLookAround } from "../src/demo/home";
 import { VIDEOS, videoNamed } from "../src/demo/videos";
 import { Big } from "../src/pairing/JoinCard";
@@ -36,6 +49,7 @@ import { type Join, useJoin } from "../src/pairing/useJoin";
 import { useChips } from "../src/store/provider";
 import { ChipPulse } from "../src/ui/ChipPulse";
 import { Icon } from "../src/ui/Icon";
+import { useLayout } from "../src/ui/layout";
 import { Screen, useColumn } from "../src/ui/Screen";
 import { usePalette } from "../src/ui/theme";
 import { LEADING_PHONE, RADIUS, SPACE, TEXT } from "../src/ui/tokens";
@@ -99,8 +113,11 @@ export default function PairScreen() {
 /** How long the mark's pins take to light once round, as the screen opens. */
 const TURN_MS = 1500;
 
-/** The Chips mark and its name, at the top in the middle; its pins light once as it opens. */
-function Brand() {
+/**
+ * The Chips mark and its name, at the top in the middle, or at the start of the ways in beside an
+ * iPad's film on its side (`start`); its pins light once as it opens.
+ */
+function Brand({ start = false }: { readonly start?: boolean }) {
   const palette = usePalette();
   const [turning, setTurning] = useState(true);
   useEffect(() => {
@@ -108,7 +125,12 @@ function Brand() {
     return () => clearTimeout(timer);
   }, []);
   return (
-    <View style={styles.brand} accessible accessibilityRole="header" accessibilityLabel="Chips">
+    <View
+      style={[styles.brand, start ? styles.brandStart : null]}
+      accessible
+      accessibilityRole="header"
+      accessibilityLabel="Chips"
+    >
       <Big scale={2}>
         <ChipPulse gold={palette.gold} ink={palette.ink3} lit={palette.ink} working={turning} />
       </Big>
@@ -130,23 +152,50 @@ interface WelcomeWays {
   readonly onLookAround: () => void;
 }
 
+/**
+ * How the page stands: a phone's column; or on an iPad the film beside the ways in, on its side,
+ * and over them, upright (ADR 0256).
+ */
+type Shape = "phone" | "side" | "upright";
+
+function useShape(): Shape {
+  const { roomy } = useLayout();
+  const { width, height } = useWindowDimensions();
+  if (!roomy) return "phone";
+  return width > height ? "side" : "upright";
+}
+
 /** The page: the mark, then the film playing, or the film More walkthroughs chose. */
 function Welcome(ways: WelcomeWays) {
   const insets = useSafeAreaInsets();
   const column = useColumn();
+  const shape = useShape();
+  const side = shape === "side";
   const [key, setKey] = useState(filmOf().key);
   // That's Chips only for the film the page opened on; a film chosen after plays.
   const [opensEnded, setOpensEnded] = useState(ways.opensEnded);
   const video = videoNamed(key) ?? VIDEOS[0];
   return (
     <Screen testID="welcome">
-      <View style={[styles.welcome, column, { paddingTop: insets.top + SPACE.sm }]}>
-        <Brand />
+      <View
+        style={[
+          styles.welcome,
+          side
+            ? [
+                styles.side,
+                { paddingTop: insets.top + SPACE.xl, paddingBottom: insets.bottom + SPACE.xl },
+              ]
+            : column,
+          side ? null : { paddingTop: insets.top + SPACE.sm },
+        ]}
+      >
+        {side ? null : <Brand />}
         {video === undefined ? null : (
           <WelcomeFilm
             // A film of its own from More walkthroughs: its player is made afresh.
             key={video.key}
             {...ways}
+            shape={shape}
             video={video}
             opensEnded={opensEnded}
             onFilm={(next) => {
@@ -160,8 +209,11 @@ function Welcome(ways: WelcomeWays) {
   );
 }
 
+type Video = NonNullable<ReturnType<typeof videoNamed>>;
+
 function WelcomeFilm({
   video,
+  shape,
   join,
   held,
   onPaired,
@@ -172,7 +224,8 @@ function WelcomeFilm({
   onFilm,
   onLookAround,
 }: WelcomeWays & {
-  readonly video: NonNullable<ReturnType<typeof videoNamed>>;
+  readonly video: Video;
+  readonly shape: Shape;
   readonly onFilm: (film: string) => void;
 }) {
   const palette = usePalette();
@@ -199,32 +252,24 @@ function WelcomeFilm({
       player.play();
     }
   }, [away, player]);
+  const ways = { onScan, onType, onFilm, onLookAround, onWatchAgain: () => film.goTo(0) };
+  if (shape !== "phone") {
+    return (
+      <WideFilm
+        film={film}
+        side={shape === "side"}
+        join={join}
+        held={held}
+        onPaired={onPaired}
+        ways={ways}
+      />
+    );
+  }
   return (
     <>
-      <Text
-        style={[styles.label, { color: palette.ink2 }, film.ended ? styles.gone : null]}
-        accessibilityElementsHidden={film.ended}
-      >
-        {video.title}
-        <Text
-          style={[styles.length, { color: palette.ink3 }]}
-        >{`  ${lengthWords(video.seconds)}`}</Text>
-      </Text>
+      <Label video={video} hidden={film.ended} />
       <View style={styles.stage}>
-        {/* Kept while That's Chips stands, hidden: Watch again plays the view it already has. */}
-        <View
-          style={[styles.frame, { borderColor: palette.line }, film.ended ? styles.gone : null]}
-          pointerEvents={film.ended ? "none" : "auto"}
-          accessibilityElementsHidden={film.ended}
-          importantForAccessibility={film.ended ? "no-hide-descendants" : "auto"}
-          testID="welcome-film"
-        >
-          <FilmFace film={film} reduced={reduced}>
-            <View style={styles.frameBar} pointerEvents="box-none">
-              <FilmBar film={film} reduced={reduced} />
-            </View>
-          </FilmFace>
-        </View>
+        <Frame film={film} />
         {!film.ended ? null : (
           <Fades reduced={reduced} style={StyleSheet.absoluteFill}>
             <EndCard
@@ -232,7 +277,7 @@ function WelcomeFilm({
               words={filmOf(video.key).end}
               more={moreThan(video)}
               invites={join.invites}
-              ways={{ onScan, onType, onFilm, onLookAround, onWatchAgain: () => film.goTo(0) }}
+              ways={ways}
             />
           </Fades>
         )}
@@ -258,6 +303,131 @@ function WelcomeFilm({
         </View>
       )}
     </>
+  );
+}
+
+/**
+ * The first screen on an iPad (ADR 0256, the mock's section 9): every way in from the start, so
+ * nothing waits for the film and there is no Skip. On its side the film stands on the left as tall
+ * as the window, and the mark, the film's name and the ways in stand on the right; upright the film
+ * stays on top and the ways sit under it in two columns. Where the film ends, That's Chips takes
+ * its frame's place; Watch again, by it, plays it again. Chips found on this Wi-Fi joins the ways
+ * when it is found: on its side under them, upright over them, where the film gets smaller to make
+ * room, as on a phone. Under them, it pushed the ways up as it came, and a tap meant for Look
+ * around asked a Mac on the Wi-Fi to let the iPad in (the simulator, 2 November 2026).
+ */
+function WideFilm({
+  film,
+  side,
+  join,
+  held,
+  onPaired,
+  ways,
+}: {
+  readonly film: Film;
+  readonly side: boolean;
+  readonly join: Join;
+  readonly held: HeldServer | undefined;
+  readonly onPaired: WelcomeWays["onPaired"];
+  readonly ways: EndWays;
+}) {
+  const insets = useSafeAreaInsets();
+  const reduced = useReduceMotion();
+  const { video } = film;
+  const stage = (
+    <View style={side ? styles.sideStage : styles.stage}>
+      <Frame film={film} />
+      {!film.ended ? null : (
+        <Fades reduced={reduced} style={[StyleSheet.absoluteFill, styles.ended]}>
+          <EndWords words={filmOf(video.key).end} />
+        </Fades>
+      )}
+    </View>
+  );
+  const waysIn = <WaysIn ways={ways} more={moreThan(video)} invites={join.invites} split={!side} />;
+  const wifi = <OnThisWifi foot held={held} onPaired={onPaired} />;
+  if (side) {
+    return (
+      <>
+        {stage}
+        <ScrollView
+          style={styles.sideWays}
+          contentContainerStyle={styles.sideWaysBody}
+          showsVerticalScrollIndicator={false}
+          testID="welcome-ways"
+        >
+          <Brand start />
+          <Label video={video} start />
+          {waysIn}
+          {wifi}
+        </ScrollView>
+      </>
+    );
+  }
+  return (
+    <>
+      <Label video={video} />
+      {stage}
+      <View style={styles.wifi}>{wifi}</View>
+      <View style={styles.upWays} testID="welcome-ways">
+        {waysIn}
+      </View>
+      <View style={{ height: insets.bottom + SPACE.md }} />
+    </>
+  );
+}
+
+/** The film's name and its length, over its frame, or at the start of the ways beside it. */
+function Label({
+  video,
+  hidden = false,
+  start = false,
+}: {
+  readonly video: Video;
+  /** That's Chips stands in the film's place on a phone, and says what it is. */
+  readonly hidden?: boolean;
+  readonly start?: boolean;
+}) {
+  const palette = usePalette();
+  return (
+    <Text
+      style={[
+        styles.label,
+        { color: palette.ink2 },
+        start ? styles.labelStart : null,
+        hidden ? styles.gone : null,
+      ]}
+      accessibilityElementsHidden={hidden}
+    >
+      {video.title}
+      <Text
+        style={[styles.length, { color: palette.ink3 }]}
+      >{`  ${lengthWords(video.seconds)}`}</Text>
+    </Text>
+  );
+}
+
+/**
+ * The film's frame, playing. Kept while That's Chips stands, hidden: Watch again plays the view it
+ * already has.
+ */
+function Frame({ film }: { readonly film: Film }) {
+  const palette = usePalette();
+  const reduced = useReduceMotion();
+  return (
+    <View
+      style={[styles.frame, { borderColor: palette.line }, film.ended ? styles.gone : null]}
+      pointerEvents={film.ended ? "none" : "auto"}
+      accessibilityElementsHidden={film.ended}
+      importantForAccessibility={film.ended ? "no-hide-descendants" : "auto"}
+      testID="welcome-film"
+    >
+      <FilmFace film={film} reduced={reduced}>
+        <View style={styles.frameBar} pointerEvents="box-none">
+          <FilmBar film={film} reduced={reduced} />
+        </View>
+      </FilmFace>
+    </View>
   );
 }
 
@@ -341,6 +511,10 @@ function PairingCode({ join, onBack }: { readonly join: Join; readonly onBack: (
   );
 }
 
+/** Between the film and the ways in beside it on an iPad, and how wide they stand. */
+const SIDE_GAP = 64;
+const SIDE_WAYS = 440;
+
 /** How far above the keys a field being typed into stands: room for the Pair button under it. */
 const NEXT_IN_SIGHT = 80;
 
@@ -410,6 +584,7 @@ const styles = StyleSheet.create({
     gap: 10,
     height: 44,
   },
+  brandStart: { justifyContent: "flex-start" },
   brandWord: { fontSize: 31, fontWeight: "800", letterSpacing: -0.9 },
   label: {
     textAlign: "center",
@@ -418,6 +593,7 @@ const styles = StyleSheet.create({
     fontSize: TEXT.body,
     fontWeight: "600",
   },
+  labelStart: { textAlign: "left", marginBottom: SPACE.lg },
   length: { fontSize: TEXT.md, fontWeight: "600", fontVariant: ["tabular-nums"] },
   gone: { opacity: 0 },
   stage: { flex: 1, minHeight: 0, paddingHorizontal: SPACE.xl, alignItems: "center" },
@@ -432,6 +608,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
   },
   frameBar: { position: "absolute", top: 6, left: 12, right: 12 },
+  // On an iPad on its side: the film as tall as the window on the left, the ways in on the right.
+  side: { flexDirection: "row", justifyContent: "center", gap: SIDE_GAP },
+  sideStage: { height: "100%", aspectRatio: 9 / 16 },
+  sideWays: { width: SIDE_WAYS, flexGrow: 0 },
+  sideWaysBody: { flexGrow: 1, justifyContent: "center", gap: SPACE.sm },
+  upWays: { paddingHorizontal: SPACE.xl, paddingTop: SPACE.lg, gap: SPACE.md },
+  // That's Chips in the film's place, in its middle.
+  ended: { alignItems: "center", justifyContent: "center", paddingHorizontal: SPACE.xl },
   wifi: { paddingHorizontal: SPACE.xl, paddingTop: SPACE.md },
   foot: {
     flexDirection: "row",

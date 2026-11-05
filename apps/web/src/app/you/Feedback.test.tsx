@@ -1,6 +1,6 @@
 /**
- * Send feedback on the web and the Mac (ADR 0237): the card, the dialog's two ways, and the
- * switch that keeps the card off You until the repository is public.
+ * Send feedback on the web and the Mac (ADR 0237): the row, the dialog's two ways, and the
+ * switch that keeps the row off You until the repository is public.
  */
 
 import {
@@ -14,7 +14,7 @@ import {
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { BUILD, You, type YouProps } from "../You.tsx";
-import { FEEDBACK_ON, FeedbackCard, type FeedbackService } from "./Feedback.tsx";
+import { FEEDBACK_ON, FeedbackRow, type FeedbackService } from "./Feedback.tsx";
 
 const MILO: FeedbackAgent = { id: "agt_milo", name: "Milo", spaceId: "spc_milo" };
 const DIRECTORY: Directory = {
@@ -56,6 +56,7 @@ describe("the switch", () => {
       people: {
         rename: async () => undefined,
         renameWorkspace: async () => undefined,
+        setMyFace: async () => undefined,
       } as unknown as YouProps["people"],
       onChangeRole: () => undefined,
       onRemovePerson: async () => undefined,
@@ -71,10 +72,10 @@ describe("the switch", () => {
   });
 });
 
-describe("the card", () => {
+describe("the row", () => {
   it("says what it is for", () => {
     render(
-      <FeedbackCard
+      <FeedbackRow
         agent={MILO}
         directory={DIRECTORY}
         version={VERSION}
@@ -84,48 +85,43 @@ describe("the card", () => {
     expect(screen.getByTestId("feedback").textContent).toContain(
       "Tell the people who make Chips what you'd change.",
     );
-    expect(screen.getByTestId("feedback-row").textContent).toBe("Send feedback");
+    expect(screen.getByTestId("feedback-row").textContent).toBe(
+      "Send feedback Tell the people who make Chips what you'd change.",
+    );
   });
 
-  it("opens the dialog: the Main agent, GitHub, and that Chips sends nothing", () => {
+  it("opens its page: the Main agent, GitHub, and that Chips sends nothing", () => {
     const { opened, feedback } = service();
-    render(
-      <FeedbackCard agent={MILO} directory={DIRECTORY} version={VERSION} service={feedback} />,
-    );
+    render(<FeedbackRow agent={MILO} directory={DIRECTORY} version={VERSION} service={feedback} />);
     fireEvent.click(screen.getByTestId("feedback-row"));
-    const dialog = screen.getByTestId("feedback-dialog");
-    expect(dialog.textContent).toContain("Feedback for Chips");
+    const page = screen.getByTestId("feedback-page");
+    expect(page.textContent).toContain("Feedback for Chips");
     expect(screen.getByRole("button", { name: "Write it with Milo" })).toBe(
       screen.getByTestId("feedback-agent"),
     );
     expect(screen.getByRole("button", { name: "Write it on GitHub" })).toBe(
       screen.getByTestId("feedback-github"),
     );
-    expect(dialog.textContent).toContain(FEEDBACK_SENDS_NOTHING);
+    expect(page.textContent).toContain(FEEDBACK_SENDS_NOTHING);
     expect(opened).toEqual([]);
   });
 
   it("opens GitHub from the click itself, with the version filled in", () => {
     const { opened, written, feedback } = service();
-    render(
-      <FeedbackCard agent={MILO} directory={DIRECTORY} version={VERSION} service={feedback} />,
-    );
+    render(<FeedbackRow agent={MILO} directory={DIRECTORY} version={VERSION} service={feedback} />);
     fireEvent.click(screen.getByTestId("feedback-row"));
     fireEvent.click(screen.getByTestId("feedback-github"));
     expect(opened).toEqual([feedbackLink(VERSION)]);
     expect(written).toEqual([]);
   });
 
-  it("opens the Main space with the line once the dialog has folded", async () => {
+  it("opens the Main space with the line, and its page goes", async () => {
     const { opened, written, feedback } = service();
-    render(
-      <FeedbackCard agent={MILO} directory={DIRECTORY} version={VERSION} service={feedback} />,
-    );
+    render(<FeedbackRow agent={MILO} directory={DIRECTORY} version={VERSION} service={feedback} />);
     fireEvent.click(screen.getByTestId("feedback-row"));
     fireEvent.click(screen.getByTestId("feedback-agent"));
-    expect(written).toEqual([]);
     await waitFor(() => expect(written).toEqual([MILO]));
-    expect(screen.queryByTestId("feedback-dialog")).toBeNull();
+    expect(screen.queryByTestId("feedback-page")).toBeNull();
     expect(opened).toEqual([]);
   });
 });

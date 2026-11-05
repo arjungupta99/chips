@@ -34,7 +34,10 @@
  * The workspace's name is changed from the Workspace row under your name (ADR 0194), in the sheet
  * Spaces' name opens too; a Name row here said it a second time.
  *
- * The sheets stand beside You's scroll, not in it (`You.tsx`).
+ * The sheets stand beside You's scroll, not in it (`You.tsx`). Beside the list on an iPad, the
+ * attachment limits, the messages between agents and what is allowed always are pages there
+ * instead (`pages.tsx`). Connect a harness stays the sheet the Agents shelf's last tile opens: it
+ * is the one sheet both open, and the link it makes is waited on behind it.
  */
 
 import {
@@ -59,7 +62,6 @@ import {
   capsOverCeiling,
   type ExchangeLimits,
 } from "@chipschat/protocol";
-import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, Text, TextInput } from "react-native";
 import { useConnect } from "../harnesses/Connect";
@@ -68,8 +70,9 @@ import { Group, GroupFoot, GroupHeading, GroupRow, MARKED_INSET, RowMark } from 
 import { Sheet } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { AVATAR_HUES, TEXT } from "../ui/tokens";
-import { AlwaysSheet } from "./AlwaysSheet";
-import { ExchangeLimitsSheet } from "./ExchangeLimitsSheet";
+import { AlwaysPage, AlwaysSheet } from "./AlwaysSheet";
+import { ExchangeLimitsPage, ExchangeLimitsSheet } from "./ExchangeLimitsSheet";
+import { SheetPage, usePage, useSheetPage } from "./pages";
 import { SheetHead } from "./SheetHead";
 import type { YouSection } from "./section";
 import { capsWords } from "./words";
@@ -106,12 +109,17 @@ export function useWorkspaceGroup({
   /** For an owner: whether the relay is on. Nothing for anyone else, and there is no row. */
   readonly relay?: boolean | undefined;
 }): YouSection {
-  const router = useRouter();
   const palette = usePalette();
+  const peoplePage = usePage("people");
+  const invitePage = usePage("invite");
+  const relayPage = usePage("relay");
   const [ceiling, setCeiling] = useState<number | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [talk, setTalk] = useState(false);
   const [allowed, setAllowed] = useState(false);
+  const capsPage = useSheetPage("attachments", () => setOpen(true));
+  const talkPage = useSheetPage("exchange", () => setTalk(true));
+  const allowedPage = useSheetPage("always", () => setAllowed(true));
   const [links, setLinks] = useState<readonly Invite[] | undefined>(undefined);
   const connecting = useConnect();
   // biome-ignore lint/correctness/useExhaustiveDependencies: `people` is when to read again.
@@ -168,7 +176,8 @@ export function useWorkspaceGroup({
             />
           }
           accessibilityLabel={`People: ${roleCountWords(snapshot.model)}`}
-          onPress={() => router.push("/people")}
+          onPress={peoplePage.onPress}
+          selected={peoplePage.selected}
           testID="people-row"
         />
         {invites ? (
@@ -179,7 +188,8 @@ export function useWorkspaceGroup({
             accessibilityLabel={
               linksSaid === undefined ? "Invite someone" : `Invite someone: ${linksSaid}`
             }
-            onPress={() => router.push("/invite")}
+            onPress={invitePage.onPress}
+            selected={invitePage.selected}
             testID="invite-row"
           />
         ) : null}
@@ -188,7 +198,8 @@ export function useWorkspaceGroup({
             label="Relay"
             value={relay ? "On" : "Off"}
             mark={<RowMark icon="route" tint={AVATAR_HUES[5]} ink="#ffffff" />}
-            onPress={() => router.push("/relay")}
+            onPress={relayPage.onPress}
+            selected={relayPage.selected}
             testID="relay-row"
           />
         )}
@@ -209,7 +220,8 @@ export function useWorkspaceGroup({
           label="Attachment limits"
           value={capsWords(caps, ceiling)}
           mark={<RowMark icon="clip" tint={AVATAR_HUES[2]} ink="#ffffff" />}
-          onPress={() => setOpen(true)}
+          onPress={capsPage.onPress}
+          selected={capsPage.selected}
           testID="caps-row"
         />
         <GroupRow
@@ -217,14 +229,16 @@ export function useWorkspaceGroup({
           sub={limitsWords(limits)}
           mark={<RowMark icon="chat" tint={AVATAR_HUES[0]} ink="#ffffff" />}
           accessibilityLabel={`Messages between agents, ${limitsWords(limits)}`}
-          onPress={() => setTalk(true)}
+          onPress={talkPage.onPress}
+          selected={talkPage.selected}
           testID="exchange-limits-row"
         />
         <GroupRow
           label="Allowed always"
           value={alwaysSummary(snapshot.model, snapshot.directory)}
           mark={<RowMark icon="unlock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
-          onPress={() => setAllowed(true)}
+          onPress={allowedPage.onPress}
+          selected={allowedPage.selected}
           testID="allowed-always-row"
         />
       </Group>
@@ -254,7 +268,25 @@ export function useWorkspaceGroup({
       />
     </>
   );
-  return { group, overlays };
+  const pages = {
+    attachments: (
+      <CapsPage
+        caps={caps}
+        ceiling={ceiling}
+        onSave={(next) => store.setAttachmentCaps(next)}
+        onDone={capsPage.done}
+      />
+    ),
+    exchange: (
+      <ExchangeLimitsPage
+        limits={limits}
+        onSave={(next) => store.setExchangeLimits(next)}
+        onDone={talkPage.done}
+      />
+    ),
+    always: <AlwaysPage store={store} snapshot={snapshot} selfId={selfId} />,
+  };
+  return { group, overlays, pages };
 }
 
 const capitalised = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
@@ -262,19 +294,48 @@ const capitalised = (word: string) => word.charAt(0).toUpperCase() + word.slice(
 /** Connect a harness's mark: a terminal's grey, since a harness is a program that runs itself. */
 const HARNESS_TILE = "#494d54";
 
-function CapsSheet({
-  open,
-  onClose,
-  caps,
-  ceiling,
-  onSave,
-}: {
-  readonly open: boolean;
-  readonly onClose: () => void;
+interface Caps {
   readonly caps: AttachmentCaps;
   readonly ceiling: number | undefined;
   readonly onSave: (caps: AttachmentCaps) => void;
-}) {
+}
+
+function CapsSheet({
+  open,
+  onClose,
+  ...rest
+}: Caps & { readonly open: boolean; readonly onClose: () => void }) {
+  const form = useCapsForm({ ...rest, open, onDone: onClose });
+  return (
+    <Sheet open={open} onClose={onClose} keyboard testID="caps-sheet">
+      <SheetHead title="Attachment limits" action={{ label: "Save", onPress: form.save }} />
+      {form.body}
+    </Sheet>
+  );
+}
+
+/** Beside the list on an iPad: Save in the pane's bar, and back to nothing open once saved. */
+function CapsPage({ onDone, ...rest }: Caps & { readonly onDone: () => void }) {
+  const form = useCapsForm({ ...rest, open: true, onDone });
+  return (
+    <SheetPage
+      title="Attachment limits"
+      action={{ label: "Save", onPress: form.save, testID: "caps-save" }}
+      testID="caps-page"
+    >
+      {form.body}
+    </SheetPage>
+  );
+}
+
+/** What the sheet and the page hold, and their Save, which refuses a size the server would. */
+function useCapsForm({
+  caps,
+  ceiling,
+  onSave,
+  open,
+  onDone,
+}: Caps & { readonly open: boolean; readonly onDone: () => void }) {
   const palette = usePalette();
   const [draft, setDraft] = useState<Record<CapKind, string>>(() => capsDraft(caps));
   const [error, setError] = useState<string | undefined>(undefined);
@@ -297,12 +358,11 @@ function CapsSheet({
       return;
     }
     onSave(read.caps);
-    onClose();
+    onDone();
   };
 
-  return (
-    <Sheet open={open} onClose={onClose} keyboard testID="caps-sheet">
-      <SheetHead title="Attachment limits" action={{ label: "Save", onPress: save }} />
+  const body = (
+    <>
       <Group>
         {CAP_KINDS.map((kind) => (
           <GroupRow
@@ -340,8 +400,9 @@ function CapsSheet({
           {error}
         </GroupFoot>
       )}
-    </Sheet>
+    </>
   );
+  return { save, body };
 }
 
 const styles = StyleSheet.create({

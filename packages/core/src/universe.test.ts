@@ -4,6 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import type { ProjectChange, RoomProject } from "./model/types.js";
 import type { WorkspaceModel } from "./model.js";
 import {
   documentKind,
@@ -13,7 +14,9 @@ import {
   readUniverse,
   shownFiles,
   startOf,
+  universeCalling,
   universeOf,
+  universeSeenAt,
 } from "./universe.js";
 
 const terraFab = [".chips/index.html", "reports/overview.html", "reports/supply-chain.pdf"];
@@ -136,5 +139,35 @@ describe("who Run and Open on the Mac are for (ADR 0231)", () => {
     for (const somebody of ["per_ana", "per_dana", "per_priya", "per_nobody"]) {
       expect(mayUseMac(model, somebody)).toBe(false);
     }
+  });
+});
+
+describe("Universe calling the reader (ADR 0227's addendum)", () => {
+  const change = (commit: string, by: string): ProjectChange => ({
+    commit,
+    before: null,
+    by,
+    byKind: by.startsWith("per_") ? "person" : "agent",
+    at: "2026-11-01T09:00:00.000Z",
+    seq: 1,
+    message: "The report",
+    files: [{ path: "report.html", added: 10, removed: 0 }],
+    moreFiles: 0,
+  });
+  const project = (...changes: ProjectChange[]): RoomProject => ({ files: 1, changes });
+
+  it("calls about another's newest change until this device opens Universe at it", () => {
+    const made = project(change("b".repeat(40), "agt_miro"), change("a".repeat(40), "agt_miro"));
+    expect(universeCalling(made, "per_arjun", undefined)).toBe("b".repeat(40));
+    expect(universeCalling(made, "per_arjun", "a".repeat(40))).toBe("b".repeat(40));
+    expect(universeCalling(made, "per_arjun", universeSeenAt(made))).toBeUndefined();
+  });
+
+  it("is quiet for the reader's own change, and for a space with no project", () => {
+    expect(
+      universeCalling(project(change("c".repeat(40), "per_arjun")), "per_arjun", undefined),
+    ).toBeUndefined();
+    expect(universeCalling(undefined, "per_arjun", undefined)).toBeUndefined();
+    expect(universeSeenAt(undefined)).toBeUndefined();
   });
 });

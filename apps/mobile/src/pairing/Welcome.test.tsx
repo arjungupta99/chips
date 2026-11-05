@@ -4,7 +4,8 @@
  * end, brings That's Chips into the film's place, with every way in on it: Scan a QR code, Have an
  * invite link?, Have a pairing code?, More walkthroughs, Look around and Watch again. The camera
  * opens over the page and reads invites and pairing codes alike. The pairing code page types one.
- * Chips found on this Wi-Fi comes up from the foot only once it is found.
+ * Chips found on this Wi-Fi comes up from the foot only once it is found. On an iPad every way in
+ * stands by the film from the start, with no Skip (ADR 0256).
  */
 
 import {
@@ -13,10 +14,12 @@ import {
   screen,
   userEvent,
   waitFor,
+  within,
 } from "@testing-library/react-native";
 import * as Clipboard from "expo-clipboard";
 import * as ExpoVideo from "expo-video";
 import type { ReactElement, ReactNode } from "react";
+import { Dimensions } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import PairScreen from "../../app/pair";
 import { canFind, findServers } from "./finder";
@@ -80,6 +83,14 @@ function Phone({ children }: { readonly children: ReactNode }) {
   return <SafeAreaProvider initialMetrics={IPHONE}>{children}</SafeAreaProvider>;
 }
 const render = (element: ReactElement) => renderBare(element, { wrapper: Phone });
+
+/** The window a test stands in: a phone's, unless it is an iPad's (Jest's own is iPad-wide). */
+const JEST_WINDOW = Dimensions.get("window");
+function onA(window: { readonly width: number; readonly height: number }) {
+  Dimensions.set({ window: { ...window, scale: 2, fontScale: 1 } });
+}
+beforeEach(() => onA(IPHONE.frame));
+afterAll(() => Dimensions.set({ window: JEST_WINDOW }));
 
 const MINI = { name: "Arjun's Mac mini", url: "http://192.168.1.20:4431", workspaceId: "ws_1" };
 const INVITE = `https://host.example/#invite=chips_inv_5&key=${"k".repeat(43)}`;
@@ -265,3 +276,81 @@ describe("the first screen", () => {
     expect(screen.queryByText(/Nothing here yet/)).toBeNull();
   });
 });
+
+describe("the first screen on an iPad (ADR 0256)", () => {
+  const SIDE = { width: 1376, height: 1032 };
+  const UPRIGHT = { width: 1032, height: 1376 };
+
+  it("on its side has every way in beside the film from the start, and nothing to skip", async () => {
+    onA(SIDE);
+    await render(<PairScreen />);
+    expect(screen.getByRole("header", { name: "Chips" })).toBeOnTheScreen();
+    expect(screen.getByTestId("welcome-film")).toBeOnTheScreen();
+    expect(player().playing).toBe(true);
+    const ways = within(screen.getByTestId("welcome-ways"));
+    expect(ways.getByText(/^Watch Chips work/)).toBeOnTheScreen();
+    expect(ways.getByTestId("demo-scan")).toBeOnTheScreen();
+    expect(ways.getByRole("button", { name: "Paste an invite link" })).toBeOnTheScreen();
+    expect(ways.getByRole("button", { name: "Type a pairing code" })).toBeOnTheScreen();
+    expect(ways.getByText("More walkthroughs")).toBeOnTheScreen();
+    expect(ways.getByRole("button", { name: "Look around" })).toBeOnTheScreen();
+    expect(screen.queryByTestId("ways-split")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    expect(screen.queryByTestId("welcome-scan")).toBeNull();
+  });
+
+  it("puts That's Chips in the film's place when it ends, the ways staying, and Watch again plays it", async () => {
+    onA(SIDE);
+    await render(<PairScreen />);
+    await act(() => player().emit("playToEnd"));
+    expect(screen.getByRole("header", { name: "That's Chips" })).toBeOnTheScreen();
+    expect(screen.getAllByTestId("demo-scan")).toHaveLength(1);
+    await userEvent.press(screen.getByRole("button", { name: "Watch again" }));
+    expect(screen.queryByRole("header", { name: "That's Chips" })).toBeNull();
+    expect(player().currentTime).toBe(0);
+    expect(player().playing).toBe(true);
+  });
+
+  it("upright keeps the film on top, with the ways under it in two columns", async () => {
+    onA(UPRIGHT);
+    await render(<PairScreen />);
+    expect(player().playing).toBe(true);
+    const split = within(screen.getByTestId("ways-split"));
+    expect(split.getByTestId("demo-scan")).toBeOnTheScreen();
+    expect(split.getByText("More walkthroughs")).toBeOnTheScreen();
+    expect(split.getByRole("button", { name: "Watch again" })).toBeOnTheScreen();
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+  });
+
+  it("upright brings Chips on this Wi-Fi up over the ways, which stay where a finger found them", async () => {
+    onA(UPRIGHT);
+    jest.mocked(canFind).mockReturnValue(true);
+    jest.mocked(findServers).mockResolvedValue([MINI]);
+    await render(<PairScreen />);
+    await act(async () => undefined);
+    expect(screen.getByTestId("on-this-wifi")).toBeOnTheScreen();
+    expect(within(screen.getByTestId("welcome-ways")).queryByTestId("on-this-wifi")).toBeNull();
+    // Over them, in the page's order: the film gives it the room, and the ways keep the foot.
+    const order = testIDsOf(screen.toJSON());
+    expect(order.indexOf("on-this-wifi")).toBeLessThan(order.indexOf("welcome-ways"));
+  });
+
+  it("opens the camera from the ways beside the film, which waits under it", async () => {
+    onA(SIDE);
+    await render(<PairScreen />);
+    await userEvent.press(screen.getByTestId("demo-scan"));
+    expect(player().playing).toBe(false);
+  });
+});
+
+/** Every testID in the drawn tree, in the order the page stands them. */
+function testIDsOf(node: unknown): string[] {
+  if (node === null || typeof node !== "object") return [];
+  if (Array.isArray(node)) return node.flatMap(testIDsOf);
+  const { props, children } = node as {
+    readonly props: Readonly<Record<string, unknown>>;
+    readonly children: readonly unknown[] | null;
+  };
+  const own = typeof props["testID"] === "string" ? [props["testID"]] : [];
+  return [...own, ...(children ?? []).flatMap(testIDsOf)];
+}

@@ -38,7 +38,7 @@ export function registerHealthRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps): 
           : {}),
       },
       tunnel: { path: TUNNEL_DOOR_PATH },
-      ...(here ? { pushes: deps.pushReadiness() } : {}),
+      ...(here ? { pushes: deps.pushStanding() } : {}),
     });
   });
 }

@@ -38,10 +38,10 @@ test("edit, pin, search and take back", async ({ page }) => {
 
   // Pinned: the strip at the top names it, and unpinning clears it.
   await mine.click({ button: "right" });
-  await menu.getByRole("menuitem", { name: "Pin to the top" }).click();
+  await menu.getByRole("menuitem", { name: "Pin", exact: true }).click();
   await expect(page.getByTestId("pins")).toContainText(`Northwind quotes ${stamp}`);
   await mine.click({ button: "right" });
-  await menu.getByRole("menuitem", { name: "Unpin from the top" }).click();
+  await menu.getByRole("menuitem", { name: "Unpin", exact: true }).click();
   await expect(page.getByTestId("pins")).toHaveCount(0);
 
   // Search finds an agent by its name, and opens its page.
@@ -72,6 +72,8 @@ test("edit, pin, search and take back", async ({ page }) => {
   await hits.first().click();
   const found = messages.locator(".msg[data-focused='true']");
   await expect(found).toContainText("are in, finally.");
+  // Its ring drawn whole: a row left to `content-visibility: auto` cut it off at top and foot.
+  await expect(found).toHaveCSS("content-visibility", "visible");
   await expect(found.locator(".bub mark")).toHaveText(`${stamp}`);
   await expect(found.locator(".bub mark")).toHaveCount(0, { timeout: 5000 });
   await expect(found).toContainText(`Northwind quotes ${stamp} are in, finally.`);

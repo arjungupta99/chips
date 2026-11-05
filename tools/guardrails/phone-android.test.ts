@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   chooseDevice,
+  configTime,
   devicesFrom,
   gradleFailure,
   missingPackages,
@@ -81,6 +82,26 @@ describe("the native project", () => {
     expect(prebuildNeeded({ project: 10, config: 11, dependencies: 5 })).toBe(true);
     expect(prebuildNeeded({ project: 10, config: 5, dependencies: 11 })).toBe(true);
     expect(prebuildNeeded({ project: 10, config: 5, dependencies: 5 })).toBe(false);
+  });
+
+  it("counts a config plugin, and a source it copies into the project, as config", () => {
+    const times: Record<string, number> = {
+      "m/app.json": 5,
+      "m/plugins/with-push-seal.js": 6,
+      "m/plugins/push-seal/NotificationService.swift": 12,
+    };
+    const filesUnder = (dir: string) =>
+      Object.keys(times).filter((file) => file.startsWith(`${dir}/`));
+    const mtime = (file: string) => times[file];
+    const config = configTime("m", { mtime, filesUnder });
+    expect(config).toBe(12);
+    expect(prebuildNeeded({ project: 10, config, dependencies: 5 })).toBe(true);
+  });
+
+  it("is only app.json and app.config.js when there are no plugins", () => {
+    const mtime = (file: string) => ({ "m/app.json": 3, "m/app.config.js": 4 })[file];
+    expect(configTime("m", { mtime, filesUnder: () => [] })).toBe(4);
+    expect(configTime("m", { mtime: () => undefined, filesUnder: () => [] })).toBe(0);
   });
 });
 

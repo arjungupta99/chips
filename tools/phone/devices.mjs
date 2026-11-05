@@ -10,22 +10,38 @@
  * `xctrace` lists the phone under "Devices Offline" even while a build reaches it over the Wi-Fi.
  */
 
-/** The phone's row, by the name `xctrace` gave it. A phone CoreDevice does not list is not refused. */
-export function coreDeviceRowOf(listText, name) {
+/** The cells of a device's row, by the name `xctrace` gave it, read under their headers. */
+function cellsOf(listText, name) {
   const lines = listText.split("\n");
   const header = lines.find((line) => line.startsWith("Name")) ?? "";
   const row = lines.find((line) => line.startsWith(name)) ?? "";
   // Each cell is read where its header starts, up to the next run of spaces. Splitting the whole
   // row on spaces lost a column a phone leaves empty: with Xcode 27 it has no hostname, so its
   // state was taken for its identifier (2 November 2026).
-  const cell = (column) => {
+  return (column) => {
     const at = header.indexOf(column);
     return at < 0 ? "" : (row.slice(at).split(/\s{2,}/)[0] ?? "").trim();
   };
+}
+
+/** The phone's row, by the name `xctrace` gave it. A phone CoreDevice does not list is not refused. */
+export function coreDeviceRowOf(listText, name) {
+  const cell = cellsOf(listText, name);
   // Xcode 27 writes `<udid> (UDID)`; `devicectl` takes the UDID.
   const identifier = cell("Identifier").split(" ")[0] || undefined;
   const state = cell("State");
   return { identifier, state, reachable: !/^unavailable/.test(state) };
+}
+
+/**
+ * The device a command means: the one named; else the iPhone, as the tool is called; else the
+ * first Xcode lists. The names are their owner's ("AG iPad Pro 2"), so CoreDevice's model says
+ * which is a phone. Once Arjun's iPad was paired, `xctrace` listed it before the iPhone, and a plain
+ * `pnpm phone ship` built for the iPad (3 November 2026). `findSimulator` already prefers an iPhone.
+ */
+export function deviceMeant(devices, wanted, listText) {
+  if (wanted) return devices.find((d) => d.udid === wanted || d.name === wanted);
+  return devices.find((d) => cellsOf(listText, d.name)("Model").startsWith("iPhone")) ?? devices[0];
 }
 
 /**

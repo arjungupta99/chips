@@ -145,6 +145,7 @@ function rig(
       removed.push(deviceId);
     },
     pruneRevoked: async () => 0,
+    removeToken: async () => 0,
     forPeople: async (_workspaceId, ids) => phones.filter((one) => ids.includes(one.participantId)),
     zonesOf: async () => new Map(),
   };
@@ -180,6 +181,7 @@ function rig(
         return over.tickets ?? messages.map(() => ({ ok: true }));
       },
       readiness: () => over.readiness ?? "ready",
+      standing: () => over.readiness ?? "ready",
     },
     clock: { nowIso: () => NOW, nowMs: () => Date.parse(NOW), now: () => new Date(NOW) },
     logger: { ...silent, info, warn } as unknown as typeof silent,

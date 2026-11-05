@@ -28,7 +28,6 @@ export type ProjectionTable =
   | "questions"
   | "attachments"
   | "lanes"
-  | "read_state"
   | "harness_policy"
   | "workspace_policy"
   | "session_rules"
@@ -50,7 +49,6 @@ export const PROJECTION_TABLES: readonly ProjectionTable[] = [
   "questions",
   "attachments",
   "lanes",
-  "read_state",
   "harness_policy",
   "workspace_policy",
   "session_rules",

@@ -29,9 +29,12 @@ import {
   usePushSetup,
 } from "../src/push/usePush";
 import { loadPicks } from "../src/spaces/picks";
+import { loadUniverseSeen } from "../src/spaces/universeSeen";
 import { beginReadingHeld, ChipsProvider, useChips } from "../src/store/provider";
 import { loadAppearance } from "../src/ui/appearance";
 import { UNDER_A_BAR } from "../src/ui/bars";
+import { ChromeProvider } from "../src/ui/chrome";
+import { DuoProvider } from "../src/ui/duo";
 import { loadFaceTheme } from "../src/ui/faceTheme";
 import { usePalette, useScheme } from "../src/ui/theme";
 import { useAwake } from "../src/ui/useAwake";
@@ -71,9 +74,13 @@ export default function RootLayout() {
   useEffect(() => {
     // What the phone holds is read alongside, for the provider drawn once this is done.
     beginReadingHeld();
-    void Promise.all([loadAppearance(), loadFaceTheme(), loadRemembered(), loadPicks()]).finally(
-      () => setDressed(true),
-    );
+    void Promise.all([
+      loadAppearance(),
+      loadFaceTheme(),
+      loadRemembered(),
+      loadPicks(),
+      loadUniverseSeen(),
+    ]).finally(() => setDressed(true));
   }, []);
   // Laid out: the picture goes when the store is ready (`Curtain`), and at the latest this long
   // after. It fires again on a rotation; hiding what is already hidden costs nothing.
@@ -82,20 +89,26 @@ export default function RootLayout() {
   }, []);
   if (!dressed) return null;
 
-  // Over everything the stack pushes: the new space's window lifts off a room.
+  // Over everything the stack pushes: the new space's window lifts off a room. What stands around an
+  // iPad's panes is above it, where the window it opens reads where the room will be (ADR 0256).
   const app = (
-    <NewSpaceProvider>
-      {/* Read here, where the view never leaves the window: a tab off screen is told 0. */}
-      <WindowInsets>
-        {/* Connect a harness and New agent (ADR 0190): sheets any screen opens. */}
-        <ConnectProvider>
-          <Pushed />
-        </ConnectProvider>
-        {/* Something new in a workspace behind this one (ADR 0197): after the stack, so it is
+    <ChromeProvider>
+      {/* The Duo's column and fold (ADR 0256), read once for every screen. */}
+      <DuoProvider>
+        <NewSpaceProvider>
+          {/* Read here, where the view never leaves the window: a tab off screen is told 0. */}
+          <WindowInsets>
+            {/* Connect a harness and New agent (ADR 0190): sheets any screen opens. */}
+            <ConnectProvider>
+              <Pushed />
+            </ConnectProvider>
+            {/* Something new in a workspace behind this one (ADR 0197): after the stack, so it is
             drawn over the screens, and inside the insets, which place it under the island. */}
-        <BehindBanner />
-      </WindowInsets>
-    </NewSpaceProvider>
+            <BehindBanner />
+          </WindowInsets>
+        </NewSpaceProvider>
+      </DuoProvider>
+    </ChromeProvider>
   );
 
   // The root view gesture-handler needs above everything that uses a gesture — the swipe on a

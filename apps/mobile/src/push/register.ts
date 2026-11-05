@@ -17,7 +17,7 @@ import { requireOptionalNativeModule } from "expo";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { SETTINGS, writeSetting } from "../prefs";
+import { choosePush } from "./chosen";
 import { buttons, type Phone } from "./payload";
 
 /** The category the buttons hang off. Referenced by the server's `categoryId`. */
@@ -201,7 +201,7 @@ export async function refreshRegistration(
   if (!permission.granted) return;
   const issued = await Notifications.getExpoPushTokenAsync({ projectId: id });
   await registerToken(device, issued.data);
-  if (chosen !== "on") await writeSetting(SETTINGS.push, "on").catch(() => undefined);
+  if (chosen !== "on") await choosePush("on");
 }
 
 /** Tell it to stop. */

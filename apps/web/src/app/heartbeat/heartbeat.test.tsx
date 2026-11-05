@@ -99,6 +99,7 @@ const agents: AgentsService = {
   archive: vi.fn(),
   remove: vi.fn(),
   lock: vi.fn(),
+  face: vi.fn(),
 };
 
 function page(

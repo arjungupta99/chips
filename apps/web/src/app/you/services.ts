@@ -18,6 +18,7 @@ import type {
   AttachmentCaps as Caps,
   ExchangeLimits,
   NotificationSettings,
+  SpaceIcon,
 } from "@chipschat/protocol";
 
 /** The caps on what may be attached (ADR 0047): setting them, and the ceiling they sit under. */
@@ -57,6 +58,8 @@ export interface PeopleService {
   readonly rename: (displayName: string) => Promise<void>;
   /** Name the workspace again (ADR 0194), an owner's; rejects with the server's reason. */
   readonly renameWorkspace: (name: string) => Promise<void>;
+  /** Choose the face you wear (ADR 0139), or none; rejects with the server's reason. */
+  readonly setMyFace: (face: SpaceIcon | undefined) => Promise<void>;
 }
 
 /** A pairing code for another device, and the address a phone's camera opens. */
@@ -104,6 +107,9 @@ export interface RelayService {
   readonly machine: () => Promise<string>;
   /** This device, which the lists call "This computer" or "This browser". */
   readonly here: HereDevice;
-  /** Scroll the card into view once it is drawn: the setup card's Away from home sent them here. */
-  readonly reveal?: boolean | undefined;
+  /**
+   * Scroll the card into view once it is drawn and light it: the setup card's Away from home sent
+   * them here. A count of the asks, so each lights it again; 0 or nothing is none.
+   */
+  readonly reveal?: number | undefined;
 }

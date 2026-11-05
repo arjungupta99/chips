@@ -8,7 +8,7 @@
 import type { Snapshot, Space } from "@chipschat/core";
 import { act, render as renderBare, screen, userEvent } from "@testing-library/react-native";
 import type { ReactElement } from "react";
-import { Keyboard } from "react-native";
+import { Dimensions, Keyboard } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import SpaceScreen from "../../app/spaces/[id]";
 import { fakeStore, snapshot } from "../testing/fixtures";
@@ -17,6 +17,11 @@ const IPHONE = {
   frame: { x: 0, y: 0, width: 393, height: 852 },
   insets: { top: 59, left: 0, right: 0, bottom: 34 },
 };
+
+// The window as the phone's too: Jest's own is 750 points across, an iPad's since ADR 0256.
+const jestWindow = Dimensions.get("window");
+beforeAll(() => Dimensions.set({ window: { width: 393, height: 852, scale: 3, fontScale: 1 } }));
+afterAll(() => Dimensions.set({ window: jestWindow }));
 
 const render = (element: ReactElement) =>
   renderBare(<SafeAreaProvider initialMetrics={IPHONE}>{element}</SafeAreaProvider>);
@@ -145,6 +150,36 @@ describe("Universe, at the bar's right (ADR 0227)", () => {
     await userEvent.press(screen.getByTestId("room-universe-button"));
     expect(screen.getByTestId("universe")).toHaveTextContent("up");
     expect(screen.getByTestId("room-sheet")).toHaveTextContent("down");
+  });
+
+  // 3 November 2026: "when file becomes available / updated in universe, the button should
+  // animate to get attention", and "it should keep pulsing until person taps it".
+  it("calls while the project has another's change, until Universe is opened", async () => {
+    Object.assign(mockParams, { id: "sp_1" });
+    const current = mockPaired.current as { store: unknown; snapshot: Snapshot };
+    const [room] = current.snapshot.model.spaces;
+    const change = {
+      commit: "b".repeat(40),
+      before: null,
+      by: "agt_miro",
+      byKind: "agent",
+      at: "2026-11-01T09:00:00.000Z",
+      seq: 9,
+      message: "The report",
+      files: [{ path: "report.html", added: 40, removed: 0 }],
+      moreFiles: 0,
+    };
+    const withChange = { ...room, project: { files: 1, changes: [change] } } as unknown as Space;
+    const whole = {
+      ...current.snapshot,
+      model: { ...current.snapshot.model, spaces: [withChange] },
+    } as Snapshot;
+    mockPaired.current = { store: fakeStore(whole), snapshot: whole };
+    await render(<SpaceScreen />);
+    expect(screen.getByRole("button", { name: "Universe, updated" })).toBeOnTheScreen();
+    await userEvent.press(screen.getByTestId("room-universe-button"));
+    expect(screen.getByTestId("universe")).toHaveTextContent("up");
+    expect(screen.getByRole("button", { name: "Universe" })).toBeOnTheScreen();
   });
 });
 

@@ -11,6 +11,7 @@ import { useFocusCount } from "../../../src/context/useFocusCount";
 import { type HarnessPart, isHarnessPart, PART_TITLE } from "../../../src/harnesses/parts";
 import { Part } from "../../../src/harnesses/parts/Part";
 import { useChips, useSnapshot } from "../../../src/store/provider";
+import { BackToTabs } from "../../../src/ui/backToTabs";
 import { useLayout } from "../../../src/ui/layout";
 import { Empty, Screen } from "../../../src/ui/Screen";
 
@@ -22,8 +23,7 @@ export default function PartScreen() {
   if (!isHarnessPart(part)) {
     return <Redirect href={{ pathname: "/harnesses/[id]", params: { id } }} />;
   }
-  if (wide)
-    return <Redirect href={{ pathname: "/(tabs)/agents", params: { harness: id, part } }} />;
+  if (wide) return <BackToTabs tab="/(tabs)/agents" params={{ harness: id, part }} />;
   return (
     <One
       store={paired.store}

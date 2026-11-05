@@ -8,11 +8,12 @@
 
 import { act, fireEvent, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { useState } from "react";
-import { Animated, Dimensions, StyleSheet, Text } from "react-native";
+import { Animated, Dimensions, StyleSheet, Text, type View } from "react-native";
 import { State } from "react-native-gesture-handler";
 import { fireGestureHandler, getByGestureTestId } from "react-native-gesture-handler/jest-utils";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Sheet, SheetScroll, useSheetRest } from "./Sheet";
+import { ARROW, type SheetFrom } from "./beside";
+import { Sheet, SheetDock, SheetScroll, useSheetRest } from "./Sheet";
 import { SPACE } from "./tokens";
 import { WindowInsets } from "./windowInsets";
 
@@ -219,9 +220,12 @@ describe("a sheet", () => {
       expect(Math.abs(speed - velocityY)).toBeLessThan(1);
       return exit.duration;
     };
+    // A phone's sheet, whose way out is the height of what it holds.
+    const back = onA(IPHONE.frame);
     const slow = await leaving(0);
     const flicked = await leaving(1500);
     const thrown = await leaving(3000);
+    back();
     expect(flicked).toBeLessThan(slow);
     expect(thrown).toBeLessThan(flicked);
   });
@@ -397,13 +401,41 @@ describe("a sheet", () => {
     });
   });
 
-  it("is a card clear of the bottom on an iPad mini upright, which has no list beside its rooms", async () => {
+  it("is a card in the middle on an iPad mini upright, as wide as a form, as iPadOS stands one", async () => {
     const back = onA({ width: 744, height: 1133 });
     await render(sheet(true));
-    const panel = StyleSheet.flatten(screen.getByTestId("sheet-panel").props["style"]);
+    const panel = screen.getByTestId("sheet-panel");
     back();
-    expect(panel).toMatchObject({ maxWidth: 520, alignSelf: "center" });
-    expect(panel["marginBottom"]).toBeGreaterThan(0);
+    expect(StyleSheet.flatten(panel.props["style"])).toMatchObject({
+      maxWidth: 540,
+      alignSelf: "center",
+    });
+    // What stands it is in the middle of what it stands in.
+    let around = panel.parent;
+    while (
+      around !== null &&
+      StyleSheet.flatten(around.props["style"])?.justifyContent === undefined
+    )
+      around = around.parent;
+    expect(StyleSheet.flatten(around?.props["style"])).toMatchObject({ justifyContent: "center" });
+  });
+
+  // 3 November 2026, Universe on an iPad: "want to be able to make use of ipad width".
+  it("is as wide as the window less a margin when it shows something rather than asks", async () => {
+    const back = onA({ width: 1376, height: 1032 });
+    await render(
+      <SafeAreaProvider initialMetrics={IPHONE}>
+        <Sheet open onClose={() => undefined} sizing="full" wide testID="sheet">
+          <Text>A page</Text>
+        </Sheet>
+      </SafeAreaProvider>,
+    );
+    const panel = screen.getByTestId("sheet-panel");
+    back();
+    expect(StyleSheet.flatten(panel.props["style"])).toMatchObject({
+      maxWidth: 1376 - SPACE.xl * 2,
+      alignSelf: "center",
+    });
   });
 
   it("is not there at all until it is opened", async () => {
@@ -411,6 +443,87 @@ describe("a sheet", () => {
     expect(screen.queryByTestId("sheet")).toBeNull();
     await screen.rerender(sheet(true));
     expect(screen.getByText("Three choices")).toBeTruthy();
+  });
+});
+
+describe("a sheet opened from a button, on an iPad (ADR 0256)", () => {
+  const IPAD = {
+    frame: { x: 0, y: 0, width: 1032, height: 1376 },
+    insets: { top: 24, left: 0, right: 0, bottom: 20 },
+  };
+  /** A button where it is in the window, as Fabric answers for one. */
+  const button = (x: number, y: number) => ({
+    current: {
+      measureInWindow: (answer: (x: number, y: number, width: number, height: number) => void) =>
+        answer(x, y, 44, 44),
+    } as unknown as View,
+  });
+  function beside(open: boolean, from: SheetFrom | undefined, onClose = () => undefined) {
+    return (
+      <SafeAreaProvider initialMetrics={IPAD}>
+        <Sheet open={open} onClose={onClose} from={from} testID="sheet">
+          <Text>Three choices</Text>
+        </Sheet>
+      </SafeAreaProvider>
+    );
+  }
+  const placed = () => StyleSheet.flatten(screen.getByTestId("sheet-panel").props["style"]);
+  let back: () => void;
+  beforeEach(() => {
+    back = onA(IPAD.frame);
+  });
+  afterEach(() => back());
+
+  it("opens below a button high on the window, across from it, and a tap off it puts it away", async () => {
+    const closed = jest.fn();
+    await render(beside(true, button(600, 120), closed));
+    expect(screen.getByText("Three choices")).toBeTruthy();
+    // The button's foot, the gap and the arrow; its middle across from the button's.
+    expect(placed()).toMatchObject({ top: 164 + 4 + ARROW, left: 622 - 190, width: 380 });
+    // Nothing to pull, and no grabber that says there is.
+    expect(() => getByGestureTestId("sheet-pull")).toThrow();
+    // The panel is modal to a screen reader, whose way out is the X; a tap off it is a finger's.
+    await userEvent.press(screen.getByTestId("sheet-off", { includeHiddenElements: true }));
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens above a button low on the window, and is a card without one", async () => {
+    await render(beside(true, button(360, 1290)));
+    expect(placed()).toMatchObject({ bottom: 1376 - 1290 + 4 + ARROW });
+    await screen.rerender(beside(true, undefined));
+    expect(screen.queryByTestId("sheet-off", { includeHiddenElements: true })).toBeNull();
+    expect(getByGestureTestId("sheet-pull")).toBeTruthy();
+  });
+
+  it("stays beside the button on its way out, though its caller let go of it as it closed", async () => {
+    const gone = jest.fn();
+    function Held({ open }: { readonly open: boolean }) {
+      return (
+        <SafeAreaProvider initialMetrics={IPAD}>
+          <Sheet
+            open={open}
+            onClose={() => undefined}
+            onGone={gone}
+            from={open ? button(600, 120) : undefined}
+            testID="sheet"
+          >
+            <Text>Three choices</Text>
+          </Sheet>
+        </SafeAreaProvider>
+      );
+    }
+    await render(<Held open />);
+    await screen.rerender(<Held open={false} />);
+    expect(screen.getByTestId("sheet-off", { includeHiddenElements: true })).toBeTruthy();
+    await waitFor(() => expect(gone).toHaveBeenCalledTimes(1));
+  });
+
+  it("rises from the foot of a phone whatever it was opened from", async () => {
+    back();
+    back = onA(IPHONE.frame);
+    await render(beside(true, button(300, 760)));
+    expect(screen.queryByTestId("sheet-off", { includeHiddenElements: true })).toBeNull();
+    expect(getByGestureTestId("sheet-pull")).toBeTruthy();
   });
 });
 
@@ -433,5 +546,57 @@ describe("a list on a sheet", () => {
       </SheetScroll>,
     );
     expect(screen.getByTestId("list")).toHaveProp("alwaysBounceVertical", true);
+  });
+});
+
+describe("a docked sheet (ADR 0256)", () => {
+  function Docked({ inner = false }: { readonly inner?: boolean }) {
+    const [open, setOpen] = useState(true);
+    const [gone, setGone] = useState(0);
+    return (
+      <SafeAreaProvider initialMetrics={IPHONE}>
+        <Text testID="gone">{gone}</Text>
+        <Text testID="reopen" onPress={() => setOpen(true)}>
+          Open
+        </Text>
+        <SheetDock.Provider value={320}>
+          <Sheet
+            open={open}
+            onClose={() => setOpen(false)}
+            onGone={() => setGone((was) => was + 1)}
+            testID="sheet"
+          >
+            <Text>Who is here</Text>
+            {inner ? (
+              <Sheet open onClose={() => undefined} testID="inner">
+                <Text>A sheet from inside it</Text>
+              </Sheet>
+            ) : null}
+          </Sheet>
+        </SheetDock.Provider>
+      </SafeAreaProvider>
+    );
+  }
+
+  it("stands as a column of the dock's width where it is drawn, and its X closes it at once", async () => {
+    await render(<Docked />);
+    expect(screen.getByText("Who is here")).toBeTruthy();
+    expect(screen.getByTestId("sheet")).toHaveStyle({ width: 320 });
+    // Nothing to pull: no scrim stands over the window to close it from.
+    expect(screen.queryByRole("button", { name: "Close" })).toBeTruthy();
+    await userEvent.press(screen.getByTestId("sheet-close"));
+    expect(screen.queryByTestId("sheet")).toBeNull();
+    expect(screen.getByTestId("gone")).toHaveTextContent("1");
+    await userEvent.press(screen.getByTestId("reopen"));
+    expect(screen.getByTestId("sheet")).toBeTruthy();
+    expect(screen.getByTestId("gone")).toHaveTextContent("1");
+  });
+
+  it("lets a sheet opened from inside it rise as any other does", async () => {
+    await render(<Docked inner />);
+    // Over the window, in a modal of its own, and the docked one is not.
+    expect(screen.getByTestId("inner").type).toBe("Modal");
+    expect(screen.getByTestId("sheet").type).not.toBe("Modal");
+    expect(screen.getByText("A sheet from inside it")).toBeTruthy();
   });
 });

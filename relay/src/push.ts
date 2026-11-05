@@ -23,13 +23,19 @@
  * and phones; past that the oldest is forgotten to make room, so a minute of made-up tokens costs
  * a real phone its count, never its pushes.
  *
+ * Beside it, `POST /v1/push/receipts` asks Expo what became of pushes it took, by their tickets'
+ * ids, so a server learns of a phone whose app was deleted only after the push was taken (the
+ * stranger review, 4 November 2026): `{ "ids": [...] }` in, Expo's `{ "data": { id: receipt } }`
+ * out with only what a server reads. A ticket's id is Expo's, and only the server that sent the
+ * push has it. A request for receipts counts one against its place's minute.
+ *
  * Nothing is kept or logged but how many: no token, word or id. When Expo refuses the relay's
  * token, servers are told `push_unavailable`, never a 401 or 403, which would tell a server its
  * own token was refused and stop it pushing until it restarted. The relay's `/health` says what
  * became of the last pushes it sent on, so a monitor can tell whoever runs it.
  */
 
-import { type ChipsConfig, EXPO_PUSH, type Logger } from "@chipschat/platform";
+import { type ChipsConfig, EXPO_PUSH, type Logger, receiptsUrlOf } from "@chipschat/platform";
 import { isExpoPushToken, isPushWords } from "@chipschat/protocol";
 
 /** One place's pushes in a minute: a household's or an office's servers, busy. */
@@ -38,6 +44,8 @@ export const PER_PLACE = 300;
 export const PER_PHONE = 30;
 /** Expo takes up to a hundred messages in one request. */
 export const MOST_MESSAGES = 100;
+/** The most receipts one request asks for. Expo takes a thousand. */
+export const MOST_RECEIPTS = 300;
 /** The most one push may be: Apple carries 4 KiB. */
 export const MOST_MESSAGE_BYTES = 4096;
 /** The places and phones a minute holds, so a minute of strangers can't fill the box. */
@@ -87,6 +95,8 @@ export type DoorReadiness = "ready" | "refused" | "failing";
 export interface PushDoor {
   /** A request's body, and the place it came from, as `countedAs` names it. */
   readonly send: (body: string, place: string) => Promise<PushAnswer>;
+  /** A request for receipts, `{ "ids": [...] }`, and the place it came from. */
+  readonly receipts: (body: string, place: string) => Promise<PushAnswer>;
   readonly readiness: () => DoorReadiness;
 }
 
@@ -141,6 +151,11 @@ function refusal(status: number, code: string, message: string): PushAnswer {
 }
 
 const NOT_A_PUSH = refusal(400, "bad_request", "That isn't a list of Chips pushes.");
+
+const NOT_RECEIPTS = refusal(400, "bad_request", "That isn't a list of push tickets' ids.");
+
+/** A ticket's id as Expo writes one: a UUID, and nothing that could be a path or a word. */
+const TICKET_ID = /^[A-Za-z0-9-]{1,64}$/;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -204,6 +219,32 @@ function entriesOf(body: string): (Message | Ticket)[] | undefined {
   return raw.map(messageOf);
 }
 
+/** The ids a request for receipts names; or nothing, when it isn't `{ "ids": [...] }`. */
+function idsOf(body: string): string[] | undefined {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(body);
+  } catch {
+    return;
+  }
+  const ids = isObject(raw) ? raw["ids"] : undefined;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > MOST_RECEIPTS) return;
+  if (!ids.every((id) => typeof id === "string" && TICKET_ID.test(id))) return;
+  return ids as string[];
+}
+
+/** Expo's receipts, for the ids asked about and only what a server reads of each. */
+function receiptsOf(data: unknown, ids: readonly string[]): Record<string, Ticket> {
+  const found: Record<string, Ticket> = {};
+  if (!isObject(data)) return found;
+  for (const id of ids) {
+    if (!isObject(data[id])) continue;
+    const { id: _id, ...receipt } = ticketOf(data[id]);
+    found[id] = receipt;
+  }
+  return found;
+}
+
 /** Expo's ticket, with only what a server reads. */
 function ticketOf(raw: unknown): Ticket {
   const ticket = isObject(raw) ? raw : {};
@@ -249,17 +290,22 @@ export function createPushDoor(options: PushDoorOptions): PushDoor {
   const phones = createWindow(clock, room);
   let readiness: DoorReadiness = "ready";
 
+  const receiptsUrl = receiptsUrlOf(options.upstream);
+
   /** Expo's answer to what was sent, or the answer the server gets in its place. */
-  async function post(messages: readonly Message[]): Promise<Response | PushAnswer> {
+  async function post(
+    body: unknown,
+    url: string = options.upstream,
+  ): Promise<Response | PushAnswer> {
     try {
-      return await call(options.upstream, {
+      return await call(url, {
         method: "POST",
         headers: {
           "content-type": "application/json",
           accept: "application/json",
           authorization: `Bearer ${options.accessToken}`,
         },
-        body: JSON.stringify(messages),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch (error) {
@@ -325,6 +371,31 @@ export function createPushDoor(options: PushDoorOptions): PushDoor {
       let next = 0;
       const tickets = allowed.map((entry) => (isMessage(entry) ? (sent[next++] as Ticket) : entry));
       return answer(200, { data: tickets });
+    },
+    async receipts(body, place) {
+      const ids = idsOf(body);
+      if (ids === undefined) {
+        places.take(place, 1, PER_PLACE);
+        return NOT_RECEIPTS;
+      }
+      if (!places.take(place, 1, PER_PLACE)) {
+        return refusal(429, "busy", "Too many requests from here this minute.");
+      }
+      const response = await post({ ids }, receiptsUrl);
+      if (!(response instanceof Response)) return response;
+      if (REFUSED.has(response.status)) return refused(response.status);
+      if (!response.ok) {
+        options.logger.warn(
+          { event: "push.receipts_failed", status: response.status },
+          "receipts failed",
+        );
+        return refusal(502, "push_failed", "The push service didn't give the receipts.");
+      }
+      const data = await response.json().then(
+        (answered: unknown) => (isObject(answered) ? answered["data"] : undefined),
+        () => undefined,
+      );
+      return answer(200, { data: receiptsOf(data, ids) });
     },
     readiness: () => readiness,
   };

@@ -126,6 +126,7 @@ function rig(
         return messages.map(() => ({ ok: true }));
       },
       readiness: () => "ready",
+      standing: () => "ready",
     },
     clock: { nowIso: () => NOW, nowMs: () => Date.parse(NOW), now: () => new Date(NOW) },
     logger: createLogger({ level: "silent" }),

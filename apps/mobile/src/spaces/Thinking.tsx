@@ -59,7 +59,7 @@
  */
 
 import type { CallKind, ConnectionState, Directory, Doing, Says } from "@chipschat/core";
-import { clockWords, doingSays, holdSays, nameOf } from "@chipschat/core";
+import { clockWords, doingSays, holdSays, nameOf, THINKING_GRACE_MS } from "@chipschat/core";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -82,8 +82,12 @@ import { useReduceMotion } from "../ui/useReduceMotion";
 import { CallStrip, GLYPHS } from "./CallStrip";
 import { Coming, Moving } from "./RoomMotion";
 
-/** How long a run has to have been going before the bubble comes; the beat that makes it a thought. */
-export const THINKING_GRACE_MS = 800;
+/**
+ * How long a run has to have been going before the bubble comes; the beat that makes it a thought.
+ * Core's, so the Mac's and the web's run panel waits the same beat.
+ */
+export { THINKING_GRACE_MS };
+
 /** How far below its place the bubble starts. */
 const RISE = 12;
 /** The top line, a message's size down, and the detail a size below that, at the phone's leading. */

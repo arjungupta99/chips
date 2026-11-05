@@ -75,12 +75,12 @@ async function inviteLink(): Promise<string> {
   return inviteUrl(WEB, made.token);
 }
 
-/** Look around from That's Chips: the demo, in front. */
+/** Look around from That's Chips: the demo, in front, its name at the rail's top. */
 async function lookAround(page: Page): Promise<Locator> {
   const end = await thatsChips(page);
   await end.getByRole("button", { name: "Look around" }).click();
-  const switcher = page.getByRole("combobox", { name: "Workspace" });
-  await expect(switcher).toBeVisible({ timeout: 20_000 });
+  const switcher = page.getByTestId("workspace-switcher");
+  await expect(page.getByTestId("workspace-name")).toHaveText("Chips demo", { timeout: 20_000 });
   return switcher;
 }
 
@@ -188,7 +188,7 @@ test("Not in the demo's Set up my own Chips opens That's Chips with the ways in,
   await expect(page.getByRole("heading", { name: "Pair this browser" })).toBeVisible();
   await expect(page.getByLabel("Pairing code", { exact: true })).toBeVisible();
   await page.getByTestId("pair-cancel").click();
-  await expect(page.getByRole("combobox", { name: "Workspace" })).toBeVisible();
+  await expect(page.getByTestId("workspace-name")).toHaveText("Chips demo");
 });
 
 test("the switcher's film's I have an invite opens the first screen on That's Chips, the field open", async ({
@@ -196,7 +196,8 @@ test("the switcher's film's I have an invite opens the first screen on That's Ch
 }) => {
   await firstScreen(page);
   const switcher = await lookAround(page);
-  await switcher.selectOption({ label: "Watch Chips work…" });
+  await switcher.click();
+  await page.getByRole("menu", { name: "Workspaces" }).getByTestId("workspace-watch-demo").click();
   const player = page.getByTestId("film-player");
   await expect(player).toBeVisible();
   await player.getByRole("button", { name: "Skip" }).click();

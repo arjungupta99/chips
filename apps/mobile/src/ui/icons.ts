@@ -159,6 +159,19 @@ export const SYSTEM_ICONS = {
    * to go back over what it said, and a film's Watch again.
    */
   again: ["M9 14.5l-5-5 5-5", "M4 9.5h10.5a5.5 5.5 0 0 1 0 11H11"],
+  /**
+   * A padlock standing open (ADR 0156): Lock changes on a room's sheet while anybody may rename,
+   * archive or delete the room, its shackle lifted up and to the side as the mock drew it. It
+   * closes into the design system's `lock` once the room's changes are locked. The web's You
+   * wears it over Allowed always (ADR 0265).
+   */
+  unlock: ["M5.5 11h13v9.5h-13z", "M11.5 11V5.5a4 4 0 0 1 8 0v3"],
+  /**
+   * You's settings list (ADR 0085): the bell over notifications (the moon over quiet hours is the
+   * design system's now, with the jobs', ADR 0252), as a phone's own Settings marks its rows.
+   */
+  bell: ["M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0"],
+  info: [ring(12, 12, 9), "M12 11v6M12 7.5v.5"],
 } as const;
 
 /** The phone's own marks, which the design system does not have: the media viewer's. */
@@ -177,7 +190,6 @@ export const PHONE_ICONS = {
   copy: ["M9 9h11v11H9z", "M4 15V4h11"],
   /** Go to message: back, into the room. */
   goTo: ["M9 6l-5 5 5 5M4 11h12a4 4 0 0 1 0 8h-3"],
-  info: [ring(12, 12, 9), "M12 11v6M12 7.5v.5"],
   /** A video's sound, on: the speaker and its waves. */
   sound: ["M4 9v6h4l5 4V5L8 9z", "M16.5 9.5a3.5 3.5 0 0 1 0 5M19 7a7 7 0 0 1 0 10"],
   /** And off: the speaker, crossed out beside it. */
@@ -220,21 +232,12 @@ export const PHONE_ICONS = {
     "M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-5 4v-4h-.5A1.5 1.5 0 0 1 4 14.5z",
     "M8.6 10.2l2.3 2.3 4.5-4.6",
   ],
-  /**
-   * A padlock standing open (ADR 0156): Lock changes on a room's sheet while anybody may rename,
-   * archive or delete the room, its shackle lifted up and to the side as the mock drew it. It
-   * closes into the design system's `lock` once the room's changes are locked.
-   */
-  unlock: ["M5.5 11h13v9.5h-13z", "M11.5 11V5.5a4 4 0 0 1 8 0v3"],
   /** What a swipe on an agent's row in the room sheet uncovers (ADR 0111): out of the room. */
   remove: [ring(12, 12, 9), "M8 12h8"],
   /**
-   * You's settings list (ADR 0085): the bell over notifications (the moon over quiet hours is the
-   * design system's now, with the jobs', ADR 0252), as a phone's own Settings marks its rows; and
-   * the kinds of device a person holds a key on — a phone, a computer, a browser, a terminal —
-   * beside each in Devices.
+   * You's settings list (ADR 0085): the kinds of device a person holds a key on — a phone, a
+   * computer, a browser, a terminal — beside each in Devices.
    */
-  bell: ["M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0"],
   handset: [
     "M8.5 2.5h7A1.5 1.5 0 0 1 17 4v16a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 20V4a1.5 1.5 0 0 1 1.5-1.5z",
     "M11 18.5h2",
@@ -271,6 +274,14 @@ export const PHONE_ICONS = {
     dot(10.6, 7.2),
     dot(15.5, 7.7),
   ],
+  /** A room's list put away and back (ADR 0256): a pane on the left. */
+  sidebar: ["M3.5 5h17v14h-17z", "M9.5 5v14"],
+  /** An iPad's tabs, out of the capsule into the sidebar and back (ADR 0276): three lines. */
+  menu: ["M4.5 7h15M4.5 12h15M4.5 17h15"],
+  /** A space's details beside its room (ADR 0256): a pane on the right. */
+  details: ["M3.5 5h17v14h-17z", "M14.5 5v14"],
+  /** A page of Universe full screen: arrows out to two corners, as iOS's own. */
+  fullScreen: ["M14 4h6v6", "M20 4l-6.5 6.5", "M10 20H4v-6", "M4 20l6.5-6.5"],
 } as const;
 
 export const ICONS = { ...SYSTEM_ICONS, ...PHONE_ICONS } as const;

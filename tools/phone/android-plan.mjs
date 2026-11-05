@@ -65,6 +65,22 @@ export function prebuildNeeded({ project, config, dependencies }) {
   return (config ?? 0) > project || (dependencies ?? 0) > project;
 }
 
+/**
+ * When the config a prebuild reads last changed: `app.json`, `app.config.js`, and the config
+ * plugins in `plugins/` with the sources they copy into the project. A copied source changed after
+ * the project was made stays as it was in the build otherwise: the notification extension that
+ * still read the phone's one seal key (4 November 2026), so every push sealed to a workspace's
+ * own key showed the fixed words.
+ */
+export function configTime(mobile, { mtime, filesUnder }) {
+  const files = [
+    `${mobile}/app.json`,
+    `${mobile}/app.config.js`,
+    ...filesUnder(`${mobile}/plugins`),
+  ];
+  return Math.max(0, ...files.map((file) => mtime(file) ?? 0));
+}
+
 const LOOPBACK = /^(https?:\/\/)(127\.0\.0\.1|localhost|\[::1\])(?=[:/]|$)/i;
 
 /**

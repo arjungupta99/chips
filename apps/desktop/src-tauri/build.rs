@@ -14,6 +14,10 @@ const COMMANDS: &[&str] = &[
     "project_folder",
     "server_here",
     "come_forward",
+    "set_menu",
+    "open_link",
+    "page_zoom",
+    "drawn",
 ];
 
 fn main() {

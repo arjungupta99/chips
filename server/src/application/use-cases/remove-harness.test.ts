@@ -96,6 +96,7 @@ function harness() {
       macs: () => 0,
       whenMac: async () => 0,
       runState: () => 0,
+      reads: () => 0,
       contextEdit: () => 0,
       hearingContext: () => 0,
       modelChange: () => 0,

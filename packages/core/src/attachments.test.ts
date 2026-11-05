@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  aloneTile,
   attachmentFromWire,
   fetchAttachment,
   fetchAttachmentBytes,
@@ -51,6 +52,19 @@ describe("what an attachment is", () => {
     expect(kindOf("application/pdf")).toBe("file");
     expect(hasThumbnail("image/png")).toBe(true);
     expect(hasThumbnail("application/pdf")).toBe(false);
+  });
+
+  it("draws a picture alone at its own shape, a glance: 240 wide or 200 tall at most", () => {
+    const of = (width?: number, height?: number, mimeType = "image/jpeg") =>
+      aloneTile({ id: "a", filename: "f", mimeType, byteSize: 1, width, height });
+    expect(of(600, 800)).toEqual({ width: 150, height: 200 });
+    expect(of(1600, 900)).toEqual({ width: 240, height: 135 });
+    // Past the shapes worth drawing: a strip is cut to 1.8:1, a column to 3:4.
+    expect(of(4000, 500)).toEqual({ width: 239, height: 133 });
+    expect(of(300, 3000)).toEqual({ width: 150, height: 200 });
+    // Not measured: a square, and a video at 16:9.
+    expect(of()).toEqual({ width: 200, height: 200 });
+    expect(of(undefined, undefined, "video/mp4")).toEqual({ width: 240, height: 135 });
   });
 
   it("formats a size the way a chip shows it", () => {

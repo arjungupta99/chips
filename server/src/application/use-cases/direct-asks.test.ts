@@ -89,6 +89,7 @@ function harness() {
         return messages.map(() => ({ ok: true }));
       },
       readiness: () => "ready",
+      standing: () => "ready",
     },
     clock: manualClock(Date.parse("2026-10-20T16:00:00.000Z")),
     ids: {

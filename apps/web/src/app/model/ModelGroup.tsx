@@ -58,6 +58,74 @@ export function ModelGroup({
   readonly sayMissing?: boolean;
 }) {
   const harnessName = nameOf(directory, harnessOf(directory, agentId));
+  const said = useModelRow({ reads, model, directory, agentId, agentName, selfId });
+  const land = useLands(said.view === undefined && said.waiting);
+  if (sayMissing && said.look === "not_shared") {
+    return (
+      <NotShared
+        group="model"
+        words={notSharedWords("model", directory, agentId)}
+        testID="model-not-shared"
+      />
+    );
+  }
+  if (said.view === undefined) {
+    if (!said.waiting) return null;
+    return (
+      <WaitingGroup
+        group="model"
+        harnessName={harnessName}
+        agentName={agentName}
+        rows={[{ mark: true, label: 30, sub: 64 }]}
+        testID="model-waiting"
+        place={land.blank}
+      />
+    );
+  }
+  return (
+    <section
+      ref={land.copy}
+      className={land.lands ? "ctx model lands" : "ctx model"}
+      aria-label="Model"
+      data-testid="model-group"
+    >
+      <div className="ctx-h">
+        <h2 className="agents-h">Model</h2>
+        <ReadFrom view={said.view} harnessName={harnessName} />
+      </div>
+      <ul className="ctx-group">{said.row}</ul>
+      {said.foot !== undefined && (
+        <p className="ctx-foot" data-testid="model-foot">
+          {said.foot}
+        </p>
+      )}
+      {said.overlays}
+    </section>
+  );
+}
+
+/**
+ * An agent's Model row, its foot and what stands over it (the capsule's dock and the dialog), apart
+ * from the group that holds them: on an agent's card its own group, on a harness's page (ADR 0254)
+ * the first row of Set up, as the phone's `inGroup` row is. No row until the copy has come, or for
+ * anybody who may not change it.
+ */
+export function useModelRow({
+  reads,
+  model,
+  directory,
+  agentId,
+  agentName,
+  selfId,
+}: {
+  readonly reads: ModelReads | undefined;
+  readonly model: WorkspaceModel;
+  readonly directory: Directory;
+  readonly agentId: string;
+  readonly agentName: string;
+  readonly selfId: string;
+}) {
+  const harnessName = nameOf(directory, harnessOf(directory, agentId));
   const { view, waiting, reread, took } = useAgentModel(reads, model, directory, agentId, selfId);
   const look = settingLook(model, directory, agentId, selfId, "model");
   const [pulse, setPulse] = useState(0);
@@ -81,28 +149,8 @@ export function ModelGroup({
     const timer = setTimeout(() => setHint(undefined), HINT_MS);
     return () => clearTimeout(timer);
   }, [hint]);
-  const land = useLands(view === undefined && waiting);
-  if (sayMissing && look === "not_shared") {
-    return (
-      <NotShared
-        group="model"
-        words={notSharedWords("model", directory, agentId)}
-        testID="model-not-shared"
-      />
-    );
-  }
   if (view === undefined) {
-    if (!waiting) return null;
-    return (
-      <WaitingGroup
-        group="model"
-        harnessName={harnessName}
-        agentName={agentName}
-        rows={[{ mark: true, label: 30, sub: 64 }]}
-        testID="model-waiting"
-        place={land.blank}
-      />
-    );
+    return { view, waiting, look, row: undefined, foot: undefined, overlays: undefined };
   }
   const said = modelRow(view, { harness: harnessName, agent: agentName });
   const press = (element: HTMLElement) => {
@@ -114,27 +162,8 @@ export function ModelGroup({
     setHint({ words: said.hint ?? "", at: Date.now() });
     reread();
   };
-  return (
-    <section
-      ref={land.copy}
-      className={land.lands ? "ctx model lands" : "ctx model"}
-      aria-label="Model"
-      data-testid="model-group"
-    >
-      <div className="ctx-h">
-        <h2 className="agents-h">Model</h2>
-        <ReadFrom view={view} harnessName={harnessName} />
-      </div>
-      <ul className="ctx-group">
-        <li>
-          <Row said={said} pulse={pulse} rowRef={row} onPress={press} />
-        </li>
-      </ul>
-      {said.foot !== undefined && (
-        <p className="ctx-foot" data-testid="model-foot">
-          {said.foot}
-        </p>
-      )}
+  const overlays = (
+    <>
       <div className="model-hint-dock" role="status">
         {hint !== undefined && (
           <span key={hint.at} className="model-hint" data-testid="model-hint">
@@ -155,8 +184,20 @@ export function ModelGroup({
           }}
         />
       )}
-    </section>
+    </>
   );
+  return {
+    view,
+    waiting,
+    look,
+    row: (
+      <li>
+        <Row said={said} pulse={pulse} rowRef={row} onPress={press} />
+      </li>
+    ),
+    foot: said.foot,
+    overlays,
+  };
 }
 
 /** The one row: the model tile, its label, the effort and whose, the bars, and a chevron. */

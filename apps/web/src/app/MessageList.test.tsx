@@ -27,22 +27,34 @@ function line(seq: number): Line {
   };
 }
 
+/** The first `count` lines of a space. */
+function lines(count: number): Line[] {
+  return Array.from({ length: count }, (_, index) => line(index + 1));
+}
+
 /** A scroller of a known height, holding rows of a known height. */
 function Harness({
   count,
+  items,
   height = VIEWPORT,
   focus,
+  sent,
 }: {
-  count: number;
+  count?: number;
+  /** The lines themselves, where it matters which stands where. */
+  items?: Line[];
   height?: number;
   focus?: Focus;
+  sent?: number;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   return (
     <div className="msgs" data-testid="messages" ref={scroller} style={{ height }}>
       <MessageList
-        items={Array.from({ length: count }, (_, index) => line(index + 1))}
+        items={items ?? lines(count ?? 0)}
+        keyOf={(each) => each.id}
         scroller={scroller}
+        sent={sent}
         // A new object each render, as the room hands it one.
         {...(focus === undefined ? {} : { focus: { ...focus } })}
         row={(each) => (
@@ -158,6 +170,32 @@ describe("the windowed message list", () => {
     expect(screen.getAllByTestId("row").at(-1)?.textContent).toBe("Message 1200");
   });
 
+  // A harness's word the room held while its run was at work is let go after the lines that came
+  // since (ADR 0147, point 12), so it lands above the newest. Cut at its old place, the window
+  // took the newest row off the page and drew it again, and the focus on it was lost.
+  for (const [where, scrollTop] of [
+    ["at the end", undefined],
+    ["a little up the space, where the window still reaches it", 51_400],
+  ] as const) {
+    it(`keeps the newest row, the same element, when a line is drawn above it ${where}`, () => {
+      stubHeights();
+      const space = lines(1000);
+      const { rerender } = render(<Harness items={space} />);
+      if (scrollTop !== undefined) {
+        const scroller = screen.getByTestId("messages");
+        act(() => {
+          scroller.scrollTop = scrollTop;
+          scroller.dispatchEvent(new Event("scroll"));
+        });
+      }
+      const newest = screen.getByText("Message 1000");
+      const held = { ...line(2000), id: "msg_held", text: "Held a moment" };
+      rerender(<Harness items={[...space.slice(0, 999), held, space[999] as Line]} />);
+      expect(screen.getByText("Held a moment")).toBeDefined();
+      expect(screen.getByText("Message 1000")).toBe(newest);
+    });
+  }
+
   it("follows the reader back up the space, and stops sticking to the end", () => {
     stubHeights();
     render(<Harness count={1000} />);
@@ -171,6 +209,19 @@ describe("the windowed message list", () => {
     // 20,000 pixels in, at 52 a row: somewhere around the 385th, less the margin above.
     expect(rows.map((row) => row.textContent)).toContain("Message 385");
     expect(rows.length).toBeLessThan(40);
+  });
+
+  it("takes the reader to the end with a line of theirs sent from up the space (ADR 0268 addendum)", () => {
+    stubHeights();
+    const { rerender } = render(<Harness count={1000} sent={0} />);
+    const scroller = screen.getByTestId("messages");
+    act(() => {
+      scroller.scrollTop = 20_000;
+      scroller.dispatchEvent(new Event("scroll"));
+    });
+    expect(screen.getAllByTestId("row").at(-1)?.textContent).not.toBe("Message 1000");
+    rerender(<Harness count={1001} sent={1} />);
+    expect(screen.getAllByTestId("row").at(-1)?.textContent).toBe("Message 1001");
   });
 });
 

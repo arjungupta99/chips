@@ -85,6 +85,7 @@ import {
   troubled,
   unreadCount,
   welcomeFor,
+  whyFaceNotSaved,
   whyNotPicked,
   workspaceLabel,
 } from "@chipschat/core";
@@ -107,6 +108,7 @@ import { PlusRoom } from "../newSpace/plusRoom";
 import { SetupRail, useSetup } from "../setup/SetupCard";
 import { justArrived, useChips } from "../store/provider";
 import { avatarCorner, faceGround, ROW_AVATAR } from "../ui/Avatar";
+import type { SheetFrom } from "../ui/beside";
 import { ConnectionMark, type MarkedBy } from "../ui/Connection";
 import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
@@ -115,6 +117,7 @@ import { MainTag } from "../ui/MainTag";
 import { Dot, Pill } from "../ui/Pill";
 import { type Opens, Screen, UnderName, useColumn } from "../ui/Screen";
 import { SharedTag } from "../ui/SharedTag";
+import { useSplitSide } from "../ui/Split";
 import { RiseIn, Settling } from "../ui/SwitchMotion";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
@@ -123,7 +126,7 @@ import { useSteady } from "../ui/useSteady";
 import { useWorkspaceTitle, WorkspacesSheet, type WorkspaceTitle } from "../workspaces/Switcher";
 import { ConfirmSheet, type Who } from "./ConfirmSheet";
 import { type Asker, Eraser } from "./Dust";
-import { IconSheet, whyNotSaved } from "./IconSheet";
+import { IconSheet } from "./IconSheet";
 import { Arrive, NoRooms, tellsConnection } from "./NoRooms";
 import { hintWords, keepLeaving, listed } from "./picking";
 import { faceName, RowAvatar } from "./RowAvatar";
@@ -154,6 +157,7 @@ import {
   Shifted,
   ShiftedText,
   Turned,
+  Unfold,
 } from "./SelectMotion";
 import { actSet, actTone, NO_ACTS, type RoomAct, SwipeRow } from "./SwipeRow";
 import { type Going as GoingOf, type Leaving, type Picking as PickingOf, usePick } from "./usePick";
@@ -293,7 +297,8 @@ export function List({
     glide: gliding.glide,
   });
   // Which row's face is being changed, if any: a long press on the row opens the sheet.
-  const [changing, setChanging] = useState<string | undefined>(undefined);
+  // The room whose face is being chosen, and where its row was pressed and held.
+  const [changing, setChanging] = useState<Changing | undefined>(undefined);
   // The rooms in the order the list draws them, the pinned first (ADR 0240): a row going is held
   // at its place in this. Held at its place in the store's order, a room under the pins jumped
   // above them as the delete went through (ADR 0181's addendum).
@@ -329,8 +334,8 @@ export function List({
   // as Select or Done last said. A swipe begun then goes home.
   const on = useSteady<RowHandlers>({
     press: (space) => (picking ? picks.row.onPick(space) : openSpace(space.id)),
-    changeIcon: (spaceId) => {
-      if (!picking) setChanging(spaceId);
+    changeIcon: (spaceId, from) => {
+      if (!picking) setChanging({ spaceId, from });
     },
     act: controls.onAct,
     opened: (row) => {
@@ -432,7 +437,8 @@ export function List({
         <ChangeFace
           store={store}
           snapshot={snapshot}
-          space={spaces.find((space) => space.id === changing)}
+          space={spaces.find((space) => space.id === changing?.spaceId)}
+          from={changing?.from}
           onClose={() => setChanging(undefined)}
         />
         <WorkspacesSheet open={switching} onClose={() => setSwitching(false)} />
@@ -663,7 +669,9 @@ function Listing({
             later={later}
             folding={runFolding("hidden", hidden, moves)}
           />
-          {showHidden ? <Group spaces={hidden} run="hidden" {...rest} /> : null}
+          <Unfold shown={showHidden}>
+            <Group spaces={hidden} run="hidden" {...rest} />
+          </Unfold>
         </>
       )}
       {closed.length === 0 ? null : (
@@ -676,7 +684,9 @@ function Listing({
             later={later}
             folding={runFolding("closed", closed, moves)}
           />
-          {showClosed ? <Group spaces={closed} run="closed" {...rest} /> : null}
+          <Unfold shown={showClosed}>
+            <Group spaces={closed} run="closed" {...rest} />
+          </Unfold>
         </>
       )}
     </Arrive>
@@ -697,17 +707,26 @@ function GuestNote({ snapshot }: { readonly snapshot: Snapshot }) {
   );
 }
 
+/** A room whose face is being chosen, and its row, which was pressed and held. */
+interface Changing {
+  readonly spaceId: string;
+  readonly from: SheetFrom;
+}
+
 /** The sheet a room's face is chosen on, for whichever row was pressed and held. */
 function ChangeFace({
   store,
   snapshot,
   space,
+  from,
   onClose,
 }: {
   readonly store: Store;
   readonly snapshot: Snapshot;
   /** Nothing when no row is being changed, which is nearly always. */
   readonly space: Space | undefined;
+  /** Its row, which was pressed and held. */
+  readonly from: SheetFrom | undefined;
   readonly onClose: () => void;
 }) {
   const titleOf = useTitle(snapshot.directory);
@@ -732,6 +751,7 @@ function ChangeFace({
         onClose();
       }}
       onGone={() => setShowing(undefined)}
+      from={from}
       title={titleOf(room)}
       // Empty is nothing to say, not a blank line under the name.
       subtitle={
@@ -744,7 +764,7 @@ function ChangeFace({
         setFailed(undefined);
         void store
           .setSpaceIcon(room.id, icon)
-          .catch((error: unknown) => setFailed(whyNotSaved(error)));
+          .catch((error: unknown) => setFailed(whyFaceNotSaved(error)));
       }}
     />
   );
@@ -851,8 +871,8 @@ function rowActions(acts: readonly RoomAct[]) {
 interface RowHandlers {
   /** Picks the room while the list picks, and opens it otherwise. */
   readonly press: (space: Space) => void;
-  /** A long press: where everything that is about a row rather than in it lives. */
-  readonly changeIcon: (spaceId: string) => void;
+  /** A long press: where everything that is about a row rather than in it lives. The row with it. */
+  readonly changeIcon: (spaceId: string, from: SheetFrom) => void;
   readonly act: RowControls["onAct"];
   readonly opened: RowControls["onOpened"];
   readonly closed: RowControls["onClosed"];
@@ -899,6 +919,7 @@ function Group({
   readonly gliding?: string | undefined;
 }) {
   const palette = usePalette();
+  const arrived = useArrived(spaces, (id) => rowMove(moves, id, run) === undefined);
   if (spaces.length === 0) return null;
   return (
     <View testID="space-list">
@@ -908,7 +929,8 @@ function Group({
           <ListRow
             key={space.id}
             space={space}
-            first={index === 0}
+            // No hairline at the top, nor either side of the row open beside the list.
+            first={index === 0 || space.id === selected || spaces[index - 1]?.id === selected}
             directory={snapshot.directory}
             icon={snapshot.spaceIcons.get(space.id)}
             unread={unreadCount(space, snapshot.readState)}
@@ -949,17 +971,54 @@ function Group({
           ) : (
             row
           );
-        // After the setup card, which rises first when it is there.
-        return rising ? (
-          <RiseIn key={space.id} order={index + 1}>
+        // After the setup card, which rises first when it is there: the rooms drawn as the
+        // workspace took the front, not one that comes after, which opens its place below.
+        if (rising && !arrived.has(space.id))
+          return (
+            <RiseIn key={space.id} order={index + 1}>
+              {placed}
+            </RiseIn>
+          );
+        // A room that comes after the run was drawn opens its place, rather than standing there
+        // in a frame and pushing the rows under it down.
+        return arrived.has(space.id) ? (
+          <Land key={space.id} from="open">
             {placed}
-          </RiseIn>
+          </Land>
         ) : (
           placed
         );
       })}
     </View>
   );
+}
+
+/**
+ * The rooms that came to a run after it was first drawn, and not by a move of their own (a move
+ * lands its row itself). A workspace rising into place rises the rooms of its first draw; one that
+ * comes later arrives as here. A room keeps its place's wrapper while it stays, so it is never
+ * drawn afresh; one that goes and comes back arrives again.
+ */
+function useArrived(
+  spaces: readonly Space[],
+  arrives: (spaceId: string) => boolean,
+): ReadonlySet<string> {
+  const seen = useRef<Set<string> | undefined>(undefined);
+  const arrived = useRef(new Set<string>());
+  const here = new Set(spaces.map((space) => space.id));
+  if (seen.current === undefined) seen.current = new Set(here);
+  // Only ever added to or taken from by what is drawn, so drawing it twice changes nothing.
+  for (const id of here) {
+    if (seen.current.has(id)) continue;
+    seen.current.add(id);
+    if (arrives(id)) arrived.current.add(id);
+  }
+  for (const id of seen.current) {
+    if (here.has(id)) continue;
+    seen.current.delete(id);
+    arrived.current.delete(id);
+  }
+  return arrived.current;
 }
 
 /** What a row is told of its room's move, if it is moving (ADR 0205's addendum). */
@@ -1025,7 +1084,7 @@ const ListRow = memo(function ListRow({
   on,
 }: {
   readonly space: Space;
-  /** The first row has no hairline over it. */
+  /** No hairline over it: the first row, and the open row and the one under it. */
   readonly first: boolean;
   readonly directory: Directory;
   readonly icon: SpaceIcon | undefined;
@@ -1064,16 +1123,65 @@ const ListRow = memo(function ListRow({
 }) {
   const titleOf = useTitle(directory);
   const palette = usePalette();
+  const inset = useSplitSide() === "list";
   const title = titleOf(space);
   const shared = useShared(space, directory);
   // A row that came to land keeps its place's wrapper for good, so it is never drawn afresh.
   const [landed] = useState(landing);
   // Not on its way anywhere, with Select or by a move: a thumb may push it, and a press open it.
   const still = away === undefined && moving === undefined;
+  // The row, which the face sheet opens beside on an iPad.
+  const self = useRef<View>(null);
   const onAction = (name: string) => {
-    if (name === "changeIcon") on.changeIcon(space.id);
+    if (name === "changeIcon") on.changeIcon(space.id, self);
     else on.act(name as RoomAct, space);
   };
+  // Made here, not under the press: the same element under a finger and lifted is not drawn again.
+  const content = (
+    <>
+      <PickRow
+        picking={active}
+        mark={mark}
+        dim={!may}
+        shake={shake}
+        edge={SPACE.lg}
+        // Inset to the text, not to the edge, and drawn inside the row rather than as its
+        // border so the pressed background runs under it the way a phone's list does.
+        line={first ? undefined : { color: palette.line, inset: ROW_AVATAR + SPACE.md }}
+        style={styles.row}
+      >
+        <Row
+          space={space}
+          directory={directory}
+          icon={icon}
+          unread={unread}
+          when={when}
+          title={title}
+          hidden={hidden}
+          pinned={pinned}
+          shared={shared}
+        />
+        {/* Beside the room on an iPad a row opens there, not onward, as Agents' rows: no chevron. */}
+        {inset ? null : (
+          <Fade shown={!active}>
+            <Text style={[styles.chevron, { color: palette.ink4 }]}>{"\u203a"}</Text>
+          </Fade>
+        )}
+      </PickRow>
+      {away?.kind === "delete" && away.phase !== "held" ? (
+        <Eraser
+          crumbling={{
+            backwards: false,
+            ground: faceGround(faceName(space, directory, title), icon),
+            ink: palette.ink3,
+          }}
+          dust={dust}
+          onWiped={() => undefined}
+          onDone={() => on.dusted(space.id)}
+        />
+      ) : null}
+    </>
+  );
   const drawn = (
     <Fold folding={away?.phase === "folding" || folding} onFolded={() => on.folded(space.id)}>
       <SwipeRow
@@ -1098,7 +1206,8 @@ const ListRow = memo(function ListRow({
           aria-checked={active ? picked : undefined}
           disabled={!still}
           onPress={() => on.press(space)}
-          onLongPress={active ? undefined : () => on.changeIcon(space.id)}
+          onLongPress={active ? undefined : () => on.changeIcon(space.id, self)}
+          ref={self}
           // What the long press and the swipe do, for a screen reader, which can make neither.
           accessibilityActions={active ? undefined : rowActions([...leading, ...acts])}
           onAccessibilityAction={(event) => onAction(event.nativeEvent.actionName)}
@@ -1106,52 +1215,23 @@ const ListRow = memo(function ListRow({
             // The row that is open beside the list wears the quiet surface, as the desktop's
             // does, and a picked row a wash of the tick's blue. Otherwise the page's own colour,
             // not none: a swipe slides the row over its buttons, and a clear row would show them
-            // through it.
+            // through it. In a split the quiet surface is a tile set in from the edges (`Tile`).
             backgroundColor: picked
               ? mixHex(palette.bg, palette.blue, PICKED_WASH)
-              : pressed || (!active && selected)
+              : !inset && (pressed || (!active && selected))
                 ? palette.surface2
                 : palette.bg,
           })}
         >
-          <PickRow
-            picking={active}
-            mark={mark}
-            dim={!may}
-            shake={shake}
-            edge={SPACE.lg}
-            // Inset to the text, not to the edge, and drawn inside the row rather than as its
-            // border so the pressed background runs under it the way a phone's list does.
-            line={first ? undefined : { color: palette.line, inset: ROW_AVATAR + SPACE.md }}
-            style={styles.row}
-          >
-            <Row
-              space={space}
-              directory={directory}
-              icon={icon}
-              unread={unread}
-              when={when}
-              title={title}
-              hidden={hidden}
-              pinned={pinned}
-              shared={shared}
-            />
-            <Fade shown={!active}>
-              <Text style={[styles.chevron, { color: palette.ink4 }]}>{"\u203a"}</Text>
-            </Fade>
-          </PickRow>
-          {away?.kind === "delete" && away.phase !== "held" ? (
-            <Eraser
-              crumbling={{
-                backwards: false,
-                ground: faceGround(faceName(space, directory, title), icon),
-                ink: palette.ink3,
-              }}
-              dust={dust}
-              onWiped={() => undefined}
-              onDone={() => on.dusted(space.id)}
-            />
-          ) : null}
+          {({ pressed }) => (
+            <>
+              <Tile
+                lit={inset && !picked && (pressed || (!active && selected))}
+                chosen={selected}
+              />
+              {content}
+            </>
+          )}
         </Pressable>
       </SwipeRow>
     </Fold>
@@ -1162,6 +1242,22 @@ const ListRow = memo(function ListRow({
     </Landed>
   );
 });
+
+/**
+ * Beside a room, the row that is open there, and one under a finger, as a rounded tile set in from
+ * the list's edges, as an iPad's lists draw them (ADR 0256); on a phone the row is the band.
+ */
+function Tile({ lit, chosen }: { readonly lit: boolean; readonly chosen: boolean }) {
+  const palette = usePalette();
+  if (!lit) return null;
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.tile, { backgroundColor: chosen ? palette.surface3 : palette.surface2 }]}
+      testID="row-tile"
+    />
+  );
+}
 
 /** A row as it is, or landing where its room has moved to, for a row that came to land. */
 function Landed({
@@ -1387,7 +1483,8 @@ function usePicking(
     feel.success();
     stop();
   };
-  const archive = () => setAsk({ kind: "archive", going: batch.archive, staying: [] });
+  const archive = (from: SheetFrom) =>
+    setAsk({ kind: "archive", going: batch.archive, staying: [], from });
   const onlyUnarchive = batch.archive.length === 0 && batch.unarchive.length > 0;
   // Read (ADR 0181 addendum): every room with nothing picked, locked, Main and archived ones too,
   // or the picked rooms; it counts those with anything unread. At once, and picking ends.
@@ -1409,11 +1506,12 @@ function usePicking(
       : { act: "archive" as const, count: batch.archive.length, onPress: archive },
     erase: {
       count: batch.erase.length,
-      onPress: () =>
+      onPress: (from: SheetFrom) =>
         setAsk({
           kind: "delete",
           going: batch.erase,
           staying: chosen.filter((space) => !batch.erase.includes(space)),
+          from,
         }),
     },
     sheet: {
@@ -1763,6 +1861,14 @@ function RowLine({
 }
 
 const styles = StyleSheet.create({
+  tile: {
+    position: "absolute",
+    top: 2,
+    bottom: 2,
+    left: SPACE.sm,
+    right: SPACE.sm,
+    borderRadius: RADIUS.xl,
+  },
   // The rows go to both edges.
   list: { gap: SPACE.md, paddingBottom: SPACE.xxl },
   // The list's own gap, kept between the setup card and the rooms it holds.

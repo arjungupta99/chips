@@ -7,12 +7,16 @@ import { nameOf } from "@chipschat/core";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { Person } from "../../src/people/Person";
 import { useChips, useSnapshot } from "../../src/store/provider";
+import { BackToTabs } from "../../src/ui/backToTabs";
+import { useLayout } from "../../src/ui/layout";
 import { Screen } from "../../src/ui/Screen";
 
 export default function PersonScreen() {
   const { paired } = useChips();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { wide } = useLayout();
   if (paired === undefined) return null;
+  if (wide) return <BackToTabs tab="/(tabs)/you" params={{ page: "people", person: id }} />;
   return <One paired={paired} personId={id} />;
 }
 

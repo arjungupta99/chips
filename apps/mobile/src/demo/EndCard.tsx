@@ -10,6 +10,9 @@
  * It stands in two places (`place`): over the film's last frame full screen, with the Chips mark
  * and its own ground; and on the first screen in the film's frame's place, under the mark the
  * screen already has at its top. It scrolls when the screen is too short for it.
+ *
+ * On an iPad the first screen has the ways in beside the film from the start (ADR 0256), so they
+ * and the end's words stand apart there (`WaysIn`, `EndWords`).
  */
 
 import type { FilmEnd } from "@chipschat/core";
@@ -73,75 +76,128 @@ export function EndCard({
             <ChipPulse gold={palette.gold} ink={palette.ink3} lit={palette.ink} working={false} />
           </Big>
         ) : null}
-        <Text
-          accessibilityRole="header"
-          lineBreakStrategyIOS="push-out"
-          textBreakStrategy="balanced"
-          style={[styles.title, { color: palette.ink }]}
-        >
-          {words.line}
-        </Text>
-        <Text style={[styles.sentence, { color: palette.ink2 }]}>{words.sentence}</Text>
-        <View style={styles.ways}>
-          <Button
-            label="Scan a QR code"
-            icon="qr"
-            variant="gold"
-            onPress={ways.onScan}
-            style={styles.big}
-            testID="demo-scan"
-          />
-          <PasteAction invites={invites} raised />
-          {invites.problem === undefined ? null : (
-            <Text style={[styles.problem, { color: palette.red }]} testID="paste-problem">
-              {invites.problem}
-            </Text>
-          )}
-          <TypeAction onPress={ways.onType} />
-        </View>
-        {more.length === 0 ? null : (
-          <View style={styles.more} testID="demo-more">
-            <Text style={[styles.heading, { color: palette.ink3 }]}>More walkthroughs</Text>
-            {more.map((each) => (
-              <Pressable
-                key={each.key}
-                accessibilityRole="button"
-                accessibilityLabel={`${each.title}, ${each.length}`}
-                onPress={() => ways.onFilm(each.key)}
-                style={({ pressed }) => [
-                  styles.film,
-                  {
-                    backgroundColor: pressed ? palette.raisedPress : palette.raised,
-                    borderColor: palette.line,
-                  },
-                ]}
-                testID={`demo-film-${each.key}`}
-              >
-                <View style={[styles.play, { backgroundColor: palette.goldSoft }]}>
-                  <Icon name="playFill" size={16} color={palette.goldDeep} />
-                </View>
-                <Text style={[styles.filmTitle, { color: palette.ink }]}>{each.title}</Text>
-                <Text style={[styles.filmLength, { color: palette.ink3 }]}>{each.length}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-        <View style={styles.links}>
-          <Pressable accessibilityRole="button" onPress={ways.onLookAround} hitSlop={SPACE.sm}>
-            <Text style={[styles.link, styles.strong, { color: palette.accent }]}>Look around</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Watch again"
-            onPress={ways.onWatchAgain}
-            hitSlop={SPACE.sm}
-            style={styles.again}
-          >
-            <Icon name="again" size={16} color={palette.ink3} />
-            <Text style={[styles.link, { color: palette.ink3 }]}>Watch again</Text>
-          </Pressable>
-        </View>
+        <EndWords words={words} />
+        <WaysIn ways={ways} more={more} invites={invites} />
       </ScrollView>
+    </View>
+  );
+}
+
+/** What the end says: the film's line, "That's Chips", and its sentence. */
+export function EndWords({ words }: { readonly words: FilmEnd }) {
+  const palette = usePalette();
+  return (
+    <>
+      <Text
+        accessibilityRole="header"
+        lineBreakStrategyIOS="push-out"
+        textBreakStrategy="balanced"
+        style={[styles.title, { color: palette.ink }]}
+      >
+        {words.line}
+      </Text>
+      <Text style={[styles.sentence, { color: palette.ink2 }]}>{words.sentence}</Text>
+    </>
+  );
+}
+
+/**
+ * Every way in: Scan a QR code, Have an invite link?, Have a pairing code?, More walkthroughs, Look
+ * around and Watch again. In one column, or in two (`split`) under an upright iPad's film, the
+ * ways on the left and the films and the links on the right.
+ */
+export function WaysIn({
+  ways,
+  more,
+  invites,
+  split = false,
+}: {
+  readonly ways: EndWays;
+  readonly more: readonly OfferedFilm[];
+  readonly invites: Pick<PasteInvite, "paste" | "pasted" | "problem">;
+  readonly split?: boolean;
+}) {
+  const palette = usePalette();
+  const doors = (
+    <View style={[styles.ways, split ? styles.half : null]}>
+      <Button
+        label="Scan a QR code"
+        icon="qr"
+        variant="gold"
+        onPress={ways.onScan}
+        style={styles.big}
+        testID="demo-scan"
+      />
+      <PasteAction invites={invites} raised />
+      {invites.problem === undefined ? null : (
+        <Text style={[styles.problem, { color: palette.red }]} testID="paste-problem">
+          {invites.problem}
+        </Text>
+      )}
+      <TypeAction onPress={ways.onType} />
+    </View>
+  );
+  const films =
+    more.length === 0 ? null : (
+      <View style={[styles.more, split ? styles.moreBeside : null]} testID="demo-more">
+        <Text style={[styles.heading, { color: palette.ink3 }]}>More walkthroughs</Text>
+        {more.map((each) => (
+          <Pressable
+            key={each.key}
+            accessibilityRole="button"
+            accessibilityLabel={`${each.title}, ${each.length}`}
+            onPress={() => ways.onFilm(each.key)}
+            style={({ pressed }) => [
+              styles.film,
+              {
+                backgroundColor: pressed ? palette.raisedPress : palette.raised,
+                borderColor: palette.line,
+              },
+            ]}
+            testID={`demo-film-${each.key}`}
+          >
+            <View style={[styles.play, { backgroundColor: palette.goldSoft }]}>
+              <Icon name="playFill" size={16} color={palette.goldDeep} />
+            </View>
+            <Text style={[styles.filmTitle, { color: palette.ink }]}>{each.title}</Text>
+            <Text style={[styles.filmLength, { color: palette.ink3 }]}>{each.length}</Text>
+          </Pressable>
+        ))}
+      </View>
+    );
+  const links = (
+    <View style={styles.links}>
+      <Pressable accessibilityRole="button" onPress={ways.onLookAround} hitSlop={SPACE.sm}>
+        <Text style={[styles.link, styles.strong, { color: palette.accent }]}>Look around</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Watch again"
+        onPress={ways.onWatchAgain}
+        hitSlop={SPACE.sm}
+        style={styles.again}
+      >
+        <Icon name="again" size={16} color={palette.ink3} />
+        <Text style={[styles.link, { color: palette.ink3 }]}>Watch again</Text>
+      </Pressable>
+    </View>
+  );
+  if (!split) {
+    return (
+      <>
+        {doors}
+        {films}
+        {links}
+      </>
+    );
+  }
+  return (
+    <View style={styles.split} testID="ways-split">
+      {doors}
+      <View style={styles.half}>
+        {films}
+        {links}
+      </View>
     </View>
   );
 }
@@ -228,6 +284,10 @@ const styles = StyleSheet.create({
   },
   typeWord: { fontSize: TEXT.md, fontWeight: "600" },
   more: { alignSelf: "stretch", gap: SPACE.sm, marginTop: SPACE.sm },
+  // Beside the ways, its heading on their first row's line rather than a gap above it.
+  moreBeside: { marginTop: 0 },
+  split: { flexDirection: "row", alignSelf: "stretch", gap: SPACE.xl },
+  half: { flex: 1, gap: SPACE.sm },
   heading: {
     fontSize: TEXT.xs,
     fontWeight: "700",
@@ -256,7 +316,7 @@ const styles = StyleSheet.create({
   },
   filmTitle: { flex: 1, fontSize: TEXT.body - 1, fontWeight: "600" },
   filmLength: { fontSize: TEXT.md, fontWeight: "600", fontVariant: ["tabular-nums"] },
-  links: { flexDirection: "row", gap: SPACE.xxl, marginTop: SPACE.sm },
+  links: { flexDirection: "row", alignSelf: "center", gap: SPACE.xxl, marginTop: SPACE.sm },
   link: { fontSize: TEXT.md, padding: 6, fontWeight: "500" },
   strong: { fontWeight: "600" },
   again: { flexDirection: "row", alignItems: "center", gap: 2 },

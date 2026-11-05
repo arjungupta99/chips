@@ -131,3 +131,37 @@ An attacker with many IPv6 /64s can still spend the relay's Expo quota with made
 workspace a phone joins is given the same seal key (ADR 0158), so a workspace the person joined can
 seal words that read as if another workspace sent them. That needs a key per device and a phone
 build, and is left for a later change.
+
+## Addendum, 4 November 2026: receipts
+
+Expo answers a push with a ticket at once. It learns only later, from Apple or Google, that the
+phone's app was deleted or the push wasn't delivered, and says so in the push's receipt, asked for
+by the ticket's id. Nothing asked:
+
+- a phone whose app was deleted was pushed for ever;
+- a push that never reached its phone was logged as pushed;
+- a token whose ticket already said `DeviceNotRegistered` was forgotten only by the decision and
+  message pushes, not by a join request's, a direct ask's or the relay switch's.
+
+The stranger review of 4 November 2026 found this.
+
+**The server** (`push-receipts`): every push goes through one sender, which notes each ticket's id
+and the token it was for.
+
+- A token a ticket already says no phone has is forgotten at once, whoever sent the push.
+- The sweep asks for the receipts once they are 15 minutes old, as Expo asks.
+- A token whose receipt says `DeviceNotRegistered` is forgotten wherever it is held
+  (`removeToken`), and how many pushes missed is logged.
+- An id with no receipt yet is asked again at the next sweep, until Expo keeps it no more (a day).
+- At most 10,000 tickets wait at once, in memory only.
+
+**The relay**: a server with no access token asks the push relay, so the relay has a receipts door
+beside the push door, `POST /v1/push/receipts`.
+
+- It takes `{ "ids": [...] }`, at most 300 ticket ids.
+- It asks Expo with the app's token, and answers each receipt's status, message and error only.
+- It takes requests only as a server sends them, as the push door does.
+- Each request counts one against its place's minute.
+
+A ticket's id is Expo's, and only the server that sent the push has it. A push relay older than
+the door answers 404, and a server then asks it no more until it restarts.

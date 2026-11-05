@@ -95,8 +95,8 @@ test("twenty harnesses post a thousand messages, and a fresh pairing reads them 
     });
     expect(seen).toBeLessThan(90_000);
 
-    // Twenty more harnesses on the Agents tab's shelf, and each with its checklist under its View
-    // all (ADR 0185); the tab still answers.
+    // Twenty more harnesses on the Agents tab's shelf, and each with its card under its View all
+    // (ADR 0185); the tab still answers.
     await page.getByRole("button", { name: /^Agents/ }).click();
     const shelf = page.getByTestId("harness-shelf");
     await expect(shelf.getByRole("button", { name: `Load harness ${HARNESSES}` })).toBeVisible({
@@ -104,9 +104,12 @@ test("twenty harnesses post a thousand messages, and a fresh pairing reads them 
     });
     expect(await shelf.getByRole("button").count()).toBeGreaterThanOrEqual(HARNESSES + 1);
     await page.getByRole("button", { name: "View all harnesses" }).click();
-    await expect(page.getByRole("region", { name: `Load harness ${HARNESSES}` })).toBeVisible();
-    expect(await page.getByTestId("harness-card").count()).toBeGreaterThanOrEqual(HARNESSES + 1);
-    await page.getByRole("button", { name: "Spaces" }).click();
+    const list = page.getByTestId("harnesses-list");
+    await expect(list.getByRole("button", { name: `Load harness ${HARNESSES}` })).toBeVisible();
+    expect(await list.locator('[data-testid^="harness-summary-"]').count()).toBeGreaterThanOrEqual(
+      HARNESSES + 1,
+    );
+    await page.getByRole("button", { name: "Spaces", exact: true }).click();
 
     // A fresh pairing — a new context, so a new device key — replays the whole log: the exit
     // budget is seconds, not minutes.

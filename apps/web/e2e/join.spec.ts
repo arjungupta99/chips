@@ -118,8 +118,9 @@ test.describe("join requests", () => {
       "autonomy",
       "new_spaces",
     ]);
-    // The dialog follows it: allowed, and the key collected.
-    await expect(dialog.getByTestId("join-step-allowed")).toHaveAttribute("data-state", "ok");
+    // The dialog follows it to the phone's words (ADR 0271): Tide took its key and joined.
+    await expect(dialog.getByTestId("join-decided")).toContainText("Tide joined");
+    await expect(dialog.getByTestId("join-decided")).toContainText("Its space is on your Spaces.");
     await expect((await poll(request.request_id, request.secret)).status).toBe(403);
   });
 
@@ -144,7 +145,8 @@ test.describe("join requests", () => {
     const link = (await page.getByTestId("join-connect").getAttribute("data-link")) ?? "";
     const secret = link.split("/j/")[1] ?? "";
     expect(secret).toMatch(/^chips_j_/);
-    await expect(page.getByTestId("join-progress")).toHaveAttribute("data-done", "0");
+    await expect(page.getByTestId("join-steps-link")).toHaveAttribute("data-state", "done");
+    await expect(page.getByTestId("join-steps-connects")).toHaveAttribute("data-state", "now");
 
     const redeem = async () =>
       await fetch(`${SERVER}/v1/join/redeem`, {
@@ -155,8 +157,10 @@ test.describe("join requests", () => {
     const first = await redeem();
     expect(first.status).toBe(200);
     expect(await first.json()).toMatchObject({ kind: "harness", capabilities: ["autonomy"] });
-    await expect(page.getByTestId("join-step-asked")).toContainText("Kit asked to join");
-    await expect(page.getByTestId("join-progress")).toHaveAttribute("data-done", "3");
+    // The phone's three steps (ADR 0271): Kit took its key, and connects.
+    const connects = page.getByTestId("join-steps-connects");
+    await expect(connects).toContainText("Kit connects");
+    await expect(connects).toContainText("Took its key on vps-fra-1");
 
     const second = await redeem();
     expect(second.status).toBe(403);

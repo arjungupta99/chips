@@ -1,5 +1,5 @@
 /**
- * Whether the team Xcode signs with is a free one, which decides whether the push entitlement can
+ * Whether the team Xcode signs with is a free one, which decides whether push and a link domain can
  * be in the build at all. Pure, so it is tested (`tools/guardrails/phone-team.test.ts`) without
  * Xcode.
  *
@@ -10,6 +10,27 @@
  * the build for a month, and *Notify me on this phone* refused. The team's own provisioning
  * profiles say what Apple thinks: a free team's last seven days, a paid team's a year.
  */
+
+/**
+ * What a free team cannot sign: push, and a domain whose links open the app. `app.config.js`
+ * leaves both out when `CHIPS_IOS_FREE_TEAM` says the team is free; these are for when it did not.
+ */
+const PAID_ONLY = [
+  { name: "push", key: /\s*<key>aps-environment<\/key>\s*<string>[^<]*<\/string>/ },
+  {
+    name: "the link domain",
+    key: /\s*<key>com\.apple\.developer\.associated-domains<\/key>\s*<array>[\s\S]*?<\/array>/,
+  },
+];
+
+/** An app's entitlements as a free team can sign them, and the names of what that took out. */
+export function freeTeamEntitlements(text) {
+  const there = PAID_ONLY.filter(({ key }) => key.test(text));
+  return {
+    text: there.reduce((left, { key }) => left.replace(key, ""), text),
+    gone: there.map(({ name }) => name),
+  };
+}
 
 /** Longer than this and Apple did not issue the profile to a free team. */
 const FREE_PROFILE_DAYS = 7;
@@ -25,6 +46,11 @@ export function profileFacts(xml) {
   if (team === undefined || Number.isNaN(from) || Number.isNaN(to)) return undefined;
   const name = /<key>TeamName<\/key>\s*<string>([^<]+)<\/string>/.exec(xml)?.[1];
   return { team, name, days: (to - from) / DAY_MS };
+}
+
+/** Every team Xcode's preferences list, by its ID. */
+export function teamIds(prefsText) {
+  return [...prefsText.matchAll(/"teamID"\s*=>\s*"([^"]+)"/g)].map((found) => found[1]);
 }
 
 /**

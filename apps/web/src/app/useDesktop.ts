@@ -2,10 +2,11 @@
  * What the desktop shell does with what the app knows (M2.2).
  *
  * Three things, all of them the app telling the shell rather than the other way round: how many
- * things need a person, so the menu bar can say; what a person pressed on a banner, which comes
- * back here and goes out as an ordinary decision through the store — the same call the card
- * makes, so a notification and a click are the same event by the time they reach the server;
- * and a `chips://` link the shell was opened with. Which banners to raise, and on which of a
+ * things need a person, so the menu bar and the Dock can say; what a person pressed on a banner,
+ * which comes back here and goes out as an ordinary decision through the store — the same call the
+ * card makes, so a notification and a click are the same event by the time they reach the server —
+ * or, for a click on the banner itself, opens its space as a `chips://approval` link would; and a
+ * `chips://` link the shell was opened with. Which banners to raise, and on which of a
  * person's devices, is `useNotifications` (M5.6).
  *
  * Several workspaces (M5.3) are several stores: the badge is their sum, and a banner's answer
@@ -21,7 +22,7 @@ import {
   type Store,
 } from "@chipschat/core";
 import { useEffect, useMemo, useRef } from "react";
-import type { ChipsLink, Desktop } from "../native.ts";
+import type { ChipsLink, Decision, Desktop } from "../native.ts";
 
 export interface DesktopOptions {
   /** One workspace's store. */
@@ -76,22 +77,13 @@ export function useDesktop({ store, stores: given, desktop, onOpen }: DesktopOpt
     };
     void desktop
       .onDecision((decision) => {
-        if (decision.decision !== "approved" && decision.decision !== "denied") return;
-        // The banner's approval is in one of the workspaces; the answer goes back to that one.
-        for (const each of stores) {
-          const snapshot = each.getSnapshot();
-          const item = attention(snapshot.model.needsYou, snapshot.readState).find(
-            (candidate) => candidate.id === decision.approvalId,
-          );
-          if (item?.runId === undefined) continue;
-          each.resolveApproval({
-            spaceId: item.spaceId,
-            runId: item.runId,
-            approvalId: item.id,
-            decision: decision.decision,
-          });
+        // A click on the banner itself asks to see it: its space opens, as a tap on the phone's
+        // opens it (ADR 0267). The shell has brought the window forward already.
+        if (decision.decision === "opened") {
+          open.current?.({ kind: "approval", id: decision.approvalId });
           return;
         }
+        answer(stores, decision);
       })
       .then(keep);
     void desktop.onOpen((link) => open.current?.(link)).then(keep);
@@ -102,6 +94,27 @@ export function useDesktop({ store, stores: given, desktop, onOpen }: DesktopOpt
       for (const stop of stops.splice(0)) stop();
     };
   }, [stores, desktop]);
+}
+
+/** Approve or Deny on a banner, as the card's buttons would, in the workspace that asked. */
+function answer(stores: readonly Store[], decision: Decision): void {
+  if (decision.decision !== "approved" && decision.decision !== "denied") return;
+  const said = decision.decision;
+  // The banner's approval is in one of the workspaces; the answer goes back to that one.
+  for (const each of stores) {
+    const snapshot = each.getSnapshot();
+    const item = attention(snapshot.model.needsYou, snapshot.readState).find(
+      (candidate) => candidate.id === decision.approvalId,
+    );
+    if (item?.runId === undefined) continue;
+    each.resolveApproval({
+      spaceId: item.spaceId,
+      runId: item.runId,
+      approvalId: item.id,
+      decision: said,
+    });
+    return;
+  }
 }
 
 /** "Scout wants to email dana@northwind.com" — who, and what, in the banner's one line. */

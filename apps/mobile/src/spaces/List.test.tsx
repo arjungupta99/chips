@@ -21,6 +21,7 @@ import { fakeStore } from "../testing/fixtures";
 import { drawLibrary } from "../testing/picker";
 import { mixHex } from "../ui/lit";
 import { LIBRARY_FAMILIES } from "../ui/marks";
+import { Split } from "../ui/Split";
 import { avatarHueIndex } from "../ui/sourceColours";
 import { ICON_GROUND_NAMES, ICON_GROUNDS, light, SPACE } from "../ui/tokens";
 import { List } from "./List";
@@ -192,6 +193,22 @@ describe("the space list", () => {
     // And the person's word holds over that: pressed, they go.
     await userEvent.press(screen.getByRole("button", { name: "Archived, 1" }));
     expect(screen.queryByText("Last summer's trip")).toBeNull();
+  });
+
+  it("draws the room open beside the list as a tile set in from its edges, where it is a phone's band alone (ADR 0256)", async () => {
+    const snapshot = state();
+    await render(
+      <Split
+        list={<List store={fakeStore(snapshot)} snapshot={snapshot} selected="sp_1" />}
+        detail={null}
+      />,
+    );
+    const tile = screen.getByTestId("row-tile");
+    expect(tile).toHaveStyle({ backgroundColor: light.surface3, left: SPACE.sm, right: SPACE.sm });
+    expect(screen.getAllByTestId("row-tile")).toHaveLength(1);
+    // Without a split there is no tile: the open row is the band, as it always was.
+    await render(<List store={fakeStore(snapshot)} snapshot={snapshot} selected="sp_1" />);
+    expect(screen.queryByTestId("row-tile")).toBeNull();
   });
 
   it("has no such row when nothing is archived", async () => {

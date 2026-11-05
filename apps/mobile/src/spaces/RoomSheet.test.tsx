@@ -28,10 +28,35 @@ import { ScrollView, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore, snapshot } from "../testing/fixtures";
 import { drawLibrary } from "../testing/picker";
+import { SheetDock } from "../ui/Sheet";
 import { ICON_GROUNDS } from "../ui/tokens";
 import type { FileService } from "./files";
 import { RoomNotice } from "./RoomNotice";
 import { RoomSheet } from "./RoomSheet";
+
+// An agent's card and history, which a row in the column beside the room pushes inside it (ADR
+// 0276), stand in as a word, with the press that opens the history.
+jest.mock("../agents/AgentCard", () => {
+  const react = require("react");
+  const { Pressable, Text } = require("react-native");
+  return {
+    AgentCard: ({ agentId, onHistory }: { agentId: string; onHistory: () => void }) =>
+      react.createElement(
+        Pressable,
+        { accessibilityRole: "button", onPress: onHistory, testID: "agent-card" },
+        react.createElement(Text, null, `${agentId}'s history`),
+      ),
+  };
+});
+jest.mock("../agents/History", () => {
+  const react = require("react");
+  const { Text } = require("react-native");
+  return { History: () => react.createElement(Text, { testID: "agent-history" }, "history") };
+});
+jest.mock("expo-router", () => ({
+  ...jest.requireActual("expo-router"),
+  useRouter: () => ({ push: jest.fn() }),
+}));
 
 /** A sheet asks for the safe area, so every render gets an iPhone's, as `Sheet.test.tsx` does. */
 const IPHONE = {
@@ -928,6 +953,39 @@ describe("an agent's row (ADR 0111 and its addendum)", () => {
     expect(opened).toHaveBeenCalledTimes(1);
     expect(opened).toHaveBeenCalledWith("agt_hello");
     expect(store.calls.some((call) => call.name === "removeMember")).toBe(false);
+  });
+
+  it("in a column beside the room, pushes the agent's card inside it, and its history, each with the way back", async () => {
+    const space = room();
+    const snap = withRoom(space);
+    const closed = jest.fn();
+    const opened = jest.fn();
+    await render(
+      <SheetDock.Provider value={420}>
+        <RoomSheet
+          store={fakeStore(snap)}
+          snapshot={snap}
+          space={space}
+          title="Hello"
+          selfId="per_arjun"
+          open
+          onClose={closed}
+          onOpenAgent={opened}
+        />
+      </SheetDock.Provider>,
+    );
+    await userEvent.press(screen.getByTestId("room-sheet-member-agt_hello"));
+    expect(screen.getByTestId("room-sheet-agent")).toBeOnTheScreen();
+    expect(screen.getByTestId("agent-card")).toBeOnTheScreen();
+    await userEvent.press(screen.getByTestId("agent-card"));
+    expect(screen.getByTestId("agent-history")).toBeOnTheScreen();
+    await userEvent.press(screen.getByTestId("room-sheet-agent-back"));
+    expect(screen.getByTestId("agent-card")).toBeOnTheScreen();
+    await userEvent.press(screen.getByTestId("room-sheet-agent-back"));
+    expect(screen.getByTestId("room-sheet-member-agt_hello")).toBeOnTheScreen();
+    // The details stay open beside the room, and nothing stands over it.
+    expect(closed).not.toHaveBeenCalled();
+    expect(opened).not.toHaveBeenCalled();
   });
 
   it("takes an agent out from its row's Remove, which a screen reader reaches as an action", async () => {

@@ -104,6 +104,15 @@ describe("setupSteps", () => {
       title: "Notifications",
       done: true,
     });
+    // Pushes that didn't get through aren't the person's step to take: the switch still is, and
+    // the line under it says why.
+    const failing = { ...server, pushes: "failing" as const };
+    const late = setupSteps(facts({ here: "phone", server: failing, notifications: true }));
+    expect(late.find((step) => step.id === "notify")).toEqual({
+      id: "notify",
+      title: "Notifications",
+      done: true,
+    });
   });
 
   it("on the phone, names the computer it found and itself", () => {

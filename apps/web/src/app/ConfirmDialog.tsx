@@ -7,12 +7,16 @@
  * Delete waits for the server, and says why in red when the server will not, with the dialog still
  * up. A dialog may ask for a word under why it was refused (`field`): the name to join a workspace
  * under when the one you go by is taken there (ADR 0197).
+ *
+ * It grows out of what was pressed to open it, a row's menu item or a Delete button, and folds back
+ * into it when it is taken away, however its owner takes it away (ADR 0274, `dialogMotion.ts`).
  */
 
 import type { Asking } from "@chipschat/core";
 import { Button } from "@chipschat/ui";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { boxOf, foldAway, growFrom, recentPress } from "./dialogMotion.ts";
 
 /** A word the confirm goes with, typed: Enter is the confirm, and a blank one stops it. */
 export interface ConfirmField {
@@ -74,10 +78,18 @@ export function ConfirmDialog({
   const [too, setToo] = useState(true);
   const words = asking.agentToo ?? asking.roomToo ?? asking.agentsToo ?? asking.roomsToo;
 
-  useEffect(() => {
+  // Before the page is drawn, so it is never seen whole before it grows; and let go while it is
+  // still on the page, so its fold can be measured.
+  useLayoutEffect(() => {
     const element = dialog.current;
-    if (element !== null && !element.open) element.showModal();
-    return () => element?.close();
+    if (element === null) return;
+    const opener = recentPress();
+    if (!element.open) element.showModal();
+    growFrom(element, boxOf(opener));
+    return () => {
+      foldAway(element, opener);
+      element.close();
+    };
   }, []);
 
   const settle = async (work: () => Promise<void> | void) => {
@@ -99,7 +111,7 @@ export function ConfirmDialog({
   return createPortal(
     <dialog
       ref={dialog}
-      className="confirm"
+      className="confirm grows"
       aria-labelledby={titleId}
       data-testid="confirm-dialog"
       onCancel={(event) => {

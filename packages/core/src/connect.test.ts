@@ -8,13 +8,16 @@ import { describe, expect, it } from "vitest";
 import {
   alreadyThere,
   arrivalWords,
+  connectedHereLine,
   connectedNames,
   connectHead,
   connectingName,
   connectNote,
   connectSteps,
+  connectTileWords,
   copyOf,
   fetchesBridge,
+  GALLERY_LEDE,
   type HereLine,
   harnessNamed,
   hereAlreadyWords,
@@ -30,8 +33,13 @@ import {
   linkStandIn,
   linkWaiting,
   makingSteps,
+  ownWayHeading,
+  RUN_IN_TERMINAL,
+  runsInTerminal,
+  STEPS_LABEL,
   sayOf,
   stillWorks,
+  waitingLink,
 } from "./connect.js";
 import type { Directory } from "./events.js";
 import { type JoinRequest, joinCardState } from "./join.js";
@@ -98,17 +106,17 @@ describe("what the connect page copies", () => {
     expect(copyOf("http", link, false)).toContain("/v1/join/redeem");
   });
 
-  it("heads the page with the card's name, and where what it shows goes and what to press", () => {
+  it("heads the page with the card's name, and where what it shows goes", () => {
     expect(connectHead(OPENCLAW, false)).toMatchObject({
       title: "Connect OpenClaw",
-      sub: "Paste this into a terminal on the computer where OpenClaw runs, then press Return.",
+      sub: "This goes on the computer where OpenClaw runs.",
     });
     const asks = { ...OPENCLAW, sentence: "Connect yourself to my Chips: {link}" };
     expect(connectHead(asks, true).sub).toBe(
       "Paste this into your chat with OpenClaw, wherever you talk to it.",
     );
-    // Asking with no sentence to say shows the line, and says to run it.
-    expect(connectHead(OPENCLAW, true).sub).toMatch(/^Paste this into a terminal/);
+    // Asking with no sentence to say shows the line, and says where it goes.
+    expect(connectHead(OPENCLAW, true).sub).toBe("This goes on the computer where OpenClaw runs.");
     const { command: _, ...linkOnly } = OPENCLAW;
     expect(connectHead(linkOnly, false).sub).toBe(
       "Give OpenClaw this link, on the computer where it runs.",
@@ -118,8 +126,22 @@ describe("what the connect page copies", () => {
       sub: "Add this to your harness's code, where it starts.",
     });
     expect(connectHead("http", false).sub).toBe(
-      "Run this in a terminal, then give your harness the key it answers with.",
+      "It answers with a key. Give that key to your harness.",
     );
+  });
+
+  it("says Run in Terminal over a line to run, and only there (ADR 0257)", () => {
+    expect(RUN_IN_TERMINAL).toBe("Run in Terminal");
+    expect(runsInTerminal(OPENCLAW, false)).toBe(true);
+    expect(runsInTerminal(HERMES, false)).toBe(true);
+    expect(runsInTerminal("http", false)).toBe(true);
+    // Code for a harness's source, a sentence to say, and a link to hand over are not run.
+    expect(runsInTerminal("own", false)).toBe(false);
+    const asks = { ...OPENCLAW, sentence: "Connect yourself to my Chips: {link}" };
+    expect(runsInTerminal(asks, true)).toBe(false);
+    expect(runsInTerminal(asks, false)).toBe(true);
+    const { command: _, ...linkOnly } = OPENCLAW;
+    expect(runsInTerminal(linkOnly, false)).toBe(false);
   });
 
   it("notes how long the link lasts, and a bridge npm doesn't have yet (ADR 0218)", () => {
@@ -347,7 +369,7 @@ describe("a bridge's card (ADR 0218, phase 5)", () => {
     // The phone copies the same line.
     expect(copyOf(HERMES, link, false)).toBe(line);
     expect(connectHead(HERMES, false).sub).toBe(
-      "Paste this into a terminal on the computer where Hermes runs, then press Return. It installs Chips there if it needs to.",
+      "This goes on the computer where Hermes runs, and installs Chips there if it needs to.",
     );
     expect(alreadyThere(HERMES, link)).toEqual({
       before: "If Chips is already on that computer, ",
@@ -506,11 +528,31 @@ describe("Connect on this Mac's four steps", () => {
     );
     expect(states(run)).toEqual(["done", "stopped", "later", "later"]);
     expect(run.steps[1]?.detail).toBe("Nothing answers on port 8642");
+    // A setting goes in a file, so its box doesn't say Run in Terminal (ADR 0257).
     expect(run.stop).toEqual({
       says: "Hermes's API server is off.",
       doing: "Add this line to ~/.hermes/.env, then start Hermes with hermes gateway.",
       copy: "API_SERVER_ENABLED=true",
+      run: false,
     });
+  });
+
+  it("runs a bridge's line to copy in a terminal when it is a command (ADR 0257)", () => {
+    const stop = (copy?: string) =>
+      hereSteps(
+        "Claude Code",
+        lines({ step: "checking" }, { step: "failed", says: "It stopped.", copy }),
+        false,
+      ).stop;
+    expect(stop("npm install -g @agentclientprotocol/claude-agent-acp")?.run).toBe(true);
+    expect(stop("openclaw gateway")?.run).toBe(true);
+    expect(stop("FOO=bar openclaw gateway")?.run).toBe(true);
+    expect(stop("API_SERVER_ENABLED=true")?.run).toBe(false);
+    expect(stop()?.run).toBe(false);
+  });
+
+  it("labels each place's steps with what they are (ADR 0257)", () => {
+    expect(STEPS_LABEL).toEqual({ here: "What Connect does", another: "What happens" });
   });
 
   it("says a bridge's plain sentence, without its words for a terminal, when it gave no others", () => {
@@ -541,5 +583,54 @@ describe("Connect on this Mac's four steps", () => {
       "Hermes isn't answering at http://127.0.0.1:8642: start its API server.",
     );
     expect(plain.steps[1]?.detail).toBe("It stopped here");
+  });
+});
+
+describe("the gallery's words, as the phone's (ADR 0190)", () => {
+  it("says what to pick, and over the two ways says Or only after the docs' cards", () => {
+    expect(GALLERY_LEDE).toBe(
+      "Pick what runs your agents. You run one line on that computer, and it shows up here.",
+    );
+    expect(ownWayHeading(2)).toBe("Or build your own");
+    expect(ownWayHeading(0)).toBe("Build your own");
+  });
+
+  it("says a card for a harness here already offers another, or a new agent", () => {
+    expect(connectedHereLine("Tap")).toBe("Connected here. Tap for another, or a new agent.");
+    expect(connectedHereLine("Click")).toBe("Connected here. Click for another, or a new agent.");
+  });
+});
+
+describe("the shelf's last tile while a link waits, as the phone's (ADR 0271)", () => {
+  const made = {
+    requestId: "jrq_1",
+    kind: "harness",
+    state: "allowed",
+    startedBy: "person",
+    wants: [],
+    capabilities: [],
+    url: "http://127.0.0.1:4431",
+    createdAt: "2026-11-03T16:00:00.000Z",
+    expiresAt: "2026-11-03T16:15:00.000Z",
+  } as const satisfies JoinRequest;
+  const at = Date.parse("2026-11-03T16:00:48.000Z");
+
+  it("counts a waiting link down, says Connecting once its key is taken, and nothing after", () => {
+    const waiting = waitingLink(made, { done: 1 } as never, at);
+    expect(waiting).toEqual({ left: "14:12", share: 852 / 900, taken: false });
+    expect(connectTileWords(waiting)).toEqual({
+      name: "Waiting",
+      line: "14:12",
+      label: "Connect a harness, waiting, 14:12 left",
+    });
+    const taken = waitingLink({ ...made, state: "redeemed" }, { done: 3 } as never, at);
+    expect(connectTileWords(taken).name).toBe("Connecting");
+    expect(waitingLink(made, { done: 5 } as never, at)).toBeUndefined();
+    expect(waitingLink(made, { done: 1, stall: { kind: "expired" } } as never, at)).toBeUndefined();
+    expect(connectTileWords(undefined)).toEqual({
+      name: "Connect",
+      line: "a harness",
+      label: "Connect a harness",
+    });
   });
 });

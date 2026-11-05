@@ -9,6 +9,9 @@
  * The only owner is told how the workspace itself is deleted instead, in an alert: it is theirs,
  * on the computer it runs on, and nothing on a phone takes it away. The demo's made-up workspace
  * has no account to delete, and no row.
+ *
+ * Beside the list on an iPad what the sheet holds is a page, named in the pane's bar; Keep it goes
+ * back to nothing open. The only owner's alert stays an alert.
  */
 
 import {
@@ -29,6 +32,7 @@ import { useGround } from "../ui/ground";
 import { Sheet } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
+import { SheetPage, useSheetPage, type YouPages } from "./pages";
 
 type Asked = Extract<DeleteAccountSheet, { kind: "delete" }>;
 
@@ -48,6 +52,7 @@ export function useDeleteAccount({
   const leave = useLeave();
   const [asked, setAsked] = useState<Asked | undefined>(undefined);
   const [up, setUp] = useState(false);
+  const page = useSheetPage("delete", () => setUp(true));
   const words = (devices?: number) => {
     const { model, directory } = store.getSnapshot();
     return deleteAccountSheet({
@@ -65,7 +70,7 @@ export function useDeleteAccount({
       return;
     }
     setAsked(first);
-    setUp(true);
+    page.onPress();
     // The count of devices is the server's, read once the sheet is up; the words wait for nothing.
     void store
       .devices()
@@ -88,8 +93,25 @@ export function useDeleteAccount({
     );
   };
   const row = isDemo(device) ? null : (
-    <GroupRow label="Delete your account" tone="danger" onPress={open} testID="delete-account" />
+    <GroupRow
+      label="Delete your account"
+      tone="danger"
+      onPress={open}
+      selected={page.selected}
+      testID="delete-account"
+    />
   );
+  // Beside the list the page can be open before this has asked, when You is drawn again with it
+  // open: it says the words, without the count of devices until it is asked again.
+  const shown = asked ?? (page.selected === true && !isDemo(device) ? askable(words()) : undefined);
+  const pages: YouPages = {
+    delete:
+      shown === undefined ? undefined : (
+        <SheetPage title={shown.title} testID="delete-account-page">
+          <DeleteAccountBody words={shown} store={store} onKeep={page.done} onDeleted={deleted} />
+        </SheetPage>
+      ),
+  };
   const overlays =
     asked === undefined ? null : (
       <DeleteAccountSheetView
@@ -101,8 +123,11 @@ export function useDeleteAccount({
         onDeleted={deleted}
       />
     );
-  return { row, overlays };
+  return { row, overlays, pages };
 }
+
+const askable = (words: DeleteAccountSheet): Asked | undefined =>
+  words.kind === "delete" ? words : undefined;
 
 export function DeleteAccountSheetView({
   open,
@@ -119,6 +144,50 @@ export function DeleteAccountSheetView({
   readonly onGone: () => void;
   /** The server has done it: the workspace leaves this phone. */
   readonly onDeleted: () => Promise<void>;
+}) {
+  const form = useDeleteForm({ words, store, onKeep: onClose, onDeleted, titled: true });
+  return (
+    <Sheet
+      open={open}
+      onClose={form.busy ? () => undefined : onClose}
+      closable={!form.busy}
+      onGone={onGone}
+      keyboard
+      testID="delete-account-sheet"
+    >
+      {form.body}
+    </Sheet>
+  );
+}
+
+/** The same beside the list, under the pane's bar, which names it. */
+function DeleteAccountBody(props: {
+  readonly words: Asked;
+  readonly store: Store;
+  readonly onKeep: () => void;
+  readonly onDeleted: () => Promise<void>;
+}) {
+  const form = useDeleteForm({ ...props, titled: false });
+  return <View style={styles.page}>{form.body}</View>;
+}
+
+/**
+ * What the sheet and the page hold: what goes and what stays, the name to type, and Delete, which
+ * the sheet waits on before it may be closed.
+ */
+function useDeleteForm({
+  words,
+  store,
+  onKeep,
+  onDeleted,
+  titled,
+}: {
+  readonly words: Asked;
+  readonly store: Store;
+  readonly onKeep: () => void;
+  readonly onDeleted: () => Promise<void>;
+  /** The sheet says its title over the rest; a page's bar says it. */
+  readonly titled: boolean;
 }) {
   const palette = usePalette();
   const on = useGround();
@@ -138,62 +207,56 @@ export function DeleteAccountSheetView({
         setBusy(false);
       });
   };
-  return (
-    <Sheet
-      open={open}
-      onClose={busy ? () => undefined : onClose}
-      closable={!busy}
-      onGone={onGone}
-      keyboard
-      testID="delete-account-sheet"
-    >
-      <View style={styles.body}>
-        <View style={styles.head}>
+  const body = (
+    <View style={styles.body}>
+      <View style={styles.head}>
+        {titled ? (
           <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>
             {words.title}
           </Text>
-          <Text style={[styles.lead, { color: palette.ink2 }]}>{words.lead}</Text>
-        </View>
-        <View style={[styles.card, { backgroundColor: on.fill }]}>
-          <Listed heading="Goes" lines={words.goes} dot={palette.red} testID="delete-goes" />
-          <Listed heading="Stays" lines={words.stays} dot={palette.green} testID="delete-stays" />
-        </View>
-        <TextInput
-          style={[
-            styles.field,
-            { color: palette.ink, backgroundColor: on.fill, borderColor: palette.line },
-          ]}
-          testID="delete-account-typed"
-          accessibilityLabel={words.placeholder}
-          value={typed}
-          onChangeText={setTyped}
-          placeholder={words.placeholder}
-          placeholderTextColor={palette.ink3}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="done"
-          editable={!busy}
-        />
-        {failed === undefined ? null : (
-          <Text
-            style={[styles.failed, { color: palette.redInk, backgroundColor: palette.redSoft }]}
-            accessibilityLiveRegion="polite"
-          >
-            {failed}
-          </Text>
-        )}
-        <Button
-          label={words.confirm}
-          variant="red"
-          busy={busy}
-          disabled={!ready}
-          onPress={remove}
-          testID="delete-account-confirm"
-        />
-        <Button label="Keep it" variant="plain" disabled={busy} onPress={onClose} />
+        ) : null}
+        <Text style={[styles.lead, { color: palette.ink2 }]}>{words.lead}</Text>
       </View>
-    </Sheet>
+      <View style={[styles.card, { backgroundColor: on.fill }]}>
+        <Listed heading="Goes" lines={words.goes} dot={palette.red} testID="delete-goes" />
+        <Listed heading="Stays" lines={words.stays} dot={palette.green} testID="delete-stays" />
+      </View>
+      <TextInput
+        style={[
+          styles.field,
+          { color: palette.ink, backgroundColor: on.fill, borderColor: palette.line },
+        ]}
+        testID="delete-account-typed"
+        accessibilityLabel={words.placeholder}
+        value={typed}
+        onChangeText={setTyped}
+        placeholder={words.placeholder}
+        placeholderTextColor={palette.ink3}
+        autoCapitalize="none"
+        autoCorrect={false}
+        returnKeyType="done"
+        editable={!busy}
+      />
+      {failed === undefined ? null : (
+        <Text
+          style={[styles.failed, { color: palette.redInk, backgroundColor: palette.redSoft }]}
+          accessibilityLiveRegion="polite"
+        >
+          {failed}
+        </Text>
+      )}
+      <Button
+        label={words.confirm}
+        variant="red"
+        busy={busy}
+        disabled={!ready}
+        onPress={remove}
+        testID="delete-account-confirm"
+      />
+      <Button label="Keep it" variant="plain" disabled={busy} onPress={onKeep} />
+    </View>
   );
+  return { busy, body };
 }
 
 /** Goes, or Stays: its heading, then a line for each, with a dot in its colour. */
@@ -232,6 +295,8 @@ function Listed({
 
 const styles = StyleSheet.create({
   body: { gap: SPACE.md },
+  // A sheet keeps its own margin; a page's is a group's, so the card stands where a group would.
+  page: { paddingHorizontal: SPACE.lg },
   head: { gap: SPACE.xs, marginTop: SPACE.xs },
   title: { fontSize: TEXT.xl + 2, fontWeight: "700" },
   lead: { fontSize: TEXT.md, lineHeight: TEXT.md * 1.4 },

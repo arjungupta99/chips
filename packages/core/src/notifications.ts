@@ -9,7 +9,7 @@
  * so a banner is raised on one device and one only. Raising it is the app's.
  */
 
-import type { NotificationSettings, QuietHours } from "@chipschat/protocol";
+import type { HarnessNotifications, NotificationSettings, QuietHours } from "@chipschat/protocol";
 import type { NeedsYouItem, Tier } from "./model.js";
 
 /** One banner to raise: a decision to ask about, or a digest of what is waiting. */
@@ -130,4 +130,79 @@ export function digestTitle(notice: Extract<Notice, { kind: "digest" }>): string
   const count = notice.items.length;
   const noun = count === 1 ? "thing" : "things";
   return notice.tier === "review" ? `${count} ${noun} to review` : `${count} ${noun} for later`;
+}
+
+// ------------------------------------------------------------------- what You's rows say of them
+
+/**
+ * The settings as You's rows and forms say them, on the phone and the desktop alike (ADR 0085,
+ * ADR 0265): a word at the right of each row, and in its form each choice with what it lets
+ * through. Each is the person's, the same on every device of theirs.
+ */
+export const DECIDE_WORDS: Readonly<Record<NotificationSettings["decide"], string>> = {
+  now: "Right away",
+  off: "Off",
+};
+export const REVIEW_WORDS: Readonly<Record<NotificationSettings["review"], string>> = {
+  hourly: "Hourly",
+  off: "Off",
+};
+export const FYI_WORDS: Readonly<Record<NotificationSettings["fyi"], string>> = {
+  daily: "Daily",
+  off: "Off",
+};
+
+/**
+ * What each word for a harness lets through, said under its choice. Everything is not every
+ * reply: a reply never notifies anyone, so the most a harness can do is ask and @.
+ */
+export const HEAR_WORDS: Readonly<Record<HarnessNotifications, string>> = {
+  all: "Its decisions, and messages that @ you",
+  decide: "Only its decisions. Its @s of you stay quiet",
+  none: "Nothing from it notifies you",
+};
+
+/**
+ * A time the server keeps as `22:00`, as this device says times: "10:00 PM" where the clock is
+ * twelve-hour, "22:00" where it is not.
+ */
+function timeOfDay(time: string): string {
+  const [hours = 0, minutes = 0] = time.split(":").map(Number);
+  const at = new Date(2026, 0, 1, hours, minutes);
+  return at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+/** Quiet hours at the right of their row: the window, or Off. */
+export function quietWords(quiet: QuietHours | undefined): string {
+  return quiet === undefined ? "Off" : `${timeOfDay(quiet.from)}–${timeOfDay(quiet.to)}`;
+}
+
+/** The line under Quiet hours: what gets through them as they are set. */
+export function quietSub(quiet: QuietHours | undefined): string {
+  if (quiet === undefined) return "Notifications can come at any hour";
+  return quiet.breakthrough === "decide"
+    ? "Only decisions get through"
+    : "Nothing gets through, not even decisions";
+}
+
+/**
+ * The agents at the right of their row: "Everything" while none is turned down, else what is
+ * turned down — "Scout muted", "2 muted", "1 decisions only".
+ */
+export function agentsWords(
+  harnesses: readonly { readonly id: string; readonly name: string }[],
+  chosen: NotificationSettings["harnesses"],
+): string {
+  const muted = harnesses.filter((each) => chosen[each.id] === "none");
+  const asks = harnesses.filter((each) => chosen[each.id] === "decide");
+  if (muted.length === 0 && asks.length === 0) return "Everything";
+  const said: string[] = [];
+  if (muted.length > 0)
+    said.push(muted.length === 1 ? `${muted[0]?.name} muted` : `${muted.length} muted`);
+  if (asks.length > 0) {
+    said.push(
+      asks.length === 1 ? `${asks[0]?.name} decisions only` : `${asks.length} decisions only`,
+    );
+  }
+  return said.join(", ");
 }

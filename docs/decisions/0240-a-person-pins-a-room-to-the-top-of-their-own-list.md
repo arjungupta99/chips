@@ -73,3 +73,18 @@ mock's recommendations, taken with it.
   server (Pin from the sheet's foot, first in the rail with its mark, a second browser of the same
   person reading it from the server, Unpin). The swipe, its gold disc and the glide are the
   simulator's to walk.
+
+## Addendum, 4 November 2026: an archived room is pinned by nobody
+
+Arjun: "Archived spaces should automatically be unpinned (if they were pinned)".
+
+- Archiving a room lets go of every pin on it, everybody's, as the archive lands (`submitEvent`'s
+  `archived`, `PinnedSpaceRegistry.forgetSpace`). Unarchiving it does not bring them back: it comes
+  back among the rest, and whoever wants it on top pins it again.
+- Reading the pins leaves out a room archived another way, or before this, and lets its pins go as it
+  reads them (`GET /v1/me/pinned-spaces`).
+- A client lets the pin go as it hears the archive, so it leaves the top of the list at once, on every
+  device that is up: only an archive heard now, and only of a room still archived after what was
+  heard, since the cache and a room's history read replay archives undone since (`archivedNow`).
+- Proven by the route's tests (archived through the door and straight into the log) and core's store
+  test. The server change is live once chipsd restarts.

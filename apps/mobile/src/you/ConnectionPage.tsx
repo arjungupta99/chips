@@ -383,7 +383,9 @@ export function useMachine(store: Store, device: Device): string {
       live = false;
     };
   }, [store]);
-  return machine ?? machineOf(hostOf(device.serverUrl));
+  // No address (the demo): "your server", not `hostOf`'s "This network", which is a row's label
+  // and read "can't reach This network directly" in a sentence.
+  return machine ?? machineOf(device.serverUrl ? hostOf(device.serverUrl) : "");
 }
 
 /** A name's first label ("adas-mac-mini"), or an address whole, which has no name to cut. */
@@ -452,7 +454,9 @@ function useWentDirect(
 }
 
 const styles = StyleSheet.create({
-  page: { paddingBottom: SPACE.xxl * 2, gap: SPACE.lg },
+  // The card opens the page, with no heading over it: the gap between groups stands above it
+  // too, or it sat on the bar's hairline (the Duo simulator, 2 November 2026).
+  page: { paddingTop: SPACE.lg, paddingBottom: SPACE.xxl * 2, gap: SPACE.lg },
   card: {
     marginHorizontal: SPACE.lg,
     borderRadius: RADIUS.xxl,

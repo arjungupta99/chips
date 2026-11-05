@@ -27,10 +27,10 @@
  */
 
 import type { Device, ServerPushes, Store } from "@chipschat/core";
-import { type ReactElement, type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Switch } from "react-native";
 import { deviceWord, thisDevice } from "../device/word";
-import { SETTINGS, writeSetting } from "../prefs";
+import { choosePush, onPushChosen } from "../push/chosen";
 import {
   buildTakesPush,
   platform,
@@ -73,6 +73,8 @@ const SERVER_WORDS: Readonly<Record<Exclude<ServerPushes, "ready">, string>> = {
     "Your server can't send notifications yet. It needs an access token for Expo, which delivers them to the Chips app. Until then, what needs you waits in Chips.",
   refused:
     "Your server can't send notifications: Expo turned down its access token. Until whoever runs it gives it one that works, what needs you waits in Chips.",
+  failing:
+    "Your server's last notifications didn't get through: the service that delivers them didn't accept them. The next one will try again. Until then, what needs you waits in Chips.",
 };
 
 /** What the switch shows before anybody has touched it, and why. */
@@ -122,6 +124,7 @@ function stuckIn(state: State): boolean {
 function usePush(device: Device, others: readonly Device[], store: ServerFactsOf | undefined) {
   const [state, setState] = useState<State>({ kind: "reading" });
   const [server, setServer] = useState<ServerPushes | undefined>(undefined);
+  const turning = useRef(false);
 
   useEffect(() => {
     let live = true;
@@ -139,16 +142,30 @@ function usePush(device: Device, others: readonly Device[], store: ServerFactsOf
     };
   }, [store]);
 
+  // Turned on elsewhere, by the ask at an agent's first question or the setup card, while this is
+  // on screen (an iPad shows You beside the rest): read again, unless this switch is the one at it.
+  useEffect(
+    () =>
+      onPushChosen(() => {
+        if (turning.current) return;
+        void currentState().then((next) => {
+          if (!turning.current) setState(next);
+        });
+      }),
+    [],
+  );
+
   const turn = useCallback(
     async (on: boolean) => {
       setState({ kind: "working" });
+      turning.current = true;
       try {
         if (!on) {
           await unregisterToken(device);
           // Every workspace this phone holds is told (ADR 0197); one behind that can't be reached
           // keeps a token its own Devices page lists.
           await Promise.all(others.map((each) => unregisterToken(each).catch(() => undefined)));
-          await writeSetting(SETTINGS.push, "off").catch(() => undefined);
+          await choosePush("off");
           setState({ kind: "off" });
           return;
         }
@@ -161,6 +178,8 @@ function usePush(device: Device, others: readonly Device[], store: ServerFactsOf
         setState(turned);
       } catch (error) {
         setState({ kind: "failed", why: error instanceof Error ? error.message : "no answer" });
+      } finally {
+        turning.current = false;
       }
     },
     [device, others],

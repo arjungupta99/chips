@@ -34,6 +34,7 @@
  * them takes their place, and empties the field.
  */
 
+import { FACE_PICKER_WORDS, groundName } from "@chipschat/core";
 import type { SpaceIcon } from "@chipschat/protocol";
 import {
   memo,
@@ -57,14 +58,7 @@ import { LIBRARY_FAMILIES, type MarkName } from "../ui/marks";
 import { CLOSE_ROOM, SheetScroll } from "../ui/Sheet";
 import { avatarHueIndex } from "../ui/sourceColours";
 import { usePalette } from "../ui/theme";
-import {
-  ICON_GROUND_NAMES,
-  ICON_GROUND_ROWS,
-  ICON_GROUNDS,
-  RADIUS,
-  SPACE,
-  TEXT,
-} from "../ui/tokens";
+import { ICON_GROUND_ROWS, ICON_GROUNDS, RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { LettersField, type LettersHandle } from "./LettersField";
 
 /** Six across is the most a 24-point mark can be and still be a thumb's target on a phone. */
@@ -198,7 +192,7 @@ export function FacePicker({
       <View
         style={[styles.hues, across]}
         accessibilityRole="radiogroup"
-        accessibilityLabel="Colours"
+        accessibilityLabel={FACE_PICKER_WORDS.colours}
       >
         {ICON_GROUND_ROWS.map((row) => (
           <View key={row.join()} style={styles.hueRow}>
@@ -207,7 +201,7 @@ export function FacePicker({
                 key={index}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: index === ground }}
-                accessibilityLabel={ICON_GROUND_NAMES[index] ?? `Colour ${index + 1}`}
+                accessibilityLabel={groundName(index)}
                 testID={`ground-${index}`}
                 // A colour is a choice on its own, saved the moment it is tapped. It used to write
                 // nothing until a mark had been picked too, so the first tap in a fresh room moved
@@ -283,7 +277,7 @@ export function FacePicker({
           // choice you make once. Somewhere to arrive at, not something in the way.
           <View style={styles.foot}>
             <Button
-              label="Use the default"
+              label={FACE_PICKER_WORDS.useDefault}
               onPress={() => choose(undefined)}
               disabled={shown === undefined}
               grow

@@ -75,3 +75,21 @@ chose A, the cheapest.
 - Tests: `asksSoFar.test.ts` (core), `parts.test.tsx`, `Profile.test.tsx` and `NeedsScreen.test.tsx`
   (phone), `Asking.test.tsx` (web), and end to end `asksSoFar.spec.ts` (phone) and
   `when-it-asks.spec.ts` (web).
+
+## Addendum, 4 November 2026: the dots on You's Allowed always open every ask too
+
+Arjun, on his iPad: "you --> Allowed always --> asks so far. This section was tappable." They never
+were: the dots there (ADR 0195's "says nothing once", 26 October) were drawn but not pressable, on
+the phone, the iPad, the web and the Mac, while a harness's own opened every ask. Now they do the
+same, for every harness at once:
+
+- Core's `askRows` takes no harness for every ask in the workspace, as `workspaceAskHistory`
+  already counts them; a row still says who asked and where.
+- Phone: the dots are a row with a chevron. On an iPhone the sheet goes down and `app/asks.tsx`
+  comes up over You, as a room's details open an agent's card. On an iPad the list stands in a
+  third column beside Allowed always (ADR 0276), through You's new `third` (`useThirdPage`), and
+  the row wears the chosen ground while it does.
+- Web and Mac: the dots are a button with See all that grows `AsksDialog` out of them, titled
+  Asks, with no harness's face; Open in its space opens the room.
+- Tests: `asksSoFar.test.ts`, `You.test.tsx` (sheet then screen; third column and back) and
+  `Asking.test.tsx` (the dialog from You's dots).

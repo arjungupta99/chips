@@ -20,7 +20,15 @@
  */
 
 import { type Browser, expect, type Page, test } from "@playwright/test";
-import { openInvite, pair, pairWith, registerPerson, SERVER } from "./support.ts";
+import {
+  openInvite,
+  openPerson,
+  openYouRow,
+  pair,
+  pairWith,
+  registerPerson,
+  SERVER,
+} from "./support.ts";
 
 /** A name nobody in the shared demo workspace has: other specs register people of their own. */
 const someone = (who: string) => `${who} ${Math.random().toString(36).slice(2, 6)}`;
@@ -31,10 +39,8 @@ test("N1: an owner's New phone… pairs a fresh browser as the person, not as so
 }) => {
   const noor = await registerPerson(someone("Noor"));
   await pair(page);
-  await page.getByTestId("you").click();
-  const row = page.locator(`[data-testid=person-row][data-participant="${noor.id}"]`);
-  // Their row opens under itself, with New phone… there (ADR 0209).
-  await row.getByTestId("person-open").click();
+  // Their row opens their page, with New phone… there (ADR 0209).
+  const row = await openPerson(page, noor.id);
   await row.getByRole("button", { name: `A new phone for ${noor.name}…` }).click();
   const panel = page.getByTestId("new-phone-panel");
   await expect(panel.getByRole("heading", { name: `A new phone for ${noor.name}` })).toBeVisible();
@@ -93,7 +99,10 @@ test("N2: a device that asks is allowed as somebody already here, and its key is
     participant_id: noor.id,
     display_name: noor.name,
   });
-  await expect(dialog.getByTestId("join-device-state")).toHaveText(`Paired as ${noor.name}.`);
+  // The phone's words once decided (ADR 0271): paired, as the person the owner chose.
+  const decided = dialog.getByTestId("join-decided");
+  await expect(decided).toContainText("is paired");
+  await expect(decided).toContainText(`It opens on ${noor.name}'s Spaces.`);
 });
 
 test("N3: an invite refused by somebody's own name says the way back", async ({
@@ -102,7 +111,7 @@ test("N3: an invite refused by somebody's own name says the way back", async ({
 }) => {
   const noor = await registerPerson(someone("Noor"));
   await pair(page);
-  await page.getByTestId("you").click();
+  await openYouRow(page, "invite-someone");
   await page.getByRole("combobox", { name: "Invite role" }).selectOption("member");
   await page.getByTestId("make-invite").click();
   const url = (await page.getByTestId("invite-url").textContent()) ?? "";
@@ -137,9 +146,7 @@ async function personWithADevice(page: Page, browser: Browser) {
   const theirs = await context.newPage();
   await pairWith(theirs, noor.code);
   await pair(page);
-  await page.getByTestId("you").click();
-  const row = page.locator(`[data-testid=person-row][data-participant="${noor.id}"]`);
-  await row.getByTestId("person-open").click();
+  const row = await openPerson(page, noor.id);
   const device = row.getByTestId("person-device");
   await expect(device).toHaveCount(1);
   const id = (await device.getAttribute("data-device")) ?? "";

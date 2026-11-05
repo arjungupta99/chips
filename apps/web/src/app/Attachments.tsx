@@ -19,6 +19,7 @@
 
 import {
   type Attachment,
+  aloneTile,
   formatBytes,
   formatDuration,
   inAlbum,
@@ -62,6 +63,7 @@ export function Attachments({
               files={files}
               lineId={lineId}
               more={index === GRID_MAX - 1 ? album.length - GRID_MAX : 0}
+              alone={album.length === 1}
             />
           ))}
         </div>
@@ -100,22 +102,30 @@ function useObjectUrl(load: () => Promise<string>, enabled = true): string | und
 
 /**
  * One tile of the album: a photo's thumbnail, or a measured video's poster with a play mark and how
- * long it runs, opening the viewer on it from where it stands.
+ * long it runs, opening the viewer on it from where it stands. A tile alone is the phone's size for
+ * one (core's `aloneTile`), said before its picture comes, so the row is as tall from its first frame
+ * as it will be; the picture fades up over its ground once it is decoded (ADR 0268 addendum). Until
+ * 3 November a tile alone stood as tall as its picture, up to 360, and the row grew a frame after
+ * the room opened.
  */
 function Tile({
   attachment,
   files,
   lineId,
   more,
+  alone,
 }: {
   readonly attachment: Attachment;
   readonly files: FileService;
   readonly lineId: string;
   /** How many more there are than the grid shows, on the last tile. */
   readonly more: number;
+  /** The album's only tile. */
+  readonly alone: boolean;
 }) {
   const [load] = useState(() => () => files.thumb(attachment.id));
   const url = useObjectUrl(load);
+  const [decoded, setDecoded] = useState(false);
   const viewer = useViewer();
   const video = kindOf(attachment.mimeType) === "video";
   return (
@@ -123,15 +133,19 @@ function Tile({
       type="button"
       className="photo"
       data-kind={video ? "video" : "photo"}
+      style={alone ? { ...aloneTile(attachment), maxWidth: "100%" } : undefined}
       ref={(element) => viewer.registerTile(attachment.id, element)}
       onClick={() => viewer.open({ attachmentId: attachment.id, lineId })}
       aria-label={`${video ? "Play" : "Open"} ${attachment.filename}`}
       data-testid={video ? "video-tile" : "photo"}
     >
-      {url === undefined ? (
-        <span className="photo-loading" />
-      ) : (
-        <img src={url} alt={video ? "" : attachment.filename} />
+      {url !== undefined && (
+        <img
+          src={url}
+          alt={video ? "" : attachment.filename}
+          data-decoded={decoded}
+          onLoad={() => setDecoded(true)}
+        />
       )}
       {video && (
         <>

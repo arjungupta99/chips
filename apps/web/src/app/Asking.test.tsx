@@ -16,7 +16,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Asking } from "./Asking.tsx";
 import { Decide, type DecisionInput } from "./Decide.tsx";
-import { AllowedAlwaysCard } from "./you/AllowedAlways.tsx";
+import { AllowedAlwaysForm } from "./you/AllowedAlways.tsx";
 
 const ARJUN = "per_arjun";
 const DANA = "per_dana";
@@ -295,18 +295,23 @@ describe("When it asks you, on the harness card", () => {
 });
 
 describe("Allowed always, on You", () => {
-  it("counts every harness's rules and switches them as the harness card does", () => {
+  /** The row the form grows out of. */
+  const row = () => document.body.appendChild(document.createElement("button"));
+
+  it("counts every harness's rules and switches them as the harness card does", async () => {
     const sent: SetRulesInput[] = [];
     render(
-      <AllowedAlwaysCard
+      <AllowedAlwaysForm
+        from={row()}
         model={model()}
         directory={directory}
         selfId={ARJUN}
         onSetRules={(input) => sent.push(input)}
+        onGone={() => undefined}
       />,
     );
-    const card = screen.getByTestId("allowed-always");
-    expect(within(card).getByTestId("allowed-always-count").textContent).toBe("1 on");
+    const card = await screen.findByTestId("allowed-always");
+    expect(within(card).getByTestId("allowed-always-count").textContent).toMatch(/^1 on\. /);
     expect(within(card).getByText("Kit")).toBeTruthy();
     expect(within(card).getByText("Any command")).toBeTruthy();
     expect(within(card).queryByTestId("allowed-always-none")).toBeNull();
@@ -315,16 +320,20 @@ describe("Allowed always, on You", () => {
     expect(sent).toEqual([{ harnessId: KIT, rules: [{ ...SHELL, off: true }] }]);
   });
 
-  it("says once that nothing is allowed, how a rule comes to be there, and every ask so far", () => {
+  it("says once that nothing is allowed, how a rule comes to be there, and every ask so far", async () => {
     render(
-      <AllowedAlwaysCard
+      <AllowedAlwaysForm
+        from={row()}
         model={model({ rules: [] })}
         directory={directory}
         selfId={ARJUN}
         onSetRules={() => undefined}
+        onGone={() => undefined}
       />,
     );
-    expect(screen.getByTestId("allowed-always-count").textContent).toBe("Asks every time");
+    await screen.findByTestId("allowed-always");
+    // Nothing to count: the line under it says so once.
+    expect(screen.queryByTestId("allowed-always-count")).toBeNull();
     const none = screen.getByTestId("allowed-always-none");
     expect(
       within(none).getByText("Nothing is allowed always, so every ask comes to you."),
@@ -332,6 +341,40 @@ describe("Allowed always, on You", () => {
     expect(within(none).getByText(/^When a harness asks to do something small/)).toBeTruthy();
     expect(screen.getByTestId("allowed-always-asking").textContent).toBe("Kit asks every time.");
     expect(screen.queryByText("Nothing allowed always.")).toBeNull();
+  });
+
+  it("grows every ask in the workspace out of the dots, as a harness's own do (ADR 0255)", async () => {
+    const opened: string[] = [];
+    render(
+      <AllowedAlwaysForm
+        from={row()}
+        model={model({ rules: [] })}
+        directory={directory}
+        selfId={ARJUN}
+        onSetRules={() => undefined}
+        onOpenSpace={(spaceId) => opened.push(spaceId)}
+        onGone={() => undefined}
+      />,
+    );
+    const dots = await screen.findByTestId("allowed-always-history");
+    expect(dots.textContent).toMatch(/^Asks so farSee all/);
+    fireEvent.click(dots);
+    const dialog = await screen.findByTestId("asks-dialog");
+    expect(within(dialog).getByRole("heading", { name: "Asks" })).toBeTruthy();
+    const rows = within(dialog)
+      .getAllByRole("button")
+      .filter((each) => each.dataset["testid"]?.startsWith("ask-row-"));
+    expect(rows.map((each) => each.dataset["testid"])).toEqual([
+      "ask-row-a3",
+      "ask-row-a2",
+      "ask-row-a1",
+    ]);
+    fireEvent.click(within(dialog).getByTestId("ask-row-a3"));
+    fireEvent.click(within(dialog).getByTestId("asks-open"));
+    await act(async () => {
+      await new Promise((done) => setTimeout(done, 450));
+    });
+    expect(opened).toEqual(["sp_1"]);
   });
 });
 

@@ -11,7 +11,7 @@
  *
  * And Pair a computer, which only a desk could do before: the code a computer types in, from the
  * phone that is already paired (`PairSheet`), which stands beside You's scroll, not in it
- * (`You.tsx`).
+ * (`You.tsx`), and beside the list on an iPad is a page there.
  */
 
 import {
@@ -34,7 +34,8 @@ import * as feel from "../ui/haptics";
 import type { IconName } from "../ui/icons";
 import { usePalette } from "../ui/theme";
 import { TEXT } from "../ui/tokens";
-import { PairSheet } from "./PairSheet";
+import { PairPage, PairSheet } from "./PairSheet";
+import { useSheetPage } from "./pages";
 import type { YouSection } from "./section";
 import { seenWords } from "./words";
 
@@ -104,6 +105,7 @@ export function useDevicesGroup({
   const { devices, failed, signOut, reload } = useDevices(store, connected);
   const [folded, setFolded] = useState(true);
   const [pairing, setPairing] = useState(false);
+  const pairPage = useSheetPage("pair", () => setPairing(true));
   const open = useRef<SwipeableMethods | null>(null);
   const now = Date.now();
   const { recent, stale } = sortDevices(devices ?? [], now);
@@ -165,7 +167,8 @@ export function useDevicesGroup({
           label="Pair a computer"
           tone="accent"
           mark={<RowMark icon="plus" tint={palette.goldSoft} ink={palette.accent} />}
-          onPress={() => setPairing(true)}
+          onPress={pairPage.onPress}
+          selected={pairPage.selected}
           testID="pair-computer"
         />
       </Group>
@@ -183,7 +186,17 @@ export function useDevicesGroup({
       serverUrl={device.serverUrl}
     />
   );
-  return { group, overlays };
+  const pages = {
+    pair: (
+      <PairPage
+        onClose={pairPage.done}
+        onPaired={reload}
+        store={store}
+        serverUrl={device.serverUrl}
+      />
+    ),
+  };
+  return { group, overlays, pages };
 }
 
 const idOf = (each: PairedDeviceRecord) => each.deviceId;

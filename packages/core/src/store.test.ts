@@ -781,6 +781,146 @@ describe("the store", () => {
     expect(h.savedReadState).toHaveLength(1);
   });
 
+  describe("how far the person has read, kept at the server (ADR 0262)", () => {
+    const OTHER = { ...OPENED, space_id: "spc_2", id: "evt_other" };
+    const notThisTests = () => Promise.reject(new Error("not this test's"));
+
+    it("takes the server's marks where further, and sends up its own where they are", async () => {
+      const puts: unknown[] = [];
+      const h = harness({
+        cursor: 5,
+        cached: [OPENED, event(2), event(3), OTHER, event(5, { space_id: "spc_2" })],
+        readState: { spc_1: 3 },
+        get: (path) =>
+          path === "/v1/me/read"
+            ? Promise.resolve({ spaces: { spc_1: 2, spc_2: 5 } })
+            : notThisTests(),
+        put: async (path, body) => {
+          puts.push([path, body]);
+          return undefined;
+        },
+      });
+      await started();
+      h.flush();
+      expect(h.store.getSnapshot().readState).toEqual({ spc_1: 3, spc_2: 5 });
+      expect(puts).toEqual([["/v1/me/read", { spaces: { spc_1: 3 } }]]);
+    });
+
+    it("sends a mark as a room is read, one write at a time, gathering what moves meanwhile", async () => {
+      const puts: unknown[] = [];
+      let answer: () => void = () => undefined;
+      const h = harness({
+        cursor: 5,
+        cached: [OPENED, event(2), event(3), event(4)],
+        readState: { spc_1: 2 },
+        get: (path) =>
+          path === "/v1/me/read" ? Promise.resolve({ spaces: { spc_1: 2 } }) : notThisTests(),
+        put: (_path, body) => {
+          puts.push(body);
+          return new Promise((resolve) => {
+            answer = () => resolve(undefined);
+          });
+        },
+      });
+      await started();
+      h.store.markRead("spc_1", 3);
+      h.store.markRead("spc_1", 4);
+      expect(puts).toEqual([{ spaces: { spc_1: 3 } }]);
+      answer();
+      await started();
+      expect(puts).toEqual([{ spaces: { spc_1: 3 } }, { spaces: { spc_1: 4 } }]);
+    });
+
+    it("hears another device's marks, forward only", async () => {
+      const h = harness({
+        cursor: 5,
+        cached: [OPENED, event(2), event(3)],
+        readState: { spc_1: 2 },
+        get: (path) =>
+          path === "/v1/me/read" ? Promise.resolve({ spaces: { spc_1: 2 } }) : notThisTests(),
+        put: async () => undefined,
+      });
+      await started();
+      h.wire().onReads?.({ spc_1: 3 });
+      h.wire().onReads?.({ spc_1: 1 });
+      h.flush();
+      expect(h.store.getSnapshot().readState).toEqual({ spc_1: 3 });
+      expect(h.savedReadState).toEqual([{ spc_1: 3 }]);
+    });
+
+    it("on a device never sent anything, greets once the person's marks are read", async () => {
+      let give: (marks: unknown) => void = () => undefined;
+      const h = harness({
+        get: (path) =>
+          path === "/v1/me/read"
+            ? new Promise((resolve) => {
+                give = resolve;
+              })
+            : notThisTests(),
+        put: async () => undefined,
+      });
+      await started();
+      let greeted = false;
+      void h.wire().greetAfter?.then(() => {
+        greeted = true;
+      });
+      await started();
+      expect(greeted).toBe(false);
+
+      give({ spaces: { spc_1: 9 } });
+      await started();
+      expect(greeted).toBe(true);
+      h.flush();
+      expect(h.store.getSnapshot().readState).toEqual({ spc_1: 9 });
+    });
+
+    it("against an older server, counts from its own marks and sends none", async () => {
+      const puts: unknown[] = [];
+      const h = harness({
+        cursor: 5,
+        cached: [OPENED, event(2), event(3)],
+        readState: { spc_1: 2 },
+        get: () => Promise.reject(Object.assign(new Error("answered 404"), { status: 404 })),
+        put: async (_path, body) => {
+          puts.push(body);
+          return undefined;
+        },
+      });
+      await started();
+      h.store.markRead("spc_1", 3);
+      await started();
+      expect(puts).toEqual([]);
+      h.flush();
+      expect(h.store.getSnapshot().readState).toEqual({ spc_1: 3 });
+    });
+
+    it("owes a write that didn't get there to the next hello", async () => {
+      const puts: unknown[] = [];
+      let fail = true;
+      const h = harness({
+        cursor: 5,
+        cached: [OPENED, event(2), event(3)],
+        readState: { spc_1: 2 },
+        get: (path) =>
+          path === "/v1/me/read" ? Promise.resolve({ spaces: { spc_1: 2 } }) : notThisTests(),
+        put: async (_path, body) => {
+          puts.push(body);
+          if (fail) throw new Error("The connection dropped.");
+          return undefined;
+        },
+      });
+      await started();
+      h.store.markRead("spc_1", 3);
+      await started();
+      expect(puts).toEqual([{ spaces: { spc_1: 3 } }]);
+
+      fail = false;
+      h.wire().onEvent({ type: "hello", spaces: ["spc_1"] } as unknown as ClientEvent);
+      await started();
+      expect(puts).toEqual([{ spaces: { spc_1: 3 } }, { spaces: { spc_1: 3 } }]);
+    });
+  });
+
   it("reports the connection state as the transport says it", async () => {
     const h = harness();
     await started();
@@ -2895,7 +3035,8 @@ describe("people, invites, passkeys and devices (ADR 0034)", () => {
         deleted.push(path);
         return { harness_id: "hrn_1", already_removed: false };
       },
-      get: async () => {
+      get: async (path) => {
+        if (path !== "/v1/participants") throw new Error("not this test's");
         reads += 1;
         return {
           participants: [
@@ -3614,6 +3755,65 @@ describe("a face the server will not take", () => {
   });
 });
 
+/** Puts and removes that wait to be answered, each taken or refused when the test says. */
+function answeredLater() {
+  const waiting: { take: () => void; refuse: () => void }[] = [];
+  const pending = (_path: string, body?: unknown) =>
+    new Promise<unknown>((resolve, reject) => {
+      waiting.push({ take: () => resolve(body), refuse: () => reject(new Error("not_found")) });
+    });
+  return { waiting, pending };
+}
+
+describe("two faces picked for one room, both on their way", () => {
+  const room = "spc_1";
+  const TENT = { icon: "tent", ground: 3 };
+  function answering() {
+    const { waiting, pending } = answeredLater();
+    const h = harness({
+      cached: [OPENED],
+      get: async (path) =>
+        path.startsWith("/v1/participants") ? { participants: [] } : { icons: { [room]: TENT } },
+      put: pending,
+    });
+    return { h, waiting, face: () => h.store.getSnapshot().spaceIcons.get(room) };
+  }
+
+  it("puts back the face from before both when both are refused, not the first pick", async () => {
+    const { h, waiting, face } = answering();
+    await started();
+    await h.store.loadSpaceIcons();
+    const first = h.store.setSpaceIcon(room, { icon: "rocket", ground: 9 });
+    const second = h.store.setSpaceIcon(room, { icon: "cup", ground: 1 });
+    h.flush();
+    expect(face()).toEqual({ icon: "cup", ground: 1 });
+
+    waiting[0]?.refuse();
+    await expect(first).rejects.toThrow("not_found");
+    waiting[1]?.refuse();
+    await expect(second).rejects.toThrow("not_found");
+    h.flush();
+    expect(face()).toEqual(TENT);
+    // Nor is a refused pick kept for the next launch.
+    expect(h.savedSpaceIcons.at(-1)).toEqual({ [room]: TENT });
+  });
+
+  it("keeps the first when it is taken and the second is refused", async () => {
+    const { h, waiting, face } = answering();
+    await started();
+    await h.store.loadSpaceIcons();
+    const first = h.store.setSpaceIcon(room, { icon: "rocket", ground: 9 });
+    const second = h.store.setSpaceIcon(room, { icon: "cup", ground: 1 });
+
+    waiting[0]?.take();
+    await first;
+    waiting[1]?.refuse();
+    await expect(second).rejects.toThrow("not_found");
+    h.flush();
+    expect(face()).toEqual({ icon: "rocket", ground: 9 });
+  });
+});
+
 describe("the rooms hidden from the list (ADR 0205)", () => {
   const HIDDEN_PATH = "/v1/me/hidden-spaces";
   const HELLO = { type: "hello", spaces: [] } as unknown as ClientEvent;
@@ -3719,6 +3919,47 @@ describe("the rooms hidden from the list (ADR 0205)", () => {
     h.flush();
     expect(hidden(h)).toEqual([]);
   });
+
+  describe("a hide and an unhide both on their way", () => {
+    function hiding() {
+      const { waiting, pending } = answeredLater();
+      const h = harness({
+        get: async (path) => (path === HIDDEN_PATH ? { spaces: [] } : {}),
+        put: pending,
+        remove: pending,
+      });
+      return { h, waiting };
+    }
+
+    it("leaves the room as the server holds it when both are refused, not hidden", async () => {
+      const { h, waiting } = hiding();
+      await started();
+      await h.store.loadHiddenSpaces();
+      const hide = h.store.setSpaceHidden("spc_1", true);
+      const unhide = h.store.setSpaceHidden("spc_1", false);
+      waiting[0]?.refuse();
+      await expect(hide).rejects.toThrow("not_found");
+      waiting[1]?.refuse();
+      await expect(unhide).rejects.toThrow("not_found");
+      h.flush();
+      expect(hidden(h)).toEqual([]);
+      expect(h.savedHiddenSpaces.at(-1)).toEqual([]);
+    });
+
+    it("keeps the hide when it is taken and the unhide is refused", async () => {
+      const { h, waiting } = hiding();
+      await started();
+      await h.store.loadHiddenSpaces();
+      const hide = h.store.setSpaceHidden("spc_1", true);
+      const unhide = h.store.setSpaceHidden("spc_1", false);
+      waiting[0]?.take();
+      await hide;
+      waiting[1]?.refuse();
+      await expect(unhide).rejects.toThrow("not_found");
+      h.flush();
+      expect(hidden(h)).toEqual(["spc_1"]);
+    });
+  });
 });
 
 describe("the rooms pinned to the top of the list (ADR 0240)", () => {
@@ -3800,6 +4041,29 @@ describe("the rooms pinned to the top of the list (ADR 0240)", () => {
     expect(h.savedPinnedSpaces.at(-1)).toEqual(["spc_2"]);
   });
 
+  it("lets go of a room's pin as it is archived, as the server does, and of no other", async () => {
+    const h = harness({ pinnedSpaces: ["spc_1", "spc_2"] });
+    await started();
+    h.wire().onState("open");
+    const made = (seq: number, id: string) =>
+      event(seq, {
+        type: "space.created",
+        space_id: id,
+        actor: { kind: "person", id: "usr_1" },
+        kind: "group",
+        title: id,
+      });
+    h.wire().onEvent(made(1, "spc_1"));
+    h.wire().onEvent(made(2, "spc_2"));
+    h.wire().onEvent(event(3, { type: "space.updated", space_id: "spc_2", title: "Renamed" }));
+    h.flush();
+    expect(pinned(h)).toEqual(["spc_1", "spc_2"]);
+    h.wire().onEvent(event(4, { type: "space.updated", space_id: "spc_1", state: "closed" }));
+    h.flush();
+    expect(pinned(h)).toEqual(["spc_2"]);
+    expect(h.savedPinnedSpaces.at(-1)).toEqual(["spc_2"]);
+  });
+
   it("keeps a pin on its way over a read from before it", async () => {
     let release: (() => void) | undefined;
     const h = harness({
@@ -3831,6 +4095,47 @@ describe("the rooms pinned to the top of the list (ADR 0240)", () => {
     await expect(h.store.setSpacePinned("spc_2", false)).rejects.toThrow("not_found");
     h.flush();
     expect(pinned(h)).toEqual(["spc_3", "spc_2", "spc_1"]);
+  });
+
+  describe("a pin and an unpin both on their way", () => {
+    function pinning() {
+      const { waiting, pending } = answeredLater();
+      const h = harness({
+        get: async (path) => (path === PINNED_PATH ? { spaces: ["spc_2"] } : {}),
+        put: pending,
+        remove: pending,
+      });
+      return { h, waiting };
+    }
+
+    it("leaves the pins as the server holds them when both are refused, not pinned", async () => {
+      const { h, waiting } = pinning();
+      await started();
+      await h.store.loadPinnedSpaces();
+      const pin = h.store.setSpacePinned("spc_1", true);
+      const unpin = h.store.setSpacePinned("spc_1", false);
+      waiting[0]?.refuse();
+      await expect(pin).rejects.toThrow("not_found");
+      waiting[1]?.refuse();
+      await expect(unpin).rejects.toThrow("not_found");
+      h.flush();
+      expect(pinned(h)).toEqual(["spc_2"]);
+      expect(h.savedPinnedSpaces.at(-1)).toEqual(["spc_2"]);
+    });
+
+    it("keeps the pin when it is taken and the unpin is refused", async () => {
+      const { h, waiting } = pinning();
+      await started();
+      await h.store.loadPinnedSpaces();
+      const pin = h.store.setSpacePinned("spc_1", true);
+      const unpin = h.store.setSpacePinned("spc_1", false);
+      waiting[0]?.take();
+      await pin;
+      waiting[1]?.refuse();
+      await expect(unpin).rejects.toThrow("not_found");
+      h.flush();
+      expect(pinned(h)).toEqual(["spc_1", "spc_2"]);
+    });
   });
 });
 
@@ -4000,6 +4305,68 @@ describe("an agent's face, from the store (ADR 0089)", () => {
       { icon: "crown", ground: 9 },
     ]);
     expect(faceOf(h)).toEqual({ icon: "crown", ground: 9 });
+  });
+});
+
+describe("two faces chosen for one agent, both on their way", () => {
+  const agent = "agt_1";
+  const CART = { icon: "cart", ground: 4 };
+  function choosing() {
+    const { waiting, pending } = answeredLater();
+    const h = harness({
+      cached: [OPENED],
+      get: async () => ({
+        participants: [
+          {
+            id: agent,
+            kind: "agent",
+            display_name: "Shopping",
+            owner_id: null,
+            harness_id: "hrn_1",
+            room: null,
+            face: CART,
+          },
+        ],
+      }),
+      put: pending,
+    });
+    const face = () => {
+      h.flush();
+      return h.store.getSnapshot().directory[agent]?.face;
+    };
+    return { h, waiting, face };
+  }
+
+  it("puts back the face the server holds when both are refused, not the first choice", async () => {
+    const { h, waiting, face } = choosing();
+    await started();
+    await h.store.refreshDirectory();
+    const first = h.store.setAgentFace(agent, { icon: "bag", ground: 3 });
+    const second = h.store.setAgentFace(agent, { icon: "crown", ground: 9 });
+    expect(face()).toEqual({ icon: "crown", ground: 9 });
+    // One face is sent at a time: the second leaves once the first is answered.
+    await started();
+    waiting[0]?.refuse();
+    await expect(first).rejects.toThrow("not_found");
+    await started();
+    waiting[1]?.refuse();
+    await expect(second).rejects.toThrow("not_found");
+    expect(face()).toEqual(CART);
+  });
+
+  it("keeps the first when it is taken and the second is refused", async () => {
+    const { h, waiting, face } = choosing();
+    await started();
+    await h.store.refreshDirectory();
+    const first = h.store.setAgentFace(agent, { icon: "bag", ground: 3 });
+    const second = h.store.setAgentFace(agent, { icon: "crown", ground: 9 });
+    await started();
+    waiting[0]?.take();
+    await first;
+    await started();
+    waiting[1]?.refuse();
+    await expect(second).rejects.toThrow("not_found");
+    expect(face()).toEqual({ icon: "bag", ground: 3 });
   });
 });
 

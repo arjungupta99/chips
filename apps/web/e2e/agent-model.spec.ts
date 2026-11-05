@@ -196,12 +196,13 @@ test("the harness card has its Main agent's Model row, which the agents with non
   expect(sent.status).toBe(200);
   await pair(page);
   await page.getByRole("button", { name: /^Agents/ }).click();
-  // Every harness's card, under the shelf's View all (ADR 0185).
-  await page.getByRole("button", { name: "View all harnesses" }).click();
-  const card = page
-    .getByTestId("harness-card")
-    .filter({ has: page.getByRole("heading", { name: "Wyvern" }) });
-  const group = card.getByTestId("model-group");
+  // Its page, from its tile on the shelf: its Main agent's Model row heads Set up (ADR 0254).
+  await page
+    .getByTestId("harness-shelf")
+    .getByRole("button", { name: /^Wyvern\b/ })
+    .click();
+  const card = page.getByRole("region", { name: "Wyvern", exact: true });
+  const group = card.getByTestId("harness-set-up");
   await expect(group.getByTestId("model-row")).toContainText("Kestrel 1");
   // The agent's name is its own (ADR 0091): "Wyvern 2" beside a harness already named Wyvern.
   await expect(group.getByTestId("model-foot")).toHaveText(

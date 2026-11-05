@@ -1,9 +1,11 @@
 /**
- * Delete your account (ADR 0243), the last of the person's own cards: the desktop's form of the
- * phone's sheet, in the same words (`deleteAccountSheet` in core). A modal dialog says what goes
- * and what stays, and Delete wakes once the workspace's name is typed (Arjun's B). Once the server
- * has done it, the store says the connection is removed by the person's own hand, and the app
- * says they left in place of everything (`Removed`), as a removal is said.
+ * Delete your account (ADR 0243): a red row under Sign out at the foot of You, as the phone has it
+ * (ADR 0265), opening a page beside the list in the phone's sheet's words (`deleteAccountSheet` in
+ * core): what goes and what stays, and the button that deletes it (the addendum of 3 November
+ * 2026). The button asks once more in a modal dialog, the one step left a dialog, and Delete
+ * there wakes once the workspace's name is typed (Arjun's B). Once the server has done it, the
+ * store says the connection is removed by the person's own hand, and the app says they left in
+ * place of everything (`Removed`), as a removal is said.
  *
  * The only owner is told how the workspace itself is deleted instead: it is theirs, on the computer
  * it runs on, and nothing here takes it away.
@@ -19,13 +21,13 @@ import {
 import { Button } from "@chipschat/ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ConfirmDialog } from "../ConfirmDialog.tsx";
-import { Card, Row } from "./controls.tsx";
+import { FormPage } from "./Form.tsx";
+import { ListRow } from "./list.tsx";
 import type { PeopleService } from "./services.ts";
 
 type Asked = Extract<DeleteAccountSheet, { kind: "delete" }>;
 
-export function DeleteAccount(props: {
+export function DeleteAccountRow(props: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
@@ -33,7 +35,9 @@ export function DeleteAccount(props: {
   readonly people: PeopleService;
   readonly onDelete: () => Promise<void>;
 }) {
-  const [asked, setAsked] = useState<DeleteAccountSheet | undefined>(undefined);
+  const [asked, setAsked] = useState<
+    { readonly words: DeleteAccountSheet; readonly from: HTMLElement } | undefined
+  >(undefined);
   const words = (devices?: number) =>
     deleteAccountSheet({
       model: props.model,
@@ -42,47 +46,84 @@ export function DeleteAccount(props: {
       workspace: props.workspace,
       devices,
     });
-  const open = () => {
+  const open = (from: HTMLElement) => {
     const first = words();
-    setAsked(first);
+    setAsked({ words: first, from });
     if (first.kind === "only_owner") return;
-    // The count of devices is the server's, read once the dialog is up.
+    // The count of devices is the server's, read once the page is up.
     void props.people
       .devices()
       .then((held) => {
         const counted = words(held.filter((each) => each.revokedAt === undefined).length);
-        setAsked((now) => (now === undefined ? now : counted));
+        setAsked((now) => (now === undefined ? now : { ...now, words: counted }));
       })
       .catch(() => undefined);
   };
   return (
-    <Card label="Your account" testId="your-account" title="Your account">
-      <Row label="Delete your account" sub={`You leave ${props.workspace} on every device`}>
-        <Button variant="danger" onClick={open} data-testid="delete-account">
-          Delete…
-        </Button>
-      </Row>
-      {asked?.kind === "only_owner" && (
-        <ConfirmDialog
-          asking={{ title: asked.title, body: asked.body, confirm: "OK" }}
-          danger={false}
-          cancel={null}
-          onCancel={() => setAsked(undefined)}
-          onConfirm={() => setAsked(undefined)}
-        />
+    <>
+      <ListRow
+        label="Delete your account"
+        tone="danger"
+        onOpen={open}
+        bare
+        ariaLabel={`Delete your account: you leave ${props.workspace} on every device`}
+        testId="delete-account"
+      />
+      {asked !== undefined && (
+        <FormPage
+          title="Delete your account"
+          from={asked.from}
+          testId="delete-account-page"
+          onGone={() => setAsked(undefined)}
+        >
+          {() =>
+            asked.words.kind === "only_owner" ? (
+              <div className="delete-page" data-testid="delete-only-owner">
+                <h3>{asked.words.title}</h3>
+                <p>{asked.words.body}</p>
+              </div>
+            ) : (
+              <DeleteAccountPage words={asked.words} onDelete={props.onDelete} />
+            )
+          }
+        </FormPage>
       )}
-      {asked?.kind === "delete" && (
-        <DeleteAccountDialog
-          words={asked}
-          onCancel={() => setAsked(undefined)}
-          onDelete={props.onDelete}
-        />
-      )}
-    </Card>
+    </>
   );
 }
 
-export function DeleteAccountDialog(props: {
+/** What goes and what stays, and the button that asks the last time. */
+function DeleteAccountPage(props: {
+  readonly words: Asked;
+  readonly onDelete: () => Promise<void>;
+}) {
+  const { words } = props;
+  const [asking, setAsking] = useState(false);
+  return (
+    <div className="delete-page">
+      <p>{words.lead}</p>
+      <div className="delete-lists">
+        <Listed heading="Goes" lines={words.goes} testId="delete-goes" />
+        <Listed heading="Stays" lines={words.stays} testId="delete-stays" stays />
+      </div>
+      <div className="you-form-actions">
+        <Button variant="danger" onClick={() => setAsking(true)} data-testid="delete-account-ask">
+          {words.confirm}
+        </Button>
+      </div>
+      {asking && (
+        <DeleteAccountDialog
+          words={words}
+          onCancel={() => setAsking(false)}
+          onDelete={props.onDelete}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The last step, as a dialog: the workspace's name typed, then Delete; Keep it goes back. */
+function DeleteAccountDialog(props: {
   readonly words: Asked;
   readonly onCancel: () => void;
   /** Resolves once the server has done it; a rejection's message is shown and the dialog stays. */
@@ -127,12 +168,8 @@ export function DeleteAccountDialog(props: {
         if (!busy) props.onCancel();
       }}
     >
-      <h2 id={titleId}>{words.title}</h2>
+      <h2 id={titleId}>{words.title}?</h2>
       <p>{words.lead}</p>
-      <div className="delete-lists">
-        <Listed heading="Goes" lines={words.goes} testId="delete-goes" />
-        <Listed heading="Stays" lines={words.stays} testId="delete-stays" stays />
-      </div>
       {failed !== undefined && (
         <p className="confirm-failed" role="alert" data-testid="confirm-failed">
           {failed}

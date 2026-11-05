@@ -37,6 +37,10 @@ test("a browser away from the network reaches the server through the relay; one 
   expect(payload.get("relay")).toBe(RELAY);
   expect(payload.get("key")).toMatch(/^[A-Za-z0-9_-]{43}$/);
   await expect(page.getByRole("img", { name: /A QR code/ })).toBeVisible();
+  // The code outlives its form's page (ADR 0265's addendum): another row's page takes its place.
+  const form = page.getByTestId("pair-form");
+  await page.getByTestId("people-row").click();
+  await expect(form).toHaveCount(0);
 
   // Away: the network address is a port nothing listens on. The phone-like browser falls back
   // to the relay on its own, and says so.
@@ -85,6 +89,8 @@ test("a browser away from the network reaches the server through the relay; one 
   await page.getByTestId("you").click();
   await page.getByTestId("issue-code").click();
   const homeLink = (await page.getByTestId("pairing-link").textContent()) ?? "";
+  await page.getByTestId("people-row").click();
+  await expect(form).toHaveCount(0);
   const home = await browser.newContext();
   const laptop = await home.newPage();
   try {

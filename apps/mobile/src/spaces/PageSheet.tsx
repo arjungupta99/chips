@@ -27,6 +27,9 @@
  * React's tree it still sits inside the room's list: a finger on Done tells that list it is being
  * touched, every scroll the coasting page reports asks the list whether it wants the finger, and
  * it does. A press gives way to a scroll that asks unless it is not `cancelable`.
+ *
+ * On an iPad it covers the window, which is how Universe's Full screen opens a page, and Esc on its
+ * keys closes it as Done does.
  */
 
 import { type Attachment, isMarkdown, markdownPage, withHtmlPolicy } from "@chipschat/core";
@@ -35,6 +38,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Arrival } from "../ui/Arrival";
 import { IconButton } from "../ui/Button";
+import { useEscape } from "../ui/menuBar";
 import { usePalette, useScheme } from "../ui/theme";
 import { SPACE, TEXT } from "../ui/tokens";
 import { UniverseReading } from "../ui/UniverseMark";
@@ -111,6 +115,7 @@ function PageSheetOf({
   const palette = usePalette();
   const scheme = useScheme();
   const insets = useSafeAreaInsets();
+  useEscape(true, onClose);
   const [read, setRead] = useState<Read>({ state: "reading" });
   const markdown = isMarkdown(page.mimeType);
   const html = useMemo(() => {

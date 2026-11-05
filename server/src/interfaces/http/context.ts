@@ -51,8 +51,8 @@ import type {
   Presence,
   Principal,
   ProjectDoor,
-  PushReadiness,
   PushRegistry,
+  PushStanding,
   PutAgentContextWindow,
   PutAgentHeartbeat,
   PutAgentModel,
@@ -96,6 +96,7 @@ import type {
 import type { HiddenSpaceRegistry } from "../../application/ports/hidden-spaces.js";
 import type { PinnedSpaceRegistry } from "../../application/ports/pinned-spaces.js";
 import type { PageBuilder } from "../../application/ports/projects.js";
+import type { ReadMarkRegistry } from "../../application/ports/read-marks.js";
 import type { RelayStatus, RelayTrouble } from "../../application/ports/relay-switch.js";
 import type { SpaceIconRegistry } from "../../application/ports/space-icons.js";
 import type { ConnectorGallery } from "../../infrastructure/connectors/gallery.js";
@@ -278,10 +279,15 @@ export interface GatewayDeps {
   readonly hiddenSpaces: HiddenSpaceRegistry;
   /** The rooms a person pinned to the top of their own list (ADR 0240). */
   readonly pinnedSpaces: PinnedSpaceRegistry;
+  /** How far each person has read each room, followed between their devices (ADR 0262). */
+  readonly readMarks: ReadMarkRegistry;
   /** Where a push may reach a phone (M4.3, ADR 0045). */
   readonly push: PushRegistry;
-  /** Whether a push can go at all, which the phone's switch says when it cannot (ADR 0244). */
-  readonly pushReadiness: () => PushReadiness;
+  /**
+   * Whether a push can go at all, or whether the last ones got through, which the phone's switch
+   * says when they can't or didn't (ADR 0244).
+   */
+  readonly pushStanding: () => PushStanding;
   /** Which visit a person's messages in a space go to (ADR 0040). */
   readonly sessionPins: SessionPinRegistry;
   /** The live sockets, so a withdrawn credential stops now. */

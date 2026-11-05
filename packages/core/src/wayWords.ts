@@ -18,6 +18,14 @@ export function wayOf(connection: ConnectionState, link: LinkKind | undefined): 
   return link === "relay" ? "relay" : "direct";
 }
 
+/** The way at the right of You's Connection row, which opens the page that says the rest. */
+export const WAY_VALUE: Readonly<Record<Way, string>> = {
+  direct: "Direct",
+  relay: "Relay",
+  connecting: "Connecting…",
+  lost: "Not connected",
+};
+
 /** The tailnet a server's address is on, `tail2f9c1e` from `….tail2f9c1e.ts.net`, or nothing. */
 export function tailnetOf(serverUrl: string | undefined): string | undefined {
   if (serverUrl === undefined || serverUrl === "") return undefined;

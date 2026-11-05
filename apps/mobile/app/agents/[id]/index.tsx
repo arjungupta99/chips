@@ -6,11 +6,12 @@
 
 import type { Store } from "@chipschat/core";
 import { nameOf } from "@chipschat/core";
-import { Redirect, Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { AgentCard } from "../../../src/agents/AgentCard";
 import { fileHref } from "../../../src/context/owner";
 import { useFocusCount } from "../../../src/context/useFocusCount";
 import { useChips, useSnapshot } from "../../../src/store/provider";
+import { BackToTabs } from "../../../src/ui/backToTabs";
 import { useLayout } from "../../../src/ui/layout";
 import { Screen } from "../../../src/ui/Screen";
 
@@ -21,7 +22,7 @@ export default function AgentScreen() {
   if (paired === undefined) return null;
   if (wide) {
     const params = lock === undefined ? { agent: id } : { agent: id, lock };
-    return <Redirect href={{ pathname: "/(tabs)/agents", params }} />;
+    return <BackToTabs tab="/(tabs)/agents" params={params} />;
   }
   return (
     <Card

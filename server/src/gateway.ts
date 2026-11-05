@@ -67,6 +67,7 @@ import {
   createPlayables,
   createPostJobRuns,
   createProjectDoor,
+  createPushReceipts,
   createPutAgentContextWindow,
   createPutAgentHeartbeat,
   createPutAgentModel,
@@ -171,6 +172,7 @@ import { createPasskeyRegistry } from "./infrastructure/store/passkey-registry.j
 import { createPeopleRegistry } from "./infrastructure/store/people-registry.js";
 import { createPinnedSpaceRegistry } from "./infrastructure/store/pinned-space-registry.js";
 import { createPushRegistry } from "./infrastructure/store/push-registry.js";
+import { createReadMarkRegistry } from "./infrastructure/store/read-mark-registry.js";
 import { createReadModels } from "./infrastructure/store/read-models.js";
 import { createRelaySwitchRegistry } from "./infrastructure/store/relay-switch.js";
 import { fileGate } from "./infrastructure/store/room-files.js";
@@ -549,6 +551,8 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
       running?.ws.whenMac(workspaceId, participantId, withinMs) ?? Promise.resolve(0),
     runState: (workspaceId, participantId, frame) =>
       running?.ws.runState(workspaceId, participantId, frame) ?? 0,
+    reads: (workspaceId, participantId, frame) =>
+      running?.ws.reads(workspaceId, participantId, frame) ?? 0,
     contextEdit: (workspaceId, harnessId, frame) =>
       running?.ws.contextEdit(workspaceId, harnessId, frame) ?? 0,
     hearingContext: (workspaceId, harnessId) =>
@@ -780,15 +784,24 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
   const spaceIcons = createSpaceIconRegistry(db);
   const hiddenSpaces = createHiddenSpaceRegistry(db);
   const pinnedSpaces = createPinnedSpaceRegistry(db);
+  const readMarks = createReadMarkRegistry(db);
   const pushTokens = createPushRegistry(db);
   // One sender for every push, so that what it learns about whether it can send at all holds for
   // all of them (ADR 0244). Without Expo's access token, it sends through Chips's push relay
   // (ADR 0246).
-  const pushSender = createExpoPushSender({
-    url: pushUrlOf(config.push),
-    accessToken: config.push.accessToken,
+  // Every push goes through what notes its ticket, so its receipt is asked for and a deleted
+  // app's token forgotten (the stranger review, 4 November 2026).
+  const pushReceipts = createPushReceipts({
+    sender: createExpoPushSender({
+      url: pushUrlOf(config.push),
+      accessToken: config.push.accessToken,
+      logger,
+    }),
+    push: pushTokens,
+    clock: systemClock,
     logger,
   });
+  const pushSender = pushReceipts.sender;
   // A decision reaches the phones of whoever may answer it, carrying two ids and no words
   // (M4.3, ADR 0045). The same claim ledger the browser's banners use keeps it to one device.
   const notifyPush = createNotifyPush({
@@ -832,6 +845,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
       await notifyMessage.after(event);
     },
     leaving: oneRoom.leaving,
+    archived: (workspaceId, spaceId) => pinnedSpaces.forgetSpace(workspaceId, spaceId),
     maxAttachmentBytes: config.limits.maxAttachmentBytes,
     dropped: droppedInTheLog(logger),
     ...(projects === undefined
@@ -857,6 +871,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     notifications,
     searchIndex,
     push: pushTokens,
+    receipts: pushReceipts,
     uploads,
     // Built below, with the pairing it needs; the sweep only runs once the server listens.
     joins: { expire: () => joinRequests.expire() },
@@ -1148,8 +1163,9 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     spaceIcons,
     hiddenSpaces,
     pinnedSpaces,
+    readMarks,
     push: pushTokens,
-    pushReadiness: pushSender.readiness,
+    pushStanding: pushSender.standing,
     sessionPins,
     sessions,
     macApp: options.macApp,
@@ -1235,6 +1251,11 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
           harnessGrant(arrivedAt ?? base, grants, systemClock.nowMs(), { attachmentId, tokenId }),
         // A person's time in the room note is their newest phone's (ADR 0157).
         zonesOf: (workspaceId, people) => pushTokens.zonesOf(workspaceId, people),
+        // A project that has had a push is one its room shows Universe for (ADR 0227).
+        hasProject:
+          projects === undefined
+            ? undefined
+            : async (spaceId) => (await projects.head(spaceId)) !== null,
         heartbeatSeconds: config.realtime.heartbeatSeconds,
         idleTimeoutSeconds: config.realtime.idleTimeoutSeconds,
         maxUnackedFrames: config.realtime.maxUnackedFrames,

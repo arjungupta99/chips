@@ -6,6 +6,7 @@
 
 import { Platform, View } from "react-native";
 import { BAR_HEIGHT, BAR_ROOM } from "../ui/barShape";
+import { useDuo } from "../ui/duo";
 import { ReadingWatch } from "../ui/phoneBarNative";
 
 /** Across, in points: as tall as the bar at rest on an iPhone. */
@@ -30,9 +31,11 @@ export const PLUS_ROOM =
 
 /**
  * That room, as the last thing in a tab's list. On an iPhone it also holds what tells the bar
- * whether the list is being read (`ReadingWatch`), which finds the list by standing in it.
+ * whether the list is being read (`ReadingWatch`), which finds the list by standing in it. On the
+ * iPhone Duo the bar stands in the column beside the list (`ui/SideColumn.tsx`), and nothing is kept.
  */
 export function PlusRoom() {
-  if (PLUS_ROOM === 0) return null;
+  const { column } = useDuo();
+  if (PLUS_ROOM === 0 || column > 0) return null;
   return <View style={{ height: PLUS_ROOM }}>{DRAWN_BAR ? <ReadingWatch /> : null}</View>;
 }

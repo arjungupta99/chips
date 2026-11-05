@@ -37,7 +37,7 @@ async function openRoom(page: Page, title: string): Promise<void> {
   await name.fill(title);
   await name.press("Enter");
   await expect(page.getByRole("main", { name: `Space: ${title}` })).toBeVisible();
-  await expect(page.getByTestId("room-sheet-add-done")).toBeVisible();
+  await expect(page.getByTestId("room-sheet-add-page")).toBeVisible();
 }
 
 /** From the open room's sheet (ADR 0151): Robin, in its own room, forked here. */
@@ -113,7 +113,9 @@ test("a fork's copy joins the room it was asked for, and a copy not made is said
     await page.getByRole("button", { name: /^Agents/ }).click();
     const copy = page.locator('[data-testid^="agent-agt_"]', { hasText: "Robin 2 · fork" });
     await copy.click();
-    await expect(page.getByTestId("agent-forked-from")).toContainText("Forked from Robin");
+    const from = page.getByTestId("agent-forked-from");
+    await expect(from).toContainText("Forked from");
+    await expect(from).toContainText("Robin");
   } finally {
     harness.close();
   }

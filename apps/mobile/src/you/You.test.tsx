@@ -3,7 +3,8 @@
  * top, the rows that say what each setting is at, one card under each heading, the workspace's own
  * group for the people who run it, what this phone keeps and which build it is, the devices that
  * hold your key, and a sign-out that reaches the server. The notification sheets, the push switch
- * and the workspace row have their own files.
+ * and the workspace row have their own files. On an iPad, beside the list, the rows' sheets are
+ * pages in the pane, and the row stays chosen while its page is open; on a phone they are sheets.
  */
 
 import type { Device, Store } from "@chipschat/core";
@@ -16,14 +17,17 @@ import {
   waitFor,
   within,
 } from "@testing-library/react-native";
-import type { ReactElement, ReactNode } from "react";
-import { Alert, type AlertButton, Share } from "react-native";
+import { type ReactElement, type ReactNode, useState } from "react";
+import { Alert, type AlertButton, Dimensions, Share } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { drawLibrary } from "../testing/picker";
 import { chooseFaceTheme } from "../ui/faceTheme";
+import type { Opened } from "../ui/opened";
 import { buildWords } from "./About";
 import { ARRIVAL_POLL_MS, arrivedSince } from "./PairSheet";
-import { You } from "./You";
+import { isYouPage, isYouThird, YouBeside, type YouPage } from "./pages";
+import { useYou, You } from "./You";
+import { YouPane, youThird } from "./YouPane";
 
 /**
  * A tab's name floats over its list on iOS, and asks for the safe area to know where the status
@@ -129,6 +133,48 @@ const DEVICES = [
   { deviceId: "dev_4", name: "An old phone", current: false, pairedAt: ago(9), revokedAt: ago(1) },
 ];
 
+/** One of Scout's asks, answered by Arjun. */
+const asked = (id: string, question: string, minute: number, decision: string) => ({
+  approvalId: id,
+  runId: "run_scout",
+  actionKind: "shell.exec",
+  askedAt: `2026-11-01T10:0${minute}:00.000Z`,
+  question,
+  risk: [],
+  sources: [],
+  editable: false,
+  fallback: "deny",
+  approvers: [],
+  resolved: {
+    decision,
+    by: "per_arjun",
+    at: `2026-11-01T10:0${minute}:30.000Z`,
+    scope: "once",
+    elsewhere: false,
+  },
+});
+
+/** A room where Scout asked twice: a yes, then a no. */
+const ASKED_ROOM = {
+  id: "spc_asked",
+  title: "Tic tac toe",
+  kind: "room",
+  members: ["per_arjun", "har_scout"],
+  roles: {},
+  state: "open",
+  lines: [],
+  runs: [
+    {
+      runId: "run_scout",
+      harnessId: "har_scout",
+      approvals: [
+        asked("apr_1", "Run npm test?", 1, "approved"),
+        asked("apr_2", "Push to main?", 2, "denied"),
+      ],
+    },
+  ],
+};
+
 function fake(
   over: {
     role?: string;
@@ -150,6 +196,8 @@ function fake(
     relay?: { on: boolean; by: string; at: string };
     /** Why the server refuses to delete the account, when it does (ADR 0243). */
     refuseDelete?: string;
+    /** Scout's asks so far in a room of its own, answered yes and then no (ADR 0255). */
+    asks?: boolean;
   } = {},
 ) {
   const snapshot = {
@@ -190,7 +238,7 @@ function fake(
                 bySpace: {},
               },
             },
-      spaces: [],
+      spaces: over.asks === true ? [ASKED_ROOM] : [],
       people: { per_arjun: { participantId: "per_arjun", role: over.role ?? "owner" } },
       attachmentCaps: over.caps ?? { image: null, video: null, file: null },
       exchangeLimits: over.limits ?? { stop: 16, hold: 48, circles: true },
@@ -783,6 +831,18 @@ describe("the workspace's own group", () => {
     expect(sheet.queryByText("Nothing allowed always.")).toBeNull();
   });
 
+  it("opens every ask from the dots: the sheet goes down, then the list comes up (ADR 0255)", async () => {
+    mockPushed.length = 0;
+    await render(<You device={DEVICE} store={fake({ asks: true })} />);
+    await userEvent.press(screen.getByTestId("allowed-always-row"));
+    const sheet = within(screen.getByTestId("always-sheet-panel"));
+    const dots = sheet.getByRole("button", { name: /^Asks so far: 2 asks since/ });
+    expect(dots).toHaveProp("accessibilityHint", "Opens every ask");
+    await userEvent.press(dots);
+    await waitFor(() => expect(screen.queryByTestId("always-sheet-panel")).toBeNull());
+    expect(mockPushed).toEqual(["/asks"]);
+  });
+
   it("counts what is allowed always, and switches it from the sheet as on the harness's page (ADR 0195)", async () => {
     const rule = {
       match: "shell.exec",
@@ -834,6 +894,21 @@ describe("the workspace's own group", () => {
     await userEvent.press(screen.getByTestId("people-row"));
     await userEvent.press(screen.getByTestId("invite-row"));
     expect(mockPushed.slice(-2)).toEqual(["/people", "/invite"]);
+  });
+
+  it("opens a row's page beside the list on an iPad, and chooses its row while it is open (ADR 0256)", async () => {
+    const went: (YouPage | undefined)[] = [];
+    await render(
+      <YouBeside value={{ open: "people", go: (page) => went.push(page) }}>
+        <You device={DEVICE} store={fake()} />
+      </YouBeside>,
+    );
+    expect(screen.getByTestId("people-row")).toBeSelected();
+    expect(await screen.findByTestId("invite-row")).not.toBeSelected();
+    await userEvent.press(screen.getByTestId("invite-row"));
+    await userEvent.press(screen.getByTestId("about-connection"));
+    expect(went).toEqual(["invite", "connection"]);
+    expect(mockPushed).toEqual([]);
   });
 
   it("shows an admin People and no Invite someone: only an owner invites", async () => {
@@ -1055,5 +1130,242 @@ describe("deleting your account (ADR 0243)", () => {
       [{ text: "OK" }],
     );
     expect(screen.queryByTestId("delete-account-sheet")).toBeNull();
+  });
+});
+
+/**
+ * The list and the pane beside it, as the route draws them on an iPad (`app/(tabs)/you.tsx`): one
+ * You, whose rows open their pages in the pane, kept here as the tabs keep them.
+ */
+function IPad({ store, device = DEVICE }: { readonly store: Store; readonly device?: Device }) {
+  const [opened, go] = useState<Opened>({});
+  const page = opened["page"];
+  const third = opened["third"];
+  return (
+    <YouBeside
+      value={{
+        open: isYouPage(page) ? page : undefined,
+        go: (next) => go(next === undefined ? {} : { page: next }),
+        third: isYouThird(third) ? third : undefined,
+        goThird: (next) => go(next === undefined ? { page } : { page, third: next }),
+      }}
+    >
+      <Halves store={store} device={device} opened={opened} go={go} />
+    </YouBeside>
+  );
+}
+
+function Halves({
+  store,
+  device,
+  opened,
+  go,
+}: {
+  readonly store: Store;
+  readonly device: Device;
+  readonly opened: Opened;
+  readonly go: (next: Opened) => void;
+}) {
+  const you = useYou({ device, store });
+  return (
+    <>
+      {you.screen}
+      <YouPane
+        device={device}
+        store={store}
+        files={{} as never}
+        opened={opened}
+        go={go}
+        pages={you.pages}
+      />
+      {youThird({ device, store, opened, go })}
+    </>
+  );
+}
+
+/** What says the pane has nothing open. */
+const NOTHING_OPEN = "Choose a row on the left.";
+
+describe("beside the list on an iPad (ADR 0256, 3 November 2026)", () => {
+  it("opens each row's sheet as a page in the pane, chooses the row, and opens no sheet", async () => {
+    await render(<IPad store={fake({ role: "member", name: "Arj" })} />);
+    expect(screen.getByText(NOTHING_OPEN)).toBeTruthy();
+    const rows: readonly [string, string, string][] = [
+      ["profile-face", "face-page", "icon-sheet"],
+      ["decisions-row", "decide-page", "decide-sheet"],
+      ["quiet-row", "quiet-page", "quiet-sheet"],
+      ["agents-row", "agents-page", "agents-sheet"],
+      ["pair-computer", "pair-page", "pair-sheet"],
+      ["delete-account", "delete-account-page", "delete-account-sheet"],
+    ];
+    for (const [row, page, sheet] of rows) {
+      await userEvent.press(await screen.findByTestId(row));
+      expect(await screen.findByTestId(page)).toBeOnTheScreen();
+      expect(screen.getByTestId(row)).toBeSelected();
+      expect(screen.queryByTestId(sheet)).toBeNull();
+      expect(screen.queryByText(NOTHING_OPEN)).toBeNull();
+    }
+    expect(mockPushed).toEqual([]);
+  });
+
+  it("names the page in the pane's bar, and keeps it open as a choice is made, the row saying it", async () => {
+    await render(<IPad store={fake()} />);
+    await userEvent.press(screen.getByTestId("decisions-row"));
+    expect(screen.getByRole("header", { name: "Decisions" })).toBeTruthy();
+    await userEvent.press(screen.getByTestId("decide-off"));
+    expect(screen.getByRole("button", { name: "Decisions, Off" })).toBeSelected();
+    expect(screen.getByTestId("decide-page")).toBeOnTheScreen();
+  });
+
+  it("saves the attachment limits from the bar's Save, and goes back to nothing open", async () => {
+    const store = fake();
+    await render(<IPad store={store} />);
+    await userEvent.press(await screen.findByTestId("caps-row"));
+    expect(screen.getByRole("header", { name: "Attachment limits" })).toBeTruthy();
+    await userEvent.type(screen.getByLabelText("Photos"), "25");
+    await userEvent.press(screen.getByTestId("caps-save"));
+    expect(store.calls).toEqual([
+      { name: "setAttachmentCaps", args: { image: 25 * MB, video: null, file: null } },
+    ]);
+    expect(screen.getByText(NOTHING_OPEN)).toBeTruthy();
+    expect(screen.getByTestId("caps-row")).not.toBeSelected();
+    expect(screen.queryByTestId("caps-sheet")).toBeNull();
+  });
+
+  it("holds Save for the messages between agents until something new is picked", async () => {
+    const store = fake();
+    await render(<IPad store={store} />);
+    await userEvent.press(await screen.findByTestId("exchange-limits-row"));
+    const page = within(screen.getByTestId("exchange-limits-page"));
+    expect(page.getByText("Why this is here")).toBeTruthy();
+    expect(screen.getByTestId("exchange-limits-save")).toBeDisabled();
+    await userEvent.press(page.getByTestId("exchange-stop-32"));
+    await userEvent.press(screen.getByTestId("exchange-limits-save"));
+    expect(store.calls).toEqual([
+      { name: "setExchangeLimits", args: { stop: 32, hold: 48, circles: true } },
+    ]);
+    expect(screen.getByText(NOTHING_OPEN)).toBeTruthy();
+  });
+
+  it("says on the page what is allowed always, as the sheet does", async () => {
+    await render(<IPad store={fake()} />);
+    await userEvent.press(await screen.findByTestId("allowed-always-row"));
+    const page = within(screen.getByTestId("always-page"));
+    expect(page.getByTestId("always-none")).toBeTruthy();
+    expect(page.getByTestId("always-sheet-asking")).toHaveTextContent("Scout asks every time.");
+    expect(screen.queryByTestId("always-sheet")).toBeNull();
+  });
+
+  it("opens every ask in a third column beside Allowed always, and shuts it (ADR 0276)", async () => {
+    mockPushed.length = 0;
+    await render(<IPad store={fake({ asks: true })} />);
+    await userEvent.press(await screen.findByTestId("allowed-always-row"));
+    const dots = within(screen.getByTestId("always-page")).getByTestId("always-none-history");
+    await userEvent.press(dots);
+    const list = within(screen.getByTestId("ask-list"));
+    expect(list.getByText("Push to main?")).toBeTruthy();
+    expect(list.getByText("Run npm test?")).toBeTruthy();
+    expect(dots).toBeSelected();
+    expect(mockPushed).toEqual([]);
+    // Its way back: an × in the split's third column, Back where it stands alone, as here.
+    await userEvent.press(screen.getByTestId("pane-back"));
+    expect(screen.queryByTestId("ask-list")).toBeNull();
+    expect(screen.getByTestId("always-page")).toBeTruthy();
+  });
+
+  it("gives the pairing code on the page, under its name in the bar", async () => {
+    const store = fake();
+    await render(<IPad store={store} />);
+    await userEvent.press(await screen.findByTestId("pair-computer"));
+    expect(await screen.findByTestId("pair-code")).toHaveTextContent("K7Q-94M");
+    expect(screen.getByRole("header", { name: "Pair a computer" })).toBeTruthy();
+  });
+
+  it("saves the face tapped on its page, with you at its head", async () => {
+    const store = fake({ name: "Arj" });
+    await render(<IPad store={store} />);
+    await userEvent.press(screen.getByTestId("profile-face"));
+    const page = await screen.findByTestId("face-page");
+    expect(screen.getByRole("header", { name: "Your face" })).toBeTruthy();
+    expect(within(page).getByText("Owner · Northwind")).toBeTruthy();
+    await drawLibrary();
+    await userEvent.press(screen.getByTestId("mark-tent"));
+    expect(store.calls.filter((each) => each.name === "setMyFace")).toEqual([
+      { name: "setMyFace", args: { icon: "tent", ground: expect.any(Number) } },
+    ]);
+  });
+
+  it("deletes the account from its page once the name is typed, and Keep it goes back", async () => {
+    const asked = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    const store = fake({ role: "member" });
+    await render(<IPad store={store} />);
+    await userEvent.press(screen.getByTestId("delete-account"));
+    const page = within(await screen.findByTestId("delete-account-page"));
+    expect(screen.getByRole("header", { name: "Delete your account" })).toBeTruthy();
+    expect(
+      await page.findByText("Your 3 devices and their sign-ins, and push to them"),
+    ).toBeTruthy();
+    await userEvent.press(page.getByRole("button", { name: "Keep it" }));
+    expect(screen.getByText(NOTHING_OPEN)).toBeTruthy();
+    expect(store.calls.some((call) => call.name === "deleteAccount")).toBe(false);
+
+    await userEvent.press(screen.getByTestId("delete-account"));
+    const again = within(await screen.findByTestId("delete-account-page"));
+    await userEvent.type(again.getByTestId("delete-account-typed"), "Northwind");
+    await userEvent.press(again.getByTestId("delete-account-confirm"));
+    await waitFor(() => expect(mockReplaced).toEqual(["/pair"]));
+    expect(asked).toHaveBeenCalledWith(
+      "You've left Northwind",
+      "Your account there is deleted.",
+      expect.any(Array),
+    );
+  });
+
+  it("still tells the only owner in an alert, and opens no page", async () => {
+    const asked = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+    await render(<IPad store={fake()} />);
+    await userEvent.press(screen.getByTestId("delete-account"));
+    expect(asked).toHaveBeenCalledWith("You own Northwind", expect.any(String), [{ text: "OK" }]);
+    expect(screen.getByText(NOTHING_OPEN)).toBeTruthy();
+  });
+});
+
+describe("on a phone", () => {
+  const IPHONE_WINDOW = { width: 393, height: 852, scale: 3, fontScale: 1 };
+  let was: ReturnType<typeof Dimensions.get>;
+  beforeEach(() => {
+    was = Dimensions.get("window");
+    Dimensions.set({ window: IPHONE_WINDOW });
+  });
+  afterEach(() => Dimensions.set({ window: was }));
+
+  it("opens the rows' sheets as sheets, and pushes nothing", async () => {
+    await render(<You device={DEVICE} store={fake({ role: "member" })} />);
+    const rows: readonly [string, string][] = [
+      ["decisions-row", "decide-sheet"],
+      ["quiet-row", "quiet-sheet"],
+      ["pair-computer", "pair-sheet"],
+      ["delete-account", "delete-account-sheet"],
+    ];
+    for (const [row, sheet] of rows) {
+      await userEvent.press(await screen.findByTestId(row));
+      expect(await screen.findByTestId(sheet)).toBeOnTheScreen();
+      expect(screen.queryByTestId(sheet.replace("-sheet", "-page"))).toBeNull();
+      await userEvent.press(screen.getByTestId(`${sheet}-close`));
+    }
+    expect(mockPushed).toEqual([]);
+  });
+
+  it("opens the workspace's own sheets as sheets too", async () => {
+    await render(<You device={DEVICE} store={fake()} />);
+    for (const [row, sheet] of [
+      ["caps-row", "caps-sheet"],
+      ["exchange-limits-row", "exchange-limits-sheet"],
+      ["allowed-always-row", "always-sheet"],
+    ] as const) {
+      await userEvent.press(await screen.findByTestId(row));
+      expect(await screen.findByTestId(sheet)).toBeOnTheScreen();
+      await userEvent.press(screen.getByTestId(`${sheet}-close`));
+    }
   });
 });

@@ -7,20 +7,24 @@
  * by tapping the face on the agent's card.
  */
 
-import { harnessOf, nameOf, type Snapshot, type Store } from "@chipschat/core";
+import { harnessOf, nameOf, type Snapshot, type Store, whyFaceNotSaved } from "@chipschat/core";
 import { useState } from "react";
-import { IconSheet, whyNotSaved } from "../spaces/IconSheet";
+import { IconSheet } from "../spaces/IconSheet";
+import type { SheetFrom } from "../ui/beside";
 
 export function FaceSheet({
   store,
   snapshot,
   agentId,
+  from,
   onClose,
 }: {
   readonly store: Store;
   readonly snapshot: Snapshot;
   /** The agent whose face is being chosen, or nothing while the sheet is shut. */
   readonly agentId: string | undefined;
+  /** What was pressed, or where its row was held: on an iPad the sheet opens beside it. */
+  readonly from?: SheetFrom | undefined;
   readonly onClose: () => void;
 }) {
   // Why the last pick did not stick. The store puts the old face back when the server refuses;
@@ -40,6 +44,7 @@ export function FaceSheet({
         onClose();
       }}
       onGone={() => setShowing(undefined)}
+      from={from}
       title={nameOf(directory, id)}
       subtitle={nameOf(directory, harnessOf(directory, id))}
       kind="agent"
@@ -47,7 +52,9 @@ export function FaceSheet({
       failed={failed}
       onChoose={(face) => {
         setFailed(undefined);
-        void store.setAgentFace(id, face).catch((error: unknown) => setFailed(whyNotSaved(error)));
+        void store
+          .setAgentFace(id, face)
+          .catch((error: unknown) => setFailed(whyFaceNotSaved(error)));
       }}
     />
   );

@@ -39,6 +39,7 @@ import { type BatchAsk, BatchSheet, FaceStack } from "../spaces/Selecting";
 import { Fold as FoldAway, type PickMark } from "../spaces/SelectMotion";
 import { type Picking, usePick } from "../spaces/usePick";
 import { Avatar, avatarCorner, faceGround } from "../ui/Avatar";
+import type { SheetFrom } from "../ui/beside";
 import * as feel from "../ui/haptics";
 import { usePalette } from "../ui/theme";
 import type { RowPick } from "./AgentRow";
@@ -101,7 +102,8 @@ export function useAgentPicking({
     closeRow,
   });
   const { chosen, stop, hold, move, afterSheet, letGo } = pick;
-  const asked = (kind: Kind) => () => setAsk({ kind, going: chosen, staying: [] });
+  const asked = (kind: Kind) => (from: SheetFrom) =>
+    setAsk({ kind, going: chosen, staying: [], from });
   // At once, as a swipe's Unarchive is: each row is held where it stood and folds away as the
   // server says it is back; one the server refuses stays, as a swipe's does, with a warning.
   const unarchive = () => {

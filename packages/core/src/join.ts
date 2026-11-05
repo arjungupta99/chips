@@ -196,49 +196,76 @@ export function linkWaitingWords(input: {
   };
 }
 
-/** What a person is asked to allow, in their words: a switch's label and a line under it. */
+/**
+ * What a person is asked to allow, in their words: a switch's label, a line under it where it has
+ * room (a harness's page), and a short sentence for where it has none: the connect card's two
+ * columns show it when the pointer rests on the row (Arjun, 1 November 2026: "all the switch
+ * options should have a very short explainer on hover"; ADR 0257).
+ */
 export interface CapabilityWords {
   readonly name: string;
   readonly label: string;
   readonly detail?: string | undefined;
+  readonly hint?: string | undefined;
 }
 
 const WORDS: Readonly<Record<string, Omit<CapabilityWords, "name">>> = {
   [HARNESS_CAPABILITIES.autonomy]: {
     label: "Take the autonomy dial",
     detail: "it asks you first as the dial says",
+    hint: "You choose how often it asks before it acts.",
   },
   [HARNESS_CAPABILITIES.newSpaces]: {
     label: "Start new spaces",
     detail: "when you ask it for one",
+    hint: "It opens a new space when you ask for one.",
   },
-  [HARNESS_CAPABILITIES.followsRooms]: { label: "Follow the spaces you open" },
-  [HARNESS_CAPABILITIES.agents]: { label: "Speak as several agents" },
-  [HARNESS_CAPABILITIES.forks]: { label: "Copy an agent", detail: "when you fork one" },
+  [HARNESS_CAPABILITIES.followsRooms]: {
+    label: "Follow the spaces you open",
+    hint: "When you archive or delete a space, it does too.",
+  },
+  [HARNESS_CAPABILITIES.agents]: {
+    label: "Speak as several agents",
+    hint: "Each of its agents talks under its own name.",
+  },
+  [HARNESS_CAPABILITIES.forks]: {
+    label: "Copy an agent",
+    detail: "when you fork one",
+    hint: "It makes a copy when you fork an agent.",
+  },
   [HARNESS_CAPABILITIES.newAgents]: {
     label: "Make new agents",
     detail: "when you ask from a space",
+    hint: "It adds an agent when you ask for one in a space.",
   },
-  [HARNESS_CAPABILITIES.restarts]: { label: "Be restarted from Chips" },
+  [HARNESS_CAPABILITIES.restarts]: {
+    label: "Be restarted from Chips",
+    hint: "Its page gets a Restart button.",
+  },
   [HARNESS_CAPABILITIES.contextFiles]: {
     label: "Share its agents' files",
     detail: "you read and edit them in Chips",
+    hint: "You read and edit its agents' files in Chips.",
   },
   [HARNESS_CAPABILITIES.models]: {
     label: "Change models from Chips",
     detail: "and how hard each agent thinks",
+    hint: "You pick each agent's model and how hard it thinks.",
   },
   [HARNESS_CAPABILITIES.heartbeats]: {
     label: "Keep a heartbeat",
     detail: "a turn of its own, every so often",
+    hint: "It takes a turn of its own every so often.",
   },
   [HARNESS_CAPABILITIES.contextWindows]: {
     label: "Show its context windows",
     detail: "and compact one when you ask",
+    hint: "You see how full each agent's context is, and can compact it.",
   },
   [HARNESS_CAPABILITIES.jobs]: {
     label: "Show the jobs it runs itself",
     detail: "what they cost, and a switch for each",
+    hint: "You see the jobs it runs on a schedule, and what each one costs.",
   },
 };
 
@@ -473,4 +500,73 @@ export function joinShareText(link: string, minutes = 15): string {
     "",
     'In code: join({ link }) from @chipschat/harness. In a shell: eval "$(chips join <link>)".',
   ].join("\n");
+}
+
+/**
+ * What a request says once it is decided, on the phone's sheet and the desktop's dialog alike
+ * (ADR 0271): a tick and who joined, or that it was allowed and is on its way, or that it was
+ * refused or ran out. `name` is how the request names itself; `pairedAs`, whom a device was paired
+ * as when an owner chose somebody else (ADR 0206).
+ */
+export function decidedWords(
+  request: JoinRequest,
+  name: string,
+  pairedAs?: string,
+): { readonly ok: boolean; readonly title: string; readonly line: string } {
+  switch (request.state) {
+    case "redeemed":
+      if (request.kind === "invite") {
+        return { ok: true, title: `${name} joined`, line: "They're in People now." };
+      }
+      if (request.kind === "device" || request.kind === "pairing") {
+        return pairedAs === undefined
+          ? { ok: true, title: `${name} is paired`, line: "It opens on your Spaces." }
+          : { ok: true, title: `${name} is paired`, line: `It opens on ${pairedAs}'s Spaces.` };
+      }
+      return { ok: true, title: `${name} joined`, line: "Its space is on your Spaces." };
+    case "allowed":
+      return {
+        ok: true,
+        title: "Allowed",
+        line:
+          request.kind === "invite"
+            ? `${name} is on the way in.`
+            : `${name} is collecting its key.`,
+      };
+    case "denied":
+      return { ok: false, title: "Not allowed", line: "Somebody said no." };
+    case "expired":
+      return { ok: false, title: "It expired", line: "It can ask again." };
+    default:
+      return { ok: false, title: "Waiting", line: "" };
+  }
+}
+
+/**
+ * What the allow sheet says around a request, on the phone's sheet and the desktop's dialog alike
+ * (ADR 0271): the labels over its parts, the note under them, and its two buttons.
+ */
+export const ALLOW_WORDS = {
+  asksTo: "It asks to",
+  pairAs: "Pair it as",
+  agentsNote: "Every agent can talk in the spaces it's in, and asks you before anything risky.",
+  codeLabel: "The code on the device",
+  codePlaceholder: "ABC-234",
+  allow: "Allow",
+  deny: "Don't allow",
+} as const;
+
+/** How a request is named on its sheet: its own name, or what kind of thing it is. */
+export function askingName(request: JoinRequest): string {
+  return request.name ?? (request.kind === "device" ? "A device" : "A harness");
+}
+
+/** The sheet's title for a request that asks by itself: "Tide wants to join", "iPad wants to pair". */
+export function askingTitle(request: JoinRequest, name: string): string {
+  return `${name} wants to ${request.kind === "device" ? "pair" : "join"}`;
+}
+
+/** The line under the code: a device's is typed from its screen, a harness's compared. */
+export function codeWords(name: string, typed: boolean): string {
+  return typed ? `Type the code ${name} shows.` : `Check it matches the code ${name} printed.`;
 }

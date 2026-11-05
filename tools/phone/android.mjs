@@ -21,10 +21,11 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   chooseDevice,
+  configTime,
   devicesFrom,
   gradleFailure,
   missingPackages,
@@ -79,6 +80,8 @@ function report(ok, what, detail, fix) {
 }
 
 const mtime = (path) => (existsSync(path) ? statSync(path).mtimeMs : undefined);
+const filesUnder = (dir) =>
+  existsSync(dir) ? readdirSync(dir, { recursive: true }).map((name) => `${dir}/${name}`) : [];
 
 /* ---------------------------------------------------------------- the Mac */
 
@@ -209,7 +212,7 @@ async function checkServer() {
 function prebuild() {
   const needed = prebuildNeeded({
     project: mtime(`${ANDROID}/app/build.gradle`),
-    config: mtime(`${MOBILE}/app.json`),
+    config: configTime(MOBILE, { mtime, filesUnder }),
     dependencies: mtime(`${MOBILE}/package.json`),
   });
   if (!needed) return true;

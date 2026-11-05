@@ -61,6 +61,7 @@ function harness(phones: PushToken[]) {
         return messages.map(() => ({ ok: true }));
       },
       readiness: () => "ready",
+      standing: () => "ready",
     },
     clock,
     logger: createLogger({ level: "silent" }),

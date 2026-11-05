@@ -157,6 +157,11 @@ export interface SessionOptions {
     workspaceId: string,
     participantIds: readonly string[],
   ) => Promise<ReadonlyMap<string, string>>;
+  /**
+   * Whether the space's project has had a change, which is when its room shows Universe (ADR 0227):
+   * the note then says where people open it. Absent, and it says nothing of a project.
+   */
+  readonly hasProject?: (spaceId: string) => Promise<boolean>;
   readonly onLog?: (
     level: "info" | "warn",
     message: string,
@@ -947,7 +952,8 @@ export class Session {
       lookup: (id) => this.who(id),
     });
     await this.withTurnNews(news, event, who, here, turn);
-    return roomNoteFor(here, who, now, news, turn.spend, new Date(nowMs).toISOString());
+    const project = (await this.options.hasProject?.(spaceId)) === true;
+    return roomNoteFor(here, who, now, news, turn.spend, new Date(nowMs).toISOString(), project);
   }
 
   /**

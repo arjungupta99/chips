@@ -1,17 +1,17 @@
 /**
- * Relay on the web and the Mac (ADR 0211, Phase 4): the owner's switch, as a card under the
- * workspace's heading. The phone has it on a page of its own (`apps/mobile/src/you/RelayPage.tsx`);
- * the words and the lists are core's, so both say the same.
+ * Relay on the web and the Mac (ADR 0211, Phase 4): the owner's switch, on a page of its own, as
+ * the phone has it (`apps/mobile/src/you/RelayPage.tsx`), beside You's list (ADR 0265); its row
+ * there says On or Off. The words and the lists are core's, so both say the same.
  *
  * Use the relay, on or off, with what it does under it, and on Chips's own relay that it counts
  * each day, linking What Chips counts (ADR 0208); while it is on and the server isn't connected to
  * it, why, as the server kept it; every device of the workspace by the way
- * it goes now, read again every five seconds while the card is drawn; and the Tailscale share
- * link kept for the next guest (Phase 3), to forget. A server with no relay has no card. Turning
- * it off asks first, in a dialog that
- * grows out of the switch: how many devices would lose the server, which, what happens to links,
- * "Ask them to go direct first" (a push to their people; the switch stays on), and "Turn off now".
- * On again is one click.
+ * it goes now, read again every five seconds while the page is open; and the Tailscale share
+ * link kept for the next guest (Phase 3), to forget. A server with no relay has no row. Turning
+ * it off asks first, on a page in this one's place with the way back to it (ADR 0265's addendum
+ * of 3 November 2026): how many devices would lose the server, which, what happens to links, "Ask
+ * them to go direct first" (a push to their people; the switch stays on), and "Turn off now". On
+ * again is one click.
  */
 
 import {
@@ -30,10 +30,10 @@ import {
   WHAT_CHIPS_COUNTS,
   wouldLose,
 } from "@chipschat/core";
-import { Button, Icon } from "@chipschat/ui";
+import { Button } from "@chipschat/ui";
 import { useEffect, useRef, useState } from "react";
-import { GrowingDialog } from "../GrowingDialog.tsx";
-import { Card, Problem, Row, reasonOf, Switch } from "./controls.tsx";
+import { Problem, Row, reasonOf, Switch } from "./controls.tsx";
+import { FormPage } from "./Form.tsx";
 import type { RelayService } from "./services.ts";
 
 /** How often the list is read again while the card is drawn. */
@@ -41,7 +41,33 @@ export const RELAY_EVERY_MS = 5000;
 /** How long the word after asking stays. */
 const SAID_MS = 4000;
 
-export function RelayCard(props: {
+/**
+ * Whether the server has a relay, for You's row, and whether it is on as the server last said:
+ * read when the connection opens. The workspace's own word (`model.relay`) wins once anybody has
+ * turned it, on any device.
+ */
+export function useRelayRow(
+  service: RelayService | undefined,
+  connected: boolean,
+): RelayFacts | undefined {
+  const [facts, setFacts] = useState<RelayFacts | undefined>(undefined);
+  useEffect(() => {
+    if (service === undefined || !connected) return;
+    let live = true;
+    service.read().then(
+      (read) => {
+        if (live) setFacts(read);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [service, connected]);
+  return facts;
+}
+
+export function RelayPage(props: {
   readonly service: RelayService;
   readonly directory: Directory;
   readonly selfId: string;
@@ -53,7 +79,7 @@ export function RelayCard(props: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [said, setSaid] = useState<string | undefined>(undefined);
-  // The switch's place, which the dialog grows out of.
+  // The switch's place: Turn off's page hands the keyboard back to the switch in it.
   const switchAt = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (said === undefined) return;
@@ -62,11 +88,20 @@ export function RelayCard(props: {
   }, [said]);
   const now = facts.value;
   const drawn = now?.configured === true;
+  // Sent here by Away from home: the page opens and its card lights gold, fading back, as a link
+  // just made does, so it is plain which was meant (Arjun, 1 November 2026: "Else it is
+  // confusing"). Each ask lights it again: the card is drawn anew under its key.
+  const [lit, setLit] = useState(0);
+  const reveal = service.reveal ?? 0;
   useEffect(() => {
-    if (!drawn || service.reveal !== true) return;
-    document.querySelector('[data-testid="relay"]')?.scrollIntoView({ block: "center" });
-  }, [drawn, service.reveal]);
-  // Where the server has no relay there is nothing to turn, and no card.
+    if (drawn && reveal !== 0) setLit(reveal);
+  }, [drawn, reveal]);
+  // Into view once the lit card is drawn.
+  useEffect(() => {
+    if (lit === 0) return;
+    document.querySelector('[data-testid="relay-card"]')?.scrollIntoView({ block: "nearest" });
+  }, [lit]);
+  // Where the server has no relay there is nothing to turn; its row is not drawn either.
   if (now === undefined || !now.configured) return null;
   const turn = (on: boolean) => {
     setBusy(true);
@@ -82,48 +117,65 @@ export function RelayCard(props: {
   const foot = relayFootWords(hostOf(now.url) ?? service.relayHost, machine, service.serverUrl);
   const notConnected = relayNotConnectedWords(now);
   return (
-    <Card label="Relay" testId="relay" title="Relay" level={3}>
-      <Row
-        label="Use the relay"
-        sub={
-          <>
-            {foot.before}
-            {foot.link !== undefined && (
-              <a href={WHAT_CHIPS_COUNTS} target="_blank" rel="noreferrer">
-                {foot.link}
-              </a>
-            )}
-          </>
-        }
-        testId="relay-row"
+    <div className="you-page" data-testid="relay">
+      <div
+        key={lit}
+        className={lit === 0 ? "you-card" : "you-card is-lit"}
+        data-testid="relay-card"
       >
-        <span ref={switchAt}>
-          <Switch
-            label="Use the relay"
-            checked={now.on}
-            disabled={busy}
-            onChange={(on) => (on ? turn(true) : setFrom(switchAt.current))}
-            testId="relay-switch"
-          />
-        </span>
-      </Row>
-      {notConnected !== undefined && (
-        <p className="you-card-note relay-not-connected" data-testid="relay-not-connected">
-          {notConnected}
-        </p>
+        <Row
+          label="Use the relay"
+          sub={
+            <>
+              {foot.before}
+              {foot.link !== undefined && (
+                <a href={WHAT_CHIPS_COUNTS} target="_blank" rel="noreferrer">
+                  {foot.link}
+                </a>
+              )}
+            </>
+          }
+          testId="relay-row"
+        >
+          <span ref={switchAt}>
+            <Switch
+              label="Use the relay"
+              checked={now.on}
+              disabled={busy}
+              onChange={(on) =>
+                on ? turn(true) : setFrom(switchAt.current?.querySelector("input") ?? null)
+              }
+              testId="relay-switch"
+            />
+          </span>
+        </Row>
+        {notConnected !== undefined && (
+          <p className="you-card-note relay-not-connected" data-testid="relay-not-connected">
+            {notConnected}
+          </p>
+        )}
+        <Problem error={error} />
+        {said !== undefined && (
+          <p className="way-now" role="status" data-testid="relay-said">
+            {said}
+          </p>
+        )}
+      </div>
+      {now.devices.length > 0 && (
+        <div className="you-card">
+          <Devices devices={now.devices} label={label} />
+        </div>
       )}
-      <Problem error={error} />
-      {said !== undefined && (
-        <p className="way-now" role="status" data-testid="relay-said">
-          {said}
-        </p>
-      )}
-      <Devices devices={now.devices} label={label} />
       {now.keptLink !== undefined && (
-        <Kept forget={service.forget} onForgot={() => facts.set({ ...now, keptLink: undefined })} />
+        <div className="you-card">
+          <Kept
+            forget={service.forget}
+            onForgot={() => facts.set({ ...now, keptLink: undefined })}
+          />
+        </div>
       )}
       {from !== undefined && (
-        <TurnOffDialog
+        <TurnOffPage
           from={from}
           losing={wouldLose(now.devices)}
           label={label}
@@ -134,7 +186,7 @@ export function RelayCard(props: {
           onGone={() => setFrom(undefined)}
         />
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -275,7 +327,7 @@ function Kept(props: { readonly forget: () => Promise<void>; readonly onForgot: 
  * Before the relay goes: how many devices would lose the server and which, what happens to links,
  * and the two ways on.
  */
-function TurnOffDialog(props: {
+function TurnOffPage(props: {
   readonly from: HTMLElement | null;
   readonly losing: readonly RelayDevice[];
   readonly label: (device: RelayDevice) => string;
@@ -285,90 +337,75 @@ function TurnOffDialog(props: {
   readonly onTurnOff: () => void;
   readonly onGone: () => void;
 }) {
-  const [leaving, setLeaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const others = props.losing.some((device) => device.participantId !== props.selfId);
-  const ask = () => {
-    setBusy(true);
-    setError(undefined);
-    props
-      .onAsk()
-      .then(
-        () => setLeaving(true),
-        (failure: unknown) => setError(reasonOf(failure)),
-      )
-      .finally(() => setBusy(false));
-  };
   return (
-    <GrowingDialog
+    <FormPage
+      title="Turn the relay off?"
       from={props.from}
-      labelledBy="relay-off-title"
-      className="go-direct-dialog"
-      testId="relay-off-dialog"
-      focus=".new-space-close"
-      leaving={leaving}
-      onLeave={() => setLeaving(true)}
+      testId="relay-off-page"
       onGone={props.onGone}
     >
-      <div className="go-direct-card">
-        <div className="model-head">
-          <h2 id="relay-off-title">Turn the relay off?</h2>
-          <button
-            type="button"
-            className="new-space-close"
-            aria-label="Close"
-            onClick={() => setLeaving(true)}
-          >
-            <Icon name="x" size={14} />
-          </button>
-        </div>
-        <p className="go-direct-lead" data-testid="relay-off-lead">
-          {turnOffLead(props.losing.length)}
-        </p>
-        {props.losing.length > 0 && (
-          <ul className="go-direct-steps relay-losing">
-            {props.losing.map((device) => (
-              <li key={device.deviceId}>
-                <span className="go-direct-words">
-                  <b>{props.label(device)}</b>
-                </span>
-                <span className="way-value">{directSince(device)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="join-note">{turnOffNote(props.serverUrl)}</p>
-        {error !== undefined && (
-          <p className="harness-add-error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="relay-off-decide">
-          {others && (
-            <button
-              type="button"
-              className="go-direct-ask"
-              disabled={busy}
-              onClick={ask}
-              data-testid="relay-ask"
-            >
-              Ask them to go direct first
-            </button>
-          )}
-          <Button
-            variant="danger"
-            disabled={busy}
-            onClick={() => {
-              props.onTurnOff();
-              setLeaving(true);
-            }}
-            data-testid="relay-turn-off"
-          >
-            Turn off now
-          </Button>
-        </div>
-      </div>
-    </GrowingDialog>
+      {({ close }) => {
+        const ask = () => {
+          setBusy(true);
+          setError(undefined);
+          props
+            .onAsk()
+            .then(close, (failure: unknown) => setError(reasonOf(failure)))
+            .finally(() => setBusy(false));
+        };
+        return (
+          <>
+            <p className="go-direct-lead" data-testid="relay-off-lead">
+              {turnOffLead(props.losing.length)}
+            </p>
+            {props.losing.length > 0 && (
+              <ul className="go-direct-steps relay-losing">
+                {props.losing.map((device) => (
+                  <li key={device.deviceId}>
+                    <span className="go-direct-words">
+                      <b>{props.label(device)}</b>
+                    </span>
+                    <span className="way-value">{directSince(device)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="join-note">{turnOffNote(props.serverUrl)}</p>
+            {error !== undefined && (
+              <p className="harness-add-error" role="alert">
+                {error}
+              </p>
+            )}
+            <div className="relay-off-decide">
+              {others && (
+                <button
+                  type="button"
+                  className="go-direct-ask"
+                  disabled={busy}
+                  onClick={ask}
+                  data-testid="relay-ask"
+                >
+                  Ask them to go direct first
+                </button>
+              )}
+              <Button
+                variant="danger"
+                disabled={busy}
+                onClick={() => {
+                  props.onTurnOff();
+                  close();
+                }}
+                data-testid="relay-turn-off"
+              >
+                Turn off now
+              </Button>
+            </div>
+          </>
+        );
+      }}
+    </FormPage>
   );
 }

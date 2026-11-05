@@ -16,6 +16,7 @@ import type {
   JobChangeFrame,
   JoinRequestView,
   ModelChangeFrame,
+  ReadFrame,
   WindowChangeFrame,
   WindowCompactFrame,
 } from "@chipschat/protocol";
@@ -74,6 +75,11 @@ export interface Sessions {
     participantId: string,
     frame: FolderRunStateFrame,
   ) => number;
+  /**
+   * How far a person read, on one of their devices (ADR 0262): `read` to every socket of theirs
+   * that said `reads`, and nobody else's. Returns how many.
+   */
+  readonly reads: (workspaceId: string, participantId: string, frame: ReadFrame) => number;
   /**
    * Send a person's edit of a context file to its harness (ADR 0134): the `context.edit` frame to
    * every socket of it that said `context` in its `hello`. Returns how many; nought means nobody

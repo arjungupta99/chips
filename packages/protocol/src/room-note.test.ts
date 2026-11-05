@@ -9,6 +9,7 @@ import {
   roomNoteFor,
   roomRules,
   toEveryAgent,
+  UNIVERSE_WORDS,
   yoursWithoutAt,
 } from "./room-note.js";
 
@@ -71,6 +72,36 @@ describe("the room note", () => {
     expect(room.notes[HELLO.id]).toBe(
       "In this space: Arjun (person, @Arjun), and you, Hello (@Hello). Everyone here reads what you write.",
     );
+  });
+
+  // 2 November 2026: asked where a report was, an agent sent Arjun to "the space's file list".
+  it("says where people open the space's project once it has one (ADR 0227)", () => {
+    const project = true;
+    const alone = roomNoteFor(
+      [ARJUN, HELLO],
+      [HELLO.id],
+      undefined,
+      {},
+      undefined,
+      undefined,
+      project,
+    );
+    expect(alone.notes[HELLO.id]).toBe(
+      `In this space: Arjun (person, @Arjun), and you, Hello (@Hello). Everyone here reads what you write. ${UNIVERSE_WORDS}`,
+    );
+    expect(alone.rules?.[HELLO.id]).toBe(`Everyone here reads what you write. ${UNIVERSE_WORDS}`);
+    const shared = roomNoteFor(
+      [ARJUN, ONE, TWO],
+      [TWO.id],
+      undefined,
+      {},
+      undefined,
+      undefined,
+      project,
+    );
+    expect(shared.rules?.[TWO.id]).toMatch(/waiting\. People open the space's project with/);
+    expect(noteWithoutRules(shared, TWO.id)).not.toContain("Universe");
+    expect(roomNoteFor([ARJUN, HELLO], [HELLO.id]).notes[HELLO.id]).not.toContain("Universe");
   });
 
   it("lists a member no handle reaches without one", () => {

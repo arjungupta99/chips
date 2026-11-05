@@ -17,6 +17,8 @@
  *   pnpm phone ship                   the quickest way onto the phone from here: installed from
  *                                     this Mac when it is on the Wi-Fi or plugged in, through
  *                                     TestFlight when it is not (`devices.mjs`)
+ *   pnpm phone ship "AG iPad Pro 2"   any of these on the device named; with none named, the
+ *                                     iPhone, though Xcode lists an iPad first (`deviceMeant`)
  *
  * No Expo Go anywhere in it. This is the installed app, signed by you, talking to your own
  * server.
@@ -55,19 +57,19 @@ import {
   readdirSync,
   readFileSync,
   statSync,
-  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, networkInterfaces, tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { prebuildNeeded } from "./android-plan.mjs";
-import { coreDeviceRowOf, shipRoute } from "./devices.mjs";
+import appConfig from "../../apps/mobile/app.config.js";
+import { configTime, prebuildNeeded } from "./android-plan.mjs";
+import { coreDeviceRowOf, deviceMeant, shipRoute } from "./devices.mjs";
 import { nodeTrouble, STEADY_NODES, withNode } from "./node.mjs";
 import { devicesThatOpened } from "./opened.mjs";
 import { podsSandbox } from "./pods.mjs";
 import { stampedEnv } from "./stamp.mjs";
 import { machineDnsName, staleServeName } from "./tailnet.mjs";
-import { teamOf } from "./team.mjs";
+import { freeTeamEntitlements, teamIds, teamOf } from "./team.mjs";
 import {
   API_KEY_CONFIG,
   apiKeyFrom,
@@ -94,7 +96,20 @@ const APP = `${IOS}/build/Build/Products/Release-iphoneos/Chips.app`;
 const SIM_APP = `${IOS}/build/Build/Products/Release-iphonesimulator/Chips.app`;
 /** Where a build for this device lands. The two platforms share derived data, not a product. */
 const appFor = (device) => (device?.simulator ? SIM_APP : APP);
-const BUNDLE_ID = "chat.chips.app";
+/** Whose app it is: `app.json`, and what the environment says over it (`app.config.js`). */
+const IDENTITY = appConfig.identity(JSON.parse(readFileSync(`${MOBILE}/app.json`, "utf8")).expo);
+const BUNDLE_ID = IDENTITY.bundle;
+/**
+ * Which app `ios/` was made for, written when this tool makes it. A variable changes no file's
+ * time, so a project made before one was set or changed is found by this and not by its age.
+ */
+const MADE_FOR = `${IOS}/.made-for.json`;
+const MADE_FOR_NOW = JSON.stringify({
+  team: IDENTITY.team,
+  bundle: IDENTITY.bundle,
+  domains: IDENTITY.domains,
+  free: IDENTITY.free,
+});
 const ENTITLEMENTS = `${IOS}/Chips/Chips.entitlements`;
 const INFO_PLIST = `${IOS}/Chips/Info.plist`;
 /** The push extension's (`plugins/with-push-seal.js`), which must carry the app's build number. */
@@ -276,35 +291,52 @@ function checkTeam() {
     return { id: undefined, free: true };
   }
   report("ok", "Development team", `${team.label ?? team.id}${team.free ? ", free" : ", paid"}`);
+  // The build is signed as the config's team (`app.config.js`), which is Chips' own until set.
+  if (!teamIds(prefs).includes(IDENTITY.team)) {
+    report(
+      "warn",
+      "Signing team",
+      `the build is signed as ${IDENTITY.team}, which is not one of Xcode's teams`,
+      `Name yours, and a bundle id of your own, in your shell profile:\n  export CHIPS_APPLE_TEAM_ID=${team.id}\n  export CHIPS_IOS_BUNDLE_ID=com.yourname.chips${team.free ? "\n  export CHIPS_IOS_FREE_TEAM=1" : ""}\n(Building the phone app → Under your own Apple team, in the docs.)`,
+    );
+  }
   return team;
 }
 
 /**
- * A free team cannot sign `aps-environment`, and the error Xcode gives for it names the
- * capability rather than the team, four hundred lines into a log. So the entitlement comes
- * out, loudly, and goes back when the team can carry it.
+ * A free team cannot sign push or a link domain, and the error Xcode gives names the capability
+ * rather than the team, four hundred lines into a log. So they come out, loudly, and go back when
+ * the team can carry them.
  */
-function reconcilePush(free) {
+function reconcileFreeTeam(free) {
   if (!existsSync(ENTITLEMENTS)) return;
   const text = readFileSync(ENTITLEMENTS, "utf8");
-  const hasPush = text.includes("aps-environment");
-  if (free && hasPush) {
+  const signable = freeTeamEntitlements(text);
+  if (free && signable.gone.length > 0) {
     copyFileSync(ENTITLEMENTS, `${ENTITLEMENTS}.with-push`);
-    writeFileSync(
-      ENTITLEMENTS,
-      text.replace(/\s*<key>aps-environment<\/key>\s*<string>[^<]*<\/string>/, ""),
-    );
+    writeFileSync(ENTITLEMENTS, signable.text);
     report(
       "warn",
-      "Push entitlement",
-      "removed, because a free team cannot sign it",
-      "Notifications on this phone will refuse until you build with a paid team.",
+      "Entitlements",
+      `${signable.gone.join(" and ")} taken out: a free team cannot sign ${signable.gone.length === 1 ? "it" : "them"}`,
+      "Notifications on this phone will refuse, and an invite link opens in Safari, until you\nbuild with a paid team.",
     );
-  } else if (!free && !hasPush && existsSync(`${ENTITLEMENTS}.with-push`)) {
+  } else if (
+    !free &&
+    !IDENTITY.free &&
+    signable.gone.length === 0 &&
+    existsSync(`${ENTITLEMENTS}.with-push`)
+  ) {
     copyFileSync(`${ENTITLEMENTS}.with-push`, ENTITLEMENTS);
-    report("ok", "Push entitlement", "restored, now that the team is a paid one");
+    report("ok", "Entitlements", "put back, now that the team is a paid one");
+  } else if (text.includes("aps-environment")) {
+    report("ok", "Entitlements", "push in the build");
   } else {
-    report("ok", "Push entitlement", hasPush ? "in the build" : "not in the build");
+    report(
+      "ok",
+      "Entitlements",
+      IDENTITY.free ? "no push, because CHIPS_IOS_FREE_TEAM is set" : "no push in the build",
+    );
   }
 }
 
@@ -362,6 +394,8 @@ function podsWanted() {
 }
 
 const mtime = (path) => (existsSync(path) ? statSync(path).mtimeMs : undefined);
+const filesUnder = (dir) =>
+  existsSync(dir) ? readdirSync(dir, { recursive: true }).map((name) => `${dir}/${name}`) : [];
 
 /**
  * `ios/` is generated from `app.json` and never edited (`apps/mobile/.gitignore`), so one made
@@ -370,27 +404,41 @@ const mtime = (path) => (existsSync(path) ? statSync(path).mtimeMs : undefined);
  * the app dies at the first thing that needed the sentence. That was the media viewer's Save (14
  * September 2026): Photos refuses an app with no `NSPhotoLibraryAddUsageDescription` by ending it,
  * and the checkout's `ios/` predated the plugin entry that writes the sentence. Android's tool
- * makes its project again by the same rule (`prebuildNeeded`).
+ * makes its project again by the same rule (`prebuildNeeded`). A config plugin and the sources it
+ * copies count as config (`configTime`): the notification extension's copy stayed old once. And
+ * one made for another team or
+ * bundle id is signed for them, which is the first `pnpm phone` of a fork run before its variables
+ * were set (`app.config.js`).
  */
-function checkNativeProject() {
+function staleNativeProject() {
+  if (!existsSync(INFO_PLIST)) return "ios/ has not been generated";
+  if (!existsSync(MADE_FOR)) return "ios/ was not made here, so it does not say whose app it is";
+  // When the project was made is the mark's time, written by each prebuild here. Not Info.plist's:
+  // every build stamps its number there, so the project read as new after any build at all.
   const needed = prebuildNeeded({
-    project: mtime(INFO_PLIST),
-    config: mtime(`${MOBILE}/app.json`),
+    project: mtime(MADE_FOR),
+    config: configTime(MOBILE, { mtime, filesUnder }),
     dependencies: mtime(`${MOBILE}/package.json`),
   });
-  if (!needed) return report("ok", "Native project", "made from the app.json it has");
+  if (needed) return "ios/ is older than app.json, app.config.js, plugins/ or package.json";
+  if (readFileSync(MADE_FOR, "utf8") !== MADE_FOR_NOW)
+    return "ios/ was made for another team, bundle id or link domain";
+  return undefined;
+}
+
+function checkNativeProject() {
+  const stale = staleNativeProject();
+  if (stale === undefined) return report("ok", "Native project", "made from the config it has");
   report(
     "bad",
     "Native project",
-    existsSync(INFO_PLIST)
-      ? "ios/ is older than app.json or package.json"
-      : "ios/ has not been generated",
+    stale,
     "What changed there is not in the build. Make it again:\n  pnpm --filter @chipschat/mobile exec expo prebuild --platform ios --no-install",
     MENDS.prebuild,
   );
 }
 
-/** Make `ios/` again from `app.json`, keeping what is already built, and mark it as made now. */
+/** Make `ios/` again from the config, keeping what is already built, and mark it as made now. */
 function prebuildIos() {
   console.log("\nGenerating the iOS project from app.json.\n");
   const made = run("pnpm", ["exec", "expo", "prebuild", "--platform", "ios", "--no-install"], {
@@ -402,9 +450,8 @@ function prebuildIos() {
     console.log(`      ${made.out.trim().split("\n").slice(-8).join("\n      ")}`);
     return false;
   }
-  // A prebuild that found nothing to change may leave Info.plist as it was; the time says it is current.
-  const now = new Date();
-  if (existsSync(INFO_PLIST)) utimesSync(INFO_PLIST, now, now);
+  // Written each time, so its time is when the project was made (`staleNativeProject`).
+  writeFileSync(MADE_FOR, MADE_FOR_NOW);
   console.log(`  ${tick} generated`);
   return true;
 }
@@ -592,7 +639,11 @@ function connectedDevices() {
  * also knows whether the phone can be reached now (`devices.mjs`).
  */
 function coreDeviceRow(name) {
-  return coreDeviceRowOf(run("xcrun", ["devicectl", "list", "devices"]).out, name);
+  return coreDeviceRowOf(coreDeviceList(), name);
+}
+
+function coreDeviceList() {
+  return run("xcrun", ["devicectl", "list", "devices"]).out;
 }
 
 /** Developer Mode is off until someone turns it on, and the phone says so only here. */
@@ -610,7 +661,7 @@ function developerModeOn(identifier) {
 
 function findDevice(wanted) {
   const devices = connectedDevices();
-  const chosen = wanted ? devices.find((d) => d.udid === wanted || d.name === wanted) : devices[0];
+  const chosen = deviceMeant(devices, wanted, coreDeviceList());
   if (!chosen) {
     report(
       "bad",
@@ -649,8 +700,7 @@ function findDevice(wanted) {
  * one `findDevice` would choose, so a direct install checks the same phone it decided on.
  */
 function shipWay(wanted) {
-  const devices = connectedDevices();
-  const phone = wanted ? devices.find((d) => d.udid === wanted || d.name === wanted) : devices[0];
+  const phone = deviceMeant(connectedDevices(), wanted, coreDeviceList());
   const row = phone === undefined ? { reachable: false } : coreDeviceRow(phone.name);
   const details =
     row.identifier !== undefined && row.reachable
@@ -1695,7 +1745,7 @@ if (command === "server") {
   if (!(await installAgent())) process.exit(1);
   // The server it just started is ready to pair with. A phone Xcode can reach now gets paired;
   // otherwise the code is printed for the app's scanner.
-  const [phone] = connectedDevices();
+  const phone = deviceMeant(connectedDevices(), undefined, coreDeviceList());
   const row = phone === undefined ? undefined : coreDeviceRow(phone.name);
   const device =
     phone !== undefined && row?.reachable
@@ -1723,7 +1773,7 @@ async function preflight() {
   checkXcode();
   const signing = onSimulator ? "unsigned" : checkSigning();
   const team = onSimulator ? undefined : checkTeam();
-  if (team !== undefined) reconcilePush(team.free);
+  if (team !== undefined) reconcileFreeTeam(team.free);
   if (forTestFlight) checkStoreSigning();
   if (forTestFlight && team?.free !== false) {
     report(
@@ -1766,7 +1816,13 @@ async function mendAll() {
 let { identity, device, team } = await preflight();
 // `doctor` is the one that only looks. Everything else mends what it can and carries on, so the
 // answer to "the browser app is older than its source" is a browser app, not a command to type.
-if (command !== "doctor" && broken().some((f) => f.mend !== undefined)) {
+// One mend can uncover the next: a project made again has its pods to link. Three rounds at most,
+// so a mend that keeps failing stops with what it said.
+for (
+  let round = 0;
+  round < 3 && command !== "doctor" && broken().some((f) => f.mend !== undefined);
+  round++
+) {
   await mendAll();
   ({ identity, device, team } = await preflight());
 }

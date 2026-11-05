@@ -850,6 +850,45 @@ export function Land({
   );
 }
 
+/**
+ * What a heading shows and puts away: Hidden's rooms and Archived's at the foot of the Spaces list.
+ * Its place opens from nothing as it is shown (`Land`'s "open") and folds shut as it is put away
+ * (`Fold`), on the numbers a room moving between the runs uses; both went in a frame. Shown again
+ * while it is still folding, it opens again from where it got to.
+ */
+export function Unfold({
+  shown,
+  children,
+}: {
+  readonly shown: boolean;
+  readonly children: ReactNode;
+}) {
+  const [state, setState] = useState({ shown, drawn: shown, opened: 0 });
+  if (state.shown !== shown) {
+    // Worked out as it is drawn, so its place is already opening in the frame it is shown.
+    setState({
+      shown,
+      drawn: shown || state.drawn,
+      opened: shown && !state.drawn ? state.opened + 1 : state.opened,
+    });
+  }
+  if (!shown && !state.drawn) return null;
+  return (
+    <Fold
+      folding={!shown}
+      onFolded={() => setState((now) => (now.shown ? now : { ...now, drawn: false }))}
+    >
+      {state.opened === 0 ? (
+        children
+      ) : (
+        <Land key={state.opened} from="open">
+          {children}
+        </Land>
+      )}
+    </Fold>
+  );
+}
+
 /** How long Hidden's shut eye takes to blink as a room comes under it. */
 const BLINK_MS = 420;
 

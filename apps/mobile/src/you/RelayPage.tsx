@@ -371,7 +371,9 @@ function TurnOffSheet({
 }
 
 const styles = StyleSheet.create({
-  page: { paddingBottom: SPACE.xxl * 2, gap: SPACE.lg },
+  // The switch opens the page, with no heading over it: the gap between groups stands above it
+  // too, or it sat on the bar's hairline (the Duo simulator, 2 November 2026).
+  page: { paddingTop: SPACE.lg, paddingBottom: SPACE.xxl * 2, gap: SPACE.lg },
   none: { fontSize: TEXT.md, lineHeight: TEXT.md * 1.4, paddingHorizontal: SPACE.xl },
   sheet: { gap: SPACE.md, paddingHorizontal: SPACE.lg },
   lead: { fontSize: TEXT.md, lineHeight: TEXT.md * 1.4, textAlign: "center" },

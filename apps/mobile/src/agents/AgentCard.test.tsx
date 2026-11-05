@@ -13,10 +13,12 @@ import {
   within,
 } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
+import { Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { agentsSnapshot, CHESS_STAYS, ME } from "../testing/agents";
 import { fakeStore } from "../testing/fixtures";
 import { drawLibrary } from "../testing/picker";
+import { Split } from "../ui/Split";
 import { AgentCard } from "./AgentCard";
 import { History } from "./History";
 
@@ -339,6 +341,40 @@ describe("locking an agent's changes (ADR 0199)", () => {
 });
 
 describe("an agent's card", () => {
+  it("reads as one column across the whole pane beside the list, in the phone's order (ADR 0276)", async () => {
+    const store = storeWith();
+    await render(
+      <Split
+        away
+        list={<Text>the agents</Text>}
+        detail={
+          <AgentCard
+            store={store}
+            snapshot={store.getSnapshot()}
+            agentId="agt_chess"
+            selfId={ME}
+            onHistory={() => undefined}
+            onOpenRoom={() => undefined}
+            onOpenAgent={() => undefined}
+            onDeleted={() => undefined}
+          />
+        }
+      />,
+    );
+    expect(screen.queryByTestId("columns")).toBeNull();
+    // What it is comes before what it did, one under the other, as on a phone.
+    const order = screen
+      .getAllByTestId(/^agent-(now|lock-switch|history)$/)
+      .map((each) => each.props["testID"] as string);
+    expect(order).toEqual(["agent-now", "agent-lock-switch", "agent-history"]);
+  });
+
+  it("stands in one column on a phone", async () => {
+    await card("agt_chess");
+    expect(screen.queryByTestId("columns")).toBeNull();
+    expect(screen.getByTestId("agent-history")).toBeTruthy();
+  });
+
   it("changes the agent's face from a tap on it, and takes it back with Use the default", async () => {
     const base = agentsSnapshot();
     const worn = {

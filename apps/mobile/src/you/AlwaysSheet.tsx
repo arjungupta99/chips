@@ -7,13 +7,18 @@
  *
  * With nothing allowed anywhere it says so once (Arjun's A of 26 October 2026, after six boxes that
  * each said "Nothing allowed always."): the ask flying from the harnesses to the reader, how a rule
- * comes to be here, why the asks that matter never do, and the dots of every ask so far.
+ * comes to be here, why the asks that matter never do, and the dots of every ask so far. The dots
+ * open every ask, as a harness's own do (ADR 0255): on a phone the sheet goes down and the list
+ * comes up over You; on an iPad it stands in a third column beside the page (ADR 0276).
  *
  * It is a shortcut to the harness pages' lists, not a setting of its own: two people running one
  * workspace see one truth, and asking is the harness's, not the person's.
+ *
+ * Beside the list on an iPad the same is a page (`AlwaysPage`), with the Undo over its foot.
  */
 
 import {
+  ASKS_SO_FAR,
   alwaysAsking,
   alwaysByHarness,
   alwaysNone,
@@ -24,7 +29,9 @@ import {
   type Store,
   workspaceAskHistory,
 } from "@chipschat/core";
-import { StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useRef } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { AlwaysList } from "../harnesses/AlwaysList";
 import { DotRow, Hero, PromiseMark, useMarks } from "../harnesses/AskingMotion";
 import { useAlways } from "../harnesses/useAlways";
@@ -32,11 +39,21 @@ import { useDust } from "../spaces/Dust";
 import { ListDust } from "../spaces/SelectMotion";
 import { UndoPill } from "../spaces/UndoPill";
 import { Group, GroupFoot, GroupHeading } from "../ui/Group";
+import { Icon } from "../ui/Icon";
 import { Sheet, SheetScroll } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { useReduceMotion } from "../ui/useReduceMotion";
+import { SheetPage, useThirdPage } from "./pages";
 import { SheetHead } from "./SheetHead";
+
+const TITLE = "Allowed always";
+
+/** How the dots open every ask, and whether the list they open stands beside them. */
+interface OpensAsks {
+  readonly onPress: () => void;
+  readonly selected: boolean | undefined;
+}
 
 export function AlwaysSheet({
   open,
@@ -51,44 +68,111 @@ export function AlwaysSheet({
   readonly snapshot: Snapshot;
   readonly selfId: string;
 }) {
+  const router = useRouter();
+  // The dots take the sheet down first, and the list comes up once it has gone, as a room's
+  // details open an agent's card.
+  const asking = useRef(false);
+  const asks = {
+    onPress: () => {
+      asking.current = true;
+      onClose();
+    },
+    selected: undefined,
+  };
+  const always = useAlwaysBody({ store, snapshot, selfId, asks });
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      onGone={() => {
+        if (!asking.current) return;
+        asking.current = false;
+        router.push("/asks");
+      }}
+      sizing="bounded"
+      cap={0.9}
+      testID="always-sheet"
+    >
+      <SheetHead title={TITLE} />
+      <SheetScroll style={styles.shrink} contentContainerStyle={styles.body}>
+        {always.body}
+      </SheetScroll>
+      {always.over}
+    </Sheet>
+  );
+}
+
+export function AlwaysPage({
+  store,
+  snapshot,
+  selfId,
+}: {
+  readonly store: Store;
+  readonly snapshot: Snapshot;
+  readonly selfId: string;
+}) {
+  const router = useRouter();
+  const asks = useThirdPage("asks", () => router.push("/asks"));
+  const always = useAlwaysBody({ store, snapshot, selfId, asks });
+  return (
+    <SheetPage title={TITLE} over={always.over} testID="always-page">
+      <View style={styles.body}>{always.body}</View>
+    </SheetPage>
+  );
+}
+
+/** What the sheet and the page hold, and what stands over it: the dust, and Undo after a removal. */
+function useAlwaysBody({
+  store,
+  snapshot,
+  selfId,
+  asks,
+}: {
+  readonly store: Store;
+  readonly snapshot: Snapshot;
+  readonly selfId: string;
+  readonly asks: OpensAsks;
+}) {
   const palette = usePalette();
   const dust = useDust(useReduceMotion());
   const always = useAlways(store, snapshot);
   const harnesses = alwaysByHarness(always.model, snapshot.directory, selfId);
   const allowing = harnesses.filter((harness) => harness.rules.length > 0);
   const asking = alwaysAsking(harnesses);
-  return (
-    <Sheet open={open} onClose={onClose} sizing="bounded" cap={0.9} testID="always-sheet">
-      <SheetHead title="Allowed always" />
-      <SheetScroll style={styles.shrink} contentContainerStyle={styles.body}>
-        {allowing.length === 0 ? (
-          <Nothing
-            snapshot={snapshot}
-            selfId={selfId}
-            names={harnesses.map((harness) => harness.name)}
-          />
-        ) : (
-          <>
-            <Text style={[styles.why, { color: palette.ink3 }]}>{alwaysSheetWhy()}</Text>
-            {allowing.map((harness) => (
-              <View key={harness.harnessId} style={styles.harness}>
-                <GroupHeading>{harness.name}</GroupHeading>
-                <Group>
-                  <AlwaysList
-                    rules={harness.rules}
-                    always={always}
-                    dust={dust.asker}
-                    may={mayTurnDial(snapshot.model, selfId)}
-                    paint={palette.surface}
-                    testID={`always-sheet-${harness.harnessId}`}
-                  />
-                </Group>
-              </View>
-            ))}
-          </>
-        )}
-        {asking === undefined ? null : <GroupFoot testID="always-sheet-asking">{asking}</GroupFoot>}
-      </SheetScroll>
+  const body = (
+    <>
+      {allowing.length === 0 ? (
+        <Nothing
+          snapshot={snapshot}
+          selfId={selfId}
+          names={harnesses.map((harness) => harness.name)}
+          asks={asks}
+        />
+      ) : (
+        <>
+          <Text style={[styles.why, { color: palette.ink3 }]}>{alwaysSheetWhy()}</Text>
+          {allowing.map((harness) => (
+            <View key={harness.harnessId} style={styles.harness}>
+              <GroupHeading>{harness.name}</GroupHeading>
+              <Group>
+                <AlwaysList
+                  rules={harness.rules}
+                  always={always}
+                  dust={dust.asker}
+                  may={mayTurnDial(snapshot.model, selfId)}
+                  paint={palette.surface}
+                  testID={`always-sheet-${harness.harnessId}`}
+                />
+              </Group>
+            </View>
+          ))}
+        </>
+      )}
+      {asking === undefined ? null : <GroupFoot testID="always-sheet-asking">{asking}</GroupFoot>}
+    </>
+  );
+  const over = (
+    <>
       <ListDust dust={dust} />
       <UndoPill
         undoing={
@@ -102,8 +186,9 @@ export function AlwaysSheet({
         onUndo={always.undo}
         onGone={always.settled}
       />
-    </Sheet>
+    </>
   );
+  return { body, over };
 }
 
 /** Nothing allowed anywhere, said once, with every ask so far under it. */
@@ -111,10 +196,12 @@ function Nothing({
   snapshot,
   selfId,
   names,
+  asks,
 }: {
   readonly snapshot: Snapshot;
   readonly selfId: string;
   readonly names: readonly string[];
+  readonly asks: OpensAsks;
 }) {
   const palette = usePalette();
   const marks = useMarks();
@@ -149,17 +236,40 @@ function Nothing({
       </Group>
       {history === undefined ? null : (
         <View style={styles.harness}>
-          <GroupHeading>Asks so far</GroupHeading>
+          <GroupHeading>{ASKS_SO_FAR}</GroupHeading>
           <Group>
-            <View
-              style={[styles.pad, styles.history]}
-              accessible
-              accessibilityLabel={history.line}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${ASKS_SO_FAR}: ${history.line}`}
+              accessibilityHint="Opens every ask"
+              accessibilityState={
+                asks.selected === undefined ? undefined : { selected: asks.selected }
+              }
+              onPress={asks.onPress}
               testID="always-none-history"
             >
-              <DotRow dots={history.dots} />
-              <Text style={[styles.note, { color: palette.ink3 }]}>{history.line}</Text>
-            </View>
+              {({ pressed }) => (
+                <View
+                  style={[
+                    styles.pad,
+                    styles.opens,
+                    {
+                      backgroundColor: asks.selected
+                        ? palette.surface3
+                        : pressed
+                          ? palette.surface2
+                          : palette.surface,
+                    },
+                  ]}
+                >
+                  <View style={[styles.grow, styles.history]}>
+                    <DotRow dots={history.dots} />
+                    <Text style={[styles.note, { color: palette.ink3 }]}>{history.line}</Text>
+                  </View>
+                  <Icon name="next" size={16} color={palette.ink4} />
+                </View>
+              )}
+            </Pressable>
           </Group>
         </View>
       )}
@@ -187,4 +297,6 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   note: { fontSize: TEXT.sm, lineHeight: TEXT.sm * 1.45 },
   history: { gap: SPACE.sm },
+  // The dots and their line, and the chevron of a row that opens something.
+  opens: { flexDirection: "row", alignItems: "center", gap: SPACE.md },
 });

@@ -11,12 +11,13 @@
 import type { Snapshot, Store } from "@chipschat/core";
 import { nameOf, serverHost } from "@chipschat/core";
 import { useRouter } from "expo-router";
+import type { ReactNode } from "react";
 import { AgentPane } from "../../src/agents/AgentPane";
 import { Agents } from "../../src/agents/Agents";
 import { All } from "../../src/harnesses/All";
 import { JobPage } from "../../src/harnesses/jobs/JobPage";
 import { Profile } from "../../src/harnesses/Profile";
-import { isHarnessPart, PART_FROM, PART_TITLE } from "../../src/harnesses/parts";
+import { type HarnessPart, isHarnessPart, PART_FROM, PART_TITLE } from "../../src/harnesses/parts";
 import { Part } from "../../src/harnesses/parts/Part";
 import { useChips, useDeferredSnapshot } from "../../src/store/provider";
 import { useLayout } from "../../src/ui/layout";
@@ -52,51 +53,19 @@ function Tab({
   const router = useRouter();
   const { wide } = useLayout();
   const [opened, go] = useOpened("agents", AGENTS_OPEN);
-  const { agent, harness, history, harnesses, lock, job, part } = opened;
+  const { agent, harness } = opened;
   if (!wide) return <Agents store={store} selfId={selfId} server={server} noRelay={noRelay} />;
-  const openRoom = (spaceId: string) => router.push(`/spaces/${spaceId}`);
-  const detail =
-    agent !== undefined ? (
-      <AgentPane
-        store={store}
-        snapshot={snapshot}
-        agentId={agent}
-        selfId={selfId}
-        history={history !== undefined}
-        // Opened from a locked agent's Locked (ADR 0199): the lock's row glows once.
-        lockGlow={lock === "1"}
-        // Its history goes back to its card (ADR 0177); the card is the top of this pane.
-        onBack={history === undefined ? undefined : () => go({ agent })}
-        onHistory={() => go({ agent, history: "1" })}
-        onOpenRoom={openRoom}
-        onOpenAgent={(other) => go({ agent: other })}
-        // A shared file is on the harness's Context files page (ADR 0254).
-        onOpenHarness={(harnessId, fileId) =>
-          go(
-            fileId === undefined ? { harness: harnessId } : { harness: harnessId, part: "context" },
-          )
-        }
-        // Beside the list, a deleted agent leaves the pane empty rather than going back.
-        onDeleted={() => go({})}
-      />
-    ) : harness !== undefined || harnesses !== undefined ? (
-      <HarnessPane
-        store={store}
-        snapshot={snapshot}
-        selfId={selfId}
-        harness={harness}
-        harnesses={harnesses}
-        job={job}
-        part={part}
-        go={go}
-      />
-    ) : (
-      <PaneEmpty icon="chip" title="No agent open">
-        Choose an agent on the left.
-      </PaneEmpty>
-    );
+  const { detail, third } = beside({
+    store,
+    snapshot,
+    selfId,
+    opened,
+    go,
+    openRoom: (spaceId) => router.push(`/spaces/${spaceId}`),
+  });
   return (
     <Split
+      tab="agents"
       list={
         <Agents
           store={store}
@@ -111,16 +80,98 @@ function Tab({
         />
       }
       detail={detail}
+      third={third}
+      // An agent's card opens its choices in the third column rather than over it (ADR 0276).
+      sheetsBeside={agent !== undefined}
     />
   );
 }
 
 /**
+ * What stands beside the list, and in a third column beside that (ADR 0276): an agent's card, with
+ * its history or one of its harness's pages beside it; or a harness's page, or every harness's card.
+ */
+function beside({
+  store,
+  snapshot,
+  selfId,
+  opened,
+  go,
+  openRoom,
+}: {
+  readonly store: Store;
+  readonly snapshot: Snapshot;
+  readonly selfId: string;
+  readonly opened: Opened;
+  readonly go: (next: Opened) => void;
+  readonly openRoom: (spaceId: string) => void;
+}): { readonly detail: ReactNode; readonly third: ReactNode } {
+  const { agent, harness, history, harnesses, lock, job, part } = opened;
+  if (agent === undefined) {
+    if (harness === undefined && harnesses === undefined) {
+      return {
+        detail: (
+          <PaneEmpty icon="chip" title="No agent open">
+            Choose an agent on the left.
+          </PaneEmpty>
+        ),
+        third: undefined,
+      };
+    }
+    return harnessesBeside({ store, snapshot, selfId, harness, harnesses, job, part, go });
+  }
+  const pane = (inHistory: boolean) => (
+    <AgentPane
+      store={store}
+      snapshot={snapshot}
+      agentId={agent}
+      selfId={selfId}
+      history={inHistory}
+      // Opened from a locked agent's Locked (ADR 0199): the lock's row glows once.
+      lockGlow={lock === "1" && !inHistory}
+      // Its history stands beside its card, and its × goes back to the card alone (ADR 0276).
+      onClose={inHistory ? () => go({ agent }) : undefined}
+      onHistory={() => go({ agent, history: "1" })}
+      onOpenRoom={openRoom}
+      onOpenAgent={(other) => go({ agent: other })}
+      // A shared file is on the harness's Context files page (ADR 0254), beside the card.
+      onOpenHarness={(harnessId, fileId) =>
+        go(
+          fileId === undefined
+            ? { harness: harnessId }
+            : { agent, harness: harnessId, part: "context" },
+        )
+      }
+      // Beside the list, a deleted agent leaves the pane empty rather than going back.
+      onDeleted={() => go({})}
+    />
+  );
+  const from = isHarnessPart(part) ? PART_FROM[part] : undefined;
+  const third =
+    history !== undefined
+      ? pane(true)
+      : harness !== undefined && isHarnessPart(part)
+        ? partPane({
+            store,
+            snapshot,
+            selfId,
+            harness,
+            part,
+            onClose: () => go({ agent }),
+            onBack: from === undefined ? undefined : () => go({ agent, harness, part: from }),
+            onOpenPart: (next) => go({ agent, harness, part: next }),
+          })
+        : undefined;
+  return { detail: pane(false), third };
+}
+
+/**
  * A harness's page beside the list, or every harness's card from View all (ADR 0185). A page opened
  * from that list goes back to it; one opened from the shelf is the top of the pane. One of its own
- * jobs (ADR 0252), and each page its page opens (ADR 0254), goes back to its page.
+ * jobs (ADR 0252), and each page its page opens (ADR 0254), stands in a third column beside its page
+ * (ADR 0276), whose × goes back to the page alone.
  */
-function HarnessPane({
+function harnessesBeside({
   store,
   snapshot,
   selfId,
@@ -138,17 +189,21 @@ function HarnessPane({
   readonly job: string | undefined;
   readonly part: string | undefined;
   readonly go: (next: Opened) => void;
-}) {
+}): { readonly detail: ReactNode; readonly third: ReactNode } {
   if (harness === undefined) {
-    return (
-      <Pane title="Harnesses">
-        <All store={store} selfId={selfId} onOpen={(id) => go({ harness: id, harnesses })} />
-      </Pane>
-    );
+    return {
+      detail: (
+        <Pane title="Harnesses">
+          <All store={store} selfId={selfId} onOpen={(id) => go({ harness: id, harnesses })} />
+        </Pane>
+      ),
+      third: undefined,
+    };
   }
-  if (job !== undefined) {
-    return (
-      <Pane title="" onBack={() => go({ harness, harnesses })}>
+  const close = () => go({ harness, harnesses });
+  const third =
+    job !== undefined ? (
+      <Pane title="" onClose={close}>
         <JobPage
           store={store}
           snapshot={snapshot}
@@ -158,40 +213,74 @@ function HarnessPane({
           focus={0}
         />
       </Pane>
-    );
-  }
-  if (isHarnessPart(part)) {
-    return (
+    ) : isHarnessPart(part) ? (
+      partPane({
+        store,
+        snapshot,
+        selfId,
+        harness,
+        part,
+        onClose: close,
+        onBack:
+          PART_FROM[part] === undefined
+            ? undefined
+            : () => go({ harness, harnesses, part: PART_FROM[part] }),
+        onOpenPart: (next) => go({ harness, harnesses, part: next }),
+      })
+    ) : undefined;
+  return {
+    detail: (
       <Pane
-        title={PART_TITLE[part]}
-        onBack={() => go({ harness, harnesses, part: PART_FROM[part] })}
+        title={nameOf(snapshot.directory, harness)}
+        onBack={harnesses === undefined ? undefined : () => go({ harnesses })}
       >
-        <Part
-          part={part}
+        <Profile
           store={store}
           snapshot={snapshot}
           harnessId={harness}
           selfId={selfId}
-          focus={0}
+          // Beside the list, a removed harness leaves the pane empty rather than going back.
+          onRemoved={() => go({})}
+          onOpenJob={(jobId) => go({ harness, harnesses, job: jobId })}
           onOpenPart={(next) => go({ harness, harnesses, part: next })}
         />
       </Pane>
-    );
-  }
+    ),
+    third,
+  };
+}
+
+/** A page a harness's page opens (ADR 0254): an agent's Instructions open its Context files here. */
+function partPane({
+  store,
+  snapshot,
+  selfId,
+  harness,
+  part,
+  onClose,
+  onBack,
+  onOpenPart,
+}: {
+  readonly store: Store;
+  readonly snapshot: Snapshot;
+  readonly selfId: string;
+  readonly harness: string;
+  readonly part: HarnessPart;
+  readonly onClose: () => void;
+  /** A page opened from another of its pages goes back to that one, inside the column. */
+  readonly onBack?: (() => void) | undefined;
+  readonly onOpenPart: (next: HarnessPart) => void;
+}) {
   return (
-    <Pane
-      title={nameOf(snapshot.directory, harness)}
-      onBack={harnesses === undefined ? undefined : () => go({ harnesses })}
-    >
-      <Profile
+    <Pane title={PART_TITLE[part]} onBack={onBack} onClose={onClose}>
+      <Part
+        part={part}
         store={store}
         snapshot={snapshot}
         harnessId={harness}
         selfId={selfId}
-        // Beside the list, a removed harness leaves the pane empty rather than going back.
-        onRemoved={() => go({})}
-        onOpenJob={(jobId) => go({ harness, harnesses, job: jobId })}
-        onOpenPart={(next) => go({ harness, harnesses, part: next })}
+        focus={0}
+        onOpenPart={onOpenPart}
       />
     </Pane>
   );

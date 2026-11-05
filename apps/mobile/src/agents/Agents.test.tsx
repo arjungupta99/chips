@@ -163,8 +163,10 @@ describe("the Agents tab", () => {
     const store = fakeStore(agentsSnapshot());
     await render(<Agents store={store} selfId={ME} />);
     expect(screen.queryByTestId("icon-sheet")).toBeNull();
+    // Beside the row held, on an iPad, as Jest's window is (ADR 0256).
     fireEvent(screen.getByTestId("agent-agt_shopping"), "longPress");
     const sheet = within(await screen.findByTestId("icon-sheet"));
+    expect(screen.getByTestId("icon-sheet-off", { includeHiddenElements: true })).toBeTruthy();
     await drawLibrary();
     // The head is the agent: its name, and its harness under it.
     expect(sheet.getByText("Shopping")).toBeTruthy();

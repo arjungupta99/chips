@@ -96,7 +96,6 @@ export function AddPage(
     readonly onElsewhere: () => void;
     /** Invite someone new into this room (ADR 0168); an owner's alone, so absent for the rest. */
     readonly onInvite?: (() => void) | undefined;
-    readonly onDone: () => void;
   },
 ) {
   const { space, directory, selfId, model, kept } = props;
@@ -128,7 +127,12 @@ export function AddPage(
   const ways = makers.length > 0 || props.asked.length > 0 || offered.elsewhere.length > 0;
   return (
     <>
-      <Back titleId={props.titleId} title={`Add to ${props.title}`} onBack={props.onBack} />
+      <Back
+        titleId={props.titleId}
+        title={`Add to ${props.title}`}
+        onBack={props.onBack}
+        pageTestId="room-sheet-add-page"
+      />
       <p className="sheet-hint">
         {space.home === true
           ? "A Main space takes people, and no other agent."
@@ -244,11 +248,6 @@ export function AddPage(
             <InviteRow title={props.title} onInvite={props.onInvite} />
           )}
         </Group>
-      </div>
-      <div className="sheet-foot">
-        <Button className="sheet-done" onClick={props.onDone} data-testid="room-sheet-add-done">
-          Done
-        </Button>
       </div>
     </>
   );

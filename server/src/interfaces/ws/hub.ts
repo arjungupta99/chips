@@ -61,6 +61,8 @@ export interface SessionHubOptions {
     | undefined;
   /** Each person's zone, for the room note's clock (ADR 0157). */
   readonly zonesOf?: SessionOptions["zonesOf"] | undefined;
+  /** Whether a space's project has had a change, for where the room note says it opens (ADR 0227). */
+  readonly hasProject?: SessionOptions["hasProject"] | undefined;
   readonly heartbeatSeconds: number;
   readonly idleTimeoutSeconds: number;
   readonly maxUnackedFrames: number;
@@ -126,6 +128,8 @@ export interface SessionHub {
   readonly whenMac: Sessions["whenMac"];
   /** A Mac's word on a person's run, to every socket of theirs that hears `folder_runs` (ADR 0226). */
   readonly runState: Sessions["runState"];
+  /** How far a person read, to every socket of theirs that hears `reads` (ADR 0262). */
+  readonly reads: Sessions["reads"];
   /**
    * The way each device of a workspace has a socket now, by device (ADR 0211, Phase 4): the
    * relay, the tunnel door, or the port. A device with two takes the one opened last.
@@ -256,13 +260,14 @@ export function createSessionHub(options: SessionHubOptions): SessionHub {
    */
   const lookupsAt = (
     arrivedAt: string | undefined,
-  ): Pick<SessionOptions, "attachmentUrl" | "zonesOf"> => {
+  ): Pick<SessionOptions, "attachmentUrl" | "zonesOf" | "hasProject"> => {
     const signs = options.attachmentUrl;
     return {
       ...(signs === undefined
         ? {}
         : { attachmentUrl: (attachmentId, tokenId) => signs(attachmentId, tokenId, arrivedAt) }),
       ...(options.zonesOf === undefined ? {} : { zonesOf: options.zonesOf }),
+      ...(options.hasProject === undefined ? {} : { hasProject: options.hasProject }),
     };
   };
 
@@ -522,6 +527,15 @@ export function createSessionHub(options: SessionHubOptions): SessionHub {
         if (!isPerson(workspaceId, participantId)(session) || !session.hears("folder_runs"))
           continue;
         session.offer("folder_runs", frame);
+        sent += 1;
+      }
+      return sent;
+    },
+    reads: (workspaceId, participantId, frame) => {
+      let sent = 0;
+      for (const session of sessions) {
+        if (!isPerson(workspaceId, participantId)(session) || !session.hears("reads")) continue;
+        session.offer("reads", frame);
         sent += 1;
       }
       return sent;

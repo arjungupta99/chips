@@ -32,6 +32,7 @@ import type { KeptSpace } from "../madeHere.js";
 import type { OutboxEvent } from "../outbox.js";
 import type { QueuedMessage } from "../pending.js";
 import type { ReadState } from "../read-state.js";
+import { holdsTerms, searchTerms, wordMarks } from "../search.js";
 import { SNIPPET_CLOSE, SNIPPET_OPEN } from "../store.js";
 import { ServerRefused, type Transport, type TransportOptions } from "../transport.js";
 import { type DemoAgents, keepAgents, refusal } from "./agents.js";
@@ -629,52 +630,56 @@ function roomHistory(book: Book, query: Query): readonly ClientEvent[] {
   return book.events.filter((event) => event.space_id === space && event.seq > since);
 }
 
-/** Whether a message holds the words, in the room asked about or in any. */
-function holds(event: ClientEvent, words: string, space: string | undefined): boolean {
+/**
+ * Whether a message holds the words, in the room asked about or in any: by the server's rule
+ * (core's `holdsTerms`), the earlier words whole and the last a word's start.
+ */
+function holds(event: ClientEvent, terms: readonly string[], space: string | undefined): boolean {
   const text = event["text"];
   return (
     event.type === "message.post" &&
     (space === undefined || event.space_id === space) &&
     typeof text === "string" &&
-    text.toLowerCase().includes(words.toLowerCase())
+    holdsTerms(text, terms)
   );
 }
 
 /** The demo's messages that hold the words, newest first, as the server's search finds them. */
 function search(book: Book, query: Query): readonly Record<string, unknown>[] {
-  const words = (query.get("q") ?? "").trim();
+  const terms = searchTerms(query.get("q") ?? "");
   const space = query.get("space_id");
   const limit = Number(query.get("limit") ?? 20);
-  if (words === "") return [];
+  if (terms.length === 0) return [];
   return book.events
-    .filter((event) => holds(event, words, space))
+    .filter((event) => holds(event, terms, space))
     .reverse()
     .slice(0, limit)
     .map((event) => ({
       kind: "message",
       space_id: event.space_id,
       at: event.ts,
-      snippet: snippetOf(event["text"] as string, words),
+      snippet: snippetOf(event["text"] as string, terms),
       message_id: messageIdOf(event.id),
       author_id: event.actor.id,
     }));
 }
 
-/** The words around the first match, the match marked as the server marks it. */
-function snippetOf(text: string, words: string): string {
+/** The words around the first match, each word found marked as the server marks it. */
+function snippetOf(text: string, terms: readonly string[]): string {
   const plain = text.replace(/\s+/g, " ");
-  const at = plain.toLowerCase().indexOf(words.toLowerCase());
-  const from = Math.max(0, at - 40);
-  const to = Math.min(plain.length, at + words.length + 60);
-  return [
-    from > 0 ? "…" : "",
-    plain.slice(from, at),
-    SNIPPET_OPEN,
-    plain.slice(at, at + words.length),
-    SNIPPET_CLOSE,
-    plain.slice(at + words.length, to),
-    to < plain.length ? "…" : "",
-  ].join("");
+  const marks = wordMarks(plain, terms);
+  const first = marks[0] ?? { start: 0, end: 0 };
+  const from = Math.max(0, first.start - 40);
+  const to = Math.min(plain.length, first.end + 60);
+  let snippet = from > 0 ? "…" : "";
+  let cut = from;
+  for (const mark of marks) {
+    if (mark.end > to) break;
+    snippet += plain.slice(cut, mark.start) + SNIPPET_OPEN;
+    snippet += plain.slice(mark.start, mark.end) + SNIPPET_CLOSE;
+    cut = mark.end;
+  }
+  return snippet + plain.slice(cut, to) + (to < plain.length ? "…" : "");
 }
 
 /**

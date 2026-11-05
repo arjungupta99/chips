@@ -133,6 +133,18 @@ async function wait(ms: number) {
 const text = (testId: string) => screen.getByTestId(testId);
 
 describe("Relay (ADR 0211, Phase 4)", () => {
+  it('names a server with no address "your server" in its words, as the demo is', async () => {
+    const { store } = storeWith(FACTS);
+    const silent = {
+      ...store,
+      serverFacts: async () => Promise.reject(new Error("Not in the demo")),
+    };
+    await render(<RelayPage store={silent as Store} device={{ ...DEVICE, serverUrl: "" }} />);
+    await wait(0);
+    expect(text("relay-foot")).toHaveTextContent(/can't reach your server directly/);
+    expect(text("relay-foot")).not.toHaveTextContent(/This network/);
+  });
+
   it("lists every device by the way it goes now, and says what the relay does", async () => {
     const { store, asked } = storeWith(FACTS);
     await render(<RelayPage store={store} device={DEVICE} />);

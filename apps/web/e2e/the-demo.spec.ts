@@ -138,25 +138,19 @@ test("a newcomer watches Chips work, looks around, and removes the demo, all on 
   await end.getByRole("button", { name: "Look around" }).click();
 
   // Looking around: in the demo, kept in the switcher as Chips demo.
-  const switcher = page.getByRole("combobox", { name: "Workspace" });
-  await expect(switcher).toBeVisible();
-  await expect(switcher.locator("option:checked")).toHaveText("Chips demo");
+  await expect(page.getByTestId("workspace-name")).toHaveText("Chips demo");
   await expect(page.getByTestId("demo-tag").filter({ visible: true })).toHaveCount(1);
   await expect(page.getByTestId("space-list")).toContainText("Birthday dinner");
 
   // A reload builds it again from the script, played to its end; IndexedDB never held it.
   await page.reload();
-  await expect(page.getByRole("combobox", { name: "Workspace" })).toBeVisible();
-  await expect(
-    page.getByRole("combobox", { name: "Workspace" }).locator("option:checked"),
-  ).toHaveText("Chips demo");
+  await expect(page.getByTestId("workspace-name")).toHaveText("Chips demo");
   await expect(page.getByTestId("space-list")).toContainText("Birthday dinner");
   expect((await keptDevices(page)).filter((key) => key.includes(DEMO_DEVICE_ID))).toEqual([]);
 
   // Remove: gone from the switcher, and the page is the first screen again.
-  await page
-    .getByRole("combobox", { name: "Workspace" })
-    .selectOption({ label: "Remove Chips demo" });
+  await page.getByTestId("workspace-switcher").click();
+  await page.getByRole("menu", { name: "Workspaces" }).getByTestId("workspace-remove-demo").click();
   await expect(page.getByRole("heading", { level: 1, name: "Chips" })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { level: 1, name: "Chips" })).toBeVisible();
@@ -185,9 +179,8 @@ test("the switcher plays the film full screen over the demo: Skip ends it, Escap
   await page.goto("/");
   await page.getByRole("button", { name: "Skip" }).click();
   await page.getByTestId("demo-end").getByRole("button", { name: "Look around" }).click();
-  const switcher = page.getByRole("combobox", { name: "Workspace" });
-  await expect(switcher).toBeVisible();
-  await switcher.selectOption({ label: "Watch Chips work…" });
+  await page.getByTestId("workspace-switcher").click();
+  await page.getByRole("menu", { name: "Workspaces" }).getByTestId("workspace-watch-demo").click();
 
   const player = page.getByTestId("film-player");
   await expect(player).toBeVisible();
@@ -201,5 +194,5 @@ test("the switcher plays the film full screen over the demo: Skip ends it, Escap
 
   await page.keyboard.press("Escape");
   await expect(player).toHaveCount(0);
-  await expect(page.getByRole("combobox", { name: "Workspace" })).toBeVisible();
+  await expect(page.getByTestId("workspace-name")).toHaveText("Chips demo");
 });

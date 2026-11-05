@@ -13,7 +13,8 @@
  * The sheets stand beside the scroll, not in it, as the agent card's do: touches travel the
  * component tree, so a scroll view round a sheet took a tap on its Done while the sheet's own list
  * was still coasting (Arjun, 10 October 2026). Each part hands its group to the scroll and its
- * sheets to the screen (`YouSection`).
+ * sheets to the screen (`YouSection`); and, for an iPad, its sheets as pages, which the route
+ * stands beside the list (`useYou`, `YouPane.tsx`).
  * Everything here is this person's or this phone's, except the one group under the workspace's
  * name, which only an owner or an admin sees: People, Invite someone (an owner's), Connect a
  * harness, the attachment limits, the messages between agents and what is allowed always.
@@ -38,7 +39,7 @@ import {
   workspaceHarnesses,
   workspaceLabel,
 } from "@chipschat/core";
-import { type ComponentProps, useMemo } from "react";
+import { type ComponentProps, type ReactElement, useMemo } from "react";
 import { Alert, StyleSheet, View } from "react-native";
 import { useLeave } from "../device/leave";
 import { deviceWord, thisDevice } from "../device/word";
@@ -65,10 +66,24 @@ import { FEEDBACK_ON, useFeedbackGroup } from "./Feedback";
 import { useNotificationsGroup } from "./Notifications";
 import { useProfileGroup } from "./Profile";
 import { usePushRows } from "./Push";
+import type { YouPages } from "./pages";
 import { useWorkspaceGroup } from "./Workspace";
 import { guestStandingWords, standingWords } from "./words";
 
-export function You({ device, store }: { readonly device: Device; readonly store: Store }) {
+export function You(props: { readonly device: Device; readonly store: Store }) {
+  return useYou(props).screen;
+}
+
+/**
+ * You's list, and its sheets as pages for the pane beside it on an iPad. One You holds both, so
+ * what a page changes, the row beside it says at once: the notification settings, the devices once
+ * a computer has paired, why a face did not stick. A pane that read its own would have held a
+ * second copy of each, a step behind the row.
+ */
+export function useYou({ device, store }: { readonly device: Device; readonly store: Store }): {
+  readonly screen: ReactElement;
+  readonly pages: YouPages;
+} {
   const snapshot = useDeferredSnapshot(store);
   const column = useColumn();
   const signOut = useSignOut(device, store);
@@ -135,7 +150,16 @@ export function You({ device, store }: { readonly device: Device; readonly store
       role === "owner" ? (snapshot.model.relay?.on ?? device.relayUrl !== undefined) : undefined,
   });
 
-  return (
+  const pages: YouPages = {
+    ...profile.pages,
+    ...notifications.pages,
+    ...settings.pages,
+    ...feedback.pages,
+    ...devices.pages,
+    ...deletion.pages,
+  };
+
+  const screen = (
     <Screen
       grouped
       title="You"
@@ -217,6 +241,7 @@ export function You({ device, store }: { readonly device: Device; readonly store
       {deletion.overlays}
     </Screen>
   );
+  return { screen, pages };
 }
 
 /**

@@ -1923,6 +1923,25 @@ describe("the sweep: what nobody answered in time (M1.4)", () => {
       ids: ws.ids,
     });
 
+  it("asks for pushes' receipts, counting the tokens they had forgotten", async () => {
+    let checks = 0;
+    const withReceipts = createSweep({
+      store: ws.gateway.deps.store,
+      readModels: ws.gateway.deps.readModels,
+      clock: manualClock(Date.now()),
+      ids: ws.ids,
+      receipts: {
+        check: async () => {
+          checks += 1;
+          return 2;
+        },
+      },
+    });
+    expect((await withReceipts()).undeliverable).toBe(2);
+    expect(checks).toBe(1);
+    expect((await sweepAt(Date.now())()).undeliverable).toBe(0);
+  });
+
   it("resolves an approval as expired by its fallback, once, and the run carries on", async () => {
     const runId = await startedRun("expiry-run");
     const asked = await call("POST", `/v1/runs/${runId}/events`, {

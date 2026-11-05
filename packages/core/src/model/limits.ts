@@ -61,6 +61,23 @@ export function capsSentence(caps: AttachmentCaps, ceiling?: number | undefined)
   return `${first.charAt(0).toUpperCase()}${first.slice(1)}, ${parts[1]}, and ${parts[2]}.`;
 }
 
+/**
+ * The caps at the right of You's row (ADR 0085, ADR 0265): one size when the three agree, else the
+ * smallest and the largest — "100 MB", "25–100 MB" — and the server's own until its ceiling is
+ * known.
+ */
+export function capsWords(caps: AttachmentCaps, ceiling: number | undefined): string {
+  const sizes = CAP_KINDS.map((kind) => caps[kind] ?? ceiling).filter(
+    (size): size is number => size !== undefined,
+  );
+  if (sizes.length === 0) return "Server's limit";
+  const least = Math.min(...sizes);
+  const most = Math.max(...sizes);
+  return least === most
+    ? formatLimit(least)
+    : `${formatLimit(least).replace(" MB", "")}–${formatLimit(most)}`;
+}
+
 const MB = 1024 * 1024;
 
 /** The caps as a settings screen's fields hold them: whole megabytes as text, blank for the server's own. */

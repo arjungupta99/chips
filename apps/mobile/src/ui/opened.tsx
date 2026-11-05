@@ -1,7 +1,7 @@
 /**
  * What is open beside a tab's list on a wide screen, kept by the tabs rather than by the tab's
  * route (ADR 0177): the room beside Spaces and the card over it, the agent or the harness beside
- * Agents.
+ * Agents, a result beside Search's and a page beside You (ADR 0256).
  *
  * It was a search param on the tab's route until 16 October 2026, and a room open beside Spaces
  * was gone the moment Agents had been looked at: a tab that is pressed is jumped to, and React
@@ -26,7 +26,7 @@ import {
 /** What is open beside one tab's list: a room, an agent, a harness, and how far into it. */
 export type Opened = Readonly<Record<string, string | undefined>>;
 
-type Tab = "spaces" | "agents";
+type Tab = "spaces" | "agents" | "search" | "you";
 
 interface Kept {
   readonly opened: Readonly<Record<Tab, Opened>>;
@@ -41,6 +41,8 @@ export function OpenedProvider({ children }: { readonly children: ReactNode }) {
   const [opened, setOpened] = useState<Readonly<Record<Tab, Opened>>>({
     spaces: NOTHING,
     agents: NOTHING,
+    search: NOTHING,
+    you: NOTHING,
   });
   const set = useCallback(
     (tab: Tab, next: Opened) => setOpened((now) => ({ ...now, [tab]: next })),

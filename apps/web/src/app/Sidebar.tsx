@@ -1,29 +1,27 @@
 /**
- * The left rail: the workspace, the places to be — Spaces, Search, Agents, Audit — the recent
- * spaces, and the fleet of harnesses with their status and context ring. It is
- * the blueprint's desktop sidebar, built from `@chipschat/ui` on `@chipschat/core`'s model.
+ * The left rail: the workspace and the + beside its name, the places to be — Spaces, Agents, Search
+ * and You, the phone's tabs in its order — and the recent spaces, as the iPad's sidebar has them
+ * (ADR 0264's second addendum). The harnesses are on Agents, as on the phone and the iPad: the rail
+ * listed them under the rooms until 3 November 2026 (ADR 0261's addendum).
+ * It is the blueprint's desktop sidebar, built from `@chipschat/ui` on `@chipschat/core`'s model.
  *
- * Select, beside the +, picks rooms to archive, unarchive or delete together (ADR 0181), as the
+ * Select, over the rooms, picks rooms to archive, unarchive or delete together (ADR 0181), as the
  * phone's Spaces list does (`select/rooms.tsx`). The rooms the reader hid stand behind a Hidden
  * heading over Archived (ADR 0205), as on the phone.
  */
 
 import {
   agentsTab,
-  askedName,
-  cantAnswer,
   type Directory,
   type Doing,
   type EmptyList,
   type FleetHarness,
-  fleetDoing,
   guestSpaceWords,
   hintWords,
   isShared,
   keepLeaving,
   lastWords,
   listRuns,
-  membersName,
   NO_PINS,
   nameOf,
   pausedIn,
@@ -33,24 +31,14 @@ import {
   runFolding,
   type Space,
   spaceFace,
+  spaceRowActs,
+  spaceTitle,
   spaceWorking,
-  type TroubleWord,
-  troubleWord,
   unreadCount,
   type WorkspaceModel,
-  workspaceHarnesses,
 } from "@chipschat/core";
 import type { SpaceIcon } from "@chipschat/protocol";
-import {
-  Avatar,
-  type AvatarSize,
-  ChipMark,
-  ContextRing,
-  Dot,
-  Icon,
-  Pill,
-  type Tone,
-} from "@chipschat/ui";
+import { Avatar, type AvatarSize, ChipMark, Dot, Icon, Pill, type Tone } from "@chipschat/ui";
 import {
   type AnimationEvent,
   type CSSProperties,
@@ -64,7 +52,8 @@ import {
 import { RailMark } from "./Connection.tsx";
 import { DoingWord } from "./Doing.tsx";
 import { MainTag } from "./MainTag.tsx";
-import { useRailMoves } from "./roomMoves.ts";
+import { menuPoint, type RowActs, type RowMenuAsk, useRowMenu } from "./RowMenu.tsx";
+import { moving, useRailMoves } from "./roomMoves.ts";
 import { SharedTag } from "./SharedTag.tsx";
 import {
   leavingProps,
@@ -77,6 +66,7 @@ import {
 import { type RoomActs, useRoomPicking } from "./select/rooms.tsx";
 import type { RowPick } from "./select/usePick.ts";
 import { relativeTime } from "./time.ts";
+import { WorkspaceMenu, type WorkspaceTab } from "./WorkspaceMenu.tsx";
 
 export type Tab = "spaces" | "agents" | "audit" | "you" | "search";
 
@@ -124,12 +114,6 @@ export interface SidebarProps {
   /** How many rooms the hello listed that have not come in: how many places to hold. */
   readonly awaiting?: number | undefined;
   /**
-   * Whether the directory is the server's word yet, now or kept from its last answer (the
-   * snapshot's `directoryFrom`). Until it is, no harness listed is not "No harnesses yet".
-   * Absent, it is.
-   */
-  readonly listed?: boolean | undefined;
-  /**
    * The connection, for the mark at the top of the rail to wear (`RailMark`, ADR 0131). Absent,
    * the mark is the product's and says nothing.
    */
@@ -137,7 +121,6 @@ export interface SidebarProps {
   /** Who is reading: "You" in a room named by who is in it (ADR 0082). */
   readonly selfId?: string | undefined;
   readonly tab: Tab;
-  readonly personName: string;
   readonly onSelectTab: (tab: Tab) => void;
   readonly onSelectSpace: (spaceId: string) => void;
   /**
@@ -153,22 +136,19 @@ export interface SidebarProps {
   readonly onRemoveDemo?: (() => void) | undefined;
   /** Play the demo's films again, from the switcher (ADR 0213). */
   readonly onWatchDemo?: (() => void) | undefined;
+  /** Name the workspace in front again, from the switcher: its owner's (ADR 0194). */
+  readonly onRenameWorkspace?: ((name: string) => Promise<void>) | undefined;
+  /** In the Mac app, not a browser: what the switcher says the demo goes from. */
+  readonly desktop?: boolean | undefined;
   /** The setup card (ADR 0170), above the rooms, while it has something to say. */
   readonly setup?: ReactNode;
   /** What picked rooms are archived, unarchived and deleted through (ADR 0181); none, no Select. */
   readonly roomActs?: RoomActs | undefined;
+  /** What a row's right-click menu pins, hides, archives and deletes through; none, no menu. */
+  readonly rowActs?: RowActs | undefined;
 }
 
-/** One paired workspace as the switcher lists it (M5.3). */
-export interface WorkspaceTab {
-  readonly deviceId: string;
-  readonly label: string;
-  readonly current: boolean;
-  readonly muted: boolean;
-  readonly needsYou?: number | undefined;
-  /** The made-up workspace of the demo (ADR 0213), which Remove takes out. */
-  readonly demo?: boolean | undefined;
-}
+export type { WorkspaceTab } from "./WorkspaceMenu.tsx";
 
 /** What the demo's workspace wears beside its name, so it is never taken for a real one. */
 export function DemoTag() {
@@ -179,7 +159,7 @@ export function DemoTag() {
   );
 }
 
-/** A run's state as a tone: the fleet's pills here, and the Agents page's shelf (ADR 0185). */
+/** A run's state as a tone: the Agents page's shelf, cards and harness page (ADR 0185). */
 export const STATUS_TONE: Record<string, Tone> = {
   running: "blue",
   waiting: "amber",
@@ -191,17 +171,6 @@ export const STATUS_TONE: Record<string, Tone> = {
 
 export function Sidebar(props: SidebarProps) {
   const { model, directory } = props;
-  // Every harness in the workspace, as the phone's fleet lists them, not only those that have
-  // run: OpenClaw, connected and never asked anything, read "No harnesses running". One the
-  // directory has not heard of yet still shows while its run does.
-  const harnesses = [
-    ...new Set([
-      ...workspaceHarnesses(directory).map((each) => each.id),
-      ...model.fleet
-        .filter((each) => directory[each.harnessId] === undefined)
-        .map((each) => each.harnessId),
-    ]),
-  ];
   // The agents a person can reach on the Agents page (ADR 0087): its count, as Spaces has one.
   const listed = agentsTab(model, directory, "");
   const agentCount = listed.leads.length + listed.agents.length;
@@ -216,28 +185,27 @@ export function Sidebar(props: SidebarProps) {
     >
       <div className="side-top">
         {props.reach === undefined ? <ChipMark size={20} /> : <RailMark {...props.reach} />}
-        <WorkspaceSwitcher
+        <WorkspaceMenu
           workspaces={props.workspaces ?? []}
           onSwitch={props.onSwitch}
           onPairAnother={props.onPairAnother}
           onRemoveDemo={props.onRemoveDemo}
           onWatchDemo={props.onWatchDemo}
+          onRename={props.onRenameWorkspace}
+          desktop={props.desktop}
         />
         {props.workspaces?.find((each) => each.current)?.demo === true ? <DemoTag /> : null}
+        {props.onNewSpace === undefined ? null : <NewSpaceButton onNew={props.onNewSpace} />}
       </div>
 
+      {/* The phone's four tabs, in its order, as the iPad's sidebar lists them (ADR 0256). You stood
+          at the rail's foot as a face and a name until 3 November 2026, and was not found there. */}
       <nav className="side-nav" aria-label="Sections">
         <NavItem
           icon="chat"
           label="Spaces"
           active={props.tab === "spaces"}
           onClick={() => props.onSelectTab("spaces")}
-        />
-        <NavItem
-          icon="search"
-          label="Search"
-          active={props.tab === "search"}
-          onClick={() => props.onSelectTab("search")}
         />
         <NavItem
           icon="chip"
@@ -247,56 +215,23 @@ export function Sidebar(props: SidebarProps) {
           onClick={() => props.onSelectTab("agents")}
         />
         <NavItem
-          icon="doc"
-          label="Audit"
-          active={props.tab === "audit"}
-          onClick={() => props.onSelectTab("audit")}
+          icon="search"
+          label="Search"
+          active={props.tab === "search"}
+          onClick={() => props.onSelectTab("search")}
+        />
+        <NavItem
+          icon="user"
+          label="You"
+          // The workspace's log opens from You (ADR 0261), so You stays lit over it.
+          active={props.tab === "you" || props.tab === "audit"}
+          testId="you"
+          onClick={() => props.onSelectTab("you")}
         />
       </nav>
 
       {props.setup}
       {rail.rooms}
-
-      <div className="side-h">Harnesses</div>
-      <ul className="fleet" data-testid="fleet">
-        {harnesses.map((harnessId) => {
-          const harness = model.fleet.find((each) => each.harnessId === harnessId);
-          return (
-            <FleetRow
-              key={harnessId}
-              harness={harness}
-              doing={fleetDoing(model.spaces, harness)}
-              name={nameOf(directory, harnessId)}
-              trouble={troubleWord(cantAnswer(directory, harnessId))}
-              onOpen={() => props.onSelectTab("agents")}
-              {...(harness?.workingFor === undefined
-                ? {}
-                : { workingForName: nameOf(directory, harness.workingFor) })}
-            />
-          );
-        })}
-        {harnesses.length === 0 && props.listed !== false && (
-          <li className="side-empty">No harnesses yet.</li>
-        )}
-      </ul>
-
-      <button
-        type="button"
-        className="side-foot"
-        aria-label="You"
-        data-testid="you"
-        data-active={props.tab === "you" ? "true" : undefined}
-        onClick={() => props.onSelectTab("you")}
-      >
-        <Avatar
-          name={props.personName}
-          kind="person"
-          size="xs"
-          icon={props.selfId === undefined ? undefined : directory[props.selfId]?.face}
-        />
-        <span>{props.personName}</span>
-        <Icon name="gear" />
-      </button>
       {rail.bar}
     </aside>
   );
@@ -374,7 +309,23 @@ function useRailRooms(props: SidebarProps): {
     toggleClosed,
     visible,
   } = useRailRuns(rooms, props.hiddenSpaces, pinned, props.selectedSpaceId);
-  const titleOf = (space: Space) => roomTitle(space, directory, props.selfId);
+  const titleOf = (space: Space) => spaceTitle(space, directory, props.selfId);
+  const rowMenu = useRowMenu({
+    acts: props.rowActs,
+    directory,
+    selfId: props.selfId,
+    onOpenRoom: props.onSelectSpace,
+  });
+  // A row's menu, on a right-click or the keyboard's menu key: what core offers this reader there.
+  const menuOf = (space: Space) => {
+    const selfId = props.selfId;
+    if (props.rowActs === undefined || selfId === undefined) return undefined;
+    const acts = spaceRowActs(model, space, selfId, pinned, props.hiddenSpaces ?? NO_HIDDEN);
+    // Change icon is anybody's, so a row with no other act still has it (ADR 0264's addendum).
+    if (acts.length === 0 && props.rowActs.icon === undefined) return undefined;
+    return (at: Omit<RowMenuAsk, "space" | "title" | "acts">) =>
+      rowMenu.open({ space, title: titleOf(space), acts, ...at });
+  };
   const picks = useRoomPicking({
     model,
     directory,
@@ -421,32 +372,35 @@ function useRailRooms(props: SidebarProps): {
   );
   const pickOf = (space: Space, run: string) =>
     props.roomActs === undefined ? undefined : picks.rowOf(space, run);
-  // A row, drawn in the open rooms, the hidden ones or the archived ones.
-  const row = (run: "open" | "hidden" | "closed") => (space: Space, index: number) => (
-    <SpaceRow
-      key={space.id}
-      order={index}
-      space={space}
-      directory={directory}
-      unread={unreadCount(space, readState)}
-      selected={space.id === props.selectedSpaceId}
-      onSelect={() => props.onSelectSpace(space.id)}
-      icon={spaceIcons.get(space.id)}
-      hidden={props.hiddenSpaces?.has(space.id) === true}
-      pinned={run === "open" && pinned.includes(space.id)}
-      selfId={props.selfId}
-      pick={pickOf(space, run)}
-      move={rowMove(moved.moves, space.id, run)}
-      onMoveEnd={(event) => moved.onAnimationEnd(space.id, event)}
-    />
-  );
+  // A row, drawn in the open rooms, the hidden ones or the archived ones; `fresh`, it has just come.
+  const row =
+    (run: "open" | "hidden" | "closed") =>
+    (space: Space, index: number, fresh = false) => (
+      <SpaceRow
+        key={space.id}
+        order={index}
+        fresh={fresh}
+        space={space}
+        directory={directory}
+        unread={unreadCount(space, readState)}
+        selected={space.id === props.selectedSpaceId}
+        onSelect={() => props.onSelectSpace(space.id)}
+        icon={spaceIcons.get(space.id)}
+        hidden={props.hiddenSpaces?.has(space.id) === true}
+        pinned={run === "open" && pinned.includes(space.id)}
+        selfId={props.selfId}
+        pick={pickOf(space, run)}
+        onMenu={menuOf(space)}
+        move={rowMove(moved.moves, space.id, run)}
+        onMoveEnd={(event) => moved.onAnimationEnd(space.id, event)}
+      />
+    );
   return {
     picking: picks.picking,
     wave: picks.wave,
     rooms: (
       <>
         <Recent
-          onNew={props.onNewSpace}
           picking={picks.picking}
           count={picks.chosen.length}
           select={
@@ -459,6 +413,7 @@ function useRailRooms(props: SidebarProps): {
             ) : null
           }
         />
+        <RowNote note={rowMenu.note} />
         {props.roomActs !== undefined && (
           <PickHint
             shown={picks.picking}
@@ -487,11 +442,11 @@ function useRailRooms(props: SidebarProps): {
               later={drawnBefore.current}
               folding={runFolding("hidden", shownHidden, moved.moves)}
             />
-            {showHidden && (
+            <Fold shown={showHidden}>
               <ul className="convos" data-testid="hidden-list">
-                {shownHidden.map(row("hidden"))}
+                {shownHidden.map((space, index) => row("hidden")(space, index))}
               </ul>
-            )}
+            </Fold>
           </>
         )}
         {shownClosed.length > 0 && (
@@ -504,105 +459,43 @@ function useRailRooms(props: SidebarProps): {
               later={drawnBefore.current}
               folding={runFolding("closed", shownClosed, moved.moves)}
             />
-            {showClosed && (
+            <Fold shown={showClosed}>
               <ul className="convos" data-testid="archived-list">
-                {shownClosed.map(row("closed"))}
+                {shownClosed.map((space, index) => row("closed")(space, index))}
               </ul>
-            )}
+            </Fold>
           </>
         )}
       </>
     ),
-    bar:
-      props.roomActs === undefined ? null : (
-        <>
-          <PickBar
-            shown={picks.picking}
-            read={picks.read}
-            left={picks.left}
-            erase={picks.erase}
-            note={picks.note}
-            onNoteGone={picks.clearNote}
-            place="rail"
-          />
-          {picks.dialog}
-        </>
-      ),
+    bar: (
+      <>
+        {rowMenu.menu}
+        {rowMenu.dialog}
+        {props.roomActs === undefined ? null : (
+          <>
+            <PickBar
+              shown={picks.picking}
+              read={picks.read}
+              left={picks.left}
+              erase={picks.erase}
+              note={picks.note}
+              onNoteGone={picks.clearNote}
+              place="rail"
+            />
+            {picks.dialog}
+          </>
+        )}
+      </>
+    ),
   };
 }
 
 /**
- * What a row calls its room: its title, else what it was asked as, else who is in it, the reader
- * as "You" (ADR 0082).
- */
-function roomTitle(space: Space, directory: Directory, selfId: string | undefined): string {
-  return space.title ?? askedName(space) ?? membersName(space.members, directory, selfId);
-}
-
-/**
- * Which workspace is in front, and the others this browser is paired with (M5.3): a name when
- * there is one place to be, a picker when there are several, each with what it needs. The
- * desktop shell can pair with another server from here; a browser tab is served by one.
- */
-function WorkspaceSwitcher(props: {
-  readonly workspaces: readonly WorkspaceTab[];
-  readonly onSwitch: ((deviceId: string) => void) | undefined;
-  readonly onPairAnother: (() => void) | undefined;
-  readonly onRemoveDemo: (() => void) | undefined;
-  readonly onWatchDemo?: (() => void) | undefined;
-}) {
-  const current = props.workspaces.find((each) => each.current);
-  const several = props.workspaces.length > 1 && props.onSwitch !== undefined;
-  // The demo is listed with a way out of it: Remove, and with it in front, setting up your own.
-  const demo =
-    props.onRemoveDemo === undefined ? undefined : props.workspaces.find((each) => each.demo);
-  if (!several && props.onPairAnother === undefined && demo === undefined) {
-    return <b data-testid="workspace-name">{current?.label ?? "Chips"}</b>;
-  }
-  return (
-    <span className="side-switch" data-testid="workspace-switcher">
-      <select
-        aria-label="Workspace"
-        value={current?.deviceId ?? ""}
-        onChange={(event) => {
-          const chosen = event.target.value;
-          if (chosen === "+") props.onPairAnother?.();
-          else if (chosen === REMOVE_DEMO) props.onRemoveDemo?.();
-          else if (chosen === WATCH_DEMO) props.onWatchDemo?.();
-          else props.onSwitch?.(chosen);
-        }}
-      >
-        {props.workspaces.map((workspace) => (
-          <option key={workspace.deviceId} value={workspace.deviceId}>
-            {workspace.label}
-            {workspace.muted ? " · muted" : ""}
-            {workspace.needsYou !== undefined && workspace.needsYou > 0
-              ? ` · ${workspace.needsYou} waiting`
-              : ""}
-          </option>
-        ))}
-        {props.onPairAnother !== undefined && (
-          <option value="+">
-            {current?.demo === true ? "Set up my own Chips…" : "Pair another server…"}
-          </option>
-        )}
-        {/* The films, for anyone the switcher is drawn for: a newcomer who looked around has no
-            end card to go back to, and somebody set up never saw the welcome that offers them (the
-            demo's walk, 21 October 2026). */}
-        {props.onWatchDemo !== undefined && <option value={WATCH_DEMO}>Watch Chips work…</option>}
-        {demo !== undefined && <option value={REMOVE_DEMO}>Remove {demo.label}</option>}
-      </select>
-    </span>
-  );
-}
-
-/** The switcher's options that take the demo out, and play its films again (ADR 0213). */
-const REMOVE_DEMO = "-demo";
-const WATCH_DEMO = "-watch";
-
-/**
  * The open rooms, or what stands in for them while there are none: places held for rooms on their
- * way, or a word on what is going on (`emptyWords`). The rooms fade in over a stand-in.
+ * way, or a word on what is going on (`emptyWords`). The rooms fade in over a stand-in, and rise
+ * into their places after the cache has been read, as the phone's rooms do when a workspace takes
+ * the front (`RiseIn`); a room that comes after that opens into its place (`useFreshRows`).
  */
 function OpenRooms(props: {
   readonly open: readonly Space[];
@@ -612,23 +505,19 @@ function OpenRooms(props: {
   readonly anyRooms: boolean;
   readonly empty: EmptyList | undefined;
   readonly awaiting: number | undefined;
-  readonly row: (space: Space, index: number) => ReactNode;
+  readonly row: (space: Space, index: number, fresh: boolean) => ReactNode;
 }) {
   const { open, anyRooms, empty } = props;
-  const standing = !anyRooms && empty !== undefined && empty !== "reading";
-  const arriving = useArrival(standing, anyRooms);
-  // With archived rooms only, the rail has none open, which is what it has always said.
-  const words = open.length === 0 ? emptyWords(anyRooms ? "none" : empty) : "";
+  const arriving = useArrival(empty, anyRooms);
+  const fresh = useFreshRows(open);
+  // With rooms only under Hidden or Archived, their headings are what there is to see, as on the
+  // phone: "No spaces yet." over "Archived · 3" was not so.
+  const words = open.length === 0 && !anyRooms ? emptyWords(empty) : "";
   const list = useRef<HTMLUListElement>(null);
   usePinGlide(list, props.pinned);
   return (
-    <ul
-      ref={list}
-      className="convos"
-      data-testid="space-list"
-      data-arrive={arriving ? "true" : undefined}
-    >
-      {open.map(props.row)}
+    <ul ref={list} className="convos" data-testid="space-list" data-arrive={arriving}>
+      {open.map((space, index) => props.row(space, index, fresh.has(space.id)))}
       {!anyRooms && empty === "fetching" && <Placeholders count={props.awaiting ?? 3} />}
       {words === "" ? null : (
         <li className="side-empty" data-testid="side-empty">
@@ -693,28 +582,20 @@ function pinsChanged(was: readonly string[], now: readonly string[]): ReadonlySe
 
 /**
  * A row starting `from` pixels from its place and gliding home, lifted if its room is the one the
- * pin is for. A browser without the Web Animations API (and jsdom) puts it in place at once.
+ * pin is for: over the rows it passes, on a shadow that fades as it settles (`li[data-lifted]`,
+ * the shadow's opacity, not the shadow, so the glide is all transform and opacity). A browser
+ * without the Web Animations API (and jsdom) puts it in place at once.
  */
 function glide(row: HTMLElement, from: number, lifted: boolean): void {
-  const lift = lifted ? LIFTED : {};
-  row
-    .closest("li")
-    ?.animate?.(
-      [
-        { transform: `translateY(${from}px)`, ...lift },
-        { transform: "none", ...lift, offset: 0.85 },
-        { transform: "none" },
-      ],
-      { duration: GLIDE_MS, easing: "cubic-bezier(0.3, 0.85, 0.25, 1)" },
-    );
+  const item = row.closest("li");
+  const moving = item?.animate?.([{ transform: `translateY(${from}px)` }, { transform: "none" }], {
+    duration: GLIDE_MS,
+    easing: "cubic-bezier(0.3, 0.85, 0.25, 1)",
+  });
+  if (item === null || moving === undefined || !lifted) return;
+  item.dataset["lifted"] = "true";
+  moving.onfinish = moving.oncancel = () => delete item.dataset["lifted"];
 }
-
-/** The room a pin moves, lifted over the rows it passes. */
-const LIFTED = {
-  position: "relative",
-  zIndex: "1",
-  boxShadow: "0 10px 24px -12px rgb(0 0 0 / 0.35)",
-};
 
 /** Under a guest's one room, why there is one: whose guest they are (ADR 0196). */
 function GuestNote(props: {
@@ -732,6 +613,9 @@ function GuestNote(props: {
   );
 }
 
+/** No room hidden. */
+const NO_HIDDEN: ReadonlySet<string> = new Set();
+
 /** The most places the rail holds for rooms on their way: about what it shows above the fold. */
 const MOST_PLACES = 5;
 
@@ -741,7 +625,7 @@ function Placeholders(props: { readonly count: number }) {
   return (
     <>
       <li className="ui-visually-hidden" aria-live="polite">
-        Loading spaces
+        Loading your spaces
       </li>
       {Array.from({ length: rows }, (_, index) => (
         // biome-ignore lint/suspicious/noArrayIndexKey: placeholders have nothing else to be told apart by
@@ -761,43 +645,172 @@ function Placeholders(props: { readonly count: number }) {
 const PLACE_WIDTHS = [62, 44, 54, 70, 40] as const;
 
 /**
- * Whether the rooms are arriving over what stood in for them: true for the moment they first come
- * in after a stand-in, so they fade in, and false for rooms that were there from the start and for
- * any that come later, which simply appear. Set before paint, so no row is drawn and then hidden.
+ * How the rooms are arriving, for the moment they first come in: "fade" over places held for them
+ * or a word on the connection, "rise" after the cache was read with nothing yet to show (a cold
+ * start, or a workspace switched to, which draws the rail afresh); nothing for rooms there from
+ * the start. Set before paint, so no row is drawn and then hidden.
  */
-function useArrival(standing: boolean, here: boolean): boolean {
-  const [arriving, setArriving] = useState(false);
-  const stood = useRef(false);
+function useArrival(empty: EmptyList | undefined, here: boolean): "fade" | "rise" | undefined {
+  const [arriving, setArriving] = useState<"fade" | "rise" | undefined>(undefined);
+  const stood = useRef<"fade" | "rise" | undefined>(undefined);
+  const standing = !here && empty !== undefined;
   useLayoutEffect(() => {
     if (standing) {
-      stood.current = true;
+      stood.current = empty === "reading" ? "rise" : "fade";
       return;
     }
-    if (!here || !stood.current) return;
-    stood.current = false;
-    setArriving(true);
-    const timer = setTimeout(() => setArriving(false), ARRIVE_MS + 100);
+    if (!here || stood.current === undefined) return;
+    const how = stood.current;
+    stood.current = undefined;
+    setArriving(how);
+    const timer = setTimeout(() => setArriving(undefined), ARRIVE_MS + 100);
     return () => clearTimeout(timer);
-  }, [standing, here]);
+  }, [standing, empty, here]);
   return arriving;
 }
 
-/** How long the rooms take to fade in over their places (`styles.css`, `.convos[data-arrive]`). */
-const ARRIVE_MS = 260;
+/**
+ * Longer than the rooms take to come in over their places (`styles.css`, `.convos[data-arrive]`):
+ * the fade's 260 ms, or the last of eight rows rising 32 ms after the one above it, over 200 ms.
+ */
+const ARRIVE_MS = 460;
 
 /**
- * The Recent heading and its plus, which opens the new-space dialog (`NewSpace.tsx`) out of itself:
- * a room asked of the harnesses picked, or a room of people. The shell holds the dialog, since an
- * empty workspace's Create a space opens it too (ADR 0131). Select stands beside the plus; while
- * the rail picks, the heading says how many are picked and the plus steps aside (ADR 0181).
+ * The open rooms that have come since the rail was last drawn with rooms in it: a room made here or
+ * anywhere, or one the server has let the reader into. They open into their places on the fold's
+ * numbers, as a heading coming with its first room does (the phone's `Land` from "open"), where they
+ * stood in a frame and pushed the rows under them down in it. Not the rooms of a first draw, which
+ * arrive as a whole (`useArrival`), and not a room moving between runs, which lands from its edge
+ * (`useRailMoves`; the row's styles let a move win).
+ */
+function useFreshRows(open: readonly Space[]): ReadonlySet<string> {
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(NO_ROOMS);
+  const seen = useRef<ReadonlySet<string>>(NO_ROOMS);
+  const ids = open.map((space) => space.id).join(" ");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `ids` says when the rooms changed
+  useLayoutEffect(() => {
+    const now = new Set(open.map((space) => space.id));
+    const before = seen.current;
+    seen.current = now;
+    if (before.size === 0 || !moving()) return;
+    const came = [...now].filter((id) => !before.has(id));
+    if (came.length === 0) return;
+    setFresh((was) => new Set([...was, ...came]));
+    const timer = setTimeout(
+      () => setFresh((was) => new Set([...was].filter((id) => !came.includes(id)))),
+      FRESH_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [ids]);
+  return fresh;
+}
+
+/** No rooms. */
+const NO_ROOMS: ReadonlySet<string> = new Set();
+
+/** Longer than a fresh room takes to open into its place (`--fold-ms`). */
+const FRESH_MS = 420;
+
+/**
+ * Hidden's and Archived's rooms, opening under their heading and folding shut into it as its
+ * chevron turns (ADR 0205), on the fold's numbers. They were drawn in a frame and gone in one.
+ */
+function Fold(props: {
+  readonly shown: boolean;
+  /** Open into place when first drawn, as a note does; a list there from the start simply is. */
+  readonly opens?: boolean | undefined;
+  readonly children: ReactNode;
+}) {
+  const [drawn, setDrawn] = useState(props.shown);
+  const [phase, setPhase] = useState<"opening" | "folding" | undefined>(() =>
+    props.shown && props.opens === true && moving() ? "opening" : undefined,
+  );
+  const was = useRef(props.shown);
+  useLayoutEffect(() => {
+    if (was.current === props.shown) return;
+    was.current = props.shown;
+    const motion = moving();
+    setDrawn(props.shown || motion);
+    setPhase(motion ? (props.shown ? "opening" : "folding") : undefined);
+  }, [props.shown]);
+  const end = () => {
+    if (phase === "folding") setDrawn(false);
+    setPhase(undefined);
+  };
+  // A fold whose end never comes, in a tab in the background, still lets go.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the phase's own timer
+  useEffect(() => {
+    if (phase === undefined) return;
+    const timer = setTimeout(end, FRESH_MS);
+    return () => clearTimeout(timer);
+  }, [phase]);
+  if (!drawn && !props.shown) return null;
+  return (
+    <div
+      className="side-run"
+      data-phase={phase}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) end();
+      }}
+    >
+      {props.children}
+    </div>
+  );
+}
+
+/**
+ * A refusal under Recent ("Not hidden: …"), opening into its place and folding away when its time
+ * is up, rather than pushing the rows down in a frame and pulling them back up in another.
+ */
+function RowNote(props: {
+  readonly note: { readonly key: number; readonly words: string } | undefined;
+}) {
+  const last = useRef(props.note);
+  if (props.note !== undefined) last.current = props.note;
+  const said = last.current;
+  if (said === undefined) return null;
+  return (
+    <Fold key={said.key} shown={props.note !== undefined} opens>
+      <p className="side-empty side-note" role="status" data-testid="row-note">
+        {said.words}
+      </p>
+    </Fold>
+  );
+}
+
+/**
+ * The gold + beside the workspace's name, where the iPad's sidebar stands it, so it is in the same
+ * place whichever page is open (ADR 0264's second addendum). It opens the new-space dialog
+ * (`NewSpace.tsx`) out of itself: a room asked of the harnesses picked, or a room of people. The
+ * shell holds the dialog, since an empty workspace's Create a space and the Mac's ⌘N open it too.
+ * It stood at the end of the Recent heading until 3 November 2026.
+ */
+function NewSpaceButton(props: { readonly onNew: (from: HTMLElement | null) => void }) {
+  const plus = useRef<HTMLButtonElement>(null);
+  return (
+    <button
+      ref={plus}
+      type="button"
+      className="side-new"
+      aria-label="Create new space"
+      data-testid="new-space"
+      aria-haspopup="dialog"
+      onClick={() => props.onNew(plus.current)}
+    >
+      <Icon name="plus" size={16} />
+    </button>
+  );
+}
+
+/**
+ * The Recent heading and Select at its end. While the rail picks, the heading says how many are
+ * picked (ADR 0181).
  */
 function Recent(props: {
-  readonly onNew: ((from: HTMLElement | null) => void) | undefined;
   readonly picking: boolean;
   readonly count: number;
   readonly select: ReactNode;
 }) {
-  const plus = useRef<HTMLButtonElement>(null);
   const heading = !props.picking
     ? "Recent"
     : props.count === 0
@@ -808,38 +821,24 @@ function Recent(props: {
       <span className="side-h-word" data-testid="recent-heading">
         {heading}
       </span>
-      <span className="side-h-acts">
-        {props.select}
-        {props.onNew === undefined ? null : (
-          <button
-            ref={plus}
-            type="button"
-            className="side-new"
-            aria-label="Create new space"
-            data-testid="new-space"
-            aria-haspopup="dialog"
-            inert={props.picking}
-            onClick={() => props.onNew?.(plus.current)}
-          >
-            <Icon name="plus" size={16} />
-          </button>
-        )}
-      </span>
+      <span className="side-h-acts">{props.select}</span>
     </div>
   );
 }
 
 function NavItem(props: {
-  readonly icon: "chat" | "chip" | "hash" | "doc" | "search";
+  readonly icon: "chat" | "chip" | "search" | "user";
   readonly label: string;
   readonly active: boolean;
   readonly count?: number;
+  readonly testId?: string;
   readonly onClick: () => void;
 }) {
   return (
     <button
       type="button"
       className="sn"
+      data-testid={props.testId}
       data-active={props.active ? "true" : undefined}
       aria-current={props.active ? "page" : undefined}
       onClick={props.onClick}
@@ -953,6 +952,8 @@ function moveProps(move: RowMove | undefined) {
 function SpaceRow(props: {
   /** Where it stands in its run of rows, which says how far down a wave its count goes. */
   readonly order: number;
+  /** Its room has just come into the open rooms: it opens into its place (`useFreshRows`). */
+  readonly fresh?: boolean | undefined;
   readonly space: Space;
   readonly directory: Directory;
   readonly unread: number;
@@ -967,13 +968,19 @@ function SpaceRow(props: {
   readonly selfId: string | undefined;
   /** While the rail picks, the row is a checkbox (ADR 0181); and how it goes, as it goes. */
   readonly pick?: RowPick | undefined;
+  /** Its menu of the phone's swipes, at a point; none where nothing is offered (`RowMenu.tsx`). */
+  readonly onMenu?:
+    | ((at: { readonly x: number; readonly y: number; readonly from: HTMLElement | null }) => void)
+    | undefined;
   /** Its room is moving to another run, or off the rail (ADR 0205's addendum). */
   readonly move?: RowMove | undefined;
   /** One of its animations has ended, which may be a step of its move. */
   readonly onMoveEnd?: ((event: AnimationEvent<HTMLElement>) => void) | undefined;
 }) {
   const { space, directory, pick } = props;
-  const title = roomTitle(space, directory, props.selfId);
+  // Core's, as the phone's list and the room's head call it: a room a harness runs in, with no title,
+  // is the harness's name, not "You, Quill" (the room's walk, 3 November 2026).
+  const title = spaceTitle(space, directory, props.selfId);
   // Somebody besides the reader reads it (ADR 0234): the row wears the shared tag, as the phone's.
   const shared = props.selfId !== undefined && isShared(space, directory, props.selfId);
   const waiting = space.run?.state === "waiting";
@@ -990,6 +997,7 @@ function SpaceRow(props: {
     <li
       {...leavingProps(pick)}
       {...moveProps(props.move)}
+      data-new={props.fresh === true ? "true" : undefined}
       onAnimationEnd={(event) => {
         leavingProps(pick).onAnimationEnd?.(event);
         props.onMoveEnd?.(event);
@@ -1007,6 +1015,11 @@ function SpaceRow(props: {
         onClick={(event) =>
           pick?.active === true ? pick.onPick(event.shiftKey) : props.onSelect()
         }
+        onContextMenu={(event) => {
+          if (pick?.active === true || props.onMenu === undefined) return;
+          event.preventDefault();
+          props.onMenu({ ...menuPoint(event), from: event.currentTarget });
+        }}
       >
         <span className="cv-face">
           <PickMark pick={pick} />
@@ -1053,20 +1066,31 @@ function RowMark(props: { readonly hidden: boolean; readonly pinned: boolean }) 
 }
 
 /**
- * A row's unread count. Read, it swells a little and shrinks away rather than blinking out (ADR
- * 0181 addendum, 18 October 2026), down the rail a beat a row when Read took several
- * (`.side[data-wave]`); what it last said stays while it goes, unheard.
+ * A row's unread count. One that comes, or goes up, pops in; read, it swells a little and shrinks
+ * away rather than blinking out (ADR 0181 addendum, 18 October 2026), down the rail a beat a row
+ * when Read took several (`.side[data-wave]`); what it last said stays while it goes, unheard. With
+ * Reduce Motion no animation runs to end, so it goes at once.
  */
 function Unread({ count }: { readonly count: number }) {
   const last = useRef(count);
   const [gone, setGone] = useState(count === 0);
+  // How many times it has come or gone up since the row was drawn: each a pop of its own.
+  const [pops, setPops] = useState(0);
+  const was = useRef(count);
   if (count > 0) last.current = count;
   useEffect(() => {
     if (count > 0) setGone(false);
+    if (count > was.current) setPops((now) => now + 1);
+    was.current = count;
   }, [count]);
-  if (count === 0 && gone) return null;
+  if (count === 0 && (gone || !moving())) return null;
   return count > 0 ? (
-    <b className="cv-unread" data-testid="unread">
+    <b
+      key={pops}
+      className="cv-unread"
+      data-testid="unread"
+      data-new={pops > 0 ? "true" : undefined}
+    >
       {count}
     </b>
   ) : (
@@ -1091,86 +1115,9 @@ const STATUS_WORD: Record<string, string> = {
 };
 
 /**
- * One harness, rolled up across every space it works in (ADR 0024). What it is doing comes from
- * its latest run; how many terminals are open on it comes from its visits, and a harness can
- * have one without the other — a terminal sitting idle has no run, and a run that finished
- * yesterday has no terminal.
- *
- * One that can't answer says so, in the shelf's word and in amber, with a hollow dot (ADR 0083,
- * ADR 0185); not what its last run was doing, which was from before it went. Until 17 October
- * 2026 the row said Working, or nothing, for a harness that was offline.
- */
-function FleetRow({
-  harness,
-  doing,
-  name,
-  trouble,
-  workingForName,
-  onOpen,
-}: {
-  /** Nothing when it has neither run nor opened a session: a harness only added so far. */
-  readonly harness: FleetHarness | undefined;
-  /** What its latest run is at, while it is at it: said as its bubble says it (`DoingWord`). */
-  readonly doing: Doing | undefined;
-  readonly name: string;
-  /** Why it can't answer now, in a word; absent while it can. */
-  readonly trouble?: TroubleWord | undefined;
-  /** The lead this harness's latest run answers to, when that run is a lane (M3.2). */
-  readonly workingForName?: string | undefined;
-  /** Open the Agents page, where its agents and its card are (ADR 0087, Phase 5). */
-  readonly onOpen?: (() => void) | undefined;
-}) {
-  return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: the Agents nav item above is the keyboard's way there.
-    <li onClick={onOpen} className={onOpen === undefined ? undefined : "fleet-open"}>
-      <Pill {...rowPill(harness, trouble)}>{name}</Pill>
-      {trouble !== undefined ? (
-        <span className="fleet-word" data-testid="fleet-word" data-tone="amber">
-          {trouble}
-        </span>
-      ) : (
-        <span className="fleet-word" data-testid="fleet-word">
-          <FleetWord harness={harness} doing={doing} />
-          {workingForName !== undefined && (
-            <span className="fleet-for" data-testid="fleet-for">
-              {" "}
-              for {workingForName}
-            </span>
-          )}
-        </span>
-      )}
-      {harness !== undefined && harness.liveSessions > 0 && (
-        <span
-          className="fleet-live"
-          data-testid="fleet-live"
-          title={`${harness.liveSessions} open ${harness.liveSessions === 1 ? "session" : "sessions"} across ${harness.spaceCount} ${harness.spaceCount === 1 ? "space" : "spaces"}`}
-        >
-          {harness.liveSessions}&nbsp;live
-        </span>
-      )}
-      {harness?.contextPercent !== undefined && (
-        <ContextRing
-          percent={harness.contextPercent}
-          label={`${name}'s context, ${harness.contextPercent}% full`}
-        />
-      )}
-    </li>
-  );
-}
-
-/** A row's pill: amber and hollow while it can't answer; else its run's tone, or plain. */
-function rowPill(
-  harness: FleetHarness | undefined,
-  trouble: TroubleWord | undefined,
-): { readonly tone: Tone; readonly dot: "solid" | "hollow" | "none" } {
-  if (trouble !== undefined) return { tone: "amber", dot: "hollow" };
-  if (harness === undefined || !saysStatus(harness)) return { tone: "neutral", dot: "none" };
-  return { tone: STATUS_TONE[harness.status ?? ""] ?? "neutral", dot: "solid" };
-}
-
-/**
- * What a row says beside its name: while its run is at work, the top line of that run's bubble,
- * held as the bubble holds it (ADR 0147); otherwise one word, or nothing.
+ * What a harness's tile, card and page say it is doing (ADR 0185, ADR 0254): while its run is at
+ * work, the top line of that run's bubble, held as the bubble holds it (ADR 0147); otherwise one
+ * word, or nothing. The rail's list of harnesses said it too, until 3 November 2026.
  */
 export function FleetWord({
   harness,
@@ -1187,7 +1134,7 @@ export function FleetWord({
 }
 
 /**
- * Whether a row says a status at all (ADR 0050 rule 1, as the phone's fleet has it): a harness
+ * Whether a harness says a status at all (ADR 0050 rule 1, as the phone's fleet has it): one
  * with something going on says so, and one that is idle or has finished says nothing. Done was a
  * green dot that stayed for good, and it went on saying so while the harness was stopped.
  */

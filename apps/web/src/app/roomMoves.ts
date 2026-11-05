@@ -62,7 +62,7 @@ function shownRuns(hidden: boolean, closed: boolean): ReadonlySet<ListRun> {
 }
 
 /** Whether rows move here at all: not with Reduce Motion, nor with no screen to ask (a test's). */
-function moving(): boolean {
+export function moving(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }

@@ -63,6 +63,7 @@ import { actSet, NO_ACTS, type SpaceAct } from "../spaces/SwipeRow";
 import type { Leaving, Picking } from "../spaces/usePick";
 import { useDeferredSnapshot } from "../store/provider";
 import { Button } from "../ui/Button";
+import type { SheetFrom } from "../ui/beside";
 import { ChipPulse } from "../ui/ChipPulse";
 import { ConnectionMark, type MarkedBy } from "../ui/Connection";
 import { Screen, UnderName, useColumn } from "../ui/Screen";
@@ -116,7 +117,11 @@ export function Agents({
     }, [store]),
   );
   // The agent whose face is being chosen, while its sheet is up.
-  const [facing, setFacing] = useState<string | undefined>(undefined);
+  // The agent whose face is being chosen, and where its row was pressed and held.
+  const [facing, setFacing] = useState<{
+    readonly agentId: string;
+    readonly from: SheetFrom;
+  }>();
   const keep = useKeep(store, snapshot, selfId, { onLocked: opens.locked });
   const tab = agentsTab(snapshot.model, snapshot.directory, selfId);
   const rows = [...tab.leads, ...tab.agents];
@@ -198,7 +203,7 @@ export function Agents({
                 live={picking}
                 going={picks.going}
                 opens={opens}
-                onFace={setFacing}
+                onFace={(agentId, from) => setFacing({ agentId, from })}
               />
             </PickMotion.Provider>
           </Arrive>
@@ -215,7 +220,8 @@ export function Agents({
       <FaceSheet
         store={store}
         snapshot={snapshot}
-        agentId={facing}
+        agentId={facing?.agentId}
+        from={facing?.from}
         onClose={() => setFacing(undefined)}
       />
       {keep.sheet}
@@ -282,7 +288,7 @@ function Listed({
   readonly live: boolean;
   readonly going: ReturnType<typeof useAgentPicking>["going"];
   readonly opens: Opens;
-  readonly onFace: (agentId: string) => void;
+  readonly onFace: (agentId: string, from: SheetFrom) => void;
 }) {
   const router = useRouter();
   const archived = tab.archived.here.length + tab.archived.elsewhere.length;
@@ -304,8 +310,8 @@ function Listed({
       const row = [...tab.leads, ...agents].find((each) => each.id === agentId);
       if (row !== undefined) picking.onPick(row);
     },
-    face: (agentId) => {
-      if (!live) onFace(agentId);
+    face: (agentId, from) => {
+      if (!live) onFace(agentId, from);
     },
     act: keep.act,
     opened: (row) => {
@@ -380,7 +386,7 @@ interface AgentRowHandlers {
   /** Picks the agent while the tab picks, and opens it otherwise. */
   readonly press: (agentId: string) => void;
   /** Pressed and held: its face is changed (ADR 0089). */
-  readonly face: (agentId: string) => void;
+  readonly face: (agentId: string, from: SheetFrom) => void;
   readonly act: Keep["act"];
   readonly opened: Keep["onOpened"];
   readonly closed: Keep["onClosed"];

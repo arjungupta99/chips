@@ -15,6 +15,10 @@
  * An agent's face is the same paper in another outline (`outline`, ADR 0089): the ground is the
  * bitten body of the Chips mark rather than the whole box, the mark is a little smaller and sits
  * a little away from the bite, and nothing is drawn where the bite is.
+ *
+ * A face picker draws the marks not chosen in ink on a neutral cell (`cell`, ADR 0272), as the
+ * phone's does: the cell's `--mark-ink` stands in for the white, `--mark-cell` for the ground, and
+ * the fold's shaded sides are the two mixed, so the fold is there before anything is picked.
  */
 
 import { useId } from "react";
@@ -33,8 +37,9 @@ interface Painted {
   readonly opacity?: number;
 }
 
-/** A paint as CSS, from the ground the avatar is wearing. */
-function painted(paint: Paint, cut: string): Painted {
+/** A paint as CSS, from the ground the avatar is wearing, or in ink on a neutral cell. */
+function painted(paint: Paint, cut: string, cell: boolean): Painted {
+  if (cell) return onCell(paint, cut);
   switch (paint) {
     case "face":
       return { fill: "#fff" };
@@ -46,6 +51,24 @@ function painted(paint: Paint, cut: string): Painted {
       return { fill: "#fff", opacity: 0.45 };
     case "air":
       return { fill: "#fff", opacity: 0.16 };
+    case "cut":
+      return { fill: cut };
+  }
+}
+
+/** The same paints on a neutral cell: the ink stands in for white, the cell for the ground. */
+function onCell(paint: Paint, cut: string): Painted {
+  switch (paint) {
+    case "face":
+      return { fill: "var(--mark-ink)" };
+    case "shade":
+      return { fill: "color-mix(in srgb, var(--mark-cell) 38%, var(--mark-ink))" };
+    case "deep":
+      return { fill: "color-mix(in srgb, var(--mark-cell) 60%, var(--mark-ink))" };
+    case "far":
+      return { fill: "var(--mark-ink)", opacity: 0.4 };
+    case "air":
+      return { fill: "var(--mark-ink)", opacity: 0.1 };
     case "cut":
       return { fill: cut };
   }
@@ -66,9 +89,17 @@ function ClipShape({ clip }: { readonly clip: NonNullable<NonNullable<Layer[2]>[
   return <polygon points={`${n + 20},-20 60,-20 60,60 -20,60 -20,${n + 20}`} />;
 }
 
-function LayerShape({ layer, cut }: { readonly layer: Layer; readonly cut: string }) {
+function LayerShape({
+  layer,
+  cut,
+  cell,
+}: {
+  readonly layer: Layer;
+  readonly cut: string;
+  readonly cell: boolean;
+}) {
   const [paint, d, options] = layer;
-  const { fill, opacity } = painted(paint, cut);
+  const { fill, opacity } = painted(paint, cut, cell);
   const style =
     options?.stroke === undefined
       ? {
@@ -101,6 +132,8 @@ export interface SpaceMarkProps {
   readonly small?: boolean;
   /** An agent's outline: the ground is the bitten body, and the mark is kept inside it. */
   readonly outline?: "bite" | undefined;
+  /** In ink on a neutral cell, as a picker draws a mark not chosen: `--mark-ink`, `--mark-cell`. */
+  readonly cell?: boolean;
 }
 
 /** The face's box in the mark's own coordinates: a room's whole square, or an agent's body. */
@@ -116,7 +149,7 @@ function boxOf(outline: "bite" | undefined): { x: number; y: number; side: numbe
   return { x: centre - AGENT_MARK.dx * side, y: centre - AGENT_MARK.dy * side, side };
 }
 
-export function SpaceMark({ name, small = false, outline }: SpaceMarkProps) {
+export function SpaceMark({ name, small = false, outline, cell = false }: SpaceMarkProps) {
   // One id per drawing: a document holds many faces, and SVG ids are the document's.
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const box = boxOf(outline);
@@ -127,7 +160,7 @@ export function SpaceMark({ name, small = false, outline }: SpaceMarkProps) {
   const layers = drawn
     .filter((layer) => !dropped(layer, small))
     .map((layer, at) => ({ layer, key: `${id}c${at}` }));
-  const cut = `url(#${id}g)`;
+  const cut = cell ? "var(--mark-cell)" : `url(#${id}g)`;
   return (
     <svg
       className="ui-face"
@@ -168,7 +201,7 @@ export function SpaceMark({ name, small = false, outline }: SpaceMarkProps) {
       <g {...(body === undefined ? {} : { clipPath: `url(#${id}b)` })}>
         {layers.map(({ layer, key }) => (
           <g key={key} {...(layer[2]?.clip === undefined ? {} : { clipPath: `url(#${key})` })}>
-            <LayerShape layer={layer} cut={cut} />
+            <LayerShape layer={layer} cut={cut} cell={cell} />
           </g>
         ))}
       </g>
