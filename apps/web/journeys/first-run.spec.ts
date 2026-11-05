@@ -151,7 +151,8 @@ test("J1: installed and up, the browser it opens is paired, with nothing else on
   expect(link).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${PORT}/j/chips_j_`));
   agent = await timed("hello", async () => {
     const joined = await connector(link, HOME, true);
-    await expect(page.getByTestId("join-progress")).toHaveAttribute("data-done", "5", {
+    // The link's three steps, as the phone draws them (ADR 0257), to the last: it said hello.
+    await expect(page.getByTestId("join-steps-hello")).toHaveAttribute("data-state", "done", {
       timeout: 20_000,
     });
     return joined;
@@ -225,10 +226,8 @@ test("J2: a harness asks with a code, and the browser allows it with its switch 
   expect(askerLines["CHIPS_URL"]).toBe(URL_HERE);
   // Granted what was left on, which is nothing; nobody ran `chips declare`.
   expect(await capabilitiesOf(askerLines as FourLines)).toEqual([]);
-  await expect(requestDialog().getByTestId("join-step-allowed")).toHaveAttribute(
-    "data-state",
-    "ok",
-  );
+  // Decided, in the phone's words (ADR 0271): it joined.
+  await expect(requestDialog().getByTestId("join-decided")).toContainText("Asker joined");
   await requestDialog().getByRole("button", { name: "Done" }).click();
   await expect(requestDialog()).toBeHidden();
 });
@@ -250,7 +249,7 @@ test("J2, a device: it asks to pair, is allowed, and is among this person's devi
     })
     .toBe(200);
   expect(paired).toMatchObject({ kind: "device", url: URL_HERE });
-  await expect(requestDialog().getByTestId("join-device-state")).toHaveText("Paired.");
+  await expect(requestDialog().getByTestId("join-decided")).toContainText("Test phone is paired");
   await requestDialog().getByRole("button", { name: "Done" }).click();
   await page.getByTestId("you").click();
   await expect(page.getByTestId("device-row").filter({ hasText: "Test phone" })).toHaveCount(1);
