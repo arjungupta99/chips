@@ -60,20 +60,15 @@ test("a harness opens beside the Agents list", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Scout" })).toBeVisible();
 });
 
-test("View all lists every harness's card beside the Agents list, and a card goes back to it", async ({
-  page,
-}) => {
+// Beside a pane the list has the room for every harness, so its shelf is a grid of all of them and
+// there is no View all (ADR 0256); a phone's narrow shelf keeps it.
+test("every harness stands in the Agents list's grid, with no View all", async ({ page }) => {
   await pair(page);
   await page.getByRole("tab", { name: "Agents" }).click();
-  await page.getByLabel("View all harnesses").click();
-  const list = page.getByTestId("harnesses-list");
-  await expect(list.getByRole("button", { name: "Scout", exact: true })).toBeVisible();
-  await page.screenshot({ path: test.info().outputPath("harnesses-all-split.png") });
-  await list.getByRole("button", { name: "Scout", exact: true }).click();
-  await expect(page.getByTestId("harness-asks-row")).toBeVisible();
-  // Opened from the list, its page goes back there.
-  await page.getByTestId("pane-back").click();
-  await expect(page.getByTestId("harnesses-list")).toBeVisible();
+  const grid = page.getByTestId("harness-shelf");
+  await expect(grid.getByRole("button", { name: "Scout", exact: true })).toBeVisible();
+  await expect(page.getByLabel("View all harnesses")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("harnesses-grid-split.png") });
 });
 
 test("an agent's card and its message history open beside the Agents list (ADR 0087)", async ({
