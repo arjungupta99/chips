@@ -49,12 +49,13 @@ export const THROUGH = WEB;
 /**
  * The first screen's pairing code page (ADR 0217's addendum of 26 October), where a code and its
  * server's address are typed: from That's Chips' Have a pairing code?, or at once with
- * `/pair?code=1`, as a spec that only needs to type a code opens it.
+ * `/pair?code=1`, as a spec that only needs to type a code opens it. At once here: an iPad's first
+ * screen has no Skip, since its ways in stand beside the film (ADR 0276), and the way there
+ * through Skip is `firstScreen.spec.ts`'s to walk.
  */
 export async function codePage(page: Page): Promise<void> {
-  await page.goto("/pair");
-  await page.getByRole("button", { name: "Skip" }).click();
-  await page.getByRole("button", { name: "Type a pairing code" }).click();
+  await page.goto("/pair?code=1");
+  await expect(page.getByLabel("Pairing code", { exact: true })).toBeVisible();
 }
 
 /** Pair the app with a fresh code, and wait for Spaces, where the app opens. */
