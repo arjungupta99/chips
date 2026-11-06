@@ -1035,6 +1035,20 @@ describe("what a harness is handed with a question (ADR 0088)", () => {
     expect(heard(scout, "@Ledger are the quotes in?")).not.toHaveProperty("context");
   });
 
+  it("counts a turn passed with NO_REPLY as a turn, so what came before it isn't handed again", async () => {
+    const { ledger, scout, arjun } = await everyoneOnline();
+    await say(scout, "Morning, all");
+    await say(arjun, "@Ledger are the quotes in?");
+    await say(arjun, "@Scout anything to add?");
+    await say(scout, "NO_REPLY");
+    await say(ledger.wire, "Three of them, yes.");
+    await say(arjun, "@Scout and the tracker?");
+
+    // Bruh chat, 5 November 2026: the turn after a pass was handed everything since the words
+    // before it, again.
+    expect(said(handed(scout, "@Scout and the tracker?"))).toEqual(["Ledger: Three of them, yes."]);
+  });
+
   it("hands a harness that has never spoken in a room what was said since it joined", async () => {
     const { ledger, arjun } = await everyoneOnline();
     await say(arjun, "@Scout one");

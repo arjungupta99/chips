@@ -552,6 +552,13 @@ A room a person asks your harness for beside another (`also_asked_of`) reaches `
 too: `claimSpace` it under a key of your own, and your agent for that key joins the room in your
 place, leaving its name to the harness asked first.
 
+Words heard live come with the `message.new` they arrived as (`message`): who is in the room, and
+the room's note and rules, written for your harness before its agent existed. Once the claim has put
+your agent in the room, `firstTurnOf(asked, agentId)` makes that message the agent's turn, so
+`promptFor(turn, { taker: agentId })` tells the agent its name, who else is here and who leads.
+Words read from the room's history carry no note, and `firstTurnOf` gives nothing for them: answer
+the words alone.
+
 ## Say when you can't answer
 
 People see whether each agent can answer (ADR 0083). Chips knows by itself when your socket is

@@ -35,6 +35,7 @@ export {
   renderRoomNote,
 } from "@chipschat/protocol";
 export type { ClaimedSpace, SpaceAsked } from "./asks.js";
+export { firstTurnOf } from "./asks.js";
 export type {
   Agent,
   ConnectOptions,

@@ -3302,8 +3302,11 @@ export class Workspace {
     const marks = [...new Set(participantIds)].map((id) => {
       const ids = new Set([id, ...replaced.filter(([, to]) => to === id).map(([from]) => from)]);
       for (const each of ids) selves.add(each);
+      // A turn passed with NO_REPLY was a turn too (ADR 0105's addendum).
       const spoke = before.findLast(
-        (event) => event.type === "message.post" && ids.has(event.actor.id),
+        (event) =>
+          (event.type === "message.post" || event.type === "turn.passed") &&
+          ids.has(event.actor.id),
       );
       const joined = before.findLast(
         (event) =>

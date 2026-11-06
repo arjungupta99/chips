@@ -15,6 +15,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ConnectError,
   connect,
+  firstTurnOf,
+  promptFor,
   RefusedError,
   renderContext,
   type SocketLike,
@@ -822,6 +824,8 @@ describe("rooms a person asks for (new spaces)", () => {
       heard.push(message.text);
     });
     const asked = new Promise<SpaceAsked>((resolve) => chips.onSpaceAsked(resolve));
+    // The catch-up registering starts reads nothing yet, and is done before the room is asked.
+    await settle();
     const spaceId = await askForRoom("Plan the kitchen remodel");
 
     const got = await asked;
@@ -829,6 +833,11 @@ describe("rooms a person asks for (new spaces)", () => {
       spaceId,
       askedBy: server.personId,
       firstMessage: { messageId: expect.stringMatching(/^msg_/), text: "Plan the kitchen remodel" },
+      message: expect.objectContaining({
+        type: "message.new",
+        message_id: got.firstMessage.messageId,
+        text: "Plan the kitchen remodel",
+      }),
     });
 
     // Claimed under the harness's own key, and named; the retry finds it claimed.
@@ -854,6 +863,27 @@ describe("rooms a person asks for (new spaces)", () => {
     await vi.waitFor(() => expect(heard).toEqual(["The budget is 20k."]));
   });
 
+  it("makes the words heard live the turn of the agent that takes the harness's place", async () => {
+    const chips = await open();
+    const asked = new Promise<SpaceAsked>((resolve) => chips.onSpaceAsked(resolve));
+    await settle();
+    await askForRoom("Plan the kitchen remodel");
+    const got = await asked;
+    const notes: Readonly<Record<string, string>> = got.message?.room?.notes ?? {};
+    const note = notes[server.harnessId];
+    expect(note).toContain("In this space");
+
+    // Bruh chat, 5 November 2026: the bridges answered the words alone, so the agent was told
+    // nothing of the room. The harness's note, rules and place are now the agent's.
+    const turn = firstTurnOf(got, "agt_kitchen");
+    expect(turn).toMatchObject({ for: ["agt_kitchen"], text: "Plan the kitchen remodel" });
+    expect(turn?.room?.notes).toEqual({ agt_kitchen: note });
+    const ids = turn?.room?.members.map((member) => member.participant_id);
+    expect(ids).toContain("agt_kitchen");
+    expect(ids).not.toContain(server.harnessId);
+    expect(promptFor(turn as MessageNew, { taker: "agt_kitchen" })).toContain(note);
+  });
+
   it("catches up at connect on a room asked while it was away, and hands it over once", async () => {
     const spaceId = await askForRoom("Plan the kitchen remodel");
     // From the beginning, so the replay carries the room as well as the catch-up reading it.
@@ -877,6 +907,9 @@ describe("rooms a person asks for (new spaces)", () => {
       askedBy: server.personId,
       firstMessage: { text: "Plan the kitchen remodel" },
     });
+    // Read from the room's history, the words carry no note: they are answered alone.
+    expect(handed[0]?.message).toBeUndefined();
+    expect(firstTurnOf(handed[0] as SpaceAsked, "agt_kitchen")).toBeUndefined();
 
     // Reading again changes nothing: a later listener hears no room handed over already.
     const again: SpaceAsked[] = [];

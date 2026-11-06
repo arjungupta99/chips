@@ -72,3 +72,16 @@ and a silence token for turns Chips starts, recognised by Chips. "We need this f
 - Jacobian ends a turn that said nothing with "Done.", as before; only `NO_REPLY` is silent.
 - The conformance fake starts `context` the same way, leaves out the same words, and makes the
   same `turn.passed`.
+
+## Addendum, 5 November 2026: a turn passed is a turn
+
+Point 1 started `context` at the turn that said the agent's last words. Once ADR 0109 let every
+agent pass, a turn that passed said nothing, so the next turn was handed everything since the words
+before it again. In Bruh chat, five agents introduced themselves; Tomas's introduction @-mentioned
+three of them in passing, and each passed. When Arjun then asked everyone what they thought of
+Chips, Yaro was handed Darius's and Tomas's introductions a second time, and said so.
+
+`context` now starts at the agent's last turn that said something **or passed**: the first event of
+the run its `turn.passed` was on, else the pass itself, whichever turn came last. A pass is looked
+for only after the last words, so the log isn't searched further back than before. The conformance
+fake does the same, and `since_seq` says so.

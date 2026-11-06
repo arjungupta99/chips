@@ -56,7 +56,7 @@ Every event also carries the [envelope](/reference/envelope/).
 | `catch_up.lines[].name` | no | `string` | On `renamed`, for a participant: the name they took. |
 | `catch_up.lines[].previous` | no | `string` | On `renamed`, for a participant: the name they went by until then. |
 | `catch_up.lines[].title` | no | `string` | On `renamed`, for the room: its new title. |
-| `catch_up.since_seq` | yes | `number` | Where they start: after this `seq`. With a message, where the turn that said the harness's own last message in the room began (ADR 0105), else its joining; from the pull route, 0. |
+| `catch_up.since_seq` | yes | `number` | Where they start: after this `seq`. With a message, where the harness's own last turn in the room began, one that said something or passed with NO_REPLY (ADR 0105), else its joining; from the pull route, 0. |
 | `catch_up.truncated` | yes | `boolean` | Whether older lines after `since_seq` were left out to fit the budget. |
 | `catch_up.before` | yes | `number` | A cursor: `GET /v1/spaces/:id/context?before=` this reads what came before these lines. |
 | `catch_up.files` | no | object[] | The room's files at their current version, newest first, the 20 newest (ADR 0099): with a message, as of it, its own files included; from the pull route, as of now. Each with a URL for this harness. Absent from a Chips before files, and when the room has none. |

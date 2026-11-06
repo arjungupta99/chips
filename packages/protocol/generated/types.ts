@@ -1347,7 +1347,7 @@ export interface MessageNew {
       /** On `renamed`, for the room: its new title. */
       title?: string;
     }[];
-    /** Where they start: after this `seq`. With a message, where the turn that said the harness's own last message in the room began (ADR 0105), else its joining; from the pull route, 0. */
+    /** Where they start: after this `seq`. With a message, where the harness's own last turn in the room began, one that said something or passed with NO_REPLY (ADR 0105), else its joining; from the pull route, 0. */
     since_seq: number;
     /** Whether older lines after `since_seq` were left out to fit the budget. */
     truncated: boolean;
@@ -2813,7 +2813,7 @@ export interface AgentAttached {
       /** On `renamed`, for the room: its new title. */
       title?: string;
     }[];
-    /** Where they start: after this `seq`. With a message, where the turn that said the harness's own last message in the room began (ADR 0105), else its joining; from the pull route, 0. */
+    /** Where they start: after this `seq`. With a message, where the harness's own last turn in the room began, one that said something or passed with NO_REPLY (ADR 0105), else its joining; from the pull route, 0. */
     since_seq: number;
     /** Whether older lines after `since_seq` were left out to fit the budget. */
     truncated: boolean;

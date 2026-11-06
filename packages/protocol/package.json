@@ -1,6 +1,6 @@
 {
   "name": "@chipschat/protocol",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Agent Connect: the canonical Zod schemas, the identifier vocabulary, and everything generated from them.",
   "license": "Apache-2.0",
   "homepage": "https://chipschat.ai/reference/",

@@ -743,18 +743,33 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
         .orderBy("seq", "desc")
         .limit(1)
         .executeTakeFirst();
-      if (said?.seq === null || said?.seq === undefined) return undefined;
-      if (said.run_id === null) return said.seq;
+      // A turn passed with NO_REPLY was a turn too (ADR 0105's addendum of 5 November 2026):
+      // looked for only after the last words, on the (workspace_id, space_id, seq) index.
+      const passed = await db
+        .selectFrom("events")
+        .select(["seq", "run_id"])
+        .where("workspace_id", "=", workspaceId)
+        .where("space_id", "=", spaceId)
+        .where("seq", "<", beforeSeq)
+        .where("seq", ">", said?.seq ?? 0)
+        .where("type", "=", "turn.passed")
+        .where("actor_id", "in", [...participantIds])
+        .orderBy("seq", "desc")
+        .limit(1)
+        .executeTakeFirst();
+      const last = passed ?? said;
+      if (last?.seq === null || last?.seq === undefined) return undefined;
+      if (last.run_id === null) return last.seq;
       // The run's first event, on the (workspace_id, run_id, seq) index.
       const began = await db
         .selectFrom("events")
         .select("seq")
         .where("workspace_id", "=", workspaceId)
-        .where("run_id", "=", said.run_id)
+        .where("run_id", "=", last.run_id)
         .orderBy("seq")
         .limit(1)
         .executeTakeFirst();
-      return Math.min(said.seq, began?.seq ?? said.seq);
+      return Math.min(last.seq, began?.seq ?? last.seq);
     },
 
     async joinedSeq(

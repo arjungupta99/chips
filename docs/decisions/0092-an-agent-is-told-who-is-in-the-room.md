@@ -58,3 +58,20 @@ so the relay stopped at its first hand-off.
   Rooms with agents are small today; a cap waits for one that is not.
 - Changing the wording, or the guard's number, changes what every harness tells its model, with
   no change to either harness.
+
+## Addendum, 5 November 2026: the agent that claims a room is told too
+
+A room a person makes from the + is asked of harnesses, not agents: the first words are for each
+harness, and Chips writes each one's note then, naming it by the first name the room holds for its
+agent (ADR 0150). The SDK handed those words over as `onSpaceAsked` with their id and text alone,
+and the ACP, Hermes and OpenCode bridges answered them as a `message.new` they made up with no
+`room`. So the agent the claim put in the harness's place had no note on its first turn: in Bruh
+chat three of five agents introduced themselves without their names, the others in the room or who
+led. Darius gave its model's name, "Crouton Alpha", and Eli, with only the project's rules, asked
+what it should build. Jacobian keeps the message it heard and was told; OpenClaw reads it whole.
+
+Now the hand-over carries the `message.new` the words arrived as, when heard live, and the SDK's
+`firstTurnOf(asked, agentId)` makes it the agent's turn: addressed to the agent, with the harness's
+note, rules and place among the members as the agent's. Each bridge answers that, and the words alone
+only when they were read from the room's history at a catch-up, which carries no note. That case
+stays as it was: a harness asked while it was away is told of the room from its second turn.

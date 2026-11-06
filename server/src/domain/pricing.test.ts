@@ -5,9 +5,43 @@ import { DEFAULT_PRICE_TABLE, estimateCost, parsePriceTable, priceFor } from "./
 const USAGE = { model: "opus-5", input_tokens: 82_140, output_tokens: 3402 };
 
 describe("estimating cost from tokens", () => {
-  it("prices the golden scenario's run within a cent of what Scout reported", () => {
+  it("prices the golden scenario's run at Opus 5's list price", () => {
+    // 82,140 in at $5 and 3,402 out at $25.
     const cost = estimateCost(USAGE, DEFAULT_PRICE_TABLE);
-    expect(cost).toEqual({ usd: 1.4873, estimated: true });
+    expect(cost).toEqual({ usd: 0.4958, estimated: true });
+  });
+
+  it("prices each 5.x model by its own row, not by an older one its name holds", () => {
+    expect(priceFor("claude-opus-5-5", DEFAULT_PRICE_TABLE)).toBe(DEFAULT_PRICE_TABLE["opus-5-5"]);
+    expect(priceFor("anthropic/claude-sonnet-5-5", DEFAULT_PRICE_TABLE)).toBe(
+      DEFAULT_PRICE_TABLE["sonnet-5-5"],
+    );
+    expect(priceFor("claude-fable-5-1", DEFAULT_PRICE_TABLE)).toBe(
+      DEFAULT_PRICE_TABLE["fable-5-1"],
+    );
+    expect(priceFor("claude-haiku-4-5", DEFAULT_PRICE_TABLE)).toBe(
+      DEFAULT_PRICE_TABLE["haiku-4-5"],
+    );
+    // Vik's first turn in Bruh chat (Hermes, 5 November 2026): 4 fresh at $4, 19,065 written to
+    // the cache at $5, 760 out at $20. Opus 4's prices made it $0.4145; Hermes said $0.1105.
+    const vik = {
+      model: "claude-opus-5-5",
+      input_tokens: 19_069,
+      cache_read_tokens: 0,
+      cache_write_tokens: 19_065,
+      output_tokens: 760,
+    };
+    expect(estimateCost(vik, DEFAULT_PRICE_TABLE)).toEqual({ usd: 0.1105, estimated: true });
+    // Read from the cache at $0.20, a twentieth of the fresh price.
+    const read = {
+      model: "claude-opus-5-5",
+      input_tokens: 1_000_000,
+      cache_read_tokens: 1_000_000,
+    };
+    expect(estimateCost({ ...read, output_tokens: 0 }, DEFAULT_PRICE_TABLE)).toEqual({
+      usd: 0.2,
+      estimated: true,
+    });
   });
 
   it("finds a model by the fragment of its name the table knows", () => {
@@ -49,8 +83,8 @@ describe("estimating cost from tokens", () => {
       cache_write_tokens: 4435,
       output_tokens: 185,
     };
-    // 4 fresh at $15, 15,351 read at $1.50, 4,435 written at $18.75, 185 out at $75.
-    expect(estimateCost(cached, DEFAULT_PRICE_TABLE)).toEqual({ usd: 0.1201, estimated: true });
+    // 4 fresh at $5, 15,351 read at $0.50, 4,435 written at $6.25, 185 out at $25.
+    expect(estimateCost(cached, DEFAULT_PRICE_TABLE)).toEqual({ usd: 0.04, estimated: true });
     const plain = { "opus-5": { input_usd_per_million: 15, output_usd_per_million: 75 } };
     expect(estimateCost(cached, plain)).toEqual({ usd: 0.3107, estimated: true });
   });
@@ -58,7 +92,7 @@ describe("estimating cost from tokens", () => {
   it("holds a cache count larger than the tokens in to the tokens in", () => {
     const over = { model: "opus-5", input_tokens: 19_790, cache_read_tokens: 30_000 };
     expect(estimateCost({ ...over, output_tokens: 185 }, DEFAULT_PRICE_TABLE)).toEqual({
-      usd: 0.0436,
+      usd: 0.0145,
       estimated: true,
     });
   });

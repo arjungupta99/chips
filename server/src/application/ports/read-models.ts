@@ -757,9 +757,9 @@ export interface ReadModels {
   ) => Promise<number | undefined>;
   /**
    * Where the last turn began in which any of these participants said something in a space before
-   * `beforeSeq` (ADR 0105): the first event of the run its words were said on, else the words
-   * themselves. Nothing when none has said anything there. What was said while that turn worked
-   * comes after it, so a turn is handed it.
+   * `beforeSeq`, or passed with NO_REPLY (ADR 0105 and its addendum): the first event of the run
+   * its words or its pass were on, else the words or the pass themselves. Nothing when none has
+   * had a turn there. What was said while that turn worked comes after it, so a turn is handed it.
    */
   readonly lastTurnSeq: (
     workspaceId: string,

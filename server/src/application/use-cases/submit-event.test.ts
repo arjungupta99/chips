@@ -1023,7 +1023,7 @@ describe("what Chips fills in for a run", () => {
     const { cost: _theirs, ...bare } = fixture("usage");
     const result = await submit({ event: bare, principal: SCOUT, idempotencyKey: "usage" });
     expect(result.ok, JSON.stringify(result)).toBe(true);
-    expect(store.appended[0]?.["cost"]).toEqual({ usd: 1.4873, estimated: true });
+    expect(store.appended[0]?.["cost"]).toEqual({ usd: 0.4958, estimated: true });
   });
 
   it("prices the tokens a usage says came from the prompt cache at the cache's price", async () => {
@@ -1031,10 +1031,10 @@ describe("what Chips fills in for a run", () => {
     const { cost: _theirs, ...bare } = fixture("usage");
     const event = { ...bare, cache_read_tokens: 80_000, cache_write_tokens: 1000 };
     await submit({ event, principal: SCOUT, idempotencyKey: "usage" });
-    // 1,140 fresh at $15, 80,000 read at $1.50, 1,000 written at $18.75, 3,402 out at $75.
+    // 1,140 fresh at $5, 80,000 read at $0.50, 1,000 written at $6.25, 3,402 out at $25.
     expect(store.appended[0]).toMatchObject({
       cache_read_tokens: 80_000,
-      cost: { usd: 0.411, estimated: true },
+      cost: { usd: 0.137, estimated: true },
     });
   });
 

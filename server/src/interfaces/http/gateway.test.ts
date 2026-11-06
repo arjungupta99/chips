@@ -1171,13 +1171,13 @@ describe("writing to a run (M1.3: ownership and transitions, enforced at the doo
       },
     });
     expect(status).toBe(201);
-    expect((await ws.gateway.deps.readModels.run(ws.workspaceId, runId))?.cost_usd).toBe(1.4873);
+    expect((await ws.gateway.deps.readModels.run(ws.workspaceId, runId))?.cost_usd).toBe(0.4958);
 
     const log = await call("GET", "/v1/events?since=0", { headers: ws.scout.headers });
     const usage = (log.body["events"] as Record<string, unknown>[]).find(
       (event) => event["type"] === "usage",
     );
-    expect(usage?.["cost"]).toEqual({ usd: 1.4873, estimated: true });
+    expect(usage?.["cost"]).toEqual({ usd: 0.4958, estimated: true });
   });
 
   it("adds a step's usage onto the run's total", async () => {
@@ -1203,7 +1203,7 @@ describe("writing to a run (M1.3: ownership and transitions, enforced at the doo
       .where("id", "=", runId)
       .executeTakeFirst();
     expect(run?.input_tokens).toBe(1500);
-    expect(run?.cost_usd).toBeCloseTo(0.0225, 6);
+    expect(run?.cost_usd).toBeCloseTo(0.0075, 6);
   });
 
   it("takes a usage that knows only its tokens out, and prices none of it (finding 11)", async () => {

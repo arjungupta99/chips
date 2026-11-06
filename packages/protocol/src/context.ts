@@ -157,7 +157,7 @@ export const roomContext = z
       .int()
       .nonnegative()
       .describe(
-        "Where they start: after this `seq`. With a message, where the turn that said the harness's own last message in the room began (ADR 0105), else its joining; from the pull route, 0.",
+        "Where they start: after this `seq`. With a message, where the harness's own last turn in the room began, one that said something or passed with NO_REPLY (ADR 0105), else its joining; from the pull route, 0.",
       ),
     truncated: z
       .boolean()

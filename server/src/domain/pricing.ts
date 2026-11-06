@@ -22,20 +22,35 @@ export interface ModelPrice {
 /** Keyed by a model name, or a fragment of one: `opus-5` prices `claude-opus-5-20260601` too. */
 export type PriceTable = Readonly<Record<string, ModelPrice>>;
 
-/** Claude's cache, read at a tenth of the fresh price and written at a quarter more. */
-function claude(input: number, output: number): ModelPrice {
+/**
+ * Claude's cache, written at a quarter more than the fresh price and read at a tenth of it, or at
+ * what Anthropic lists where that is less: a twentieth on Opus 5.5, a fortieth on Fable 5.1.
+ */
+function claude(input: number, output: number, cacheRead = input / 10): ModelPrice {
   return {
     input_usd_per_million: input,
     output_usd_per_million: output,
-    cache_read_usd_per_million: input / 10,
+    cache_read_usd_per_million: cacheRead,
     cache_write_usd_per_million: input * 1.25,
   };
 }
 
+/**
+ * Anthropic's list prices, as its Claude API reference gave them on 6 October 2026 (read again on 5
+ * November 2026). Each model is named whole, since a fragment prices every name that holds it: one
+ * `opus-5` row at Opus 4's $15 and $75 priced Opus 5.5 at nearly four times its cost, and a
+ * Hermes room's job reached the spend ceiling that much sooner (Bruh chat, 5 November 2026).
+ * Haiku 5.5 costs five times as much past a 100K-token prompt, which a flat row can't say.
+ */
 export const DEFAULT_PRICE_TABLE: PriceTable = {
-  "opus-5": claude(15, 75),
-  "sonnet-5": claude(3, 15),
-  "haiku-4.5": claude(1, 5),
+  "fable-5-1": claude(10, 50, 0.25),
+  "fable-5": claude(10, 50),
+  "opus-5-5": claude(4, 20, 0.2),
+  "opus-5": claude(5, 25),
+  "sonnet-5-5": claude(2, 10),
+  "sonnet-5": claude(2, 10),
+  "haiku-5-5": claude(0.1, 0.5),
+  "haiku-4-5": claude(1, 5),
 };
 
 export interface TokenUsage {
