@@ -45,8 +45,10 @@ test("finds a room by name and a line by a word, and opens the room at that line
   // Opened, it is the room at that line, lit for a moment, with the word searched for marked.
   await line.click();
   await expect(page.getByTestId("composer")).toBeVisible({ timeout: 20_000 });
-  // The line that flashes, not the band that sweeps across it.
-  const lit = page.locator('[data-testid^="flash-"]:not([data-testid="flash-sweep"])');
+  // The line that flashes, not the band that sweeps across it or the glow behind it.
+  const lit = page.locator(
+    '[data-testid^="flash-"]:not([data-testid="flash-sweep"], [data-testid="flash-glow"])',
+  );
   await expect(lit).toBeVisible({ timeout: 20_000 });
   await expect(lit).toContainText("cuttings");
   await expect(lit.getByTestId("mark")).toHaveText(WORD);

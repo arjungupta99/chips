@@ -394,6 +394,25 @@ export async function pairWith(
   await expect(page.getByTestId("space-list")).toBeVisible({ timeout: 20_000 });
 }
 
+/**
+ * Whatever is moving has come to rest. Animations that run for ever, the backdrop's and a
+ * placeholder's breath, are not waited for; one cancelled on its way counts as over, since a
+ * column closing cancels what was moving in it and a cancelled animation's `finished` rejects.
+ */
+export async function settled(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const moving = () =>
+      document
+        .getAnimations()
+        .filter((each) => each.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY);
+    // Asked again once they have ended: a room's words start back only after the column has moved.
+    for (let pass = 0; pass < 20 && moving().length > 0; pass += 1) {
+      await Promise.all(moving().map((each) => each.finished.catch(() => undefined)));
+      await new Promise((frame) => requestAnimationFrame(frame));
+    }
+  });
+}
+
 export const runPanel = (page: Page): Locator => page.getByRole("complementary", { name: "Run" });
 export const steps = (page: Page, status: string): Locator =>
   runPanel(page).locator(`.ui-timeline__item[data-kind="step"][data-status="${status}"]`);

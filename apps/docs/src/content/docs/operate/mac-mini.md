@@ -150,12 +150,14 @@ four lines with the mini's address in `CHIPS_URL`. [Custom](/connect/custom/).
 | This machine's device key | `~/.config/chips/device.json` | `0600`, in a `0700` directory |
 | A harness's token, on the machine that connected it | The login keychain; else `~/.config/chips/secrets.json` | Keychain, or `0600` |
 | What was connected | `~/.config/chips/connections.json` | `0600`. Never a token. |
+| Each bridge's settings, memory and keys | `~/Chips/.bridges/<bridge>` | `0700`: readable by you alone |
+| Each agent's own folder | `~/Chips/Agents/<kind>/<agent>` | Yours: whoever can read it can read the agent's work |
 
 `chips doctor` says which store the token is in, and whether the server still knows this device.
 
 ## Backups
 
-The log is the truth, so a backup of the workspace is a backup of everything:
+The log is the truth, so a backup of the workspace is a backup of everything the server holds:
 
 ```sh
 chips export ./chips-backup-$(date +%F)
@@ -166,6 +168,11 @@ attachment files to a folder, owner-only, and `chips import` reads it into an em
 and rebuilds every projection from the log. **The folder holds credentials**; keep it as you
 would a password. A copy of `~/Library/Application Support/Chips` taken while the server is
 stopped (`chips down`) is the same thing with less ceremony. See [the chips command](/operate/cli/#chips-export-and-chips-import).
+
+What your harnesses keep on this machine is outside the workspace, and outside an export: each
+agent's folder in `~/Chips/Agents`, and each bridge's settings and memory in `~/Chips/.bridges`.
+Copy `~/Chips` as well to keep them. `.bridges` holds keys, so keep that copy as you would a
+password too.
 
 ## From outside your network
 

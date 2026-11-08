@@ -78,11 +78,7 @@ test("an Always shows under Allowed always, switches off and on, and goes into d
     const l1 = runPanel(page)
       .getByRole("group", { name: /Autonomy for/ })
       .getByLabel("L1 · Ask first");
-    await expect(l1).toBeVisible();
-    if (!(await l1.isChecked())) {
-      await l1.click();
-      await harness.next("policy.updated");
-    }
+    // Where a new harness starts; the dial reads L2 only until the run's policy has come.
     await expect(l1).toBeChecked();
 
     // An ask that matters: no Always on its card, and the harness may not settle it.
@@ -201,11 +197,8 @@ test("a command's Always remembers how each part starts, and lets through only c
     const l1 = runPanel(page)
       .getByRole("group", { name: /Autonomy for/ })
       .getByLabel("L1 · Ask first");
-    await expect(l1).toBeVisible();
-    if (!(await l1.isChecked())) {
-      await l1.click();
-      await harness.next("policy.updated");
-    }
+    // Where a new harness starts; the dial reads L2 only until the run's policy has come.
+    await expect(l1).toBeChecked();
 
     // One that uses rm keeps no Always, and a line says why; the hour still reaches it (ADR 0281).
     const remove = await run("ls beds && rm -rf beds/old");
@@ -222,12 +215,12 @@ test("a command's Always remembers how each part starts, and lets through only c
     // A chain, answered Always: it remembers each part's start, in every space.
     const first = await run("node --check beds.js && echo ok");
     await card(page).getByText("Always", { exact: true }).click();
-    await expect(card(page).getByTestId("remembers").locator("code")).toHaveText([
-      "node --check …",
-      "echo ok …",
+    await expect(card(page).getByTestId("command-plate").locator(".plate-start")).toHaveText([
+      "node --check",
+      "echo",
     ]);
     await expect(card(page).getByTestId("reach")).toHaveText(
-      "Commands made only of these go ahead without a card in every space. Anything else still comes to you.",
+      "Commands made only of the lit words go ahead without a card in every space. Anything else still comes to you.",
     );
     await card(page).getByRole("button", { name: "Approve" }).click();
     expect(
@@ -237,7 +230,7 @@ test("a command's Always remembers how each part starts, and lets through only c
     expect(kept["space_id"]).toBeUndefined();
     expect(rules(kept)).toEqual([
       expect.objectContaining({ when: { starts_with: ["node", "--check"] } }),
-      expect.objectContaining({ when: { starts_with: ["echo", "ok"] } }),
+      expect.objectContaining({ when: { starts_with: ["echo"] } }),
     ]);
 
     // Made only of those: through without a card. One more part: back to the person.
@@ -254,7 +247,7 @@ test("a command's Always remembers how each part starts, and lets through only c
     const list = askingOf(page, "Bramble").getByTestId("asking-always");
     await expect(list.locator(".always-words > code:first-child")).toHaveText([
       "node --check …",
-      "echo ok …",
+      "echo …",
     ]);
     await expect(list).toContainText(/In every space · by you, /);
   } finally {
@@ -286,11 +279,8 @@ test("the dots open every ask, and an ask whole opens its space (ADR 0255)", asy
     const l1 = runPanel(page)
       .getByRole("group", { name: /Autonomy for/ })
       .getByLabel("L1 · Ask first");
-    await expect(l1).toBeVisible();
-    if (!(await l1.isChecked())) {
-      await l1.click();
-      await harness.next("policy.updated");
-    }
+    // Where a new harness starts; the dial reads L2 only until the run's policy has come.
+    await expect(l1).toBeChecked();
     const yes = await ask("garden.weed", "Pull the weeds in `bed 4`?");
     await card(page).getByRole("button", { name: "Approve" }).click();
     await harness.waitFor((frame) => answered(frame, yes), "the yes");

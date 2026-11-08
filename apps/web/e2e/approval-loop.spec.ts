@@ -14,7 +14,7 @@ import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { connectDemoHarness, playGolden, SUMMARY } from "./golden-run.ts";
-import { pairingPage } from "./support.ts";
+import { pairingPage, settled } from "./support.ts";
 
 const DATA_DIR = process.env["CHIPS_E2E_DATA_DIR"];
 if (DATA_DIR === undefined) throw new Error("run this through playwright.config.ts");
@@ -39,14 +39,7 @@ function demo(): Demo {
  * Animations that run for ever, the backdrop's and a placeholder's breath, are not waited for.
  */
 async function expectAccessible(page: Page, state: string): Promise<void> {
-  await page.evaluate(() =>
-    Promise.all(
-      document
-        .getAnimations()
-        .filter((each) => each.effect?.getComputedTiming().iterations !== Number.POSITIVE_INFINITY)
-        .map((each) => each.finished),
-    ),
-  );
+  await settled(page);
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"])
     .analyze();

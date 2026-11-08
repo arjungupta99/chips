@@ -116,8 +116,8 @@ The passkey then signs you in at that name on any device on the tailnet that has
 your platform, or offered from your phone. On the plain address, passkeys work only on the mini
 itself. See [People](/operate/people/#passkeys).
 
-The microphone beside the composer works at the `https://` name too, for the same reason: a
-browser gives the microphone only to a secure address. See
+**Voice note** works at the `https://` name too, for the same reason: a browser gives the
+microphone only to a secure address. See
 [voice notes](/operate/desktop/#voice-notes).
 
 ## A phone

@@ -44,8 +44,8 @@ const SHAPES: readonly Shape[] = [
       },
       risk: ["external"],
     },
+    // No "Just this once" on a command: it is once by its nature, and Approve says how far it reaches.
     shows: ["It runs in /workspace."],
-    lasts: "Just this once",
   },
   {
     who: "Jacobian, a connector turned off",

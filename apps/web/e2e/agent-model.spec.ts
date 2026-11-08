@@ -88,9 +88,8 @@ test("changes an agent's model and effort from the keyboard, made by its harness
 
     const dialog = page.getByTestId("model-dialog");
     await expect(dialog).toBeVisible();
-    expect(await dialog.evaluate((each) => (each as HTMLDialogElement).matches(":modal"))).toBe(
-      true,
-    );
+    // It stands in the third column beside the card (ADR 0284), with the keyboard in it.
+    await expect(dialog).toHaveAttribute("data-docked", "true");
     // On the default: Same has the keyboard, and Save has nothing to send.
     const same = page.getByRole("switch", { name: "Whorl's default" });
     await expect(same).toBeFocused();

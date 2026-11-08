@@ -176,8 +176,9 @@ function Docked(props: GrowingDialogProps & { readonly host: ThirdHost }) {
     return host.take(() => leave.current());
   }, [host.take, leaving]);
 
-  // The words it is for have the keyboard, as the dialog's would, once it has somewhere to stand.
-  const placed = host.slot !== null;
+  // The words it is for have the keyboard, as the dialog's would, once it has somewhere to stand
+  // and its column has opened: a column still inert drops the focus on the floor.
+  const placed = host.slot !== null && host.open;
   useEffect(() => {
     if (!placed) return;
     box.current?.querySelector<HTMLElement>(focus.current)?.focus({ preventScroll: true });

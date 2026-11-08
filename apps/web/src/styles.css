@@ -17371,6 +17371,13 @@ button.ctx-row:active,
   left: 14px;
   top: 8px;
 }
+/* The round button has the corner: a page's way back stands after it, and the name clear of both. */
+.you-detail .you-pane-back {
+  left: 58px;
+}
+.you-detail .you-pane-bar:has(> .you-pane-back) {
+  padding-inline: 148px;
+}
 /* On the Mac the page's own ground runs up under the lights, as the room's does: the bar's grey,
    not the window's, over a page in the second or third column. */
 .agents-detail,

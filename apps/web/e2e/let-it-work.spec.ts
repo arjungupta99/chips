@@ -53,11 +53,8 @@ test("a yes until stopped lets the agent work without asking, and Stop brings it
     const l1 = runPanel(page)
       .getByRole("group", { name: /Autonomy for/ })
       .getByLabel("L1 · Ask first");
-    await expect(l1).toBeVisible();
-    if (!(await l1.isChecked())) {
-      await l1.click();
-      await harness.next("policy.updated");
-    }
+    // Where a new harness starts; the dial reads L2 only until the run's policy has come.
+    await expect(l1).toBeChecked();
 
     // A loop Chips can't read: no Always, but the hour and the switch are there.
     const loop = await run("for r in acp hermes; do head -30 $r/README.md; done");

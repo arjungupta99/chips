@@ -115,16 +115,23 @@ and its Gate 5 addendum). Whoever may answer, or runs the workspace, may hand an
 
 ## What a decision leaves behind
 
-A decision carries a scope. `once` decides this ask. `session` decides the same kind of action,
-with the same flags, the same way for the rest of the run, without asking. `always` becomes a
-rule in the harness's policy — an `allow` or a `deny` for that kind and those flags — recorded as
+A decision carries a scope. `once` decides this ask. `session` decides the same action the same
+way for the rest of the run, without asking. `always` becomes a rule in the harness's policy, an
+`allow` or a `deny`, recorded as
 a [`policy.updated`](/reference/events/policy-updated/) so the audit says where the rule came
-from and a replay reproduces it; an `always` the room already has adds nothing. A `deny` from
+from and a replay reproduces it; an `always` the room already has adds nothing. For a command both
+are written by how each of its parts starts, and for anything else by the action's kind and flags
+([Approval](/concepts/approval/#this-session-and-always-are-kept-by-chips)). A `deny` from
 either holds at every level, and an `allow` from L1 under a cap of L2 or more, as the rules above
 say. It reaches the room it was made in, for that harness, and
 handing the ask to a role does not widen it: an admin who answers *always* makes the same room
-rule, and a workspace-wide rule is a deliberate `policy.updated` with no space (open decision 2,
-answered in ADR 0036).
+rule. A rule for every space is a deliberate act: `everywhere: true` on the answer, from an owner or
+an admin ([ADR 0239](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0239-a-standing-yes-for-a-command-remembers-how-each-part-starts.md)),
+or a `policy.updated` with no space (open decision 2, answered in ADR 0036).
+
+A yes given for an hour or until stopped is a `once` that holds on. Chips keeps it apart from these
+rules and reads it after them, so a no a person set still says no
+([A yes that holds on](/concepts/approval/#a-yes-that-holds-on)).
 
 ## Where the policy lives
 

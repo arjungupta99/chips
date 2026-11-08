@@ -29,6 +29,22 @@ instead. Either way the next screen is the pairing code, which is the same short
 single-use code a browser uses: the one `chips serve` printed, or one from `chips pair --issue`
 on any machine that is already paired ([A Mac mini](/operate/mac-mini/#pair-the-laptop-and-the-phone)).
 
+## The columns
+
+The window stands in the iPad's columns
+([ADR 0284](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0284-the-web-and-the-mac-stand-in-the-ipads-columns.md)).
+At the top left are the workspace's name, the gold **+** for a new space and the four tabs:
+**Spaces**, **Agents**, **Search** and **You**. Under them is the first column, the tab's list. The
+second column is what a row in it opens, and the third, when there is one, is one level deeper: a
+space's details, an agent's Model or Message history, a harness's Recent runs, a card picked in
+**Connect a harness**, and the run panel beside a space where all three columns fit.
+
+In a space, the round button at the top left puts the list away and brings it back, and the name
+in the middle and the round **Details** button at the top right open the space's details. In a
+window under 1260 wide, opening a third column folds the list to a rail of icons, and closing the
+column brings the list back. At 640 wide or less there is one column, with the tabs as a menu over
+the page.
+
 ## Notifications you can answer
 
 When a harness asks for something, the notification carries **Approve** and **Deny**. Pressing
@@ -73,27 +89,26 @@ The menus hold what the iPad's do, with the same keys, and dim what the screen i
 | --- | --- |
 | ⌘1, ⌘2, ⌘3, ⌘4 | Spaces, Agents, Search, You |
 | ⌘, | Settings, which is You |
-| ⌘N | A new space, from the sidebar's + |
+| ⌘N | A new space, from the gold + at the top left |
 | ⇧⌘F | Search, with the caret in its field |
-| ⌥↑, ⌥↓ | The space above or below the one open, as the sidebar lists them, while Spaces is in front |
+| ⌥↑, ⌥↓ | The space above or below the one open, as the Spaces list has them, while Spaces is in front |
 | ⌘=, ⌘−, ⌘0 | The page larger, smaller, or back to its actual size, kept between launches |
 
 ⌥↑ and ⌥↓ work with the caret in a space's message field too. **Help › Send Feedback…** opens the
 feedback form on GitHub with this build filled in.
 
 The window comes back where you left it, as large as it was, and opens once Chips is drawn in
-it. Its traffic lights stand over the sidebar; drag the strip along the top of the window to move
-it, and double-click it to zoom.
+it. Its traffic lights stand over the first column; drag the strip along the top of the window to
+move it, and double-click it to zoom.
 
-A file dragged onto a space is added to its message, ready to send, as the paper clip adds one. A
-file let go anywhere else in the window is refused.
+A file dragged onto a space is added to its message, ready to send, as **Photo or file** adds one
+from the round + beside the message field. A file let go anywhere else in the window is refused.
 
 ## Several workspaces
 
 A person can belong to a home server and a company server at the same time. Each is an account
 on that server — its own key, made when you paired — and the app keeps them all: the name at the
-top of the sidebar is a picker when there is more than one, and *Pair another server…* is the
-last entry. The workspaces you are not looking at stay connected in the background, so the
+top left is a picker when there is more than one, and *Pair another server…* is the last entry. The workspaces you are not looking at stay connected in the background, so the
 picker says what each is waiting on and the menu bar counts them all; a banner from any of them
 answers in that workspace.
 
@@ -105,7 +120,7 @@ are two accounts, and a passkey is per server.
 
 ## Search
 
-**Search**, in the sidebar, finds a space, an agent or something said, as the phone's tab does.
+**Search**, one of the four tabs, finds a space, an agent or something said, as the phone's does.
 Spaces are found by their names and by who is in them, agents by their names and by their
 harness's, both as you type; messages, voice notes' words and the steps of runs come from the
 server once you have typed two letters and paused, and more come as you scroll. What matched is
@@ -126,8 +141,8 @@ agents to anything said, with the whole sentence under it; with reduced motion i
 
 ## Voice notes
 
-The microphone beside the clip records one. Press it and the app asks for the microphone, the
-first time, and starts: a strip above the composer counts the time, **Stop and add** keeps the
+**Voice note**, under the round + beside the message field, records one. Choose it and the app asks
+for the microphone, the first time, and starts: a strip above the composer counts the time, **Stop and add** keeps the
 note, and **Cancel** or Escape throws it away. A note stops by itself at five minutes. Kept, it is
 a chip like any file, *uploading and transcribing…* while the server writes down what was said,
 and Send waits for the words as it waits for any upload. The space shows the words under a round
@@ -135,8 +150,8 @@ and Send waits for the words as it waits for any upload. The space shows the wor
 
 The app asks macOS for the microphone the first time; to change your answer later, go to **System
 Settings → Privacy & Security → Microphone**. In a browser, the page records only at a secure
-address: `https://`, or `localhost` on the server's own Mac. At a plain `http://` address the
-microphone says so when pressed. [Tailscale](/operate/tailscale/) gives the server an `https://`
+address: `https://`, or `localhost` on the server's own Mac. At a plain `http://` address
+**Voice note** says so when chosen. [Tailscale](/operate/tailscale/) gives the server an `https://`
 name on your tailnet.
 
 The words come from whisper on the server. A server without it keeps the note, with its length and
@@ -232,7 +247,8 @@ Each harness connected on this Mac has a launch agent of its own in the same fol
 
 Your workspace stays until you remove it: every message, file and key is in
 `~/Library/Application Support/Chips`, the logs are in `~/Library/Logs/Chips`, and the `chips`
-command's own key is in `~/.config/chips`.
+command's own key is in `~/.config/chips`. Your agents' folders and what the bridges keep are in
+`~/Chips`, and `chips uninstall` leaves that folder alone, even when it removes the workspace.
 
 ## Building it
 

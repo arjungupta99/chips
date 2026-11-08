@@ -11,8 +11,8 @@ them. No accounts, no passwords, no email round trip.
 
 ## Invite somebody
 
-Only an owner invites. From **You** — the gear at the bottom of the sidebar, or the You tab on
-the phone — an owner makes a link under the workspace's own heading: a role attached, with what
+Only an owner invites. From the **You** tab, on a computer or the phone, an owner makes a link
+under the workspace's own heading: a role attached, with what
 that role may do under it, once or by several, and good for 30 minutes. On the phone
 **Invite someone** sends it out through the share sheet, or shows it as a QR code for somebody
 beside you to scan with Chips; on a computer, Copy. Send it however you like.

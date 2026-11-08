@@ -53,7 +53,9 @@ command's own lines. A preview that says something else still shows.
 | --- | --- |
 | `decision` | `approved`, `edited`, `denied`, or `expired`. |
 | `scope` | `once`, `session`, or `always`. `always` becomes a policy rule. |
-| `for_minutes` | With `once` and a yes: the asking agent's asks of that kind go ahead in that space for this long. |
+| `for_minutes` | With `once` and a yes: everything the asking agent asks in that space goes ahead for this long. See [A yes that holds on](#a-yes-that-holds-on). |
+| `until_stopped` | With `once` and a yes, instead of `for_minutes`: the same, until a person stops it. |
+| `everywhere` | With `always`: the rule holds in every space, not only this one. An owner's or an admin's to give. |
 | `updated_input` | The edited action, when the approver changed it before allowing. |
 | `reason` | Why. The harness gets to read this. |
 | `resolved_by` | Who answered, or `system` on an expiry. |
@@ -63,17 +65,25 @@ command's own lines. A preview that says something else still shows.
 
 A harness keeps what it can of a scope, and many keep only one answer at a time: OpenClaw's own
 commands take allow-once and nothing longer. So Chips keeps the rest itself, whatever the harness
-can. *This session* is a rule for the rest of the run; *Always* is a rule in that harness's
-[policy](/concepts/policy/#what-a-decision-leaves-behind) for the room it was said in. The
-harness still hears the scope in `approval.resolved`, and may keep it too.
+can. *Always* is a rule in that harness's
+[policy](/concepts/policy/#what-a-decision-leaves-behind) for the space it was said in, or for every
+space when an owner or an admin says so. `scope: "session"` is a rule for the rest of the run: the
+apps no longer offer it, since *For an hour* took its place, and it stays for harnesses and older
+apps. The harness still hears the scope in `approval.resolved`, and may keep it too.
 
-Either rule matches the action's kind and its flags, not its input. Always on one `shell.exec`
-(`date`) covers every `shell.exec` from that harness in that room (`pwd` as well), so Always is
-meant for a kind of action, not for one command. A later ask the rule covers is decided by policy
-the moment it arrives, with no card: the harness hears an `approval.resolved` by `system`, with
-the rule's reason. A *deny* holds at every level. An *allow* holds from L1, where every harness
-starts; at L0 every action still asks, and a workspace capped at L0 or L1 lets no harness's rule
-allow past it.
+On a command, either rule remembers how each part of the command starts, and not the rest of it:
+the program and the word that picks what it does where it has one (`git log`, `pnpm test`,
+`node game.js`, `ls -la`), otherwise the program alone (`cat`, `cd`). Always on `git log --oneline`
+covers a later `git log -5` and not `git status`. A later command goes ahead only when every part of
+it is covered, and one part nothing covers brings the whole command to a person. A command Chips
+can't read part by part, or one that uses `rm`, `sudo`, `git push` and the like, is offered no
+Always. An ask that isn't a command, `file.edit` for one, is matched by its kind and its flags, so
+Always there is meant for a kind of action.
+
+A later ask the rule covers is decided by policy the moment it arrives, with no card: the harness
+hears an `approval.resolved` by `system`, with the rule's reason. A *deny* holds at every level. An
+*allow* holds from L1, where every harness starts; at L0 every action still asks, and a workspace
+capped at L0 or L1 lets no harness's rule allow past it.
 
 ## A yes that holds on
 
@@ -93,6 +103,9 @@ still says it. Only a person gives one, and only as a yes, and never for an ask 
 The room shows a band under its name while one holds (`Jiro is working without asking`), with
 Stop; You's Allowed always lists them too. Stop sends `approval.held_stopped` with the space and
 the agent (`asker`), and the agent's next ask comes to a person.
+
+A server older than 1.2 drops both fields, and says so by leaving `held_yes` out of `server.takes`
+in its [`hello`](/reference/events/hello/). The apps then offer neither.
 
 ## Rules the protocol keeps
 

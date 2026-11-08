@@ -112,6 +112,14 @@ A space, an ask or a harness opens over the whole screen with a bar of its own: 
 you back, and a space's bar says what the space is called with, underneath, the harness working in
 it — or how many people are in it, where there are more than the name can hold.
 
+On an iPad, in a window 700 points wide or more, the app stands in columns instead
+([ADR 0256](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0256-an-ipad-gets-a-sidebar-and-its-room-a-column.md),
+[ADR 0276](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0276-an-ipads-tabs-float-and-a-third-level-opens-beside-the-second.md)):
+the tab's list, what a row in it opens, and a third column one level deeper. The four tabs and the
+gold **+** are a bar across the foot of the list, level with a space's message field. Held upright
+with a third column open, the bar folds to the round of the tab in front; press it to open the four
+out again.
+
 For the workspace's owner, Spaces starts with a card while setting up is unfinished (ADR 0170):
 six steps — Chips running, a computer paired, the first agent's hello, this phone, notifications,
 and a way to reach Chips from away — ticked from what is already true, each step left with the

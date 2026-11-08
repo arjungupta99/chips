@@ -23,6 +23,7 @@ import {
   registerAgent,
   registerSpecialist,
   roomSheet,
+  settled,
   sheetBack,
 } from "./support.ts";
 
@@ -73,7 +74,6 @@ test("an agent's history is its rooms, and a room you're not in is a count", asy
     await expect(page.getByTestId("away-count")).toHaveText("1 message in a space you're not in");
     await expect(page.getByRole("region", { name: "Message history" })).not.toContainText("Attic");
     await page.getByRole("button", { name: "‹ Finch" }).click();
-    await page.getByRole("button", { name: "‹ Agents" }).click();
 
     // Its default agent, named for the harness, in the untitled room it came with. Its card's
     // dates hold their place while the server is asked, so nothing after them moves when they
@@ -93,6 +93,7 @@ test("an agent's history is its rooms, and a room you're not in is a count", asy
     await expect(page.getByTestId("agent-stay-dates")).toHaveText("");
     // Read once the page has come and stopped moving (ADR 0275), so only the dates can move it.
     await expect(page.locator(".turn[data-turn]")).toHaveCount(0);
+    await settled(page);
     const before = await page.getByTestId("agent-now").boundingBox();
     answer();
     await expect(page.getByTestId("agent-stay-dates")).toHaveText(/^\d{1,2} [A-Z][a-z]{2}$/);

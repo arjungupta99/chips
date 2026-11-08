@@ -29,6 +29,12 @@ process.env["CHIPS_E2E_RELAY_PORT"] = RELAY_PORT;
 const BUILD_PORT = process.env["CHIPS_E2E_BUILD_PORT"] ?? "5175";
 process.env["CHIPS_E2E_BUILD_PORT"] = BUILD_PORT;
 
+/**
+ * A window the three columns all fit (ADR 0284): at Desktop Chrome's own 1280 a run's panel has no
+ * column to stand in, and a page beside the list crowds the list out.
+ */
+const THREE_COLUMNS = { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } };
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -46,7 +52,7 @@ export default defineConfig({
     {
       name: "chromium",
       testIgnore: /(scale|windowing|restart|page)\.spec\.ts$/,
-      use: { ...devices["Desktop Chrome"] },
+      use: THREE_COLUMNS,
     },
     // The app as the server itself serves it, from the build the `scale` project makes: the one
     // place a browser is on the plain link and reaches the page door (ADR 0201), since a device
@@ -55,7 +61,7 @@ export default defineConfig({
       name: "served",
       testMatch: /page\.spec\.ts$/,
       dependencies: ["chromium"],
-      use: { ...devices["Desktop Chrome"], baseURL: `http://127.0.0.1:${SERVER_PORT}` },
+      use: { ...THREE_COLUMNS, baseURL: `http://127.0.0.1:${SERVER_PORT}` },
     },
     // A touch window, for the media viewer's touch path: the swipe, the drag to dismiss and the
     // pinch all arrive as pointer events, and a viewport this narrow is where the filmstrip goes
@@ -74,7 +80,7 @@ export default defineConfig({
       name: "scale",
       testMatch: /(scale|windowing|restart)\.spec\.ts$/,
       dependencies: ["chromium"],
-      use: { ...devices["Desktop Chrome"] },
+      use: THREE_COLUMNS,
     },
   ],
   webServer: [

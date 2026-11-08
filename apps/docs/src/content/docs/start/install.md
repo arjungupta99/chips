@@ -113,8 +113,14 @@ a checkout installed — is never replaced, stopped or removed.
 | Logs | `~/Library/Logs/Chips` | `~/.local/state/chips` |
 | The install | `~/.local/lib/chips/<version>`, linked from `~/.local/bin/chips` | same |
 | This machine's own credential, and what `chips connect` wrote | `~/.config/chips` | same |
+| Each bridge's settings and memory | `~/Chips/.bridges/<bridge>` | same |
+| Each agent's own folder (OpenClaw keeps its agents' folders in its own place) | `~/Chips/Agents/<kind>/<agent>` | same |
+| Your folder, the copy of a space's project that Chips for Mac makes when you open it | `~/Chips/Projects/<space>` | |
 
-`CHIPS_DATA_DIR` moves the workspace, and the database with it.
+`CHIPS_DATA_DIR` moves the workspace, and the database with it. `~/Chips` is not part of the
+workspace: `chips export` does not write it, and `chips uninstall` leaves it, even with
+`--remove-data`. A bridge from before 7 November moves its old folders (`~/.chips-acp`,
+`~/chips-hermes` and the like) here itself, the first time a newer one starts.
 
 A space's project is a git repository the server keeps under `projects/` in the workspace, beside
 `attachments/`. Back up both with the database: a copy of the database alone leaves them out. Spaces'

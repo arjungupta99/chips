@@ -172,6 +172,7 @@ test("a cap set in You stops a photo at the chip, and at the server's door", asy
   await expect(section).toHaveCount(0);
 
   try {
+    await page.getByRole("button", { name: "Spaces", exact: true }).click();
     await page
       .getByTestId("space-list")
       .getByRole("button", { name: /PO-4471/ })

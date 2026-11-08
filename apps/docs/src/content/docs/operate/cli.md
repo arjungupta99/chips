@@ -40,7 +40,8 @@ release keeps things, are on [Install](/start/install/#chips-up).
 
 `chips down` stops that service and keeps it from starting at login. `chips uninstall` removes
 the service, the install and the link on your `PATH`, and asks separately before it removes the
-workspace (`--remove-data` answers yes). Neither touches a launch agent `chips up` did not write.
+workspace (`--remove-data` answers yes). Neither touches a launch agent `chips up` did not write,
+or `~/Chips`, where the bridges keep their settings and the agents their folders.
 Run through the link Chips for Mac makes, `chips uninstall` removes the service and the link but
 nothing inside the app, which goes to the Trash ([Chips for Mac](/operate/desktop/#removing-chips-for-mac)).
 
@@ -330,9 +331,10 @@ logs with the same ids are not one log.
 | What was connected | `~/.config/chips/connections.json`, `0600` |
 | The workspace | `CHIPS_DATA_DIR`: from a release, the [platform's place](/start/install/#where-a-release-keeps-things); from a checkout, `./.chips` |
 | The harnesses' bridges | `bridges/` in the workspace's folder, one folder each, with `bridge.json` saying its version |
+| What each bridge keeps | `~/Chips/.bridges/<bridge>`, and its agents' folders in `~/Chips/Agents/<kind>` |
 | The cards `connect` reads | `CHIPS_CONNECTORS`: from a release, the `connectors/connectors.json` it carries; from a checkout, the docs' own |
 | The npm registry | `CHIPS_NPM_REGISTRY`, else `https://registry.npmjs.org` |
 
 `CHIPS_CONFIG_HOME` and `XDG_CONFIG_HOME` both move the first three. The workspace is the thing
-you back up and move between machines; the CLI's own files are not part of it and are not in an
-export.
+you back up and move between machines; the CLI's own files and `~/Chips` are not part of it and
+are not in an export.

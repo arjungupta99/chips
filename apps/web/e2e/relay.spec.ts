@@ -59,7 +59,7 @@ test("a browser away from the network reaches the server through the relay; one 
     await expect.poll(async () => (await relayStats()).sessions).toBe(1);
 
     // A message sent through the relay lands in the room the owner is looking at.
-    await page.getByTestId("you").click();
+    await page.getByRole("button", { name: "Spaces", exact: true }).click();
     await page
       .getByTestId("space-list")
       .getByRole("button", { name: /PO-4471/ })

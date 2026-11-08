@@ -96,6 +96,8 @@ export function useColumnsShell(): ColumnsShell {
 /** The third column, as what stands in it finds it: where to draw, and how to say it is there. */
 export interface ThirdHost {
   readonly slot: HTMLElement | null;
+  /** The column has opened: it is inert until then, so nothing in it can take the keyboard. */
+  readonly open: boolean;
   /** One more in the column; its way out, should the column be closed from outside it. */
   readonly take: (leave: () => void) => () => void;
   /** Close the column from outside it: everything in it leaves (a room's details button). */
@@ -194,13 +196,13 @@ export function Columns(props: {
     };
   }, []);
   const close = useRef<() => void>(() => undefined);
-  const host = useMemo<ThirdHost>(
-    () => ({ slot, take, close: () => close.current() }),
-    [slot, take],
-  );
   const wanted = props.third != null || taken > 0;
   const root = useRef<HTMLElement>(null);
   const { shown, words } = useLead(wanted, props.room === true, () => noteGlides(root.current));
+  const host = useMemo<ThirdHost>(
+    () => ({ slot, open: shown, take, close: () => close.current() }),
+    [slot, shown, take],
+  );
   const kept = useKeptNode(props.third ?? null, shown);
 
   // The shell steps the list aside while the third column is open in a narrow window.

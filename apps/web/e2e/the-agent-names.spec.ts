@@ -71,7 +71,6 @@ test("agents are numbered, renamed on their page, and reached apart by their @",
     await field.fill("Merlin");
     await field.press("Enter");
     await expect(page.getByRole("heading", { name: "Merlin", level: 1 })).toBeVisible();
-    await page.getByRole("button", { name: "‹ Agents" }).click();
     await expect(page.getByTestId(`agent-${three.id}`)).toContainText("Merlin");
 
     // A room with Osprey 2 and Merlin.

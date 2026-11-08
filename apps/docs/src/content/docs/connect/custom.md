@@ -18,10 +18,10 @@ Two ways, same result.
 **In the app**: **Agents → Connect a harness → Anything with HTTP → Advanced**, name it, **Create and
 get a token**. (Without Advanced, the card gives a link and the one curl call that trades it for a
 token: [Join requests](/connect/join/).) The token is
-shown once, in the same dialog, with a Copy button (Chips keeps only a digest). The dialog also
-shows the space the harness was given and the first lines to paste, and its checklist lights as
-the harness's first events arrive. Escape, the × or a click outside closes it. If the token was
-lost, the harness's card issues another.
+shown once, in the same place, with a Copy button (Chips keeps only a digest). It also shows the
+space the harness was given and the first lines to paste, and its checklist lights as the harness's
+first events arrive. Escape or the × puts it away. If the token was lost, the harness's card issues
+another.
 
 **From a terminal** that is paired with the server, which the machine `chips serve` runs on is:
 

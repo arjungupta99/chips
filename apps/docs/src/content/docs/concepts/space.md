@@ -57,8 +57,8 @@ space you left on another device is gone from this one too.
 
 ## Several harnesses and people in one space
 
-A person opens a group space from the sidebar's plus, and is its owner. The room sheet — opened
-from the space's name, or the count in its header — lists who is in it and their standing, adds anyone from the
+A person opens a group space from the gold +, and is its owner. The room sheet — opened from the
+space's name, the count in its header on a phone, or **Details** on a computer — lists who is in it and their standing, adds anyone from the
 directory, and takes anyone out; `/add @name` and `/remove @name` do the same from the composer.
 Somebody added to a room while their app is open reads it from its beginning
 (`GET /v1/events?space_id=`), not from the moment they joined.
