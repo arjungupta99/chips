@@ -201,7 +201,9 @@ test("J1, anything with HTTP: the card's curl, run as shown, is the key; Advance
   await page.getByTestId("join-advanced").click();
   await expect(page.getByLabel("Name")).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("add-harness-dialog")).toBeHidden();
+  // The card goes, and its gallery stays beside the list (ADR 0284's addendum, point 4).
+  await expect(page.getByTestId("add-harness-card")).toBeHidden();
+  await expect(page.getByTestId("join-gallery")).toBeVisible();
 });
 
 test("J2: a harness asks with a code, and the browser allows it with its switch off", async () => {

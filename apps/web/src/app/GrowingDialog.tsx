@@ -72,11 +72,13 @@ function InPlace(props: GrowingDialogProps) {
   const box = useRef<HTMLElement>(null);
   const gone = useRef(props.onGone);
   gone.current = props.onGone;
-  const focus = useRef(props.focus);
+  const { focus } = props;
 
+  // As it opens, and as one of its pages gives way to another: the button pressed for it has gone
+  // with the keyboard, and nothing but this page hears Escape.
   useEffect(() => {
-    box.current?.querySelector<HTMLElement>(focus.current)?.focus({ preventScroll: true });
-  }, []);
+    box.current?.querySelector<HTMLElement>(focus)?.focus({ preventScroll: true });
+  }, [focus]);
 
   useEffect(() => {
     if (props.leaving) gone.current();
@@ -168,7 +170,7 @@ function Docked(props: GrowingDialogProps & { readonly host: ThirdHost }) {
   gone.current = props.onGone;
   const leave = useRef(props.onLeave);
   leave.current = props.onLeave;
-  const focus = useRef(props.focus);
+  const { focus } = props;
 
   // Its place in the column, held until it is leaving; the column closes as it lets go.
   useEffect(() => {
@@ -181,8 +183,8 @@ function Docked(props: GrowingDialogProps & { readonly host: ThirdHost }) {
   const placed = host.slot !== null && host.open;
   useEffect(() => {
     if (!placed) return;
-    box.current?.querySelector<HTMLElement>(focus.current)?.focus({ preventScroll: true });
-  }, [placed]);
+    box.current?.querySelector<HTMLElement>(focus)?.focus({ preventScroll: true });
+  }, [placed, focus]);
 
   useEffect(() => {
     if (!leaving) return;

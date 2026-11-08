@@ -8550,6 +8550,8 @@ describe("join requests (ADR 0122)", () => {
       'http://127.0.0.1:4431/v1/join/redeem" -H "Content-Type: application/json" -d \'{"secret":"chips_j_testlink1_0123456789abcdef","name":"My agent"}\'',
     );
     fireEvent.click(screen.getByTestId("join-advanced"));
+    // The button pressed has gone, and the page's field has the keyboard, so Escape still reaches it.
+    expect(document.activeElement).toBe(screen.getByLabelText("Name"));
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Relay bot" } });
     fireEvent.click(screen.getByRole("button", { name: "Create and get a token" }));
     expect((await screen.findByTestId("harness-token")).textContent).toBe(
