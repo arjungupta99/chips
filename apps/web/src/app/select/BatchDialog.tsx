@@ -1,15 +1,14 @@
 /**
  * The dialog that asks before picked rows are archived or deleted together (ADR 0181, ADR 0182):
- * the confirm dialog, saying what core says of them, and the act going row by row, waiting for the
- * server. Rows it would not take stay in the dialog, with why, to be asked again or left; what it
+ * the confirm dialog, saying what core says of them, and the server asked about every row at once
+ * (`actAll`). Rows it would not take stay in the dialog, with why, to be asked again or left; what it
  * said when the act was pressed holds while the server is asked, since a room going takes its agent
  * with it and the words worked out again mid-batch change under the button.
  */
 
-import type { Asking } from "@chipschat/core";
+import { type Asking, actAll } from "@chipschat/core";
 import { useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog.tsx";
-import { actAll } from "./usePick.ts";
 
 /** What a batch asks about, as the list hands it over. */
 export interface BatchAsk<T> {
@@ -32,6 +31,7 @@ export function BatchDialog<T extends { readonly id: string }>({
   asking: askingOf,
   nameOf,
   act,
+  lane,
   onCancel,
   onActing,
   onDone,
@@ -45,6 +45,8 @@ export function BatchDialog<T extends { readonly id: string }>({
   readonly nameOf: (item: T) => string;
   /** The act on one row, as the server is asked to do it. */
   readonly act: (kind: BatchAsk<T>["kind"], item: T, plan: ActPlan<T>) => Promise<void> | void;
+  /** Rows that must go one at a time share a lane (`agentLane`); without it, each has its own. */
+  readonly lane?: ((item: T) => string) | undefined;
   readonly onCancel: () => void;
   /** It was confirmed: the rows are held while the server is asked. */
   readonly onActing: (going: readonly T[]) => void;
@@ -65,8 +67,10 @@ export function BatchDialog<T extends { readonly id: string }>({
         const going = left;
         setSaid(asking);
         onActing(going);
-        const { done, refused } = await actAll(going, (item) =>
-          act(kind, item, { too, asking, going }),
+        const { done, refused } = await actAll(
+          going,
+          (item) => act(kind, item, { too, asking, going }),
+          lane,
         );
         setSaid(undefined);
         onDone(

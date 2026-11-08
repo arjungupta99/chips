@@ -42,8 +42,9 @@ const MARK: Readonly<Record<ReceiptStepStatus, { glyph: string; word: string }>>
 };
 
 /**
- * `3 steps · 12s · ≈$0.04`, with `1 failed` when something did. A run that only answered says
- * `3s · ≈$0.03`: no `0 steps` heading a receipt with nothing under it.
+ * `≈$0.04 · 3 steps · 12s`, with `1 failed` when something did: the cost first, since it is what a
+ * reader opens a receipt for (ADR 0282). A run that only answered says `≈$0.03 · 3s`: no `0 steps`
+ * in a receipt with nothing under it.
  */
 export function receiptSummary(
   steps: readonly ReceiptStep[],
@@ -51,11 +52,11 @@ export function receiptSummary(
   costUsd?: number,
 ): string {
   const parts: string[] = [];
+  if (costUsd !== undefined) parts.push(formatCost(costUsd));
   if (steps.length > 0) parts.push(`${steps.length} ${steps.length === 1 ? "step" : "steps"}`);
   const failed = steps.filter((step) => step.status === "failed").length;
   if (failed > 0) parts.push(`${failed} failed`);
   if (durationMs !== undefined) parts.push(formatDuration(durationMs));
-  if (costUsd !== undefined) parts.push(formatCost(costUsd));
   return parts.join(" · ");
 }
 

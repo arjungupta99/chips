@@ -31,6 +31,7 @@ export function fakeStore(snapshot: Snapshot): Store & {
     getSnapshot: () => snapshot,
     resolveApproval: record("resolveApproval"),
     routeApproval: record("routeApproval"),
+    stopLetWork: record("stopLetWork"),
     answerQuestion: record("answerQuestion"),
     setAutonomy: record("setAutonomy"),
     setRules: record("setRules"),
@@ -141,8 +142,11 @@ export function fakeStore(snapshot: Snapshot): Store & {
     setLead: async (spaceId: string, agentId: string | null) => {
       calls.push({ name: "setLead", args: { spaceId, agentId } });
     },
-    setSpendCeiling: async (spaceId: string, usd: number | null) => {
-      calls.push({ name: "setSpendCeiling", args: { spaceId, usd } });
+    setSpendCeiling: async (spaceId: string, usd: number | null, options?: unknown) => {
+      calls.push({
+        name: "setSpendCeiling",
+        args: { spaceId, usd, ...(options === undefined ? {} : { options }) },
+      });
     },
     setLock: async (spaceId: string, locked: boolean) => {
       calls.push({ name: "setLock", args: { spaceId, locked } });
@@ -373,11 +377,13 @@ export function snapshot(
     },
     model: {
       needsYou: over.needsYou ?? [needsItem()],
+      lanes: [],
       spaces: [
         {
           id: "sp_1",
           kind: "room",
           members: over.members ?? ["per_arjun", "per_dana", "har_scout"],
+          roles: {},
           runs: [{ approvals: over.approvals ?? [approval()], questions: over.questions ?? [] }],
         },
       ],

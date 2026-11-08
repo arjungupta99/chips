@@ -3,6 +3,7 @@ export type {
   ApprovalDecision,
   ApprovalResolution,
   ApprovalScope,
+  LetWorkSwitch,
 } from "./approval/approval.js";
 export { ApprovalCard } from "./approval/approval.js";
 export type { AttachmentChipProps, AttachmentKind } from "./attachment/attachment.js";
@@ -57,4 +58,4 @@ export { TierBadge } from "./tier/tier.js";
 export type { TimelineItem, TimelineProps, TimelineStatus } from "./timeline/timeline.js";
 export { Timeline } from "./timeline/timeline.js";
 export type { FaceGroupProps, TrailHop, TrailProps, TrailStop } from "./trail/trail.js";
-export { FACES_UP_TO, FaceGroup, Trail, trailLabel } from "./trail/trail.js";
+export { FaceGroup, marked, Trail, trailLabel } from "./trail/trail.js";

@@ -171,3 +171,134 @@
   align-self: flex-end;
   margin-bottom: 7px;
 }
+
+/*
+ * The iPad's composer (`plus`, ADR 0284): no rule over it, a round + before the field, and the
+ * field a pill of its own that holds the words, Steer and Send, 44 high as the iPad's is.
+ */
+.ui-composer[data-plus="true"] {
+  border-top: 0;
+  background: transparent;
+  padding-top: 8px;
+  padding-bottom: 18px;
+}
+
+.ui-composer[data-plus="true"] .ui-composer__row {
+  align-items: flex-end;
+}
+
+.ui-composer__plus {
+  position: relative;
+  flex: none;
+}
+
+.ui-composer__plus > .ui-composer__plus-button {
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.ui-composer__plus[data-open="true"] > .ui-composer__plus-button {
+  background: var(--surface-2);
+}
+
+.ui-composer[data-plus="true"] .ui-composer__field {
+  min-height: 44px;
+  border-color: var(--line);
+  border-radius: 22px;
+}
+
+.ui-composer[data-plus="true"] .ui-composer__line {
+  align-items: flex-end;
+  gap: 6px;
+  padding: 0 5px 0 8px;
+}
+
+.ui-composer[data-plus="true"] .ui-composer__input {
+  min-height: 42px;
+  padding: 11px 4px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ui-composer[data-plus="true"] .ui-composer__line > .ui-composer__chip {
+  align-self: flex-end;
+  margin-bottom: 8px;
+  background: transparent;
+  color: var(--ink-3);
+}
+
+.ui-composer[data-plus="true"] .ui-composer__line > .ui-composer__chip[data-active="true"] {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.ui-composer[data-plus="true"] .ui-composer__line > .ui-composer__send {
+  align-self: flex-end;
+  margin-bottom: 5px;
+}
+
+/* What can go with the words, over the +: the iPad's menu, on the raised ground. */
+.ui-composer__menu {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  min-width: 220px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--raised);
+  box-shadow: var(--shadow-2);
+  transform-origin: bottom left;
+  animation: ui-composer-menu var(--motion-base) var(--ease);
+}
+
+@keyframes ui-composer-menu {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(4px);
+  }
+}
+
+.ui-composer__menu > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ui-composer__menu > button:hover,
+.ui-composer__menu > button:focus-visible {
+  background: var(--raised-press);
+  outline: none;
+}
+
+.ui-composer__menu > button:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.ui-composer__menu > button > svg {
+  color: var(--ink-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-composer__menu {
+    animation: none;
+  }
+}

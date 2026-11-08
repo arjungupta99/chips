@@ -3,7 +3,8 @@
  * October 2026: "add Select to the web and Mac too"), as the phone's Spaces list picks them: the
  * open rooms and the archived ones shown, never a locked room or the Main room (core's `mayPick`).
  * Archive asks once; Unarchive, where every room picked is archived, puts them back at once, as a
- * swipe's does; Delete asks, with one switch for the rooms' lone agents, and goes room by room.
+ * swipe's does; Delete asks, with one switch for the rooms' lone agents, and asks the server about
+ * every room at once.
  * Read (ADR 0181 addendum, 18 October 2026) reads every room with nothing picked, locked, Main and
  * archived ones too, or the picked ones, at once, and picking ends.
  */

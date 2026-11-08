@@ -37,6 +37,7 @@ Every event also carries the [envelope](/reference/envelope/).
 | `server` | yes | object | Who the client is talking to. |
 | `server.name` | yes | `string` | Usually `chipsd`. |
 | `server.version` | yes | `string` | The server's own version. |
+| `server.takes` | no | `string[]` | What this server keeps of what a person's client may send beyond the base set, by the names in `SERVER_TAKES`. `held_yes` is `for_minutes` and `until_stopped` on `approval.resolved`. A server older than the field says nothing, and drops those fields, so a client offers neither to it (ADR 0281). |
 | `harnesses` | yes | object[] | The harness the token belongs to, and only that one. One connection speaks for all of the harness's agents (ADR 0087), which `agents` lists. A harness running inside another is a lane, not a duplicate. |
 | `harnesses[].harness_id` | yes | `string` | A harness identifier: `hrn_` followed by a ULID. |
 | `harnesses[].display_name` | yes | `string` | The harness's name in the workspace. |

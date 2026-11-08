@@ -800,10 +800,14 @@ export function refuseNotAnApprover(
   if (!ANSWERS.has(type)) return undefined;
   const routing = type === "approval.routed";
   if (sender.kind === "harness") {
+    if (holdsOn(event)) {
+      return refusal("invalid", "a yes that holds on is a person's to give, not a harness's");
+    }
     return refuseHarnessAnswer(event, sender, approvers, routing, own, ask);
   }
   return (
     refuseStandingYes(event, ask) ??
+    refuseYesForAWhile(event, ask) ??
     refuseEverywhere(event, sender) ??
     refusePersonAnswer(sender, approvers, role, routing)
   );
@@ -850,6 +854,38 @@ export function refuseStandingYes(
     );
   }
   return refuseStandingCommand(ask.command);
+}
+
+/** A yes that holds on past its ask: for a while, or until a person stops it (ADR 0281). */
+function holdsOn(event: Readonly<Record<string, unknown>>): boolean {
+  return event["for_minutes"] !== undefined || event["until_stopped"] !== undefined;
+}
+
+/**
+ * A yes that holds on in the space, for a while (ADR 0239, addendum of 6 November 2026) or until
+ * a person stops it (ADR 0281), is a yes given once: never with This session or Always, never a
+ * no, never both at once, and never for an ask that matters. It reaches every other ask, commands
+ * Chips can't read and those on the never list too, so a command is not looked at.
+ */
+export function refuseYesForAWhile(
+  event: Readonly<Record<string, unknown>>,
+  ask: AuthorizeContext["askAction"],
+): Refusal | undefined {
+  if (event["type"] !== "approval.resolved" || !holdsOn(event)) return undefined;
+  if (event["for_minutes"] !== undefined && event["until_stopped"] !== undefined) {
+    return refusal("invalid", "a yes holds for a while or until it is stopped, not both");
+  }
+  if ((event["scope"] ?? "once") !== "once") {
+    return refusal("invalid", "a yes that holds on is given once, not with This session or Always");
+  }
+  if (event["decision"] !== "approved" && event["decision"] !== "edited") {
+    return refusal("invalid", "only a yes holds on");
+  }
+  if (ask === null || ask === undefined || !actionMatters(ask)) return undefined;
+  return refusal(
+    "invalid",
+    "an ask that matters is answered once: a yes that holds on is not given for money, outside messages, deletions or anything that can't be undone",
+  );
 }
 
 /**

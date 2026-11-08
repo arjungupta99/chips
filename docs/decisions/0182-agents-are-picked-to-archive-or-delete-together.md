@@ -102,3 +102,34 @@ picked, Archive 2 asked and done, both back with Unarchive 2 from their fold, th
 of one section and unfolding in the other. The walk found that a held row's run was worked out
 again from a list it had left, so it unfolded where it should have folded; fixed by each list
 telling its rows their run.
+
+## Addendum, 5 November 2026: a batch is asked at once, and a delete is done at the server's yes
+
+Arjun: "agent deletion from agent tab is super slow. Specially gets slow when batch deleting. Any
+way to speed up?" His four deletes at 21:09 that evening reached the server 2.5 to 2.8 s apart. On
+a copy of his workspace the server took 2 to 6 ms for each delete and 2 to 3 ms to read the
+directory, so the time was all round trips, each about 650 ms through the relay:
+
+- the store's `deleteAgent` waited for the directory to be read again after the delete, and the
+  `agent.deleted` event arriving on the socket meanwhile marked that read stale, so it read twice.
+  The directory is 142 KB on his workspace (275 entries, 172 of them deleted agents);
+- the batch asked about one agent, waited for all of that, then asked about the next.
+
+What changed:
+
+- **A delete is done when the server says yes.** The store draws the agent as removed, and in no
+  room, from that answer on (`withDeleted`), and reads the directory again behind it without
+  waiting. A read already on its way says the agent is still there; it is drawn removed anyway,
+  since deleted stays deleted (ADR 0095: its key is retired). Archive still waits for its read,
+  since an archive can be undone and a stale read could not be told from a newer one.
+- **A batch is asked at once** (core's `actAll`, now one for the phone and the web): every row is
+  sent without waiting for the others, except that a room's agents go one at a time
+  (`agentLane`), because the last of them may take the room with it and the server refuses that
+  while another is still there, and because two leaving at once could both find the room empty and
+  archive it twice. One the server refuses still stays on the sheet with why. The Spaces list's
+  batches use the same runner, every room at once: ADR 0181's "deleting stays one room at a time"
+  no longer holds. Each erase is its own transaction on the server, and a file two rooms share is
+  only removed by the last of the erases.
+
+So a delete through the relay is one round trip instead of about four, and a batch of agents in
+rooms of their own takes about as long as one.

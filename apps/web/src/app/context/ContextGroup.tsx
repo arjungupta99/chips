@@ -27,7 +27,7 @@ import {
 import { useEffect, useState } from "react";
 import { clockOrDay } from "../time.ts";
 import { NotShared, useLands, WaitingGroup } from "../Waiting.tsx";
-import { takeLanding } from "./memory.ts";
+import { takeLanding, watch } from "./memory.ts";
 import type { ContextPage } from "./pages.ts";
 import { FileRow, HarnessMark, LinkedFoot, NotShownRow } from "./rows.tsx";
 import { agentKey, useAgentContext } from "./useContext.ts";
@@ -134,8 +134,13 @@ export function ContextGroup({
 export function useLanding(key: string): { name: string; at: number } | undefined {
   const [landed, setLanded] = useState<{ name: string; at: number } | undefined>(undefined);
   useEffect(() => {
-    const name = takeLanding(key);
-    if (name !== undefined) setLanded({ name, at: Date.now() });
+    const take = () => {
+      const name = takeLanding(key);
+      if (name !== undefined) setLanded({ name, at: Date.now() });
+    };
+    take();
+    // Or while it is drawn, beside the editor that saved it (ADR 0284).
+    return watch(key, (told) => told === "landed" && take());
   }, [key]);
   return landed;
 }

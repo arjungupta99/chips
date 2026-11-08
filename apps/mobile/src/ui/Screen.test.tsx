@@ -80,6 +80,18 @@ describe("a screen", () => {
     expect(screen.getByRole("header", { name: "Spaces" })).toBeOnTheScreen();
   });
 
+  it("keeps what it holds inside it, so the screen's settings reach the list", async () => {
+    // What this renderer cannot show: on the phone a view with only a colour and padding is
+    // drawn empty, with its children moved up after it, and the screen looking down its first
+    // children for the list stops at the empty page. A room's list then kept iOS's edge effect.
+    await render(
+      <Screen testID="page">
+        <ScrollView testID="list" />
+      </Screen>,
+    );
+    expect(screen.getByTestId("page").props["collapsable"]).toBe(false);
+  });
+
   it("leaves a list alone under a name that is a shelf", async () => {
     await render(
       <Screen title="Runtime" testID="page">

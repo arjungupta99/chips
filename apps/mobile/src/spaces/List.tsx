@@ -1541,7 +1541,7 @@ function usePicking(
 
 /**
  * The sheet that asks before picked rooms are archived or deleted (ADR 0181): what core says of
- * them, their faces, and each room asked of the server in turn, the lone agent of those the switch
+ * them, their faces, and every room asked of the server at once, the lone agent of those the switch
  * is about going with it.
  */
 function SpacesBatch({

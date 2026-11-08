@@ -454,3 +454,40 @@ not look right, and what each now does:
 
 Looked at and left as it is: the Workspaces card stands in the middle (it holds tasks as well as
 the choice); You's list wraps a few labels at 340 points beside their values.
+
+## Addendum, 5 November 2026: the agent picker on the Duo folded
+
+Found while taking the App Store pictures for 1.1 on the Duo simulator folded (iOS 27.2): a tap on
+the faces at the front of the field drew the list of who a message goes to downward, with no card
+behind it, over the field and off the foot of the screen. On the iPhone it opened upward as a card.
+The Duo's set left that picture out.
+
+1. **It was not the Duo.** Filmed folded, the room rose for the list, and the field's glass grew a
+   frame or two of its 190 points, 15 to 30, and stayed there: the list stood from the glass's top,
+   over the words and on down. The glass and the words' row move on Reanimated's layout
+   transitions (`ui/growing.tsx`), and a log on each said both had finished. With the Mac at a
+   load of 160 to 230 and its swap full, it failed every time; at an ordinary load it opened as it
+   should. A 300 ms stall of the UI thread just after the glass began to grow (not kept) failed it
+   every time at an ordinary load too.
+2. **Reanimated dropped the last frame.** In the frame a layout transition ends, its last progress
+   is queued and the transition is marked ended before the frame's flush, and the flush passes over
+   a transition that has ended, so where it came to rest was never mounted. With every frame on
+   time, the frame before is a fraction of a point short and nobody sees it. With the UI thread held
+   past the end (the list mounting and the room laid out again, on a busy machine), the next frame
+   is the last, and the view stays where the first one left it. The iPhone and the iPad are open
+   to it as much as the Duo.
+3. **The fix** is in `patches/react-native-reanimated@4.5.1.patch`, beside ADR 0181's: a finished
+   transition ends from the frame's finalizer, after the flush (`endAfterFlush`), so its last frame
+   is mounted first. With the same stall the picker opened and closed as it should, every time.
+   Every layout transition in Chips now comes to rest where it was laid out, the room's moves
+   among them; a view leaving goes a frame later. JavaScript only, but the patched package lives
+   at a new path, so the phone build wants `pnpm install` and `pnpm phone pods` first.
+4. **The column, cleared twice.** Folded, the room's page pads by the column (`useSides`, item 10
+   above), and the foot floats inside it, but the foot still cleared the column itself (item 4
+   above). The field, and the card it opens into, stood the column's 84 points short of it, and
+   "Message Theo" was cut to "Message...". The foot no longer clears it, and ends where the lines
+   do.
+
+Walked with a JavaScript-only build of 1.1.0 with these changes: on the Duo folded the picker
+opened upward as a card as wide as the room, picked Milo and closed; on an iPhone 17 Pro and an iPad
+Pro 13-inch (iOS 26.5) it opened upward as a card.

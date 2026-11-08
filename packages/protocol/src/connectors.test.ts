@@ -35,7 +35,7 @@ describe("a card with a bridge (ADR 0218)", () => {
       ...CARD,
       command: "chips connect codex '{link}'",
       package: "@chipschat/acp@1",
-      args: ["~/.chips-acp/codex.json"],
+      args: ["~/Chips/.bridges/acp/codex.json"],
     };
     expect(connector.parse(card)).toEqual(card);
   });

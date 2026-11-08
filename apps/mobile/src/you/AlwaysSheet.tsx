@@ -11,6 +11,10 @@
  * open every ask, as a harness's own do (ADR 0255): on a phone the sheet goes down and the list
  * comes up over You; on an iPad it stands in a third column beside the page (ADR 0276).
  *
+ * Above them, the agents let work without asking just now (ADR 0281), each with the room it works
+ * in, until when, and Stop: a yes that holds on is listed beside the Always rules, since it is
+ * one too, and this is where it is found again away from its room.
+ *
  * It is a shortcut to the harness pages' lists, not a setting of its own: two people running one
  * workspace see one truth, and asking is the harness's, not the person's.
  *
@@ -27,6 +31,8 @@ import {
   REMOVED_WORDS,
   type Snapshot,
   type Store,
+  WORKING_HEADING,
+  workingWithoutAsking,
   workspaceAskHistory,
 } from "@chipschat/core";
 import { useRouter } from "expo-router";
@@ -36,13 +42,16 @@ import { AlwaysList } from "../harnesses/AlwaysList";
 import { DotRow, Hero, PromiseMark, useMarks } from "../harnesses/AskingMotion";
 import { useAlways } from "../harnesses/useAlways";
 import { useDust } from "../spaces/Dust";
+import { BandIn } from "../spaces/LetWorkMotion";
 import { ListDust } from "../spaces/SelectMotion";
 import { UndoPill } from "../spaces/UndoPill";
+import { Button } from "../ui/Button";
 import { Group, GroupFoot, GroupHeading } from "../ui/Group";
 import { Icon } from "../ui/Icon";
 import { Sheet, SheetScroll } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
+import { useNow } from "../ui/useNow";
 import { useReduceMotion } from "../ui/useReduceMotion";
 import { SheetPage, useThirdPage } from "./pages";
 import { SheetHead } from "./SheetHead";
@@ -141,6 +150,7 @@ function useAlwaysBody({
   const asking = alwaysAsking(harnesses);
   const body = (
     <>
+      <Working store={store} snapshot={snapshot} />
       {allowing.length === 0 ? (
         <Nothing
           snapshot={snapshot}
@@ -189,6 +199,43 @@ function useAlwaysBody({
     </>
   );
   return { body, over };
+}
+
+/** The agents let work without asking now (ADR 0281), each with where, until when, and Stop. */
+function Working({ store, snapshot }: { readonly store: Store; readonly snapshot: Snapshot }) {
+  const palette = usePalette();
+  const now = useNow(snapshot.model.spaces.some((space) => space.letWork !== undefined));
+  const rows = workingWithoutAsking(snapshot.model, snapshot.directory, now);
+  if (rows.length === 0) return null;
+  return (
+    <View style={styles.harness} testID="always-working">
+      <GroupHeading>{WORKING_HEADING}</GroupHeading>
+      <Group>
+        {rows.map((row, index) => (
+          <BandIn
+            key={`${row.spaceId} ${row.held.asker}`}
+            style={[
+              styles.pad,
+              styles.opens,
+              index === 0 ? null : { borderTopWidth: StyleSheet.hairlineWidth },
+              { borderColor: palette.line },
+            ]}
+            testID={`always-working-${row.held.asker}`}
+          >
+            <View style={[styles.grow, styles.working]}>
+              <Text style={[styles.name, { color: palette.ink }]}>{row.name}</Text>
+              <Text style={[styles.note, { color: palette.ink3 }]}>{row.line}</Text>
+            </View>
+            <Button
+              label="Stop"
+              onPress={() => store.stopLetWork({ spaceId: row.spaceId, asker: row.held.asker })}
+              testID={`always-working-stop-${row.held.asker}`}
+            />
+          </BandIn>
+        ))}
+      </Group>
+    </View>
+  );
 }
 
 /** Nothing allowed anywhere, said once, with every ask so far under it. */
@@ -297,6 +344,8 @@ const styles = StyleSheet.create({
   grow: { flex: 1 },
   note: { fontSize: TEXT.sm, lineHeight: TEXT.sm * 1.45 },
   history: { gap: SPACE.sm },
+  working: { gap: 2 },
+  name: { fontSize: TEXT.md, fontWeight: "600" },
   // The dots and their line, and the chevron of a row that opens something.
   opens: { flexDirection: "row", alignItems: "center", gap: SPACE.md },
 });

@@ -45,6 +45,16 @@ export const SERVER_EXTENSIONS = [
 ] as const;
 export type ServerExtension = (typeof SERVER_EXTENSIONS)[number];
 
+/**
+ * What a server keeps of what a person's client may send beyond the base set, as its `hello` says
+ * in `server.takes` (ADR 0281, addendum of 8 November 2026). A field a server doesn't know is
+ * dropped in silence, so a client offers a person only what the server says it keeps. `held_yes`
+ * is a yes that holds on: `for_minutes` and `until_stopped` on `approval.resolved`.
+ */
+export const HELD_YES = "held_yes";
+export const SERVER_TAKES = [HELD_YES] as const;
+export type ServerTake = (typeof SERVER_TAKES)[number];
+
 export const clientHelloFrame = z
   .object({
     frame: z.literal("hello"),

@@ -211,7 +211,7 @@ const PLACES = [
   "Osteria Verde has a private room. I'll take that one.",
 ].join("\n");
 const HAND_OFF =
-  "@Theo, could you make an invite card? Green and gold, Saturday 7:30 at Osteria Verde.";
+  "@Theo, could you make an invite card? A Tuscan sunset, Saturday 7:30 at Osteria Verde.";
 const HERES_THE_CARD = "Here's the card.";
 const SENT = "Sent to 11. Ana and Raj have said yes already.";
 const LOVE_THE_CARD = "Love the card!";

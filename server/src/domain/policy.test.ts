@@ -275,6 +275,33 @@ describe("rules", () => {
     expect(run("cat x && rm y", whole).decision).toBe("allow");
   });
 
+  it("lets a yes that holds on reach every ask but one that matters, after a person's no (ADR 0281)", () => {
+    const held: PolicyRule = { match: "*", decision: "allow", made_at: "2026-11-06T07:08:00.000Z" };
+    const run = (action: PolicyAction, rules: PolicyRule[] = []) =>
+      evaluate(action, { autonomy: 1, rules: [...rules, held] }, open).decision;
+    // Read or not, rm and git push too, and asks that are not commands.
+    expect(run({ kind: "shell.exec", command: "cd /x; cat a | wc -l" })).toBe("allow");
+    expect(run({ kind: "shell.exec", command: "for r in a b; do head -3 $r; done" })).toBe("allow");
+    expect(run({ kind: "shell.exec", command: "rm -rf build && git push" })).toBe("allow");
+    expect(run({ kind: "file.write" })).toBe("allow");
+    // What matters still waits for a person.
+    expect(run({ kind: "shell.exec", command: "ls", irreversible: true })).toBe("ask");
+    expect(run({ kind: "email.send", external: true })).toBe("ask");
+    expect(run({ kind: "payment.transfer", money_usd: 5 })).toBe("ask");
+    // A no a person set, for the kind or for how a part starts, comes first.
+    expect(run({ kind: "web.fetch" }, [{ match: "web.fetch", decision: "deny" }])).toBe("deny");
+    const noRm: PolicyRule = { match: "shell.*", when: { starts_with: ["rm"] }, decision: "deny" };
+    expect(run({ kind: "shell.exec", command: "ls && rm x" }, [noRm])).toBe("deny");
+    // And nothing gets past a cap below L2.
+    expect(
+      evaluate(
+        { kind: "file.write" },
+        { autonomy: 1, rules: [held] },
+        { maxAutonomy: 1, rules: [] },
+      ).decision,
+    ).toBe("ask");
+  });
+
   it("reads the workspace's starts first, whichever way they decide (ADR 0239)", () => {
     const room: WorkspacePolicy = {
       maxAutonomy: 2,

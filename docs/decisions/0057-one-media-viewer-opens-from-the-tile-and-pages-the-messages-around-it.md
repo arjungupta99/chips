@@ -100,3 +100,26 @@ under these same rules.
   the copy that plays everywhere is being made.
 - The proposal numbered this decision 0056. That number was taken on 13 September 2026 by the
   limiter's, so this is 0057, and the grant the proposal's Phase 4 will write is 0058.
+
+## Addendum, 6 November 2026: the status bar goes only where going moves nothing
+
+Arjun, on his iPad, from You → Media on this iPad: dismissing a photo "causes odd bounces in the
+left nav and pretty much the whole screen". The status bar hid with the bars, as the proposal says,
+and a drag to dismiss takes the bars away as it starts. On an iPad the window's top inset is the
+status bar's 24 points, so hiding it dropped that inset to 0, and every screen under the viewer
+rose: the list beside the page and the page both. Then, as the viewer started to leave, the bar
+came back and they slid down again. All of it showed through the clearing backdrop. Filmed on the
+13-inch iPad simulator, the list stood about 30 points high for the whole drag and took about
+230 ms to slide back after the release. A tap on Close moved nothing, since the bars, and with
+them the bar, were still up.
+
+1. **On iOS the bar hides with the bars only where a sensor housing holds its band**
+   (`hidesInPlace` in `media/ViewerWindow.tsx`): an iPhone whose window reaches 44 points or more
+   into a housing, at the top upright or at a side on its side. There the top inset is the
+   housing's, bar or no bar. On an iPad, an iPhone with a Home button and the iPhone Duo, the bar
+   stays, light over the stage. The same film with this change: the list holds its place in
+   every frame of the drag and the flight home. Android is unchanged: the viewer's modal is a
+   window of its own there.
+2. **Leaving, the bar takes the app's ink at once**, crossfaded as the backdrop clears. It stayed
+   light until the modal went, so it stood white over a light page for the flight home and turned
+   dark in one frame at the end. `statusInk` in `ui/theme.ts` is the root's rule, now shared.

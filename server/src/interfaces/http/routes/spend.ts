@@ -2,11 +2,13 @@
  * What a room allows a job, and what its job has spent (ADR 0117).
  *
  * - `GET /v1/spaces/:id/spend`: the job's spend against the room's ceiling, as of now, for anybody
- *   in the room: the same shape a harness is handed as `context.spend` with a message.
- * - `POST /v1/spaces/:id/spend-ceiling {usd: number | null}`: the workspace's owner, in the room,
- *   sets what it allows a job (ADR 0196), from 0.25 to 100 in steps of 0.25, or `null` for the
- *   default.
- *   Setting what it is already changes nothing.
+ *   in the room: the same shape a harness is handed as `context.spend` with a message, and with it
+ *   what began the job, the jobs before it that spent, and the room's total (ADR 0282).
+ * - `POST /v1/spaces/:id/spend-ceiling {usd: number | null, carry_on?: true}`: the workspace's
+ *   owner, in the room, sets what it allows a job (ADR 0196), from 0.25 to 100 in steps of 0.25, or
+ *   `null` for the default. Setting what it is already changes nothing. With `carry_on`, the
+ *   agents Chips held at the ceiling carry on as well, in the same request, so the room hears both
+ *   at once (ADR 0282).
  */
 
 import type { Hono } from "hono";
@@ -21,18 +23,20 @@ const STATUS = {
   out_of_range: "invalid_event",
 } as const;
 
-function readUsd(raw: string | undefined): number | null {
+function readBody(raw: string | undefined): {
+  readonly usd: number | null;
+  readonly carryOn: boolean;
+} {
   let body: unknown;
   try {
     body = raw === undefined || raw === "" ? {} : JSON.parse(raw);
   } catch {
     throw new HttpError("invalid_event", "The body is not JSON.");
   }
-  const usd =
-    typeof body === "object" && body !== null
-      ? (body as Record<string, unknown>)["usd"]
-      : undefined;
-  if (usd === null || (typeof usd === "number" && Number.isFinite(usd))) return usd;
+  const fields = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+  const usd = fields["usd"];
+  const carryOn = fields["carry_on"] === true;
+  if (usd === null || (typeof usd === "number" && Number.isFinite(usd))) return { usd, carryOn };
   throw new HttpError(
     "invalid_event",
     "Say what a job may spend as `usd`, or `null` for the default.",
@@ -49,23 +53,34 @@ export function registerSpendRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps): v
     );
     if (!mine.includes(spaceId))
       throw new HttpError("not_found", "You are in no space with that id.");
-    const spend = await roomSpendFor({
-      readModels: deps.readModels,
-      workspaceId: principal.workspaceId,
-      spaceId,
-    });
-    return c.json({ space_id: spaceId, ...spend });
+    const [spend, history] = await Promise.all([
+      roomSpendFor({ readModels: deps.readModels, workspaceId: principal.workspaceId, spaceId }),
+      deps.readModels.spendHistoryOf(principal.workspaceId, spaceId),
+    ]);
+    return c.json({ space_id: spaceId, ...spend, ...history });
   });
 
   app.post("/v1/spaces/:id/spend-ceiling", async (c) => {
     const spaceId = c.req.param("id");
-    const usd = readUsd(c.get("rawBody"));
-    const result = await deps.setSpendCeiling({ principal: c.get("principal"), spaceId, usd });
+    const principal = c.get("principal");
+    const { usd, carryOn } = readBody(c.get("rawBody"));
+    const result = await deps.setSpendCeiling({ principal, spaceId, usd });
     if (!result.ok) throw refusal(result.error);
     if (result.changed) {
       c.get("logger").info({ spaceId, usd: result.usd }, "what a space allows a job set");
     }
-    return c.json({ space_id: spaceId, usd: result.usd, changed: result.changed });
+    // Carrying on is a person acting in the room, as the banner's other button is: the owner who
+    // may set the ceiling may always let the agents go on. Agents that are not held are not told
+    // to carry on, which would say so in the room for nothing.
+    const held =
+      carryOn && (await deps.readModels.exchangeOf(principal.workspaceId, spaceId)).paused;
+    const going = held ? await deps.setExchange({ principal, spaceId, state: "going" }) : undefined;
+    return c.json({
+      space_id: spaceId,
+      usd: result.usd,
+      changed: result.changed,
+      carried_on: going?.ok === true && going.changed,
+    });
   });
 }
 

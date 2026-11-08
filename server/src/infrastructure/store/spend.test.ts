@@ -122,7 +122,7 @@ describe("what a room's job has spent (ADR 0117)", () => {
   it("allows the default until a person sets another, and the default again when set back", async () => {
     expect(await setCeiling(ws.arjun.sign, 10)).toEqual({
       status: 200,
-      json: { space_id: ws.spaceId, usd: 10, changed: true },
+      json: { space_id: ws.spaceId, usd: 10, changed: true, carried_on: false },
     });
     expect((await spendOf()).ceiling_usd).toBe(10);
     expect((await setCeiling(ws.arjun.sign, 10)).json).toMatchObject({ changed: false });
@@ -149,6 +149,78 @@ describe("what a room's job has spent (ADR 0117)", () => {
     const path = `/v1/spaces/${ws.spaceId}/spend-ceiling`;
     expect((await call("POST", path, ws.scout.headers, { usd: 5 })).status).toBe(403);
     expect((await spendOf()).ceiling_usd).toBe(3);
+  });
+
+  it("lists the jobs before this one that spent, newest first, with the room's total and what began this one (ADR 0282)", async () => {
+    await say();
+    const first = await start();
+    await report(first, 0.5);
+    const second = await say();
+    // The first run goes on into the second job, which counts what it added there.
+    await report(first, 0.8);
+    const silent = await start();
+    await report(silent, undefined);
+    await append(
+      "exchange.set",
+      { kind: "system", id: "system" },
+      {
+        state: "paused",
+        why: "spend",
+        spend: { ceiling_usd: 3, spent_usd: 3.1, since_seq: second.seq, uncounted_runs: 1 },
+      },
+    );
+    const going = await append("exchange.set", arjun(), { state: "going" });
+    const third = await start();
+    await report(third, 0.2);
+    const path = `/v1/spaces/${ws.spaceId}/spend`;
+    const read = await call("GET", path, signed(ws.arjun.sign, "GET", path));
+    expect(read.json).toMatchObject({
+      spent_usd: 0.2,
+      since_seq: going.seq,
+      started: { at: going.ts, by: ws.arjun.participantId, act: "carry_on" },
+      total_usd: 1,
+      jobs: [
+        {
+          since_seq: second.seq,
+          started_at: second.ts,
+          spent_usd: 0.3,
+          uncounted_runs: 1,
+          run_ids: [first, silent],
+          by: [ws.scout.participantId],
+          held: true,
+        },
+        { spent_usd: 0.5, uncounted_runs: 0, run_ids: [first], held: false },
+      ],
+    });
+    expect(read.json["jobs"]).toHaveLength(2);
+  });
+
+  it("lets the agents held at the ceiling carry on in the same request that raises it (ADR 0282)", async () => {
+    const path = `/v1/spaces/${ws.spaceId}/spend-ceiling`;
+    const raise = (usd: number) =>
+      call("POST", path, signed(ws.arjun.sign, "POST", path, { usd, carry_on: true }), {
+        usd,
+        carry_on: true,
+      });
+    // Not held: nothing to carry on from, and the room hears only the new amount.
+    expect((await raise(4)).json).toMatchObject({ usd: 4, changed: true, carried_on: false });
+    await append(
+      "exchange.set",
+      { kind: "system", id: "system" },
+      {
+        state: "paused",
+        why: "spend",
+        spend: { ceiling_usd: 4, spent_usd: 4.2, since_seq: 0, uncounted_runs: 0 },
+      },
+    );
+    expect((await raise(10)).json).toMatchObject({ usd: 10, changed: true, carried_on: true });
+    const head = await ws.gateway.deps.store.head(ws.workspaceId);
+    const { events } = await ws.gateway.deps.store.since(ws.workspaceId, head - 2);
+    expect(events.map((event) => [event.type, event.actor.kind])).toEqual([
+      ["space.spend_ceiling_set", "person"],
+      ["exchange.set", "person"],
+    ]);
+    expect((await spendOf()).ceiling_usd).toBe(10);
   });
 
   it("refuses an admin, even in a room of their own: a job's spend is the owner's alone (ADR 0196)", async () => {

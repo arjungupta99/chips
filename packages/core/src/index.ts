@@ -169,9 +169,12 @@ export {
   alwaysRules,
   alwaysSheetWhy,
   alwaysSummary,
+  answeredWords,
+  approveWords,
   askHistory,
   askingOpening,
   askingPromises,
+  askLastings,
   askMatters,
   askStanding,
   asksGoTo,
@@ -179,7 +182,13 @@ export {
   changesStill,
   dayMonth,
   harnessAsks,
+  holdsWords,
+  hourEnds,
+  type Lasting,
+  lettingWork,
+  letWorkWords,
   ONCE_ONLY_WORDS,
+  offersLetWork,
   ownToolsWords,
   REMOVED_WORDS,
   type Reach,
@@ -187,14 +196,24 @@ export {
   type RulesChange,
   reachWords,
   rulesOf,
+  STOPPED_MS,
   startWords,
+  stoppedWords,
   switchedRule,
   UNREADABLE_WORDS,
+  untilStoppedWords,
+  WHILE_MINUTES,
+  WORKING_HEADING,
+  type WorkingRow,
   waitsWords,
+  whileUntil,
+  whileWords,
   withChanges,
   withoutRule,
   withRuleBack,
   withRules,
+  workingWithoutAsking,
+  workingWords,
   workspaceAskHistory,
 } from "./asking.js";
 export {
@@ -308,6 +327,17 @@ export {
 } from "./bubbleSays.js";
 export type { Cache } from "./cache.js";
 export { cacheKey, deleteCache, openCache } from "./cache.js";
+export {
+  commandPlate,
+  type Plate,
+  type PlateBit,
+  type PlateJoint,
+  type PlatePart,
+  plateCaption,
+  plateHeadline,
+  plateTakesPreview,
+  writesWords,
+} from "./commandPlate.js";
 export type { Command } from "./commands.js";
 export { COMMANDS, parseCommand } from "./commands.js";
 export type {
@@ -609,6 +639,7 @@ export {
   mayForkInto,
   withForkNames,
 } from "./forks.js";
+export { type HandChoice, type HandOnFacts, handChoices, runIsLane } from "./handOn.js";
 export type {
   DaysSummary,
   JobDay,
@@ -772,6 +803,7 @@ export type {
   LaneDelivery,
   LaneHop,
   LaneState,
+  LetWork,
   Line,
   MessageRoute,
   MessageTrail,
@@ -979,7 +1011,10 @@ export {
   takeOutAsking,
 } from "./people.js";
 export {
+  type ActedAll,
+  actAll,
   agentHintWords,
+  agentLane,
   type HeldRow,
   hintWords,
   keepLeaving,
@@ -1259,12 +1294,23 @@ export {
   showsWelcome,
 } from "./setup.js";
 export {
+  ALL_JOBS,
+  allJobsWords,
+  carryOnWords,
   ceilingOfChoice,
+  HELD_WORD,
+  jobStartWords,
+  lastJobWords,
+  RAISE_LIMIT,
+  raisedChoice,
   SPEND_HELP,
   SPEND_PRESETS,
   SPEND_RANGE_WORDS,
   type SpendChoice,
+  type SpentJobRow,
+  saveAndCarryOnWords,
   spendChoiceOf,
+  spentJobRows,
   spentWords,
   typedCeiling,
 } from "./spend.js";
@@ -1299,6 +1345,7 @@ export type {
   SetRulesInput,
   Snapshot,
   SteerRunInput,
+  StopLetWorkInput,
   Store,
   StoreOptions,
   ThreadInput,

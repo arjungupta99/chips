@@ -50,13 +50,13 @@ import {
   HARNESS_CAPABILITIES,
   type HarnessContextView,
   type HarnessJobsView,
+  HELD_YES,
   type HeartbeatChangeAsk,
   type HeartbeatChangeView,
   type HeldRun,
   type JobChangeAsk,
   type JobChangeView,
   type JobRunsView,
-  type JobSpend,
   type JoinRequestView,
   type ModelChangeAsk,
   type ModelChangeView,
@@ -75,6 +75,7 @@ import {
   parseSpaceIcon,
   READ_MARKS_MAX,
   type RoomFile,
+  type RoomSpend,
   readConnectors,
   type SpaceIcon,
   type WindowChangeView,
@@ -111,6 +112,7 @@ import type { LinkKind, LinkStretch } from "./link.js";
 export type { LinkStretch } from "./link.js";
 
 import {
+  heardMadeHere,
   type KeptSpace,
   keptSpaces,
   type MadeHere,
@@ -277,6 +279,13 @@ export interface Snapshot {
    * from a server too old to say: the name the device paired under stands until then.
    */
   readonly workspaceName?: string | undefined;
+  /**
+   * Whether the server keeps a yes that holds on, For an hour and Let it work, as its last hello
+   * said (ADR 0281). False from a server older than them, which would drop how long the yes holds
+   * and read it as a plain yes while the card said otherwise. Absent until a hello has said: the
+   * choices stand, so a card opened from the cache doesn't lose them for a moment.
+   */
+  readonly keepsHeldYes?: boolean | undefined;
 }
 
 /** What the server takes at most (ADR 0047), as `GET /v1/limits` says it. */
@@ -370,8 +379,35 @@ export interface ResolveApprovalInput {
   readonly scope?: "once" | "session" | "always";
   /** An Always kept for every space, in the harness's own policy (ADR 0239): an owner's or admin's. */
   readonly everywhere?: boolean;
+  /**
+   * A yes, given once, that holds on in the space for this many minutes (ADR 0239, addendum of
+   * 6 November 2026): For an hour on the card.
+   */
+  readonly forMinutes?: number;
+  /**
+   * A yes, given once, that lets the asker work in the space without asking until somebody stops
+   * it (ADR 0281): Let it work on the card.
+   */
+  readonly untilStopped?: boolean;
   readonly updatedInput?: unknown;
   readonly reason?: string;
+}
+
+/**
+ * How long a yes holds on past its ask, as the event says it (ADR 0239 addendum, ADR 0281): for so
+ * many minutes, or until stopped. A no holds nothing.
+ */
+function holdsOn(input: ResolveApprovalInput): Record<string, unknown> {
+  if (input.decision === "denied") return {};
+  if (input.forMinutes !== undefined) return { for_minutes: input.forMinutes };
+  return input.untilStopped === true ? { until_stopped: true } : {};
+}
+
+/** Whose working without asking to stop, and where (ADR 0281). */
+export interface StopLetWorkInput {
+  readonly spaceId: string;
+  /** The agent, or a harness without agents, as `LetWork.asker` names it. */
+  readonly asker: string;
 }
 
 export interface Store {
@@ -387,6 +423,11 @@ export interface Store {
   readonly resolveApproval: (input: ResolveApprovalInput) => void;
   /** Hand an approval to somebody else (M5.5). The approval is busy until the server answers. */
   readonly routeApproval: (input: RouteApprovalInput) => void;
+  /**
+   * Stop an agent working without asking in a space (ADR 0281), for an hour or until stopped: an
+   * `approval.held_stopped`. Its next ask comes to a person.
+   */
+  readonly stopLetWork: (input: StopLetWorkInput) => void;
   readonly answerQuestion: (input: AnswerQuestionInput) => void;
   /** Turn the dial: a `policy.updated`, the cap and who changed it filled in by Chips (M1.4). */
   readonly setAutonomy: (input: SetAutonomyInput) => void;
@@ -518,16 +559,24 @@ export interface Store {
   /**
    * Set what a room allows a job (ADR 0117), from $0.25 to $100 in steps of $0.25, or `null` to
    * follow the default again. Resolves once the server has it; the room hears it as
-   * `space.spend_ceiling_set`.
+   * `space.spend_ceiling_set`. With `carryOn`, the agents Chips held at the ceiling carry on in
+   * the same request (ADR 0282), and the room hears `exchange.set` right behind it.
    */
-  readonly setSpendCeiling: (spaceId: string, usd: number | null) => Promise<void>;
+  readonly setSpendCeiling: (
+    spaceId: string,
+    usd: number | null,
+    options?: { readonly carryOn?: boolean },
+  ) => Promise<void>;
   /**
    * Lock a room's changes, or let them go (ADR 0156): while locked, nobody renames, archives or
    * deletes it. Resolves once the server has it; the room hears it as `space.lock_set`.
    */
   readonly setLock: (spaceId: string, locked: boolean) => Promise<void>;
-  /** What a room's job has spent so far against what the room allows a job (ADR 0117). */
-  readonly roomSpend: (spaceId: string) => Promise<JobSpend>;
+  /**
+   * What a room's job has spent so far against what the room allows a job (ADR 0117), what began
+   * it, and the jobs before it that spent, with the room's total (ADR 0282).
+   */
+  readonly roomSpend: (spaceId: string) => Promise<RoomSpend>;
   /**
    * Delete an agent, for everybody (ADR 0095): gone from every list, its words kept under its
    * name. With `deleteRoom`, the room it was the one agent in is erased too, and gone from here at
@@ -1335,7 +1384,8 @@ export function createStore(options: StoreOptions): Store {
   const roomNotices = new Map<string, string>();
   /**
    * Spaces made here that the server has not sent back yet, by id (ADR 0149's third addendum):
-   * drawn from what was sent for them until its own `space.created` is folded, or it says no.
+   * drawn from what was sent for them until its own `space.created` is folded, with everybody sent
+   * into it, or it says no.
    */
   const madeHere = new Map<string, MadeHere>();
   /** The spaces made here changed since the cache last held them. */
@@ -1418,6 +1468,13 @@ export function createStore(options: StoreOptions): Store {
   let joins: ReadonlyMap<string, JoinRequest> = new Map();
   let directory: Directory = {};
   /**
+   * Agents deleted from this device (ADR 0095), by id, with when the server said so: drawn as
+   * removed from that answer on, not from the directory read after it, which is another round trip
+   * or two through the relay. A read already on its way says they are still here, but deleted stays
+   * deleted (their keys are retired), so whatever a read says, these are gone.
+   */
+  const deletedHere = new Map<string, string>();
+  /**
    * Who is who as the server holds it, and the faces chosen for agents and for you that it has
    * not answered for yet (ADRs 0089, 0139): `directory`. A read that lands meanwhile is from
    * before the choice, so it is drawn with the choice over it.
@@ -1426,7 +1483,7 @@ export function createStore(options: StoreOptions): Store {
     withFaces,
     {},
     (now) => {
-      directory = now;
+      directory = withDeleted(now, deletedHere);
     },
   );
   /** One face is sent at a time, so two quick taps reach the server in the order they were made. */
@@ -1488,6 +1545,8 @@ export function createStore(options: StoreOptions): Store {
   let deletedAccount = false;
   /** The snapshot's `workspaceName`. */
   let workspaceName: string | undefined;
+  /** The snapshot's `keepsHeldYes`. */
+  let keepsHeldYes: boolean | undefined;
   /** The name kept with the device: as it paired, then as each change was remembered. */
   let keptName = device.workspaceName;
   /** The snapshot's `directoryFrom` and `directoryFailed`. */
@@ -1569,6 +1628,7 @@ export function createStore(options: StoreOptions): Store {
       ...(keptShareLink === undefined ? {} : { keptShareLink }),
       ...(myDirectAsk === undefined ? {} : { myDirectAsk }),
       ...(workspaceName === undefined ? {} : { workspaceName }),
+      keepsHeldYes,
       ...gone(),
       ...onItsWay(),
     };
@@ -1803,6 +1863,14 @@ export function createStore(options: StoreOptions): Store {
   }
 
   /**
+   * What the server sent back of a space made here: who was sent into it with these is not drawn
+   * over the server's own any more.
+   */
+  const madeHereHeard = (fresh: readonly ClientEvent[]): void => {
+    if (heardMadeHere(madeHere, keysOf(fresh))) madeHereDirty = true;
+  };
+
+  /**
    * Take in events from the cache, the socket, or a room's history read over HTTP. Only the last
    * two are new to the cache; only the socket's move `delivered`, since the cursor stands for
    * what the socket has sent.
@@ -1810,6 +1878,7 @@ export function createStore(options: StoreOptions): Store {
   const ingest = (incoming: readonly ClientEvent[], source: Source): void => {
     if (source === "socket") delivered = Math.max(delivered, highestSeqOf(incoming));
     const fresh = takeFresh(incoming, seen, pending);
+    madeHereHeard(fresh);
     pruneQueued();
     if (fresh.length === 0) {
       // Nothing new to fold — a replay of what the cache already holds — but the cursor may now
@@ -1943,6 +2012,15 @@ export function createStore(options: StoreOptions): Store {
       keptName = said;
       void rememberWorkspaceName(device.deviceId, said, options.deviceStorage);
     }
+  };
+
+  /** What the hello says the server keeps: nothing, from one older than saying so. */
+  const heardTakes = (server: unknown): void => {
+    const takes = (server as { takes?: unknown } | undefined)?.takes;
+    const keeps = Array.isArray(takes) && takes.includes(HELD_YES);
+    if (keeps === keepsHeldYes) return;
+    keepsHeldYes = keeps;
+    notify();
   };
 
   /**
@@ -2087,6 +2165,8 @@ export function createStore(options: StoreOptions): Store {
 
   /** The server answered for a key, one way or the other: the command it was for is settled. */
   const answered = (key: string, refused?: string): void => {
+    // Somebody the server would not put in a space made here is not waited for there.
+    if (refused !== undefined && heardMadeHere(madeHere, [key])) madeHereDirty = true;
     madeHereAnswered(key, refused);
     membershipAnswered(key, refused);
     hidingAnswered(key, refused);
@@ -2138,7 +2218,12 @@ export function createStore(options: StoreOptions): Store {
     if (kept.length === 0) return;
     const known = new Set(fold.model().spaces.map((space) => space.id));
     for (const { spaceId, sent } of kept) {
-      if (known.has(spaceId)) continue;
+      if (known.has(spaceId)) {
+        // Not sent again, so nothing of it is waited for: the room is as the server's history has it.
+        madeHere.delete(spaceId);
+        madeHereDirty = true;
+        continue;
+      }
       for (const event of sent) dispatch(event);
     }
   };
@@ -2232,6 +2317,7 @@ export function createStore(options: StoreOptions): Store {
         if (event.type !== "hello") return ingest([event], "socket");
         reconcile(event);
         heardName((event["workspace"] as { name?: unknown } | undefined)?.name);
+        heardTakes(event["server"]);
         // Every hello after the first is the socket come back — from a sleep, a lost network, the
         // app brought to the front — and what a harness declared it takes in the meantime is a
         // registry write with no event of its own (ADR 0046), so the directory is read again: a
@@ -2819,9 +2905,20 @@ export function createStore(options: StoreOptions): Store {
         decision: input.decision,
         scope: input.scope ?? "once",
         ...(input.everywhere === true && input.scope === "always" ? { everywhere: true } : {}),
+        ...holdsOn(input),
         ...(input.updatedInput === undefined ? {} : { updated_input: input.updatedInput }),
         ...(input.reason === undefined ? {} : { reason: input.reason }),
         idempotency_key: key,
+      });
+      notify();
+    },
+
+    stopLetWork(input) {
+      dispatch({
+        type: "approval.held_stopped",
+        space_id: input.spaceId,
+        asker: input.asker,
+        idempotency_key: `held-stopped-${randomKey()}`,
       });
       notify();
     },
@@ -3658,9 +3755,10 @@ export function createStore(options: StoreOptions): Store {
       });
     },
 
-    async setSpendCeiling(spaceId, usd) {
+    async setSpendCeiling(spaceId, usd, options) {
       await post<unknown>(device, `/v1/spaces/${encodeURIComponent(spaceId)}/spend-ceiling`, {
         usd,
+        ...(options?.carryOn === true ? { carry_on: true } : {}),
       });
     },
 
@@ -3669,7 +3767,7 @@ export function createStore(options: StoreOptions): Store {
     },
 
     async roomSpend(spaceId) {
-      const answer = await read<Partial<JobSpend>>(
+      const answer = await read<Partial<RoomSpend>>(
         device,
         `/v1/spaces/${encodeURIComponent(spaceId)}/spend`,
       );
@@ -3678,6 +3776,10 @@ export function createStore(options: StoreOptions): Store {
         spent_usd: answer.spent_usd ?? 0,
         since_seq: answer.since_seq ?? 0,
         uncounted_runs: answer.uncounted_runs ?? 0,
+        // A server from before ADR 0282 says the job alone.
+        ...(answer.started === undefined ? {} : { started: answer.started }),
+        ...(Array.isArray(answer.jobs) ? { jobs: answer.jobs } : {}),
+        ...(typeof answer.total_usd === "number" ? { total_usd: answer.total_usd } : {}),
       };
     },
 
@@ -3707,7 +3809,12 @@ export function createStore(options: StoreOptions): Store {
         fold.erase(erased);
         letGo(erased, rooms);
       }
-      await loadDirectory();
+      // Gone from every list at the server's yes. The directory is read again behind it, for what
+      // else the delete changed, and nobody waits for that: through the relay it was most of the
+      // wait, once for each agent of a batch.
+      deletedHere.set(agentId, now());
+      facesHeld.heard(facesHeld.held());
+      void loadDirectory();
       notify();
     },
 
@@ -4233,6 +4340,16 @@ function takeFresh(
   return fresh;
 }
 
+/** The keys these events went with, which the device that sent each one knows it by. */
+function keysOf(events: readonly ClientEvent[]): string[] {
+  const keys: string[] = [];
+  for (const event of events) {
+    const key = event["idempotency_key"];
+    if (typeof key === "string") keys.push(key);
+  }
+  return keys;
+}
+
 /** The highest `seq` among these events, or zero: how far the socket has delivered. */
 function highestSeqOf(events: readonly ClientEvent[]): number {
   let highest = 0;
@@ -4594,6 +4711,21 @@ function withIcons(
 }
 
 /** The directory with the faces still on their way to the server drawn over what it says. */
+/**
+ * The directory with the agents deleted here drawn as the server draws them once it has (ADR
+ * 0095): removed, and in no room. One the server already says is removed is left as it says.
+ */
+function withDeleted(directory: Directory, deleted: ReadonlyMap<string, string>): Directory {
+  if (deleted.size === 0) return directory;
+  const next: Record<string, Participant> = { ...directory };
+  for (const [id, at] of deleted) {
+    const known = next[id];
+    if (known === undefined || known.removedAt !== undefined) continue;
+    next[id] = { ...known, removedAt: at, room: null };
+  }
+  return next;
+}
+
 function withFaces(
   directory: Directory,
   chosen: ReadonlyMap<string, { readonly face: SpaceIcon | undefined }>,

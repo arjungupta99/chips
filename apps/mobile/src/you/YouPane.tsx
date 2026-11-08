@@ -8,14 +8,15 @@
  * The rows' sheets are pages here too (3 November 2026): your face, Decisions, Quiet hours,
  * Agents, the attachment limits, the messages between agents, Allowed always, Send feedback, Pair a
  * computer and Delete your account. You hands them over drawn, held by the same state as its rows
- * (`useYou`), and each stands on the grouped ground, as it stood on its sheet's. Two stay sheets:
- * Workspace, which Spaces' name opens too, and Connect a harness, which the Agents shelf's last
- * tile opens and whose link is waited on behind it.
+ * (`useYou`), and each stands on the grouped ground, as it stood on its sheet's. Workspace stays a
+ * sheet, as Spaces' name opens it too. Connect a harness is a page here as beside Agents' list,
+ * its pages held by its own provider, which follows the link they make (ADR 0284's addendum).
  */
 
 import { ASKS_TITLE, type Device, nameOf, type Store } from "@chipschat/core";
 import type { ReactNode } from "react";
 import { thisDevice } from "../device/word";
+import { ConnectPane } from "../harnesses/Connect";
 import { AskList } from "../harnesses/parts/AskList";
 import { Invite } from "../people/Invite";
 import { People } from "../people/People";
@@ -113,6 +114,8 @@ export function YouPane({
           </Screen>
         </Pane>
       );
+    case "connect":
+      return <ConnectPane onClose={() => go({})} />;
     default:
       return (
         <PaneEmpty icon="user" title="Nothing open">

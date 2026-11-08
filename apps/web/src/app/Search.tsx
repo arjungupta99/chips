@@ -80,6 +80,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import { Columns } from "./Columns.tsx";
 import { MainTag } from "./MainTag.tsx";
 import { Marked } from "./Marked.tsx";
 import { type RecentSearches, useRecentSearches } from "./recentSearches.ts";
@@ -298,11 +299,16 @@ export function Search(props: SearchProps) {
     </Column>
   );
   if (split === undefined) return results;
+  // The results are the first column, under the rail's top, and what they open the second (ADR 0284).
   return (
-    <div className="search-split" data-testid="search-split">
-      {results}
-      <Pane split={split} typed={typed} arriving={emptied} drift={drift} />
-    </div>
+    <Columns
+      name="search"
+      className="search-split"
+      testId="search-split"
+      list={results}
+      detail={<Pane split={split} typed={typed} arriving={emptied} drift={drift} />}
+      room={split.opened?.kind === "space"}
+    />
   );
 }
 
@@ -438,10 +444,10 @@ function openings(on: {
 }
 
 /**
- * Whether the window is wide enough for the results and what they open side by side: the width
- * from which the shell stands a run panel beside a room (`.shell`, over 1000 pixels).
+ * Whether the window is wide enough for the results and what they open side by side: any desk's,
+ * where the results are the first column (ADR 0284); a phone's has one column.
  */
-const SPLIT = "(min-width: 1001px)";
+const SPLIT = "(min-width: 641px)";
 
 function useSplit(): boolean {
   return useSyncExternalStore(splitChanges, splitNow, () => false);

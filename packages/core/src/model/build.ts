@@ -306,6 +306,9 @@ export function freezeSpace(state: Building, id: string): Space {
     rootLineId: space.rootLineId,
     pins: [...space.pins],
     ...(space.hidden.size === 0 ? {} : { hidden: new Set(space.hidden) }),
+    ...(space.letWork === undefined || space.letWork.size === 0
+      ? {}
+      : { letWork: [...space.letWork.values()] }),
     glimpse: isGlimpse(state, space),
   };
 }

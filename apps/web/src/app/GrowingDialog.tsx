@@ -11,17 +11,28 @@
  * A modal `<dialog>`, so the keyboard stays in it. Its owner says when it is leaving (its × or a
  * send), and hears when it has gone: the fade out has ended, or a moment has passed in which it
  * would have, should a tab in the background never draw it.
+ *
+ * Inside a section's columns it is no dialog at all (ADR 0284; Arjun, 3 November 2026: "minimise
+ * popups in ipad, mac and web"): it stands in the third column, beside what opened it, as the
+ * iPad's sheets from a card stand in its third column. Its owner's × and Escape close the column,
+ * and it is gone once the column has closed over it. One that is a question about someone else
+ * stays one (`stays`).
+ *
+ * One opened from a row of the list stands in the second column instead (`inPlace`, ADR 0284's
+ * addendum: Arjun, 7 November 2026, "this 'connect a harness' can also make use of right section
+ * instead of popup"): a page where a row's page would stand, which the column turns in and out.
  */
 
 import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { PANE_MS, type ThirdHost, useThird } from "./Columns.tsx";
 import { boxOf, growFrom } from "./dialogMotion.ts";
 import { reduceMotion } from "./viewer/open.ts";
 
 /** Longer than the fold: a dialog whose fold never ends, in a tab in the background, still goes. */
 const GONE_MS = 400;
 
-export function GrowingDialog(props: {
+type GrowingDialogProps = {
   /** The control that opened it, which it grows out of; without one it grows from its middle. */
   readonly from: HTMLElement | null | undefined;
   /** The id of its heading, which names it. */
@@ -38,8 +49,59 @@ export function GrowingDialog(props: {
   readonly onGone: () => void;
   /** Where it stands, for one that is not in the middle of the window: the room sheet's. */
   readonly style?: CSSProperties | undefined;
+  /** A dialog wherever it is opened: a yes or no about somebody else (ADR 0284). */
+  readonly stays?: boolean | undefined;
+  /** A page where it is drawn, in the second column: what a row of the list opened. */
+  readonly inPlace?: boolean | undefined;
   readonly children: ReactNode;
-}) {
+};
+
+export function GrowingDialog(props: GrowingDialogProps) {
+  const third = useThird();
+  if (props.inPlace === true) return <InPlace {...props} />;
+  if (third !== undefined && props.stays !== true) return <Docked {...props} host={third} />;
+  return <Modal {...props} />;
+}
+
+/**
+ * A page where it is drawn (ADR 0284's addendum): no card, no dim, nothing to click outside of. The
+ * column it stands in turns it in and out, so it is gone the moment its owner lets it go; Escape
+ * inside it is its way out, as its owner's × is.
+ */
+function InPlace(props: GrowingDialogProps) {
+  const box = useRef<HTMLElement>(null);
+  const gone = useRef(props.onGone);
+  gone.current = props.onGone;
+  const focus = useRef(props.focus);
+
+  useEffect(() => {
+    box.current?.querySelector<HTMLElement>(focus.current)?.focus({ preventScroll: true });
+  }, []);
+
+  useEffect(() => {
+    if (props.leaving) gone.current();
+  }, [props.leaving]);
+
+  return (
+    <section
+      ref={box}
+      className={`grow-dialog ${props.className}`}
+      aria-labelledby={props.labelledBy}
+      data-testid={props.testId}
+      data-in-place="true"
+      data-leaving={props.leaving ? "true" : undefined}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || event.defaultPrevented) return;
+        event.preventDefault();
+        props.onLeave();
+      }}
+    >
+      {props.children}
+    </section>
+  );
+}
+
+function Modal(props: GrowingDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   // A press that began inside and let go outside is a selection, not a click outside.
   const pressedOutside = useRef(false);
@@ -92,5 +154,60 @@ export function GrowingDialog(props: {
       {props.children}
     </dialog>,
     document.body,
+  );
+}
+
+/**
+ * In the third column (ADR 0284): where the section's columns draw it, holding the column open
+ * while it is wanted, and gone once the column has closed over it.
+ */
+function Docked(props: GrowingDialogProps & { readonly host: ThirdHost }) {
+  const { host, leaving } = props;
+  const box = useRef<HTMLElement>(null);
+  const gone = useRef(props.onGone);
+  gone.current = props.onGone;
+  const leave = useRef(props.onLeave);
+  leave.current = props.onLeave;
+  const focus = useRef(props.focus);
+
+  // Its place in the column, held until it is leaving; the column closes as it lets go.
+  useEffect(() => {
+    if (leaving) return;
+    return host.take(() => leave.current());
+  }, [host.take, leaving]);
+
+  // The words it is for have the keyboard, as the dialog's would, once it has somewhere to stand.
+  const placed = host.slot !== null;
+  useEffect(() => {
+    if (!placed) return;
+    box.current?.querySelector<HTMLElement>(focus.current)?.focus({ preventScroll: true });
+  }, [placed]);
+
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => gone.current(), reduceMotion() ? 0 : PANE_MS + 40);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+
+  if (host.slot === null) return null;
+  return createPortal(
+    <section
+      ref={box}
+      role="dialog"
+      aria-modal="false"
+      className={`grow-dialog ${props.className}`}
+      aria-labelledby={props.labelledBy}
+      data-testid={props.testId}
+      data-docked="true"
+      data-leaving={leaving ? "true" : undefined}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || event.defaultPrevented) return;
+        event.preventDefault();
+        props.onLeave();
+      }}
+    >
+      {props.children}
+    </section>,
+    host.slot,
   );
 }

@@ -12,8 +12,9 @@
  */
 
 import { standingOffer } from "@chipschat/protocol";
+import { commandPlate, writesWords } from "./commandPlate.js";
 import { type Directory, harnessOf, nameOf, workspaceHarnesses } from "./events.js";
-import type { Approval, Rule, WorkspaceModel } from "./model/types.js";
+import type { Approval, LetWork, Rule, Space, WorkspaceModel } from "./model/types.js";
 import { namesWords } from "./people.js";
 import { roomName } from "./rooms.js";
 
@@ -622,30 +623,62 @@ export function askMatters(approval: Approval): boolean {
 /** The line under an open ask that matters, where the scope choices would be. */
 export const ONCE_ONLY_WORDS = "You answer asks like this each time, so there is no Always.";
 
-/** The line where the scope choices were, for a command Chips can't read part by part. */
+/** The line under Once, for a command Chips can't read part by part: For an hour is still there. */
 export const UNREADABLE_WORDS =
-  "This command does more than Chips can read, so it's answered each time.";
+  "This command does more than Chips can read, so there is no Always for it.";
 
 /**
  * What a yes beyond this once can be on an ask (ADR 0239): anything, for an ask with no command;
- * for a command, the starts it would remember, as the card shows them (`node --check …`); or
- * nothing, with the line that says why: an ask that matters, a command Chips can't read, or one
- * that uses a command never given a standing yes.
+ * for a command, the starts an Always would remember, as the card shows them (`node --check …`);
+ * or no Always, with the line that says why. A command Chips can't read, or one that uses a
+ * command never given a standing yes, still takes For an hour and Let it work (ADR 0281: `holds`);
+ * an ask that matters takes nothing but a yes this once.
  */
 export type AskStanding =
   | { readonly kind: "any" }
   | { readonly kind: "starts"; readonly starts: readonly string[] }
-  | { readonly kind: "once"; readonly why: string };
+  | { readonly kind: "once"; readonly why: string; readonly holds: boolean };
 
 export function askStanding(approval: Approval): AskStanding {
-  if (askMatters(approval)) return { kind: "once", why: ONCE_ONLY_WORDS };
+  if (askMatters(approval)) return { kind: "once", why: ONCE_ONLY_WORDS, holds: false };
   const offer = standingOffer(approval.input);
   if (offer === undefined) return { kind: "any" };
-  if (offer.kind === "unreadable") return { kind: "once", why: UNREADABLE_WORDS };
+  if (offer.kind === "unreadable") {
+    // A write into a file is named where it stands (ADR 0280); anything else is said whole.
+    const to = commandPlate(approval)?.writesTo;
+    return {
+      kind: "once",
+      why: to === undefined ? UNREADABLE_WORDS : writesWords(to),
+      holds: true,
+    };
+  }
   if (offer.kind === "never") {
-    return { kind: "once", why: `Asks that use ${offer.command} are answered each time.` };
+    return {
+      kind: "once",
+      why: `There is no Always for asks that use ${offer.command}.`,
+      holds: true,
+    };
   }
   return { kind: "starts", starts: offer.starts.map(startWords) };
+}
+
+/**
+ * The choices of how far a yes reaches that an ask offers (ADR 0281): Once, For an hour and Always;
+ * no Always where none is kept; and none for an ask that matters, which is answered once. No hour
+ * from a server that wouldn't keep one (`keeps`, its last hello): with no Always left either, the
+ * ask is answered once.
+ */
+export function askLastings(standing: AskStanding, keeps = true): readonly Lasting[] {
+  if (standing.kind !== "once") return keeps ? ["once", "hour", "always"] : ["once", "always"];
+  return standing.holds && keeps ? ["once", "hour"] : [];
+}
+
+/**
+ * Whether an ask offers Let it work (ADR 0281): every ask but one that matters, on a server that
+ * keeps it (`keeps`, its last hello).
+ */
+export function offersLetWork(standing: AskStanding, keeps = true): boolean {
+  return keeps && (standing.kind !== "once" || standing.holds);
 }
 
 /** How a start reads on a card and in the list: its words, then that more may follow. */
@@ -668,8 +701,151 @@ export function reachWords(reach: Reach, spaceName: string, commands: boolean): 
         ? `in ${spaceName}`
         : "in every space";
   return commands
-    ? `Commands made only of these go ahead without a card ${where}. Anything else still comes to you.`
+    ? `Commands made only of the lit words go ahead without a card ${where}. Anything else still comes to you.`
     : `Asks like this go ahead without a card ${where}.`;
+}
+
+/** How long a yes for a while holds (ADR 0239, addendum of 6 November 2026): an hour. */
+export const WHILE_MINUTES = 60;
+
+/** When a yes for a while given now would stop. */
+export function whileUntil(now: number = Date.now()): Date {
+  return new Date(now + WHILE_MINUTES * 60_000);
+}
+
+/** A time of day as a card says it: `12:09 AM`. */
+function clockTime(at: Date): string {
+  return at.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * How far a yes reaches, as the ask screen offers it (ADR 0280): Once, For an hour, Always, or
+ * `work`, the switch that lets the agent work without asking until somebody stops it (ADR 0281).
+ */
+export type Lasting = "once" | "hour" | "always" | "work";
+
+/** Approve, saying how far the yes reaches (ADR 0280): `Approve for an hour`. */
+export function approveWords(lasting: Lasting): string {
+  switch (lasting) {
+    case "hour":
+      return "Approve for an hour";
+    case "always":
+      return "Approve always";
+    case "work":
+      return "Approve and let it work";
+    default:
+      return "Approve once";
+  }
+}
+
+/**
+ * What Approve says once it is pressed (ADR 0280), as it turns to a tick: `Approved`, `Until
+ * 12:09 AM`, `Until you stop it`, `Always, in every space`, `Always, in Bakery`.
+ */
+export function answeredWords(
+  lasting: Lasting,
+  now: number,
+  reach: Reach,
+  spaceName: string,
+): string {
+  if (lasting === "hour") return `Until ${clockTime(whileUntil(now))}`;
+  if (lasting === "work") return "Until you stop it";
+  if (lasting === "always")
+    return reach === "everywhere" ? "Always, in every space" : `Always, in ${spaceName}`;
+  return "Approved";
+}
+
+/** The ends of the hour a yes for a while holds, as the strip under For an hour draws them. */
+export function hourEnds(now: number): { readonly from: string; readonly until: string } {
+  return { from: `Now, ${clockTime(new Date(now))}`, until: `Until ${clockTime(whileUntil(now))}` };
+}
+
+/** What still comes to a person while an agent works without asking (ADR 0281). */
+const STILL_ASKS =
+  "Anything that moves money, messages someone outside, or can't be undone still comes to you.";
+
+/**
+ * The line under For an hour, for the agent that asked (ADR 0281): everything it asks here goes
+ * ahead, and what still comes to a person. The strip above it says until when.
+ */
+export function whileWords(name: string): string {
+  return `Everything ${name} asks in this space goes ahead without a card for the hour, commands Chips can't read too. ${STILL_ASKS}`;
+}
+
+/** The switch above the choices (ADR 0281): `Let Jiro work without asking`, `In Bakery, until you stop it`. */
+export function letWorkWords(
+  name: string,
+  spaceName: string,
+): { readonly title: string; readonly sub: string } {
+  return { title: `Let ${name} work without asking`, sub: `In ${spaceName}, until you stop it` };
+}
+
+/** The line in the choices' place while the switch is on (ADR 0281). */
+export function untilStoppedWords(name: string): string {
+  return `Everything ${name} asks here goes ahead without a card until you stop it, commands Chips can't read too. ${STILL_ASKS}`;
+}
+
+/** The agents let work in a space without asking that still are (ADR 0281), against the clock. */
+export function lettingWork(
+  space: Space | undefined,
+  now: number = Date.now(),
+): readonly LetWork[] {
+  return (space?.letWork ?? []).filter(
+    (held) => held.until === undefined || Date.parse(held.until) > now,
+  );
+}
+
+/**
+ * The band at the top of a room while an agent works there without asking (ADR 0281): `Jiro is
+ * working without asking`, and for an hour, until when.
+ */
+export function workingWords(name: string, held: LetWork): string {
+  const until = held.until === undefined ? "" : ` until ${clockTime(new Date(held.until))}`;
+  return `${name} is working without asking${until}`;
+}
+
+/** The band, for a moment, once Stop is pressed (ADR 0281). */
+export function stoppedWords(name: string): string {
+  return `Stopped. ${name} asks again from its next step.`;
+}
+
+/** How long the band says it stopped before it goes. */
+export const STOPPED_MS = 2400;
+
+/** One agent let work without asking, as You's Allowed always lists it (ADR 0281). */
+export interface WorkingRow {
+  readonly spaceId: string;
+  /** The agent's name. */
+  readonly name: string;
+  /** `In Chips explain · Until you stop it`. */
+  readonly line: string;
+  readonly held: LetWork;
+}
+
+/** Every agent let work without asking now, in every room the reader is in (ADR 0281). */
+export function workingWithoutAsking(
+  model: WorkspaceModel,
+  directory: Directory,
+  now: number = Date.now(),
+): readonly WorkingRow[] {
+  return model.spaces.flatMap((space) =>
+    lettingWork(space, now).map((held) => ({
+      spaceId: space.id,
+      name: nameOf(directory, held.asker),
+      line: `In ${roomName(model, space.id, directory)} · ${holdsWords(held)}`,
+      held,
+    })),
+  );
+}
+
+/** The heading over them on You's Allowed always. */
+export const WORKING_HEADING = "Working without asking";
+
+/** How long a yes given for now holds, as You's row says it: `Until you stop it`, `Until 2:50 AM`. */
+export function holdsWords(held: LetWork): string {
+  return held.until === undefined
+    ? "Until you stop it"
+    : `Until ${clockTime(new Date(held.until))}`;
 }
 
 /** The tag an open ask that matters wears. */

@@ -1190,6 +1190,8 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
         .selectAll()
         .where("workspace_id", "=", workspaceId)
         .where("run_id", "=", runId)
+        // A yes that holds on is the space's, read by `rulesForAWhile`, never the run's.
+        .where("space_id", "is", null)
         .orderBy("decided_at", "asc")
         .execute();
       return rows.flatMap((row) => {
@@ -1208,6 +1210,35 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
           ? [{ ...rule, when }]
           : starts.map((start) => ({ ...rule, when: { ...when, starts_with: start } }));
       });
+    },
+
+    async rulesForAWhile(
+      workspaceId: string,
+      spaceId: string,
+      participantId: string,
+      now: string,
+    ): Promise<PolicyRule[]> {
+      const rows = await db
+        .selectFrom("session_rules")
+        .select(["match", "decided_at", "until"])
+        .where("workspace_id", "=", workspaceId)
+        .where("space_id", "=", spaceId)
+        .where("participant_id", "=", participantId)
+        // Until its time, or with no end until a person stops it (ADR 0281).
+        .where((eb) => eb.or([eb("until", ">", now), eb("until", "is", null)]))
+        .where("decision", "=", "allow")
+        .orderBy("decided_at", "asc")
+        .execute();
+      return rows.map((row) => ({
+        match: row.match,
+        decision: "allow",
+        reason:
+          row.until === null
+            ? "allowed by a person until they stop it"
+            : `allowed by a person until ${row.until}`,
+        // A person's answer made it, so it never allows an action that matters (ADR 0195).
+        made_at: row.decided_at,
+      }));
     },
 
     async question(workspaceId: string, askId: string): Promise<QuestionView | undefined> {

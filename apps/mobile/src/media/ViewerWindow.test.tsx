@@ -10,9 +10,12 @@ import type { DeckItem } from "@chipschat/core";
 import { render, screen } from "@testing-library/react-native";
 import { requireNativeView } from "expo";
 import { Platform } from "react-native";
-import { ViewerWindow } from "./ViewerWindow";
+import { type Metrics, SafeAreaProvider } from "react-native-safe-area-context";
+import { isPad } from "../device/word";
+import { hidesInPlace, ViewerWindow } from "./ViewerWindow";
 
 jest.mock("expo", () => ({
+  ...jest.requireActual("expo"),
   requireNativeView: jest.fn(
     () => (props: object) =>
       require("react").createElement(require("react-native").View, {
@@ -22,6 +25,9 @@ jest.mock("expo", () => ({
   ),
 }));
 
+// Jest's iOS has no `Platform.isPad` to replace.
+jest.mock("../device/word", () => ({ isPad: jest.fn(() => false) }));
+
 jest.mock("expo-status-bar", () => ({
   StatusBar: (props: object) =>
     require("react").createElement(require("react-native").View, {
@@ -30,7 +36,10 @@ jest.mock("expo-status-bar", () => ({
     }),
 }));
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.restoreAllMocks();
+  jest.mocked(isPad).mockReturnValue(false);
+});
 
 const CLIP: DeckItem = {
   lineId: "ln_clip",
@@ -49,13 +58,64 @@ const CLIP: DeckItem = {
   inMessage: { index: 1, of: 1 },
 };
 
-it("is expo-status-bar's on iOS: light, and hidden with the bars", async () => {
-  await render(<ViewerWindow statusBarHidden />);
+/** An iPhone 17 upright: the housing's band is the window's top, with the bar or without it. */
+const IPHONE: Metrics = {
+  frame: { x: 0, y: 0, width: 402, height: 874 },
+  insets: { top: 62, left: 0, right: 0, bottom: 34 },
+};
+/** A 13-inch iPad upright: the window's top is the bar itself. */
+const IPAD: Metrics = {
+  frame: { x: 0, y: 0, width: 1032, height: 1376 },
+  insets: { top: 24, left: 0, right: 0, bottom: 20 },
+};
+
+function inWindow(metrics: Metrics, props: Parameters<typeof ViewerWindow>[0]) {
+  return (
+    <SafeAreaProvider initialMetrics={metrics}>
+      <ViewerWindow {...props} />
+    </SafeAreaProvider>
+  );
+}
+
+it("is expo-status-bar's on iOS: light, and hidden with the bars on an iPhone with a housing", async () => {
+  await render(inWindow(IPHONE, { statusBarHidden: true }));
   expect(screen.getByTestId("expo-status-bar").props).toMatchObject({
     style: "light",
     hidden: true,
   });
   expect(requireNativeView).not.toHaveBeenCalled();
+});
+
+it("stays on an iPad as the bars go, since its going would move every screen under the viewer", async () => {
+  jest.mocked(isPad).mockReturnValue(true);
+  await render(inWindow(IPAD, { statusBarHidden: true }));
+  expect(screen.getByTestId("expo-status-bar").props).toMatchObject({
+    style: "light",
+    hidden: false,
+  });
+});
+
+it("is the app's again as the viewer leaves, in the app's ink", async () => {
+  await render(inWindow(IPHONE, { statusBarHidden: false, leaving: true }));
+  // The test's scheme is light, so the app's words are dark.
+  expect(screen.getByTestId("expo-status-bar").props).toMatchObject({
+    style: "dark",
+    hidden: false,
+  });
+});
+
+it("goes only where a housing holds its band, upright or on its side", () => {
+  expect(hidesInPlace(false, { top: 62, left: 0, right: 0 })).toBe(true);
+  expect(hidesInPlace(false, { top: 44, left: 0, right: 0 })).toBe(true);
+  // On its side the housing is at a side, and the system has the bar away already.
+  expect(hidesInPlace(false, { top: 0, left: 62, right: 62 })).toBe(true);
+  // A Home button's iPhone: the bar is the window's top.
+  expect(hidesInPlace(false, { top: 20, left: 0, right: 0 })).toBe(false);
+  // The iPhone Duo stands its bars 24 down.
+  expect(hidesInPlace(false, { top: 24, left: 0, right: 0 })).toBe(false);
+  expect(hidesInPlace(true, { top: 24, left: 0, right: 0 })).toBe(false);
+  // An iPad never, whatever its window says.
+  expect(hidesInPlace(true, { top: 62, left: 0, right: 0 })).toBe(false);
 });
 
 it("is the viewer window's own on Android: light icons, hidden with the bars, gone while pinned, the video's shape", async () => {

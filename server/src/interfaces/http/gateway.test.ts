@@ -1875,11 +1875,11 @@ describe("policy at the door (M1.4)", () => {
     expect(policy?.space_id).toBe(ws.spaceId);
     expect(policy?.rules.map((rule) => rule.when?.starts_with)).toEqual([
       ["node", "--check"],
-      ["cat", "b.js"],
+      ["cat"],
     ]);
     expect(policy?.everywhere_rules?.map((rule) => rule.when?.starts_with)).toEqual([
       ["node", "--check"],
-      ["echo", "ok"],
+      ["echo"],
     ]);
     expect((await askToRun(runId, "starts-both", "cat b.js | echo ok")).body).toMatchObject({
       resolution: "approved",
@@ -1911,6 +1911,115 @@ describe("policy at the door (M1.4)", () => {
       scope: "session",
     });
     expect(refused.status).toBe(422);
+  });
+
+  it("lets everything the asker asks through for a while, in this space, past the run (ADR 0281)", async () => {
+    await setLevel(1);
+    const runId = await startedRun("while-run");
+    const asked = await askToRun(runId, "while-ask", "for r in a b; do head -3 $r; done");
+    const id = asked.body["approval_id"];
+    // Given once, as a yes, by a person: not with This session, not as a no, not by the harness.
+    expect(
+      (await answer(runId, id, "while-session", { scope: "session", for_minutes: 60 })).status,
+    ).toBe(422);
+    expect(
+      (await answer(runId, id, "while-no", { decision: "denied", for_minutes: 60 })).status,
+    ).toBe(422);
+    expect(
+      (await answer(runId, id, "while-both", { for_minutes: 60, until_stopped: true })).status,
+    ).toBe(422);
+    const path = `/v1/runs/${runId}/events`;
+    const byHarness = await call("POST", path, {
+      headers: { ...ws.scout.headers, "idempotency-key": "while-harness" },
+      body: { type: "approval.resolved", approval_id: id, decision: "approved", for_minutes: 60 },
+    });
+    expect(byHarness.status).toBe(422);
+    // A command Chips can't read takes it, as every other ask does.
+    const hour = await answer(runId, id, "while-hour", { for_minutes: 60 });
+    expect(hour.status, JSON.stringify(hour.body)).toBe(201);
+
+    // Every command after it, read or not, rm too, and in the next run.
+    for (const [key, command] of [
+      ["while-read", "cd /tmp; cat a.txt | wc -l"],
+      ["while-write", "echo hi > out.txt"],
+      ["while-rm", "ls && rm x"],
+    ] as const) {
+      expect((await askToRun(runId, key, command)).body, command).toMatchObject({
+        resolution: "approved",
+      });
+    }
+    const later = await startedRun("while-later");
+    expect((await askToRun(later, "while-later-ask", "git push")).body).toMatchObject({
+      resolution: "approved",
+    });
+    // Never an ask that matters; and This session saw none of it.
+    const matters = await call("POST", `/v1/runs/${later}/events`, {
+      headers: { ...ws.scout.headers, "idempotency-key": "while-matters" },
+      body: {
+        type: "approval.request",
+        approval_id: ws.ids.next("approval"),
+        action: { kind: "shell.exec", input: { command: "ls" }, irreversible: true },
+        risk: [],
+        expires_in: 3600,
+      },
+    });
+    expect(matters.body["resolution"]).toBeUndefined();
+    expect(await ws.gateway.deps.readModels.sessionRules(ws.workspaceId, runId)).toEqual([]);
+
+    // It holds in this space, for this asker, until its time is up.
+    const run = await ws.gateway.deps.readModels.run(ws.workspaceId, runId);
+    const asker = run?.agent_id ?? run?.harness_id ?? "";
+    const held = (now: string, space = ws.spaceId) =>
+      ws.gateway.deps.readModels.rulesForAWhile(ws.workspaceId, space, asker, now);
+    expect(await held(new Date().toISOString())).toMatchObject([{ match: "*" }]);
+    expect(await held(new Date(Date.now() + 3_700_000).toISOString())).toEqual([]);
+    expect(await held(new Date().toISOString(), "spc_01K4ZQPX0000000000000000ZZ")).toEqual([]);
+  });
+
+  it("holds a yes until a person stops it, and Stop brings the asks back (ADR 0281)", async () => {
+    await setLevel(1);
+    const runId = await startedRun("held-run");
+    const asked = await askToRun(runId, "held-ask", "ls -la");
+    const id = asked.body["approval_id"];
+    const path = `/v1/runs/${runId}/events`;
+    const byHarness = await call("POST", path, {
+      headers: { ...ws.scout.headers, "idempotency-key": "held-harness" },
+      body: {
+        type: "approval.resolved",
+        approval_id: id,
+        decision: "approved",
+        until_stopped: true,
+      },
+    });
+    expect(byHarness.status).toBe(422);
+    const yes = await answer(runId, id, "held-yes", { until_stopped: true });
+    expect(yes.status, JSON.stringify(yes.body)).toBe(201);
+
+    const run = await ws.gateway.deps.readModels.run(ws.workspaceId, runId);
+    const asker = run?.agent_id ?? run?.harness_id ?? "";
+    const held = (now: string) =>
+      ws.gateway.deps.readModels.rulesForAWhile(ws.workspaceId, ws.spaceId, asker, now);
+    // No end: a year on, it still holds.
+    expect(await held(new Date(Date.now() + 365 * 86_400_000).toISOString())).toHaveLength(1);
+    expect((await askToRun(runId, "held-next", "rm -rf build")).body).toMatchObject({
+      resolution: "approved",
+    });
+
+    // A harness doesn't stop it; a person in the space does, and is named as who did.
+    const stop = { type: "approval.held_stopped", space_id: ws.spaceId, asker };
+    const harnessStops = await call("POST", path, {
+      headers: { ...ws.scout.headers, "idempotency-key": "held-harness-stop" },
+      body: stop,
+    });
+    expect(harnessStops.status).toBe(403);
+    const stopped = await call(
+      "POST",
+      path,
+      signed(ws.arjun, "POST", path, { ...stop, idempotency_key: "held-stop" }),
+    );
+    expect(stopped.status, JSON.stringify(stopped.body)).toBe(201);
+    expect(await held(new Date().toISOString())).toEqual([]);
+    expect((await askToRun(runId, "held-after", "ls -la")).body["resolution"]).toBeUndefined();
   });
 });
 

@@ -128,9 +128,13 @@ export const ROOMS: readonly Room[] = [
   { id: RECEIPTS, title: "Tax receipts", face: { icon: "", ground: 4, letters: "🧾" } },
 ];
 
-/** The invite card, as a message carries it once Theo has posted it (`attachments`). */
+/**
+ * The invite card, as a message carries it once Theo has posted it (`attachments`). Its id is 2
+ * because the sunset card replaced a green one that was 1: a phone keeps a picture by its id, so a
+ * new id keeps a phone that has looked around before from showing the old card.
+ */
 export const CARD = {
-  attachment_id: demoId("attachment", 1),
+  attachment_id: demoId("attachment", 2),
   filename: INVITE_CARD.filename,
   mime_type: INVITE_CARD.mimeType,
   byte_size: INVITE_CARD.byteSize,

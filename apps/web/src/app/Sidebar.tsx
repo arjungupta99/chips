@@ -43,16 +43,18 @@ import {
   type AnimationEvent,
   type CSSProperties,
   type ReactNode,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { useColumnsShell } from "./Columns.tsx";
 import { RailMark } from "./Connection.tsx";
 import { DoingWord } from "./Doing.tsx";
 import { MainTag } from "./MainTag.tsx";
-import { menuPoint, type RowActs, type RowMenuAsk, useRowMenu } from "./RowMenu.tsx";
+import { menuPoint, type RowActs, type RowMenuAsk, useLeaving, useRowMenu } from "./RowMenu.tsx";
 import { moving, useRailMoves } from "./roomMoves.ts";
 import { SharedTag } from "./SharedTag.tsx";
 import {
@@ -169,72 +171,116 @@ export const STATUS_TONE: Record<string, Tone> = {
   queued: "neutral",
 };
 
-export function Sidebar(props: SidebarProps) {
+export function Sidebar(props: SidebarProps & { readonly rooms?: boolean | undefined }) {
   const { model, directory } = props;
   // The agents a person can reach on the Agents page (ADR 0087): its count, as Spaces has one.
   const listed = agentsTab(model, directory, "");
   const agentCount = listed.leads.length + listed.agents.length;
-  const rail = useRailRooms(props);
+  const top = useKeptHeight();
+  // Folded to its icons beside a room (ADR 0284), the + stands under the tabs, not beside the mark.
+  const folded = useColumnsShell().away && props.rooms !== true;
 
   return (
-    <aside
-      className="side"
-      aria-label="Workspace"
+    <>
+      <aside ref={top} className="side" aria-label="Workspace">
+        <div className="side-top">
+          {props.reach === undefined ? <ChipMark size={20} /> : <RailMark {...props.reach} />}
+          <WorkspaceMenu
+            workspaces={props.workspaces ?? []}
+            onSwitch={props.onSwitch}
+            onPairAnother={props.onPairAnother}
+            onRemoveDemo={props.onRemoveDemo}
+            onWatchDemo={props.onWatchDemo}
+            onRename={props.onRenameWorkspace}
+            desktop={props.desktop}
+          />
+          {props.workspaces?.find((each) => each.current)?.demo === true ? <DemoTag /> : null}
+          {props.onNewSpace === undefined ? null : (
+            <NewSpaceButton onNew={props.onNewSpace} away={folded} />
+          )}
+        </div>
+
+        {/* The phone's four tabs, in its order, as the iPad's sidebar lists them (ADR 0256). You stood
+          at the rail's foot as a face and a name until 3 November 2026, and was not found there. */}
+        <nav className="side-nav" aria-label="Sections">
+          <NavItem
+            icon="chat"
+            label="Spaces"
+            active={props.tab === "spaces"}
+            onClick={() => props.onSelectTab("spaces")}
+          />
+          <NavItem
+            icon="chip"
+            label="Agents"
+            active={props.tab === "agents"}
+            count={agentCount}
+            onClick={() => props.onSelectTab("agents")}
+          />
+          <NavItem
+            icon="search"
+            label="Search"
+            active={props.tab === "search"}
+            onClick={() => props.onSelectTab("search")}
+          />
+          <NavItem
+            icon="user"
+            label="You"
+            // The workspace's log opens from You (ADR 0261), so You stays lit over it.
+            active={props.tab === "you" || props.tab === "audit"}
+            testId="you"
+            onClick={() => props.onSelectTab("you")}
+          />
+        </nav>
+
+        {props.setup}
+        {/* A phone's width has no columns: the rooms are in the menu the rail is there. */}
+        {props.rooms === true && <SpacesList {...props} />}
+      </aside>
+      {props.onNewSpace === undefined ? null : (
+        <FoldedNewSpace folded={folded} onNew={props.onNewSpace} />
+      )}
+    </>
+  );
+}
+
+/**
+ * Spaces' list (ADR 0284): the first column under the rail's top, as the iPad's Spaces list stands
+ * under its own; in the rail's menu at a phone's width. It was the rail's own until 7 November 2026,
+ * and stood under every tab.
+ */
+export function SpacesList(props: SidebarProps) {
+  const rail = useRailRooms(props);
+  return (
+    <section
+      className="side-list"
+      aria-label="Spaces"
+      data-testid="spaces-list"
       data-picking={rail.picking ? "true" : undefined}
       data-wave={rail.wave ? "true" : undefined}
     >
-      <div className="side-top">
-        {props.reach === undefined ? <ChipMark size={20} /> : <RailMark {...props.reach} />}
-        <WorkspaceMenu
-          workspaces={props.workspaces ?? []}
-          onSwitch={props.onSwitch}
-          onPairAnother={props.onPairAnother}
-          onRemoveDemo={props.onRemoveDemo}
-          onWatchDemo={props.onWatchDemo}
-          onRename={props.onRenameWorkspace}
-          desktop={props.desktop}
-        />
-        {props.workspaces?.find((each) => each.current)?.demo === true ? <DemoTag /> : null}
-        {props.onNewSpace === undefined ? null : <NewSpaceButton onNew={props.onNewSpace} />}
-      </div>
-
-      {/* The phone's four tabs, in its order, as the iPad's sidebar lists them (ADR 0256). You stood
-          at the rail's foot as a face and a name until 3 November 2026, and was not found there. */}
-      <nav className="side-nav" aria-label="Sections">
-        <NavItem
-          icon="chat"
-          label="Spaces"
-          active={props.tab === "spaces"}
-          onClick={() => props.onSelectTab("spaces")}
-        />
-        <NavItem
-          icon="chip"
-          label="Agents"
-          active={props.tab === "agents"}
-          count={agentCount}
-          onClick={() => props.onSelectTab("agents")}
-        />
-        <NavItem
-          icon="search"
-          label="Search"
-          active={props.tab === "search"}
-          onClick={() => props.onSelectTab("search")}
-        />
-        <NavItem
-          icon="user"
-          label="You"
-          // The workspace's log opens from You (ADR 0261), so You stays lit over it.
-          active={props.tab === "you" || props.tab === "audit"}
-          testId="you"
-          onClick={() => props.onSelectTab("you")}
-        />
-      </nav>
-
-      {props.setup}
       {rail.rooms}
       {rail.bar}
-    </aside>
+    </section>
   );
+}
+
+/**
+ * The height of the rail's top, for the first column to start under it (ADR 0284): it grows with the
+ * setup card and a connection's word, so it is measured, and put on the shell as `--kept-h`.
+ */
+function useKeptHeight() {
+  const observer = useRef<ResizeObserver | null>(null);
+  return useCallback((aside: HTMLElement | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    const shell = aside?.parentElement;
+    if (aside == null || shell == null || typeof ResizeObserver === "undefined") return;
+    const put = () => shell.style.setProperty("--kept-h", `${aside.offsetHeight}px`);
+    put();
+    observer.current = new ResizeObserver(put);
+    // Its border too: on the Mac the lights' bar is a top border, which ⌘+ and ⌘− resize.
+    observer.current.observe(aside, { box: "border-box" });
+  }, []);
 }
 
 /**
@@ -783,22 +829,59 @@ function RowNote(props: {
  * place whichever page is open (ADR 0264's second addendum). It opens the new-space dialog
  * (`NewSpace.tsx`) out of itself: a room asked of the harnesses picked, or a room of people. The
  * shell holds the dialog, since an empty workspace's Create a space and the Mac's ⌘N open it too.
- * It stood at the end of the Recent heading until 3 November 2026.
+ * It stood at the end of the Recent heading until 3 November 2026. `away`: folded out of sight with
+ * the workspace's name, the rail at its icons, or fading out of its place under the tabs.
  */
-function NewSpaceButton(props: { readonly onNew: (from: HTMLElement | null) => void }) {
+function NewSpaceButton(props: {
+  readonly onNew: (from: HTMLElement | null) => void;
+  readonly away?: boolean | undefined;
+  readonly className?: string | undefined;
+  readonly onAnimationEnd?: ((event: AnimationEvent<HTMLElement>) => void) | undefined;
+}) {
   const plus = useRef<HTMLButtonElement>(null);
   return (
     <button
       ref={plus}
       type="button"
-      className="side-new"
+      className={props.className ?? "side-new"}
       aria-label="Create new space"
-      data-testid="new-space"
+      // The one in sight is the one ⌘N's dialog grows out of (`menuCommands.ts`).
+      data-testid={props.away === true ? undefined : "new-space"}
+      data-away={props.away === true ? "true" : undefined}
       aria-haspopup="dialog"
+      inert={props.away === true}
       onClick={() => props.onNew(plus.current)}
+      onAnimationEnd={props.onAnimationEnd}
     >
       <Icon name="plus" size={16} />
     </button>
+  );
+}
+
+/**
+ * The + under the tabs while the rail is folded to its icons (Arjun, 7 November 2026: beside the
+ * mark it looked off): the top row keeps the mark alone, and the + stands under You on the icons'
+ * line. It comes in once the list has gone and fades out as the list comes back, drawn until it has.
+ * It stands beside the rail in the shell, not in it: hung out of the rail's box, the Mac's WebKit cut
+ * it in half at the rail's foot however the rail's overflow was set (Arjun's screenshot, that night).
+ */
+function FoldedNewSpace(props: {
+  readonly folded: boolean;
+  readonly onNew: (from: HTMLElement | null) => void;
+}) {
+  const [drawn, setDrawn] = useState(props.folded);
+  if (props.folded && !drawn) setDrawn(true);
+  const leaving = drawn && !props.folded;
+  if (leaving && !moving()) setDrawn(false);
+  const gone = useLeaving(leaving, () => setDrawn(false));
+  if (!drawn) return null;
+  return (
+    <NewSpaceButton
+      onNew={props.onNew}
+      away={leaving}
+      className="side-new side-new-folded"
+      onAnimationEnd={gone}
+    />
   );
 }
 
@@ -1023,7 +1106,7 @@ function SpaceRow(props: {
       >
         <span className="cv-face">
           <PickMark pick={pick} />
-          {spaceAvatar(space, directory, title, props.icon, working)}
+          {spaceAvatar(space, directory, title, props.icon, working, "md")}
         </span>
         <div className="cv-body">
           <div className="cv-t">

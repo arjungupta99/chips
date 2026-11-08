@@ -101,3 +101,60 @@ The new dependency is a JavaScript one only: `expo-glass-effect` 57.0.1 was alre
 the iOS build as a dependency of expo-router (`ExpoGlassEffect` in `Podfile.lock`), and is now
 named in `apps/mobile/package.json` at the same version. As with the rest of the glass, Jest sees
 a plain view; how the field reads over a photo passing under it is the phone's to answer.
+
+## Amended 4 November 2026 — the page keeps what it holds, so the room's list is found
+
+On the 1.1.0 build in an iPhone 17 Pro simulator on iOS 26.5, in dark mode, a tall space's
+conversation stood under a dark veil from the top bar to the field: Birthday dinner always, Garden
+website while the keyboard was up. The iPad, whose room is a pane under no bar, and the iPhone Duo
+on iOS 27 did not show it.
+
+The veil was UIKit's own edge effect again (`ScrollEdgeEffectView`, edge top, with its
+`AdditionalDimmingOverlay`), on the room's list and sized to the whole screen; lldb read all four of
+the list's effects as not hidden. The room asks for them hidden (`scrollEdgeEffects`,
+`app/spaces/[id].tsx`), and react-native-screens hands that to the first scroll view it meets down
+the chain of first children. The chain stopped short: the screen's first child was an empty view
+in the page's colour, and the room's drop view and its list came after it, beside it rather than
+inside it. Hiding the list's four effects by hand in lldb took the veil away.
+
+The empty view was the page itself (`Page`, `ui/Screen.tsx`). On 2 November it went from the
+native safe-area view to a plain view with a colour and padding (`05dcb639`, for the Duo). React
+Native's renderer draws a view like that, one that forms a view but not a stacking context
+(`ViewShadowNode.cpp`), as an empty view of its own, and moves what it holds up into the nearest
+view that does, after it. The native safe-area view had always formed one.
+
+- **The page keeps what it holds** (`collapsable={false}`), which makes it a stacking context, as
+  the safe-area view was. The screen's chain runs page, drop view, list again, and both of
+  react-native-screens' passes down it reach the list: the edge effects, and the setting a tab
+  makes for its list's insets. Every page that is not a glass one gets the tree it had before
+  2 November; nothing else changes.
+- **The 11 October change stays.** A room pushed from the + still turns its sides from automatic
+  to hidden once the list has laid out, which hands the list all four; walked, the new room's list
+  had all four hidden.
+- **Walked** on a simulator of its own (iOS 26.5, dark, Look around), main's JavaScript swapped into
+  the 1.1.0 Release app: before, Birthday dinner under the veil and the effect on the list; after,
+  Birthday dinner and Garden website with the keyboard up at full colour, the list inside the page
+  in the view tree, its four effects hidden, and the one effect view left at alpha 0. A Jest test
+  holds the prop, since a test renderer moves no children and the old test of the chain passed
+  throughout.
+- **Not changed here:** a tab's glass page (`Floating`) is the same kind of view, and on Spaces its
+  list comes after its empty page too. What that costs a tab bar that shrinks with its list is a
+  question for its own walk.
+
+## Amended 7 November 2026 — the box that holds the room's width keeps the list too
+
+Arjun, on his iPad in Split View: "fix iPad layout in this Split View. The message screen is faded".
+The veil was back. A window under 700 points is a phone (ADR 0256), so its room is a page of its
+own under a transparent bar, and its list kept iOS's edge effect again: the conversation under a
+dark veil from the bar to the field. The same holds on an iPhone.
+
+- **Cause.** ADR 0279 put a box between the room and its list, which holds the list's width while a
+  column comes or goes (`room-held`, in `SpaceView`'s `TapAway`, from 6 November). A view with a
+  test id and nothing else is drawn as an empty view with its children moved up after it, as the
+  page was on 4 November, and the screen's chain of first children stopped at the empty box.
+- **Decision.** The box keeps what it holds (`collapsable={false}`), as the page does.
+- **Walked** on an iPad Pro 13-inch simulator (iOS 27.2, Look around), its window dragged under 700
+  points: before, Birthday dinner under the veil, and in lldb the empty box first, the list second
+  and all four of its effects showing; after, with main's JavaScript and the fix swapped in, full
+  colour and all four hidden. Widened again, the room beside the list and its details opening
+  stood as before. A Jest test holds the prop.

@@ -688,7 +688,7 @@ function MediaViewer({
       onShow={follow.shown}
       testID="viewer"
     >
-      <ViewerWindow statusBarHidden={statusBarHidden} item={item} />
+      <ViewerWindow statusBarHidden={statusBarHidden} leaving={going} item={item} />
       <View style={StyleSheet.absoluteFill} accessibilityViewIsModal onAccessibilityEscape={close}>
         <Pages label={labelOf(item, index + 1, deck.length, who.name)} onPage={page}>
           <Stage

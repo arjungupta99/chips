@@ -37,7 +37,7 @@ import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
-import { formatDuration, formatTokens, receiptSummary } from "../ui/format";
+import { formatCost, formatDuration, formatTokens, receiptSummary } from "../ui/format";
 import { useGround } from "../ui/ground";
 import { Sheet, SheetScroll, SheetTitle } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
@@ -335,9 +335,18 @@ function tookMs(run: Run): number | undefined {
   return new Date(run.endedAt).getTime() - new Date(run.startedAt).getTime();
 }
 
-/** The receipt's one line: how many steps, how long, what it cost. Under What the run did too. */
+/** The receipt's one line: what it cost, how many steps, how long. */
 export function receiptLine(run: Run): string {
   return receiptSummary(receiptSteps(run), tookMs(run), run.costUsd);
+}
+
+/**
+ * The receipt's line under What the run did on a held message, in two: what it cost, which the
+ * menu draws in ink, and the rest (ADR 0282: "the cost is the last thing on a small grey line").
+ */
+export function receiptParts(run: Run): { readonly cost?: string; readonly rest: string } {
+  const rest = receiptSummary(receiptSteps(run), tookMs(run));
+  return run.costUsd === undefined ? { rest } : { cost: formatCost(run.costUsd), rest };
 }
 
 /**

@@ -34,7 +34,7 @@ import {
   type WorkspaceModel,
   whoIsHere,
 } from "@chipschat/core";
-import type { JobSpend, SpaceIcon } from "@chipschat/protocol";
+import type { RoomSpend, SpaceIcon } from "@chipschat/protocol";
 import { type CSSProperties, useCallback, useEffect, useId, useRef, useState } from "react";
 import { ConfirmDialog } from "../ConfirmDialog.tsx";
 import type { FileService } from "../files.ts";
@@ -58,7 +58,8 @@ export type Page =
   | { readonly kind: "elsewhere" }
   | { readonly kind: "media" }
   | { readonly kind: "lead" }
-  | { readonly kind: "spend" }
+  /** Spend per job; from the banner's Raise the limit, its Save lets the agents carry on too. */
+  | { readonly kind: "spend"; readonly carryOn?: boolean }
   | { readonly kind: "new" }
   | { readonly kind: "invite" }
   | { readonly kind: "move"; readonly agentId: string }
@@ -90,20 +91,22 @@ export interface RoomSheetProps {
   /**
    * The page it comes up on: its first, or Add, for a room waiting for agents (ADR 0148), or
    * Universe, from the four rings at the header's right (ADR 0227), or Icon, from Change icon on
-   * the room's row in the rail (ADR 0264's addendum).
+   * the room's row in the rail (ADR 0264's addendum), or Spend per job to carry on with, from the
+   * banner's Raise the limit (ADR 0282).
    */
-  readonly opensOn: "who" | "add" | "project" | "universe" | "icon";
+  readonly opensOn: "who" | "add" | "project" | "universe" | "icon" | "raise";
   /** A change to open on instead, from under the reply that made it (ADR 0222). */
   readonly opensChange?: string | undefined;
   /** Gone, the fold finished. */
   readonly onGone: () => void;
+  /** A job's row on Spend per job: the room, at its reply, once the sheet has gone (ADR 0282). */
+  readonly onGoTo?: ((lineId: string) => void) | undefined;
 }
 
 /** The page the sheet comes up on: a change asked for from under its reply, or its first or Add. */
 function firstPage(props: RoomSheetProps): Page {
-  return props.opensChange === undefined
-    ? { kind: props.opensOn }
-    : { kind: "change", commit: props.opensChange };
+  if (props.opensChange !== undefined) return { kind: "change", commit: props.opensChange };
+  return props.opensOn === "raise" ? { kind: "spend", carryOn: true } : { kind: props.opensOn };
 }
 
 /** What a page is called, for `Pages`: Move per agent, a change and a file each their own. */
@@ -134,8 +137,9 @@ export function RoomSheet(props: RoomSheetProps) {
   const onRenaming = useCallback((on: boolean) => {
     renaming.current = on;
   }, []);
-  // The agent whose page opens once the sheet has gone.
+  // The agent whose page opens once the sheet has gone, and the line the room goes to then.
   const opening = useRef<string | undefined>(undefined);
+  const goingTo = useRef<string | undefined>(undefined);
   const place = usePlace(props.from);
   const spend = useJobSpend(actions.roomSpend, space);
   const filesRead = useRoomFiles(space, actions);
@@ -220,6 +224,33 @@ export function RoomSheet(props: RoomSheetProps) {
     model: props.model,
     busy,
   };
+  // Spend per job. From Raise the limit the agents carry on with what is saved, and the sheet goes
+  // so the room shows them going on; a job's row goes to its reply once it has (ADR 0282).
+  const { onGoTo } = props;
+  const spendPage = (carryOn: boolean) => (
+    <SpendPage
+      {...common}
+      spend={spend}
+      carryOn={carryOn}
+      onBack={() => go({ kind: "who" })}
+      onSave={(usd) =>
+        carryOn
+          ? void work(() => actions.spend(usd, { carryOn: true }), putAway)
+          : void work(
+              () => actions.spend(usd),
+              () => go({ kind: "who" }),
+            )
+      }
+      onGoTo={
+        onGoTo === undefined
+          ? undefined
+          : (lineId) => {
+              goingTo.current = lineId;
+              putAway();
+            }
+      }
+    />
+  );
 
   const view = (shown: Page) => {
     switch (shown.kind) {
@@ -267,19 +298,7 @@ export function RoomSheet(props: RoomSheetProps) {
           />
         );
       case "spend":
-        return (
-          <SpendPage
-            {...common}
-            spend={spend}
-            onBack={() => go({ kind: "who" })}
-            onSave={(usd) =>
-              void work(
-                () => actions.spend(usd),
-                () => go({ kind: "who" }),
-              )
-            }
-          />
-        );
+        return spendPage(shown.carryOn === true);
       case "icon":
         return iconPage();
       case "universe":
@@ -412,6 +431,9 @@ export function RoomSheet(props: RoomSheetProps) {
           const agentId = opening.current;
           opening.current = undefined;
           if (agentId !== undefined) props.onOpenAgent?.(agentId);
+          const lineId = goingTo.current;
+          goingTo.current = undefined;
+          if (lineId !== undefined) props.onGoTo?.(lineId);
         }}
         style={place}
       >
@@ -509,8 +531,8 @@ function placeUnder(from: HTMLElement | null): CSSProperties {
 const WIDTH = 420;
 
 /** What the room's job has spent, read again as the room moves on or its ceiling changes. */
-function useJobSpend(read: () => Promise<JobSpend>, space: Space): JobSpend | undefined {
-  const [spend, setSpend] = useState<JobSpend | undefined>(undefined);
+function useJobSpend(read: () => Promise<RoomSpend>, space: Space): RoomSpend | undefined {
+  const [spend, setSpend] = useState<RoomSpend | undefined>(undefined);
   const last = space.lines.at(-1)?.id;
   const latest = useRef(read);
   latest.current = read;

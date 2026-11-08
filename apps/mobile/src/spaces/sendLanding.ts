@@ -63,6 +63,8 @@ export interface RouteLaunch {
   readonly to: readonly string[];
   /** The capsule's arrow and faces, in window points: the route's start. */
   readonly from: Rect;
+  /** The capsule said Everyone, so its faces fly up as the mark they were drawn as. */
+  readonly everyone?: boolean | undefined;
 }
 
 /** A message sent, and where its words and photos were in the composer: the flight's start. */

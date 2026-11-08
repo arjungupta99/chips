@@ -35,6 +35,8 @@ Every event also carries the [envelope](/reference/envelope/).
 | `decision` | yes | `"approved" \| "edited" \| "denied" \| "expired"` | `expired` means nobody answered and the fallback applied. |
 | `scope` | no | `"once" \| "session" \| "always"` | How far the answer reaches. `always` becomes a policy rule. |
 | `everywhere` | no | `boolean` | With `always`: the rule is the harness's in every space, not only this one (ADR 0239). An owner or an admin only. |
+| `for_minutes` | no | `number` | With `once` and a yes: for this many minutes, everything the asking agent asks in this space goes ahead without a card (ADR 0239, addendum of 6 November 2026; ADR 0281), commands Chips can't read too. An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once. |
+| `until_stopped` | no | `true` | With `once` and a yes, instead of `for_minutes`: everything the asking agent asks in this space goes ahead without a card until a person stops it (`approval.held_stopped`, ADR 0281). An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once. |
 | `updated_input` | no | `unknown` | The edited action input, when the decision is `edited`. |
 | `reason` | no | `string` | Why. The harness gets to read this. |
 | `resolved_by` | yes | `string` | The participant who answered, or `system` on expiry — a harness when it settles its own ask, answered in its own tools. Filled in by Chips from the credential that sent it; a value the sender writes is replaced. |

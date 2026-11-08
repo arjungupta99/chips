@@ -196,7 +196,7 @@ export function StagedViewer({
       onShow={way.shown}
       testID="staged-viewer"
     >
-      <ViewerWindow statusBarHidden={statusBarHidden} />
+      <ViewerWindow statusBarHidden={statusBarHidden} leaving={going} />
       <View style={StyleSheet.absoluteFill} accessibilityViewIsModal onAccessibilityEscape={close}>
         <View
           style={StyleSheet.absoluteFill}

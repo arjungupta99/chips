@@ -22,3 +22,81 @@ index 2db064ce01b7c96533c14fb869af6f4183f4c09a..5db2bc7c88bd8f03aff0533ad441705d
    return jsi::Value(rt, array);
  }
  
+diff --git a/lib/module/layoutReanimation/animationsManager.js b/lib/module/layoutReanimation/animationsManager.js
+index d9da7b589b9e1ccda5489094249818076b586b6f..a095206db240e61225244f9e75cf56cd778687f6 100644
+--- a/lib/module/layoutReanimation/animationsManager.js
++++ b/lib/module/layoutReanimation/animationsManager.js
+@@ -23,6 +23,16 @@ function stopObservingProgress(tag, sharedValue, scheduleFlush, removeView = fal
+   global._notifyAboutEnd(tag, removeView);
+   scheduleFlush();
+ }
++// Chips: see `endAfterFlush` in src/layoutReanimation/animationsManager.ts.
++function endAfterFlush(tag, sharedValue, scheduleFlush, removeView) {
++  'worklet';
++
++  sharedValue.removeListener(tag + TAG_OFFSET);
++  globalThis.requestAnimationFrameFinalizer(() => {
++    global._notifyAboutEnd(tag, removeView);
++    scheduleFlush();
++  });
++}
+ function createLayoutAnimationManager() {
+   'worklet';
+ 
+@@ -83,7 +93,7 @@ function createLayoutAnimationManager() {
+           currentAnimationForTag.delete(tag);
+           mutableValuesForTag.delete(tag);
+           const shouldRemoveView = type === LayoutAnimationType.EXITING;
+-          stopObservingProgress(tag, value, scheduleFlush, shouldRemoveView);
++          (USE_ANIMATION_BACKEND ? stopObservingProgress : endAfterFlush)(tag, value, scheduleFlush, shouldRemoveView);
+         }
+         if (style.callback) {
+           style.callback(finished === undefined ? false : finished);
+diff --git a/src/layoutReanimation/animationsManager.ts b/src/layoutReanimation/animationsManager.ts
+index 7b0f9c2fd6db02448904ce2be6ea37c7e9cdb7b2..594117413c1b5168c7eeab3e5ba09fcae9b732d5 100644
+--- a/src/layoutReanimation/animationsManager.ts
++++ b/src/layoutReanimation/animationsManager.ts
+@@ -42,6 +42,29 @@ function stopObservingProgress(
+   scheduleFlush();
+ }
+ 
++/**
++ * Chips: a finished animation ends once this frame's flush has mounted where it came to rest. Its
++ * last progress and its end came in the same frame, before the flush, and the flush passes over an
++ * animation that has ended, so its last frame was never mounted. With every frame on time the frame
++ * before is a fraction of a point short; with the UI thread held up past the end, the view stayed
++ * where the frame before left it: the field opening into its list stuck part grown, the list running
++ * down over it (ADR 0256's addendum). Finalizers run in order, and this frame's flush was asked for
++ * when its progress came, so the end follows it.
++ */
++function endAfterFlush(
++  tag: number,
++  sharedValue: SharedValue<number>,
++  scheduleFlush: () => void,
++  removeView: boolean
++): void {
++  'worklet';
++  sharedValue.removeListener(tag + TAG_OFFSET);
++  globalThis.requestAnimationFrameFinalizer(() => {
++    global._notifyAboutEnd(tag, removeView);
++    scheduleFlush();
++  });
++}
++
+ function createLayoutAnimationManager(): {
+   start: LayoutAnimationStartFunction;
+   stop: (tag: number) => void;
+@@ -109,7 +132,12 @@ function createLayoutAnimationManager(): {
+           currentAnimationForTag.delete(tag);
+           mutableValuesForTag.delete(tag);
+           const shouldRemoveView = type === LayoutAnimationType.EXITING;
+-          stopObservingProgress(tag, value, scheduleFlush, shouldRemoveView);
++          (USE_ANIMATION_BACKEND ? stopObservingProgress : endAfterFlush)(
++            tag,
++            value,
++            scheduleFlush,
++            shouldRemoveView
++          );
+         }
+         if (style.callback) {
+           style.callback(finished === undefined ? false : finished);

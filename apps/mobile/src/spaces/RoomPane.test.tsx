@@ -5,17 +5,19 @@
  * room itself is there under the name. On an iPad (ADR 0256, ADR 0276): that its details stand in
  * the third column beside it, and stay open from space to space; and that the list is put away from
  * its bar. Seen from Search, that it offers Open in Spaces in their place, its details are the sheet,
- * and it puts nothing away.
+ * and it puts nothing away. And that its lines take a new width once, their words out of sight
+ * (ADR 0279).
  */
 
 import type { Snapshot } from "@chipschat/core";
-import { act, render, screen, userEvent } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, userEvent } from "@testing-library/react-native";
 import { Dimensions, Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore } from "../testing/fixtures";
 import { ChromeProvider, useChrome } from "../ui/chrome";
 import { commandsNow, runCommand } from "../ui/menuBar";
-import { THIRD } from "../ui/Split";
+import { Split, THIRD } from "../ui/Split";
+import { GLIDE, WORDS_IN, WORDS_OUT, WORDS_WAIT } from "./heldWidth";
 import { RoomPane } from "./RoomPane";
 
 /** What the pane asked of the route, which a router as stable as the real one records. */
@@ -226,6 +228,41 @@ describe("the room pane on an iPad (ADR 0256)", () => {
     expect(screen.queryByTestId("universe-sheet")).toBeNull();
   });
 
+  it("lays its lines out at the room's new width once, their words gone, as the details open beside it (ADR 0279)", async () => {
+    jest.useFakeTimers();
+    try {
+      on(1376, 1032);
+      await render(
+        <ChromeProvider>
+          <Split list={<Text>the list</Text>} detail={<Pane snapshot={state()} spaceId="sp_1" />} />
+        </ChromeProvider>,
+      );
+      const lines = () => screen.getByTestId("room-held");
+      const room = 1376 - 340;
+      expect(lines()).not.toHaveStyle({ width: room });
+      expect(screen.queryByTestId("room-words")).toBeNull();
+
+      // The column sets off; the lines hold the room's width while their words go.
+      await fireEvent.press(screen.getByRole("button", { name: "Show details" }));
+      expect(screen.getByTestId("room-sheet")).toHaveStyle({ width: THIRD });
+      expect(lines()).toHaveStyle({ width: room });
+      expect(screen.getByTestId("room-words")).toBeTruthy();
+
+      // Gone: laid out once at the room beside the details, which they glide to.
+      await act(() => jest.advanceTimersByTime(WORDS_WAIT + WORDS_OUT));
+      expect(lines()).toHaveStyle({ width: room - THIRD });
+
+      // Landed: the room's own width again. Then the words are back.
+      await act(() => jest.advanceTimersByTime(GLIDE + 100));
+      expect(lines()).not.toHaveStyle({ width: room - THIRD });
+      await act(() => jest.advanceTimersByTime(WORDS_IN));
+      expect(screen.queryByTestId("room-words")).toBeNull();
+      await screen.unmount();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("opens the sheet beside the room's name from the details button where the window has no room for a column", async () => {
     on(834, 1194);
     await render(inChrome("sp_1"));
@@ -243,6 +280,21 @@ describe("the room pane on an iPad (ADR 0256)", () => {
     expect(screen.getByTestId("chrome")).toHaveTextContent("list away");
     await userEvent.press(screen.getByRole("button", { name: "Show the list" }));
     expect(screen.getByTestId("chrome")).toHaveTextContent("nothing");
+  });
+
+  it("brings the list back upright by putting the details away, which stepped it aside (ADR 0276)", async () => {
+    on(1032, 1376);
+    await render(inChrome("sp_1"));
+    await userEvent.press(screen.getByRole("button", { name: "Show details" }));
+    expect(screen.getByTestId("room-sheet")).toHaveStyle({ width: THIRD });
+    // No room for the list beside the room and the details: it has stepped aside, and says so.
+    expect(screen.getByRole("button", { name: "Show the list" })).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Show the list" }));
+    expect(screen.queryByTestId("room-sheet")).toBeNull();
+    expect(screen.getByTestId("chrome")).toHaveTextContent("nothing");
+    // And the details step it aside again.
+    await userEvent.press(screen.getByRole("button", { name: "Show details" }));
+    expect(screen.getByRole("button", { name: "Show the list" })).toBeTruthy();
   });
 
   it("shows and hides the details and the list from the menu bar, as its bar's buttons do", async () => {

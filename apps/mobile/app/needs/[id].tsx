@@ -16,14 +16,16 @@
  * form is for the question from a space they are not in, where the card is all there is.
  */
 
-import type { FoundAsk, NeedsYouItem, Snapshot, Store } from "@chipschat/core";
-import { findAsk, mayTurnDial, roomName } from "@chipschat/core";
+import type { Approval, FoundAsk, NeedsYouItem, Snapshot, Store } from "@chipschat/core";
+import { findAsk, mayTurnDial, roomName, runIsLane } from "@chipschat/core";
 import { Redirect, Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { deviceWord } from "../../src/device/word";
 import { Answered } from "../../src/needs/Answered";
 import { Ask } from "../../src/needs/Ask";
+import { AskWho, LapseRing } from "../../src/needs/AskBar";
 import { Decide, type DecisionInput } from "../../src/needs/Decide";
 import { candidates } from "../../src/needs/HandOn";
 import { answersInTheRoom, targetOf } from "../../src/spaces/spaces";
@@ -38,6 +40,29 @@ import { approvalFor, askTitle, OUTSIDE, questionFor, refusalWords } from "../..
 
 /** An ask's name in the bar when it is read rather than answered. */
 const ASK_TITLE = "Ask";
+
+/**
+ * How long a yes stays on the screen once given, as Approve turns to a tick and says how far it
+ * reaches, before the screen goes back (ADR 0280).
+ */
+const SETTLE_MS = 750;
+
+/** An ask just approved, held as it was while the tick shows: the log has it answered already. */
+interface Leaving {
+  readonly item: NeedsYouItem;
+  readonly approval: Approval;
+}
+
+/** Back, now or after the tick; never after the screen has gone some other way. */
+function useBack(): (after: number) => void {
+  const router = useRouter();
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  return (after) => {
+    if (after === 0) router.back();
+    else timer.current = setTimeout(() => router.back(), after);
+  };
+}
 
 export default function NeedsDetailScreen() {
   const { paired } = useChips();
@@ -57,9 +82,11 @@ function Detail({
 }) {
   const snapshot = useSnapshot(store);
   const router = useRouter();
+  const back = useBack();
   const now = useNow(true);
   const column = useColumn();
-  const item = snapshot.model.needsYou.find((each) => each.id === id);
+  const [leaving, setLeaving] = useState<Leaving | undefined>(undefined);
+  const item = leaving?.item ?? snapshot.model.needsYou.find((each) => each.id === id);
   // A push opens this as the app comes back, before the catch-up has brought the ask: missing
   // then is not yet, and the page stays empty until the store has caught up (Arjun's iPhone,
   // 23 October 2026: "Not here", then the ask).
@@ -73,25 +100,33 @@ function Detail({
     return <Redirect href={`/spaces/${item.spaceId}?at=${encodeURIComponent(targetOf(item))}`} />;
   }
 
-  const approval = approvalFor(item, snapshot);
+  const approval = leaving?.approval ?? approvalFor(item, snapshot);
   const question = questionFor(item, snapshot);
   const harnessName = snapshot.directory[item.harnessId]?.displayName ?? item.harnessId;
   const reason = snapshot.refused?.get(item.id);
+  const elsewhere = <Elsewhere item={item} onOpen={() => router.push(`/spaces/${item.spaceId}`)} />;
 
-  const decide = (input: DecisionInput) => {
-    if (item.runId === undefined || approval === undefined) return;
-    store.resolveApproval({
-      spaceId: item.spaceId,
-      runId: item.runId,
-      approvalId: approval.approvalId,
-      decision: input.decision,
-      scope: input.scope,
-      ...(input.everywhere === true ? { everywhere: true } : {}),
-      ...(input.reason === undefined ? {} : { reason: input.reason }),
-      ...(input.updatedInput === undefined ? {} : { updatedInput: input.updatedInput }),
-    });
-    router.back();
-  };
+  if (approval !== undefined) {
+    return (
+      <Deciding
+        store={store}
+        snapshot={snapshot}
+        selfId={selfId}
+        item={item}
+        approval={approval}
+        now={now}
+        leaving={leaving !== undefined}
+        onDecided={(input) => {
+          // A yes stays a moment as its tick; a no, or an edit typed in the tray, goes at once.
+          if (input.decision === "approved") {
+            setLeaving({ item, approval });
+            back(SETTLE_MS);
+          } else back(0);
+        }}
+        under={elsewhere}
+      />
+    );
+  }
 
   return (
     <Screen>
@@ -102,38 +137,7 @@ function Detail({
         keyboardShouldPersistTaps="handled"
         bottomOffset={SPACE.lg}
       >
-        {approval !== undefined ? (
-          <Decide
-            approval={approval}
-            harnessName={harnessName}
-            harnessId={item.harnessId}
-            directory={snapshot.directory}
-            selfId={selfId}
-            busy={snapshot.busy.has(item.id)}
-            now={now}
-            onDecide={decide}
-            onHand={(to, reason) => {
-              if (item.runId === undefined) return;
-              store.routeApproval({
-                spaceId: item.spaceId,
-                runId: item.runId,
-                approvalId: approval.approvalId,
-                to: [to],
-                ...(reason === undefined ? {} : { reason }),
-              });
-              router.back();
-            }}
-            handTo={candidates(
-              snapshot.directory,
-              snapshot.model.spaces.find((space) => space.id === item.spaceId)?.members ?? [],
-              snapshot.model.people,
-              selfId,
-            )}
-            people={snapshot.model.people}
-            mayEverywhere={mayTurnDial(snapshot.model, selfId)}
-            spaceName={roomName(snapshot.model, item.spaceId, snapshot.directory)}
-          />
-        ) : question !== undefined ? (
+        {question !== undefined ? (
           <Ask
             question={question}
             harnessName={harnessName}
@@ -153,8 +157,111 @@ function Detail({
         ) : (
           <Plain item={item} />
         )}
-        <Elsewhere item={item} onOpen={() => router.push(`/spaces/${item.spaceId}`)} />
+        {elsewhere}
       </KeyboardAwareScrollView>
+    </Screen>
+  );
+}
+
+/** The decision as the store sends it, from what the screen decided. */
+function resolution(item: NeedsYouItem, approval: Approval, runId: string, input: DecisionInput) {
+  return {
+    spaceId: item.spaceId,
+    runId,
+    approvalId: approval.approvalId,
+    decision: input.decision,
+    scope: input.scope,
+    ...(input.everywhere === true ? { everywhere: true } : {}),
+    ...(input.forMinutes === undefined ? {} : { forMinutes: input.forMinutes }),
+    ...(input.untilStopped === true ? { untilStopped: true } : {}),
+    ...(input.reason === undefined ? {} : { reason: input.reason }),
+    ...(input.updatedInput === undefined ? {} : { updatedInput: input.updatedInput }),
+  };
+}
+
+/**
+ * An approval waiting on this person (ADR 0280): the agent's face and the space in the bar, the
+ * time left as a ring at its end, and the ask under it with its answer in the tray at the foot.
+ */
+function Deciding({
+  store,
+  snapshot,
+  selfId,
+  item,
+  approval,
+  now,
+  leaving,
+  onDecided,
+  under,
+}: {
+  readonly store: Store;
+  readonly snapshot: Snapshot;
+  readonly selfId: string;
+  readonly item: NeedsYouItem;
+  readonly approval: Approval;
+  readonly now: number;
+  /** Approved, and on its way back: the tick is showing. */
+  readonly leaving: boolean;
+  readonly onDecided: (input: DecisionInput) => void;
+  readonly under: ReactNode;
+}) {
+  const router = useRouter();
+  const { directory, model } = snapshot;
+  const spaceName = roomName(model, item.spaceId, directory);
+  const open = approval.resolved === undefined && !leaving;
+  return (
+    <Screen>
+      <Stack.Screen
+        options={{
+          title: askTitle(item, directory),
+          headerTitle: () => (
+            <AskWho
+              directory={directory}
+              id={item.harnessId}
+              spaceName={item.outside === true ? undefined : spaceName}
+            />
+          ),
+          headerRight: () => (open ? <LapseRing approval={approval} now={now} /> : null),
+        }}
+      />
+      <Decide
+        approval={approval}
+        harnessName={directory[item.harnessId]?.displayName ?? item.harnessId}
+        harnessId={item.harnessId}
+        directory={directory}
+        selfId={selfId}
+        busy={!leaving && snapshot.busy.has(item.id)}
+        now={now}
+        onDecide={(input) => {
+          if (item.runId === undefined) return;
+          store.resolveApproval(resolution(item, approval, item.runId, input));
+          onDecided(input);
+        }}
+        onHand={(to, reason) => {
+          if (item.runId === undefined) return;
+          store.routeApproval({
+            spaceId: item.spaceId,
+            runId: item.runId,
+            approvalId: approval.approvalId,
+            to: [to],
+            ...(reason === undefined ? {} : { reason }),
+          });
+          router.back();
+        }}
+        handTo={candidates({
+          directory,
+          space: model.spaces.find((space) => space.id === item.spaceId),
+          people: model.people,
+          selfId,
+          lane: runIsLane(model, approval.runId),
+        })}
+        people={model.people}
+        mayEverywhere={mayTurnDial(model, selfId)}
+        keepsHeldYes={snapshot.keepsHeldYes}
+        spaceName={spaceName}
+        timeInBar
+        under={under}
+      />
     </Screen>
   );
 }

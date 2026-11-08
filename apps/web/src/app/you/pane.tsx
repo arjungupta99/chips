@@ -15,7 +15,6 @@ import { Icon } from "@chipschat/ui";
 import {
   createContext,
   type ReactNode,
-  type RefObject,
   useCallback,
   useContext,
   useEffect,
@@ -26,32 +25,6 @@ import {
 
 /** What a row of You's opens beside the list. */
 export type YouPage = "face" | "people" | "invite" | "relay" | "connection" | "log";
-
-/**
- * How wide You must be for the list and a page side by side: the list's 340 and a page of 380.
- * The Mac's window at its narrowest, 880, leaves You 660 beside the sidebar: one at a time there.
- */
-const SPLIT_AT = 720;
-
-/** Whether You is wide enough for the list and its page side by side, as it is resized. */
-export function useSplit(you: RefObject<HTMLElement | null>): boolean {
-  const [split, setSplit] = useState(true);
-  useEffect(() => {
-    const element = you.current;
-    if (element === null) return;
-    // Nothing laid out (You put away, or a test's DOM with no layout): as it was.
-    const measure = () => {
-      const width = element.getBoundingClientRect().width;
-      if (width > 0) setSplit(width >= SPLIT_AT);
-    };
-    measure();
-    if (typeof ResizeObserver !== "function") return;
-    const watch = new ResizeObserver(measure);
-    watch.observe(element);
-    return () => watch.disconnect();
-  }, [you]);
-  return split;
-}
 
 /** Where a form's page stands, and what it tells the place as it opens and goes. */
 export interface FormHost {

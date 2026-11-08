@@ -18,7 +18,8 @@ import { Icon, type IconName } from "../icon/icon.js";
 import "./approval.css";
 
 export type ApprovalDecision = "approved" | "edited" | "denied" | "expired";
-export type ApprovalScope = "once" | "session" | "always";
+/** How far a yes reaches on the card: this once, for an hour (ADR 0239 addendum), or always. */
+export type ApprovalScope = "once" | "hour" | "always";
 
 export interface ApprovalResolution {
   readonly decision: ApprovalDecision;
@@ -48,6 +49,11 @@ export interface ApprovalCardProps {
   /** How long a yes keeps working: this action alone, or until it is taken back. */
   readonly lasts?: "once" | "standing";
   readonly icon?: IconName;
+  /**
+   * What the ask is drawn as in place of a preview, when the app draws it itself: a command, one
+   * part to a line (ADR 0280). Drawn where the preview would be, before it.
+   */
+  readonly body?: ReactNode;
   readonly preview?: Preview;
   /**
    * Draws a Markdown preview's body. The app's own renderer, the one its messages are drawn
@@ -59,17 +65,42 @@ export interface ApprovalCardProps {
   readonly sources?: readonly Source[];
   /** Milliseconds until the approval expires, when it is still open. */
   readonly remainingMs?: number;
+  /** Milliseconds it had in all, from asked to expiry, so the ring beside the time can drain. */
+  readonly totalMs?: number;
   /** What happens on expiry. Denying is the default, and the safe one. */
   readonly fallback?: "deny" | "allow";
   readonly editable?: boolean;
   /** How far a yes reaches. `always` becomes a policy rule. */
   readonly scope?: ApprovalScope;
   readonly onScopeChange?: (scope: ApprovalScope) => void;
+  /** Which of the choices are offered (ADR 0281): all three unless said; no Always where none is kept. */
+  readonly scopes?: readonly ApprovalScope[];
+  /**
+   * The switch above the choices that lets the agent work without asking until it is stopped (ADR
+   * 0281). On, the choices fold away and `standing` says what it lets through.
+   */
+  readonly letWork?: LetWorkSwitch;
   /**
    * Under the choices, for a yes beyond this once: what it remembers and where it reaches (ADR
    * 0239). Drawn only while the card is open and this person's to answer.
    */
   readonly standing?: ReactNode;
+  /**
+   * Why a yes goes no further than this once (ADRs 0195, 0239), said where the choices would be,
+   * above the buttons. Drawn when there are no choices to pick.
+   */
+  readonly onceWhy?: string;
+  /** Whether the command above marks the words that keep it to once, so the line wears a dot. */
+  readonly onceMarked?: boolean;
+  /** Approve's words, saying how far the yes reaches (ADR 0280): `Approve for an hour`. */
+  readonly approveLabel?: string;
+  /**
+   * What Approve says once pressed, beside a tick: `Until 12:09 AM`. Laid under its words from
+   * the start, so the button is as wide as either and does not jump as it turns.
+   */
+  readonly approvedLabel?: string;
+  /** Pressed, and on its way: Approve is green with its tick until the card cools. */
+  readonly answered?: boolean;
   /** When present, the card is decided. */
   readonly resolution?: ApprovalResolution;
   readonly onApprove?: () => void;
@@ -87,9 +118,19 @@ export interface ApprovalCardProps {
   readonly className?: string;
 }
 
+/** The switch that lets an agent work without asking (ADR 0281), as the card draws it. */
+export interface LetWorkSwitch {
+  readonly on: boolean;
+  /** `Let Jiro work without asking`. */
+  readonly title: string;
+  /** `In Chips explain, until you stop it`. */
+  readonly sub: string;
+  readonly onChange: (on: boolean) => void;
+}
+
 const SCOPES: ReadonlyArray<readonly [ApprovalScope, string]> = [
   ["once", "Once"],
-  ["session", "This session"],
+  ["hour", "For an hour"],
   ["always", "Always"],
 ];
 
@@ -122,11 +163,16 @@ export function describeResolution(resolution: ApprovalResolution): string {
   }
 }
 
+/** The ring's circle, in a 20-unit box. */
+const RING = 2 * Math.PI * 8;
+
 function Expiry({
   remainingMs,
+  totalMs,
   fallback,
 }: {
   readonly remainingMs: number;
+  readonly totalMs: number | undefined;
   readonly fallback: "deny" | "allow";
 }) {
   if (remainingMs <= 0) {
@@ -136,8 +182,23 @@ function Expiry({
       </span>
     );
   }
+  const share =
+    totalMs === undefined || totalMs <= 0 ? undefined : Math.min(1, remainingMs / totalMs);
   return (
     <span className="ui-approval__expiry">
+      {share === undefined ? null : (
+        <svg className="ui-approval__ring" viewBox="0 0 20 20" aria-hidden="true">
+          <circle className="ui-approval__ring-track" cx="10" cy="10" r="8" />
+          <circle
+            className="ui-approval__ring-left"
+            cx="10"
+            cy="10"
+            r="8"
+            strokeDasharray={RING}
+            strokeDashoffset={RING * (1 - share)}
+          />
+        </svg>
+      )}
       expires in {formatRemaining(remainingMs)}
       <span className="ui-visually-hidden">
         {fallback === "deny" ? ", then denied by policy" : ", then allowed by policy"}
@@ -235,16 +296,18 @@ function RiskList({ risk }: { readonly risk: readonly RiskClass[] }) {
 function ScopePicker({
   name,
   scope,
+  scopes,
   onScopeChange,
 }: {
   readonly name: string;
   readonly scope: ApprovalScope;
+  readonly scopes: readonly ApprovalScope[] | undefined;
   readonly onScopeChange: (scope: ApprovalScope) => void;
 }) {
   return (
     <fieldset className="ui-approval__scope">
       <legend className="ui-visually-hidden">How far a yes reaches</legend>
-      {SCOPES.map(([value, label]) => (
+      {SCOPES.filter(([value]) => scopes?.includes(value) ?? true).map(([value, label]) => (
         <label
           key={value}
           className="ui-approval__scope-option"
@@ -276,33 +339,113 @@ function Decision({ resolution }: { readonly resolution: ApprovalResolution }) {
 
 function Actions(props: ApprovalCardProps) {
   const { busy = false, editable = false, preview } = props;
+  const gone = props.answered === true;
+  const word = props.approveLabel ?? "Approve";
+  const done = props.approvedLabel ?? "Approved";
   return (
     <div className="ui-approval__buttons">
-      <Button variant="danger" onClick={props.onDeny} disabled={busy}>
+      <Button variant="danger" onClick={props.onDeny} disabled={busy || gone}>
         Deny
       </Button>
-      <Button onClick={props.onEdit} disabled={busy || !editable || preview === undefined}>
+      <Button
+        onClick={props.onEdit}
+        disabled={busy || gone || !editable || (preview === undefined && props.body === undefined)}
+      >
         Edit
       </Button>
       {/* By the name the film's render presses it by (ADR 0217, `taps` in a beats file). */}
       <Button
         variant="primary"
         onClick={props.onApprove}
-        disabled={busy}
+        disabled={busy || gone}
+        className="ui-approval__go"
+        aria-label={gone ? done : word}
+        data-answered={gone ? "true" : undefined}
         data-testid="approval-approve"
       >
-        Approve
+        <span className="ui-approval__word">{word}</span>
+        <span className="ui-approval__done" aria-hidden="true">
+          <svg className="ui-approval__tick" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12.5l4.5 4.5L19 7.5" />
+          </svg>
+          {done}
+        </span>
       </Button>
     </div>
   );
 }
 
 /**
- * An open card's foot: how long a yes lasts, the risks, then the scope and the buttons, or who it
- * is waiting on when it is not this person's to answer.
+ * The switch that lets the agent work without asking (ADR 0281): a row the whole of which flips
+ * it, gold while it is on.
+ */
+function LetWork({
+  letWork,
+  disabled,
+}: {
+  readonly letWork: LetWorkSwitch;
+  readonly disabled: boolean;
+}) {
+  return (
+    <label className="ui-approval__let" data-on={letWork.on ? "true" : undefined}>
+      <span className="ui-approval__let-words">
+        <b>{letWork.title}</b>
+        <small>{letWork.sub}</small>
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        className="ui-approval__switch"
+        aria-checked={letWork.on}
+        checked={letWork.on}
+        disabled={disabled}
+        onChange={(event) => letWork.onChange(event.target.checked)}
+        data-testid="let-work-switch"
+      />
+    </label>
+  );
+}
+
+/**
+ * How far a yes reaches: the choices on a line of their own, and under Once why there is no
+ * Always, where a command keeps none; or, with no choices, why the ask is answered once.
+ */
+function Choices(props: ApprovalCardProps & { readonly scopeName: string }) {
+  const { onScopeChange, scope = "once" } = props;
+  const why =
+    props.onceWhy === undefined || (onScopeChange !== undefined && scope !== "once") ? null : (
+      <p
+        className="ui-approval__once"
+        data-marked={props.onceMarked === true ? "true" : undefined}
+        data-testid="once-only"
+      >
+        <Words text={props.onceWhy} />
+      </p>
+    );
+  return (
+    <>
+      {onScopeChange !== undefined && (
+        <div className="ui-approval__choose">
+          <ScopePicker
+            name={props.scopeName}
+            scope={scope}
+            scopes={props.scopes}
+            onScopeChange={onScopeChange}
+          />
+        </div>
+      )}
+      {why}
+    </>
+  );
+}
+
+/**
+ * An open card's foot: how long a yes lasts, the risks, then the switch that lets the agent work
+ * without asking, the scope on a line of its own, what it lets through, and the buttons; or who
+ * it is waiting on when it is not this person's to answer.
  */
 function Foot(props: ApprovalCardProps & { readonly scopeName: string }) {
-  const { lasts, risk, waitingOn, onScopeChange, scope = "once" } = props;
+  const { lasts, risk, waitingOn, letWork } = props;
   return (
     <div className="ui-approval__foot">
       {lasts !== undefined && <Lasts lasts={lasts} />}
@@ -313,8 +456,15 @@ function Foot(props: ApprovalCardProps & { readonly scopeName: string }) {
         </p>
       ) : (
         <>
-          {onScopeChange !== undefined && (
-            <ScopePicker name={props.scopeName} scope={scope} onScopeChange={onScopeChange} />
+          {letWork !== undefined && (
+            <LetWork letWork={letWork} disabled={props.busy === true || props.answered === true} />
+          )}
+          {letWork?.on !== true && <Choices {...props} />}
+          {/* What the choice lets through, between it and the answer (ADR 0280). */}
+          {props.standing !== undefined && (
+            <div className="ui-approval__standing" key={letWork?.on === true ? "work" : "choice"}>
+              {props.standing}
+            </div>
           )}
           <Actions {...props} />
         </>
@@ -363,7 +513,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
           {trail !== undefined && <span className="ui-approval__trail">{trail}</span>}
         </div>
         {resolution === undefined && remainingMs !== undefined && (
-          <Expiry remainingMs={remainingMs} fallback={fallback} />
+          <Expiry remainingMs={remainingMs} totalMs={props.totalMs} fallback={fallback} />
         )}
         <Avatar
           name={harnessName}
@@ -374,6 +524,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
       </header>
 
       {effect !== undefined && <p className="ui-approval__effect">{effect}</p>}
+      {props.body}
       {preview !== undefined && <PreviewBlock preview={preview} renderMarkdown={renderMarkdown} />}
       {sources !== undefined && sources.length > 0 && <Sources sources={sources} />}
 
@@ -382,11 +533,6 @@ export function ApprovalCard(props: ApprovalCardProps) {
       ) : (
         <Foot {...props} scopeName={`${id}-scope`} />
       )}
-      {resolution === undefined &&
-        props.waitingOn === undefined &&
-        props.standing !== undefined && (
-          <div className="ui-approval__standing">{props.standing}</div>
-        )}
     </Card>
   );
 }

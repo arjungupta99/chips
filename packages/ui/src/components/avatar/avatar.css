@@ -26,6 +26,12 @@
   font-size: 10px;
 }
 
+.ui-avatar[data-size="md"] {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+}
+
 .ui-avatar[data-size="lg"] {
   width: 58px;
   height: 58px;
@@ -53,6 +59,14 @@
 
 .ui-avatar[data-kind="harness"][data-size="xs"]:not([data-busy])::after {
   border-radius: 10px;
+}
+
+.ui-avatar[data-kind="harness"][data-size="md"] {
+  border-radius: 14px;
+}
+
+.ui-avatar[data-kind="harness"][data-size="md"]:not([data-busy])::after {
+  border-radius: 17px;
 }
 
 .ui-avatar[data-kind="harness"][data-size="lg"] {
@@ -204,6 +218,11 @@
   bottom: -2px;
   width: 8px;
   height: 8px;
+}
+
+.ui-avatar[data-size="md"] .ui-avatar-mark {
+  width: 14px;
+  height: 14px;
 }
 
 .ui-avatar[data-size="lg"] .ui-avatar-mark {

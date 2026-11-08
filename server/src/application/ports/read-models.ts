@@ -13,7 +13,9 @@ import type {
   ExchangeStretch,
   PolicyRule,
   PostedFile,
+  RoomSpend,
   SpaceIcon,
+  SpentJob,
 } from "@chipschat/protocol";
 import type { PriceTable, TrailEntry, WorkspaceRole } from "../../domain/index.js";
 
@@ -26,6 +28,16 @@ export interface JobSpendView {
   readonly spent_usd: number;
   readonly since_seq: number;
   readonly uncounted_runs: number;
+}
+
+/**
+ * A room's spending job by job (ADR 0282): what began the present job, the jobs before it that
+ * spent something, newest first, and what every job there has spent together.
+ */
+export interface SpendHistoryView {
+  readonly started: RoomSpend["started"];
+  readonly jobs: readonly SpentJob[];
+  readonly total_usd: number;
 }
 
 export interface ExchangeView extends ExchangeStretch {
@@ -703,6 +715,8 @@ export interface ReadModels {
     spaceId: string,
     options?: { readonly uptoSeq?: number },
   ) => Promise<JobSpendView>;
+  /** A room's spending job by job (ADR 0282), as of now. */
+  readonly spendHistoryOf: (workspaceId: string, spaceId: string) => Promise<SpendHistoryView>;
   /** Every open room, in every workspace, with a lead still in it (ADR 0104). */
   readonly ledRooms: () => Promise<LedRoomView[]>;
   /**
@@ -889,6 +903,17 @@ export interface ReadModels {
   readonly workspacePolicy: (workspaceId: string) => Promise<WorkspacePolicyView | undefined>;
   /** The decisions made "for this session" in a run, as rules the engine can read. */
   readonly sessionRules: (workspaceId: string, runId: string) => Promise<PolicyRule[]>;
+  /**
+   * The yeses still holding in a space for one agent, or a harness without agents: for a while
+   * (ADR 0239, addendum of 6 November 2026) or until a person stops them (ADR 0281). Each is a
+   * rule for every kind (`*`) a person's answer made, so it never reaches an ask that matters.
+   */
+  readonly rulesForAWhile: (
+    workspaceId: string,
+    spaceId: string,
+    participantId: string,
+    now: string,
+  ) => Promise<PolicyRule[]>;
   /**
    * Whether a ref names a visit to this space, for a message that says which session it is for
    * (ADR 0040). A ref that names nothing here is refused rather than dropped: dropping it would

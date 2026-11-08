@@ -5,8 +5,9 @@
  * marks exactly where the capsule's default moved; on the bubble's side, as the words are.
  *
  * A button since ADR 0113: a click lists every agent it went to, and every person (ADR 0204), under it. A route draws faces and
- * never names, and from four agents it is one mark and a number (`FaceGroup`), so the list is
- * where the names are. The phone's is a sheet (`apps/mobile/src/spaces/RouteSheet.tsx`).
+ * never names, and from four agents (from two, to Everyone) it is one mark and a number
+ * (`FaceGroup`), so the list is where the names are. The phone's is a sheet
+ * (`apps/mobile/src/spaces/RouteSheet.tsx`).
  *
  * The faces are spans rather than a `Trail`, whose list cannot stand inside a button, drawn with
  * the trail's own classes so they look the same. Escape, a click elsewhere, or the route again
@@ -21,7 +22,7 @@ import {
   nameOf,
   plainWords,
 } from "@chipschat/core";
-import { FACES_UP_TO, FaceGroup } from "@chipschat/ui";
+import { FaceGroup, marked } from "@chipschat/ui";
 import { useId, useRef, useState } from "react";
 import { facesOf, useOutside } from "./AddressInField.tsx";
 import { clockTime } from "./time.ts";
@@ -64,10 +65,9 @@ export function RouteOver({
   useOutside(button, list, open, () => setOpen(false));
   if (route === undefined) return null;
   // "Went to", where the field's faces say "To": where a message went, not where the next goes.
+  const everyone = route.words === "Everyone";
   const many =
-    route.words === "Everyone" && route.to.length > FACES_UP_TO
-      ? `, ${countedWords(route.to, directory)}`
-      : "";
+    everyone && marked(route.to.length, true) ? `, ${countedWords(route.to, directory)}` : "";
   return (
     <div className="msg-route" data-testid="message-route" data-mine={mine ? "true" : undefined}>
       <button
@@ -91,7 +91,7 @@ export function RouteOver({
           <span className="ui-trail__arrow" aria-hidden="true">
             →
           </span>
-          <FaceGroup faces={facesOf(route.to, directory)} />
+          <FaceGroup faces={facesOf(route.to, directory)} everyone={everyone} />
         </span>
       </button>
       {open && (

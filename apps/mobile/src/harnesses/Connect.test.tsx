@@ -12,14 +12,23 @@ import {
   screen,
   userEvent,
   waitFor,
+  within,
 } from "@testing-library/react-native";
 import * as Clipboard from "expo-clipboard";
-import type { ReactElement, ReactNode } from "react";
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text } from "react-native";
+import { type ReactElement, type ReactNode, useMemo, useState } from "react";
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore } from "../testing/fixtures";
 import { avatarHue } from "../ui/Avatar";
-import { ConnectProvider, LANDED_MS, useConnect } from "./Connect";
+import { ThirdSide } from "../ui/Split";
+import {
+  ConnectBeside,
+  ConnectPane,
+  ConnectProvider,
+  LANDED_MS,
+  useConnect,
+  useConnectThird,
+} from "./Connect";
 
 const IPHONE = {
   frame: { x: 0, y: 0, width: 393, height: 852 },
@@ -155,6 +164,7 @@ function Tile() {
             ? "Connecting"
             : `Waiting ${connecting.waiting.left}`}
       </Text>
+      <Text testID="tile-chosen">{connecting.chosen === true ? "Chosen" : ""}</Text>
     </>
   );
 }
@@ -365,6 +375,128 @@ const drawn = (testID: string) =>
 
 // Under Jest the native driver's values never come back to JavaScript, so what is checked is how
 // each piece of motion is put together, and where it ends with Reduce Motion on.
+describe("Connect a harness beside the list on an iPad (ADR 0284's addendum)", () => {
+  /**
+   * A split's list, its pane and its third column, as the Agents tab and You hold them: the tile
+   * opens the pane, a card picked there stands in the third column, and another row of the list
+   * puts them away.
+   */
+  function Beside() {
+    const [open, setOpen] = useState(false);
+    const here = useMemo(() => ({ open: () => setOpen(true), chosen: open }), [open]);
+    const third = useConnectThird();
+    return (
+      <ConnectBeside value={here}>
+        <Tile />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Another row"
+          onPress={() => setOpen(false)}
+        >
+          <Text>Another row</Text>
+        </Pressable>
+        {open ? <ConnectPane onClose={() => setOpen(false)} /> : null}
+        {open && third !== undefined ? (
+          <ThirdSide>
+            <View testID="third-column">{third}</View>
+          </ThirdSide>
+        ) : null}
+      </ConnectBeside>
+    );
+  }
+  const beside = () => (
+    <ConnectProvider>
+      <Beside />
+    </ConnectProvider>
+  );
+
+  it("opens its pages in the pane, never a sheet, its tile chosen, and another row puts them away", async () => {
+    mockChips.store = testStore(snapshot());
+    await render(beside());
+    await userEvent.press(screen.getByLabelText("Open"));
+    expect(await screen.findByTestId("connect-pane")).toBeTruthy();
+    expect(await screen.findByLabelText("OpenClaw, Run a line")).toBeTruthy();
+    expect(screen.queryByTestId("connect-sheet")).toBeNull();
+    // The pane's bar names it; the gallery does not say it a second time under it.
+    expect(screen.getAllByText("Connect a harness")).toHaveLength(1);
+    expect(screen.getByTestId("tile-chosen")).toHaveTextContent("Chosen");
+    // A pane a row opens has no way out of its own (ADR 0276): the list is beside it.
+    expect(screen.queryByLabelText("Close")).toBeNull();
+    expect(screen.queryByLabelText("Back")).toBeNull();
+    await userEvent.press(screen.getByLabelText("Another row"));
+    expect(screen.queryByTestId("connect-pane")).toBeNull();
+    expect(screen.queryByTestId("connect-sheet")).toBeNull();
+    expect(screen.getByTestId("tile-chosen")).toHaveTextContent("");
+  });
+
+  it("opens a card picked in the pane's gallery in the third column, its row chosen, and its × goes back to the gallery alone (point 4)", async () => {
+    const store = testStore(snapshot([link()]));
+    mockChips.store = store;
+    await render(beside());
+    await userEvent.press(screen.getByLabelText("Open"));
+    await userEvent.press(await screen.findByLabelText("OpenClaw, Run a line"));
+    // The card's page beside the gallery, which stays in the pane with its row chosen.
+    const third = await screen.findByTestId("third-column");
+    expect(within(third).getByTestId("connect-page")).toBeTruthy();
+    expect(await within(third).findByTestId("connect-line-words")).toBeTruthy();
+    expect(within(screen.getByTestId("connect-pane")).getByTestId("connect-gallery")).toBeTruthy();
+    expect(screen.getByLabelText("OpenClaw, Run a line")).toBeSelected();
+    // The column's bar names the card, and its × is the way back: the page has no Back of its own.
+    expect(within(third).getByText("Connect OpenClaw")).toBeTruthy();
+    expect(screen.queryByTestId("connect-back")).toBeNull();
+    await userEvent.press(within(third).getByLabelText("Close"));
+    expect(screen.queryByTestId("third-column")).toBeNull();
+    expect(screen.getByTestId("connect-gallery")).toBeTruthy();
+    expect(screen.getByLabelText("OpenClaw, Run a line")).not.toBeSelected();
+    // The link it made is still followed, and the card opens on it again.
+    await userEvent.press(screen.getByLabelText("OpenClaw, Run a line"));
+    expect(await screen.findByTestId("connect-line-words")).toBeTruthy();
+    expect(store.calls.filter((each) => each.name === "makeJoinLink")).toHaveLength(1);
+  });
+
+  it("keeps following a link the pane was left on, and opens again where it was", async () => {
+    const store = testStore(snapshot([link()]));
+    mockChips.store = store;
+    await render(beside());
+    await userEvent.press(screen.getByLabelText("Open"));
+    await userEvent.press(await screen.findByLabelText("OpenClaw, Run a line"));
+    expect(await screen.findByTestId("connect-line-words")).toBeTruthy();
+    await userEvent.press(screen.getByLabelText("Another row"));
+    expect(screen.getByTestId("tile-waiting")).toHaveTextContent(/Waiting 1[45]:\d\d/);
+    await userEvent.press(screen.getByLabelText("Open"));
+    expect(await screen.findByTestId("connect-line-words")).toBeTruthy();
+    expect(store.calls.filter((each) => each.name === "makeJoinLink")).toHaveLength(1);
+  });
+
+  it("puts the pane away when Say hello opens the room, as it put the sheet away", async () => {
+    const store = testStore(snapshot([link()]));
+    mockChips.store = store;
+    const { rerender } = await render(beside());
+    await userEvent.press(screen.getByLabelText("Open"));
+    await userEvent.press(await screen.findByLabelText("OpenClaw, Run a line"));
+    await screen.findByTestId("connect-line-words");
+    store.answer(
+      snapshot(
+        [link({ state: "redeemed", name: "OpenClaw", harnessId: "hrn_claw", spaceId: "spc_claw" })],
+        {
+          directory: { hrn_claw: { id: "hrn_claw", kind: "harness", displayName: "OpenClaw" } },
+          spaces: [{ id: "spc_claw", lines: [{ kind: "text", authorId: "hrn_claw" }], runs: [] }],
+        },
+      ),
+    );
+    await act(async () => rerender(beside()));
+    await userEvent.press(await screen.findByLabelText("Say hello"));
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: "/spaces/[id]",
+        params: { id: "spc_claw" },
+      }),
+    );
+    expect(screen.queryByTestId("connect-pane")).toBeNull();
+    expect(screen.queryByTestId("connect-sheet")).toBeNull();
+  });
+});
+
 describe("the sheet's motion, as walked on the simulator (18 October 2026)", () => {
   afterEach(() => jest.restoreAllMocks());
 

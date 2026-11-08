@@ -93,10 +93,36 @@
 }
 
 .ui-approval__expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--amber-ink);
   flex: none;
+}
+
+/* The time left as a ring that drains toward the moment the ask lapses (ADR 0280). */
+.ui-approval__ring {
+  width: 16px;
+  height: 16px;
+  transform: rotate(-90deg);
+  flex: none;
+}
+
+.ui-approval__ring circle {
+  fill: none;
+  stroke-width: 2.5;
+}
+
+.ui-approval__ring-track {
+  stroke: var(--surface-3);
+}
+
+.ui-approval__ring-left {
+  stroke: var(--amber);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
 }
 
 .ui-approval__expiry[data-expired="true"] {
@@ -224,18 +250,231 @@
   outline-offset: 1px;
 }
 
-/* What a yes beyond once remembers and where it reaches (ADR 0239), under the foot. */
+/* The switch that lets the agent work without asking (ADR 0281): a row of its own over the
+   choices, gold while it is on, the knob sliding as the phone's does. */
+.ui-approval__let {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-base) var(--ease),
+    border-color var(--motion-base) var(--ease);
+}
+.ui-approval__let[data-on="true"] {
+  border-color: color-mix(in srgb, var(--gold) 70%, transparent);
+  background: var(--gold-soft);
+}
+.ui-approval__let:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.ui-approval__let-words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ui-approval__let-words b {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.ui-approval__let-words small {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  transition: color var(--motion-base) var(--ease);
+}
+.ui-approval__let[data-on="true"] .ui-approval__let-words small {
+  color: var(--gold-deep);
+}
+.ui-approval__switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 25px;
+  margin: 0;
+  border-radius: var(--radius-pill);
+  background: var(--line-2);
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--motion-base) var(--ease);
+}
+.ui-approval__switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--motion-slow) cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+.ui-approval__switch:checked {
+  background: var(--gold);
+}
+.ui-approval__switch:checked::before {
+  transform: translateX(17px);
+}
+.ui-approval__switch:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* What a switch or a choice brings folds in under it, rather than appearing whole. */
+.ui-approval__choose,
 .ui-approval__standing {
+  animation: ui-approval-fold var(--motion-base) var(--ease) both;
+}
+@keyframes ui-approval-fold {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-approval__choose,
+  .ui-approval__standing,
+  .ui-approval__let,
+  .ui-approval__switch,
+  .ui-approval__switch::before {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Why a yes goes no further than this once (ADRs 0195, 0239): a line of its own where the
+   choices would be, above the buttons. */
+.ui-approval__once {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+
+.ui-approval__once code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+/* The dot that ties the line to the words the command above marks in red. */
+.ui-approval__once[data-marked="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--red);
+  vertical-align: 1px;
+}
+
+/* The choice of how far a yes reaches, on a line of its own, so the buttons keep theirs as
+   Approve's words grow (ADR 0280). */
+.ui-approval__choose {
+  flex: 1 1 100%;
+  display: flex;
+}
+
+/* What the choice lets through and where it reaches (ADRs 0239, 0280), between it and the answer. */
+.ui-approval__standing {
+  flex: 1 1 100%;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 0 14px 12px;
 }
 
 .ui-approval__buttons {
   margin-left: auto;
   display: flex;
   gap: 6px;
+}
+
+/* Approve says how far it reaches, and once pressed turns green with a tick (ADR 0280). */
+.ui-button.ui-approval__go {
+  display: inline-grid;
+  align-items: center;
+  justify-items: center;
+  overflow: hidden;
+}
+
+.ui-approval__word,
+.ui-approval__done {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    transform 350ms cubic-bezier(0.34, 1.4, 0.5, 1),
+    opacity 200ms var(--ease);
+}
+
+.ui-approval__done {
+  opacity: 0;
+  transform: translateY(14px);
+  white-space: nowrap;
+}
+
+.ui-approval__go[data-answered="true"],
+.ui-approval__go[data-answered="true"]:disabled {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--bg);
+  opacity: 1;
+}
+
+.ui-approval__go[data-answered="true"] .ui-approval__word {
+  opacity: 0;
+  transform: translateY(-14px);
+}
+
+.ui-approval__go[data-answered="true"] .ui-approval__done {
+  opacity: 1;
+  transform: none;
+}
+
+.ui-approval__tick {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ui-approval__tick path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  transition: stroke-dashoffset 450ms 150ms var(--ease);
+}
+
+.ui-approval__go[data-answered="true"] .ui-approval__tick path {
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-approval__word,
+  .ui-approval__done,
+  .ui-approval__tick path,
+  .ui-approval__ring-left {
+    transition: none;
+  }
 }
 
 /* Somebody else's to answer: said in place of the buttons the server would refuse. */

@@ -132,12 +132,14 @@ export const SPACE_FOLDS: Readonly<Record<string, FoldStep>> = {
     const space = spaceOf(state, event);
     if (space === undefined) return;
     const usd = field<number | null>(event, "usd") ?? undefined;
+    const was = space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD;
     space.spendCeiling = usd;
     const said =
       usd === undefined
         ? `set the spend per job back to the default, ${dollars(DEFAULT_SPEND_CEILING_USD)}`
         : `set the spend per job to ${dollars(usd)}`;
     addLine(space, { ...textLine(event, said), kind: "system" });
+    space.ceilingLine = { id: event.id, seq: event.seq, by: event.actor.id, usd, was };
   },
 
   // A room's changes locked or let go (ADR 0156), in one line by who did it.

@@ -5,18 +5,37 @@
  */
 
 import type { Approval, Directory } from "@chipschat/core";
-import { render, screen, userEvent } from "@testing-library/react-native";
+import { fireEvent, render as renderBare, screen, userEvent } from "@testing-library/react-native";
 import * as Haptics from "expo-haptics";
+import type { ReactElement, ReactNode } from "react";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { approval, snapshot } from "../testing/fixtures";
 import { Decide, type DecisionInput } from "./Decide";
 import { candidates } from "./HandOn";
+
+/** The tray stands clear of the home indicator, so the screen is drawn on a phone that has one. */
+const IPHONE = {
+  frame: { x: 0, y: 0, width: 393, height: 852 },
+  insets: { top: 59, left: 0, right: 0, bottom: 34 },
+};
+function Phone({ children }: { readonly children: ReactNode }) {
+  return <SafeAreaProvider initialMetrics={IPHONE}>{children}</SafeAreaProvider>;
+}
+const render = (element: ReactElement) => renderBare(element, { wrapper: Phone });
 
 const notify = Haptics.notificationAsync as jest.MockedFunction<typeof Haptics.notificationAsync>;
 beforeEach(() => notify.mockClear());
 
 const DIRECTORY: Directory = snapshot().directory;
 const PEOPLE = snapshot().model.people;
-const HAND_TO = candidates(DIRECTORY, ["per_arjun", "per_dana", "har_scout"], PEOPLE, "per_arjun");
+const SPACE = { members: ["per_arjun", "per_dana", "har_scout"], roles: {} };
+const HAND_TO = candidates({
+  directory: DIRECTORY,
+  space: SPACE,
+  people: PEOPLE,
+  selfId: "per_arjun",
+  lane: false,
+});
 
 function view(over: Partial<Approval> = {}, props: Partial<Parameters<typeof Decide>[0]> = {}) {
   const decided: DecisionInput[] = [];
@@ -39,12 +58,13 @@ function view(over: Partial<Approval> = {}, props: Partial<Parameters<typeof Dec
   return { element, decided, handed };
 }
 
-/** The one inside the form, not the one that opened it: both say Deny, which is the point. */
-async function pressSecond(name: string): Promise<void> {
-  const found = screen.getAllByRole("button", { name });
-  const second = found[1];
-  if (second === undefined) throw new Error(`only one ${name} button on screen`);
-  await userEvent.press(second);
+/**
+ * Deny opens its form in the tray's place, and the form's own Deny sends: one Deny on the screen
+ * at a time, the opener and then the sender.
+ */
+async function denyInForm(): Promise<void> {
+  expect(screen.getByTestId("deny-form")).toBeTruthy();
+  await userEvent.press(screen.getByRole("button", { name: "Deny" }));
 }
 
 describe("an approval, in full", () => {
@@ -100,7 +120,7 @@ describe("an approval, in full", () => {
     const { element, decided } = view();
     await render(element);
     await userEvent.press(screen.getByRole("radio", { name: "Always" }));
-    await userEvent.press(screen.getByRole("button", { name: "Approve" }));
+    await userEvent.press(screen.getByRole("button", { name: "Approve always" }));
     expect(decided).toEqual([{ decision: "approved", scope: "always" }]);
   });
 
@@ -109,7 +129,7 @@ describe("an approval, in full", () => {
     await render(first.element);
     await userEvent.press(screen.getByRole("button", { name: "Deny" }));
     await userEvent.type(screen.getByTestId("deny-input"), "Wrong supplier");
-    await pressSecond("Deny");
+    await denyInForm();
     expect(first.decided).toEqual([
       { decision: "denied", scope: "once", reason: "Wrong supplier" },
     ]);
@@ -117,7 +137,7 @@ describe("an approval, in full", () => {
     const second = view();
     await render(second.element);
     await userEvent.press(screen.getByRole("button", { name: "Deny" }));
-    await pressSecond("Deny");
+    await denyInForm();
     expect(second.decided).toEqual([{ decision: "denied", scope: "once" }]);
   });
 
@@ -158,7 +178,7 @@ describe("an approval, in full", () => {
     await render(element);
     expect(screen.getByTestId("waiting-on")).toBeTruthy();
     expect(screen.getByText("Dana Ruiz answers this one.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Approve/ })).toBeNull();
   });
 
   it("says who decided one that is already decided, and offers no second answer", async () => {
@@ -172,7 +192,7 @@ describe("an approval, in full", () => {
     await render(element);
     expect(screen.getByTestId("verdict")).toBeTruthy();
     expect(screen.getByText("Denied by Dana Ruiz — Wrong supplier")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Approve/ })).toBeNull();
   });
 
   it("names the fallback that applied when one lapsed", async () => {
@@ -205,11 +225,13 @@ describe("an ask that matters (ADR 0195)", () => {
     await render(element);
     expect(screen.getByTestId("waits-for-you")).toHaveTextContent("Waits for you");
     expect(screen.queryByRole("radio", { name: "Always" })).toBeNull();
-    expect(screen.queryByRole("radio", { name: "This session" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "For an hour" })).toBeNull();
+    // Nor does the agent get let work without asking on it (ADR 0281).
+    expect(screen.queryByTestId("let-work")).toBeNull();
     expect(screen.getByTestId("once-only")).toHaveTextContent(
       "You answer asks like this each time, so there is no Always.",
     );
-    await userEvent.press(screen.getByRole("button", { name: "Approve" }));
+    await userEvent.press(screen.getByRole("button", { name: "Approve once" }));
     expect(decided).toEqual([{ decision: "approved", scope: "once" }]);
   });
 
@@ -242,54 +264,190 @@ describe("a command's yes beyond once (ADR 0239)", () => {
     input: { command: line },
   });
 
-  it("remembers each part's start, and an owner's Always holds in every space", async () => {
+  it("lights the words Always keeps in the command, and an owner's Always holds in every space", async () => {
     const { element, decided } = view(command("node --check game.js && echo ok"), {
       mayEverywhere: true,
       spaceName: "Bakery",
     });
     await render(element);
-    // Nothing more under the choices while the yes is for this once.
-    expect(screen.queryByTestId("standing")).toBeNull();
+    // Nothing under the choices while the yes is for this once, and nothing lit.
+    expect(screen.queryByTestId("reach")).toBeNull();
+    expect(screen.queryAllByTestId("lit-words")).toHaveLength(0);
+    expect(screen.getAllByTestId("start-words")).toHaveLength(2);
     await userEvent.press(screen.getByRole("radio", { name: "Always" }));
-    expect(screen.getByText("node --check …")).toHaveStyle({ fontFamily: "Menlo" });
-    expect(screen.getByText("echo ok …")).toBeTruthy();
+    expect(screen.getByText("node --check")).toHaveStyle({ fontFamily: "Menlo" });
+    expect(screen.getAllByTestId("lit-words")).toHaveLength(2);
+    expect(screen.queryByTestId("remembers")).toBeNull();
     expect(screen.getByTestId("reach")).toHaveTextContent(
-      "Commands made only of these go ahead without a card in every space. Anything else still comes to you.",
+      "Commands made only of the lit words go ahead without a card in every space. Anything else still comes to you.",
     );
-    await userEvent.press(screen.getByRole("button", { name: "Approve" }));
     await userEvent.press(screen.getByRole("radio", { name: "In this space" }));
     expect(screen.getByTestId("reach")).toHaveTextContent(/in Bakery\./);
-    await userEvent.press(screen.getByRole("button", { name: "Approve" }));
-    expect(decided).toEqual([
-      { decision: "approved", scope: "always", everywhere: true },
-      { decision: "approved", scope: "always" },
-    ]);
+    await userEvent.press(screen.getByRole("button", { name: "Approve always" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "always" }]);
+    // Approve turns to what was given, and takes no second press.
+    expect(screen.getByRole("button", { name: "Always, in Bakery" })).toBeDisabled();
   });
 
-  it("keeps anybody else's Always to this space, and This session to the run", async () => {
+  it("sends an owner's Always for every space unless they pick this one", async () => {
+    const { element, decided } = view(command("git status"), { mayEverywhere: true });
+    await render(element);
+    await userEvent.press(screen.getByRole("radio", { name: "Always" }));
+    await userEvent.press(screen.getByRole("button", { name: "Approve always" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "always", everywhere: true }]);
+    expect(screen.getByRole("button", { name: "Always, in every space" })).toBeTruthy();
+  });
+
+  it("keeps anybody else's Always to this space, and draws the hour For an hour gives", async () => {
     const { element, decided } = view(command("git status"), { spaceName: "Bakery" });
     await render(element);
+    expect(screen.queryByRole("radio", { name: "This session" })).toBeNull();
     await userEvent.press(screen.getByRole("radio", { name: "Always" }));
     expect(screen.queryByRole("radio", { name: "In every space" })).toBeNull();
     expect(screen.getByTestId("reach")).toHaveTextContent(/in Bakery\./);
-    await userEvent.press(screen.getByRole("radio", { name: "This session" }));
-    expect(screen.getByTestId("reach")).toHaveTextContent(/until this session ends\./);
-    await userEvent.press(screen.getByRole("button", { name: "Approve" }));
-    expect(decided).toEqual([{ decision: "approved", scope: "session" }]);
+    await userEvent.press(screen.getByRole("radio", { name: "For an hour" }));
+    expect(screen.queryByTestId("reach")).toBeNull();
+    expect(screen.getByTestId("hour-strip")).toHaveTextContent(
+      /^Now, \d{1,2}:\d\d [AP]MUntil \d{1,2}:\d\d [AP]M$/,
+    );
+    expect(screen.getByTestId("for-a-while")).toHaveTextContent(
+      "Everything Scout asks in this space goes ahead without a card for the hour, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+    );
+    await userEvent.press(screen.getByRole("button", { name: "Approve for an hour" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "once", forMinutes: 60 }]);
+    expect(screen.getByRole("button", { name: /^Until \d{1,2}:\d\d [AP]M$/ })).toBeTruthy();
   });
 
-  it("answers once a command it can't read, or one that uses rm, and says why", async () => {
-    const unread = view(command("echo hi > out.txt"));
-    await render(unread.element);
+  it("sends a no picked under For an hour as a no this once", async () => {
+    const { element, decided } = view(command("git status"));
+    await render(element);
+    await userEvent.press(screen.getByRole("radio", { name: "For an hour" }));
+    await userEvent.press(screen.getByRole("button", { name: "Deny" }));
+    await denyInForm();
+    expect(decided).toEqual([{ decision: "denied", scope: "once" }]);
+  });
+
+  it("keeps no Always for a command that writes a file, or uses rm, but still gives it the hour (ADR 0281)", async () => {
+    const writes = view(command("echo hi > out.txt"));
+    await render(writes.element);
     expect(screen.queryByRole("radio", { name: "Always" })).toBeNull();
     expect(screen.getByTestId("once-only")).toHaveTextContent(
-      "This command does more than Chips can read, so it's answered each time.",
+      "This writes to out.txt, so there is no Always for it.",
     );
+    expect(screen.getByText("out.txt", { exact: true })).toHaveStyle({ fontFamily: "Menlo" });
+    expect(screen.getByTestId("writes-words")).toHaveTextContent("> out.txt");
+    expect(screen.getByTestId("once-dot")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve once" })).toBeTruthy();
+    // For an hour reaches it, and the line under Once goes as it is picked.
+    await userEvent.press(screen.getByRole("radio", { name: "For an hour" }));
+    expect(screen.queryByTestId("once-only")).toBeNull();
+    await userEvent.press(screen.getByRole("button", { name: "Approve for an hour" }));
+    expect(writes.decided).toEqual([{ decision: "approved", scope: "once", forMinutes: 60 }]);
     const listed = view(command("ls && rm -rf build"));
     await render(listed.element);
     expect(screen.getByTestId("once-only")).toHaveTextContent(
-      "Asks that use rm are answered each time.",
+      "There is no Always for asks that use rm.",
     );
+    expect(screen.getByTestId("never-words")).toHaveTextContent("rm -rf");
+  });
+});
+
+describe("letting the agent work without asking (ADR 0281)", () => {
+  const unread: Partial<Approval> = {
+    actionKind: "acp.execute",
+    risk: [],
+    input: { command: "for r in a b; do head -3 $r; done" },
+  };
+
+  it("offers neither the switch nor the hour to a server that wouldn't keep them", async () => {
+    const { element, decided } = view({}, { keepsHeldYes: false });
+    await render(element);
+    expect(screen.queryByTestId("let-work")).toBeNull();
+    expect(screen.queryByRole("radio", { name: "For an hour" })).toBeNull();
+    expect(screen.getByRole("radio", { name: "Always" })).toBeTruthy();
+    await userEvent.press(screen.getByRole("button", { name: "Approve once" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "once" }]);
+  });
+
+  it("folds the choices away under the switch, and Approve lets it work until stopped", async () => {
+    const { element, decided } = view(unread, { spaceName: "Chips explain" });
+    await render(element);
+    expect(screen.getByTestId("let-work")).toHaveTextContent(
+      "Let Scout work without askingIn Chips explain, until you stop it",
+    );
+    expect(screen.getByRole("radio", { name: "For an hour" })).toBeTruthy();
+    await userEvent.press(screen.getByRole("radio", { name: "For an hour" }));
+    await fireEvent(screen.getByTestId("let-work-switch"), "valueChange", true);
+    expect(screen.queryByTestId("lasting")).toBeNull();
+    expect(screen.queryByTestId("hour-strip")).toBeNull();
+    expect(screen.getByTestId("until-stopped")).toHaveTextContent(
+      "Everything Scout asks here goes ahead without a card until you stop it, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+    );
+    await userEvent.press(screen.getByRole("button", { name: "Approve and let it work" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "once", untilStopped: true }]);
+    expect(screen.getByRole("button", { name: "Until you stop it" })).toBeDisabled();
+  });
+
+  it("gives the choice back as it was when the switch goes off, and a no is a no this once", async () => {
+    const { element, decided } = view(unread);
+    await render(element);
+    await userEvent.press(screen.getByRole("radio", { name: "For an hour" }));
+    const flip = (on: boolean) =>
+      fireEvent(screen.getByTestId("let-work-switch"), "valueChange", on);
+    await flip(true);
+    expect(screen.getByRole("button", { name: "Approve and let it work" })).toBeTruthy();
+    await flip(false);
+    expect(screen.getByRole("radio", { name: "For an hour", checked: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Approve for an hour" })).toBeTruthy();
+    await flip(true);
+    await userEvent.press(screen.getByRole("button", { name: "Deny" }));
+    await denyInForm();
+    expect(decided).toEqual([{ decision: "denied", scope: "once" }]);
+  });
+});
+
+describe("a command on its plate (ADR 0280)", () => {
+  const IKE =
+    "cd /Users/me/Work/Chips/chips-main; ls -la; git log --oneline | wc -l; cat package.json 2>/dev/null | head -60";
+  const ike: Partial<Approval> = {
+    actionKind: "acp.execute",
+    risk: [],
+    question: `Inspect the main Chips repo layout? \`${IKE.slice(0, 60)}…\``,
+    input: { command: IKE, description: "Inspect the main Chips repo layout" },
+    preview: JSON.stringify({ command: IKE, description: "Inspect the main Chips repo layout" }),
+    previewFormat: "json",
+  };
+
+  it("draws the command a part to a line under the question, and not again as JSON", async () => {
+    await render(view(ike).element);
+    expect(screen.getByTestId("ask-headline")).toHaveTextContent(
+      "Inspect the main Chips repo layout?",
+    );
+    expect(
+      screen.getAllByTestId("plate-part").map((part) => part.props["accessibilityLabel"]),
+    ).toEqual([
+      "cd /Users/me/Work/Chips/chips-main",
+      "then ls -la",
+      "then git log --oneline",
+      "piped to wc -l",
+      "then cat package.json 2>/dev/null",
+      "piped to head -60",
+    ]);
+    expect(screen.getByTestId("dropped-words")).toHaveTextContent("2>/dev/null");
+    expect(screen.getByTestId("plate-caption")).toHaveTextContent(
+      "6 parts. Chips reads each one, and 2>/dev/null writes no file.",
+    );
+    expect(screen.queryByText(/"command"/)).toBeNull();
+    // A command is once by its nature, and Approve says so.
+    expect(screen.queryByText("Just this once")).toBeNull();
+  });
+
+  it("says when it lapses here, unless the bar's ring does", async () => {
+    const soon = { ...ike, expiresAt: new Date(Date.now() + 30 * 60_000).toISOString() };
+    await render(view(soon).element);
+    expect(screen.getByText(/if you don't answer$/)).toBeTruthy();
+    await render(view(soon, { timeInBar: true }).element);
+    expect(screen.queryByText(/if you don't answer$/)).toBeNull();
   });
 });
 
@@ -315,14 +473,29 @@ describe("an ask its harness settled itself (ADR 0195)", () => {
 });
 
 describe("who an ask can be handed to", () => {
-  it("offers the space, then the workspace, then the standing refs", () => {
-    expect(HAND_TO.map((each) => each.value)).toEqual([
-      "per_dana",
-      "role:admin",
-      "role:owner",
-      "any",
-      "lead",
-    ]);
+  it("offers the space, then the workspace, then only the standings that reach somebody else", () => {
+    expect(HAND_TO.map((each) => each.value)).toEqual(["per_dana", "any"]);
+    const lane = candidates({
+      directory: DIRECTORY,
+      space: { ...SPACE, roles: { per_dana: "owner" } },
+      people: PEOPLE,
+      selfId: "per_arjun",
+      lane: true,
+    });
+    expect(lane.map((each) => each.value)).toEqual(["per_dana", "role:owner", "any", "lead"]);
+  });
+
+  it("offers no Hand to… when nobody but the reader could answer (6 November 2026)", async () => {
+    const alone = candidates({
+      directory: DIRECTORY,
+      space: { members: ["per_arjun", "har_scout"], roles: {} },
+      people: { per_arjun: PEOPLE["per_arjun"] } as typeof PEOPLE,
+      selfId: "per_arjun",
+      lane: false,
+    });
+    expect(alone).toEqual([]);
+    await render(view({}, { handTo: alone }).element);
+    expect(screen.queryByRole("button", { name: "Hand to…" })).toBeNull();
   });
 
   it("leaves guests out, because a guest is in one space and answers there", () => {
@@ -330,22 +503,36 @@ describe("who an ask can be handed to", () => {
       ...PEOPLE,
       per_sam: { participantId: "per_sam", displayName: "Sam", role: "guest" },
     } as unknown as typeof PEOPLE;
-    const offered = candidates(DIRECTORY, ["per_arjun"], people, "per_arjun");
+    const offered = candidates({
+      directory: DIRECTORY,
+      space: { members: ["per_arjun"], roles: {} },
+      people,
+      selfId: "per_arjun",
+      lane: false,
+    });
     expect(offered.map((each) => each.value)).not.toContain("per_sam");
   });
 
   it("reaches past the space, because being named is standing enough (ADR 0042)", () => {
-    const offered = candidates(DIRECTORY, ["per_arjun"], PEOPLE, "per_arjun");
+    const offered = candidates({
+      directory: DIRECTORY,
+      space: { members: ["per_arjun"], roles: {} },
+      people: PEOPLE,
+      selfId: "per_arjun",
+      lane: false,
+    });
     expect(offered.find((each) => each.value === "per_dana")?.description).toBe(
       "Not in this space",
     );
+    // Dana is out of the space, so no standing reaches anybody but the reader.
+    expect(offered.map((each) => each.value)).toEqual(["per_dana"]);
   });
 });
 
 describe("the answer, in the hand", () => {
   it("feels the same here as it does on the card in the room", async () => {
     await render(view().element);
-    await userEvent.press(screen.getByRole("button", { name: "Approve" }));
+    await userEvent.press(screen.getByRole("button", { name: "Approve once" }));
     expect(notify).toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Success);
   });
 
@@ -363,7 +550,7 @@ describe("the answer, in the hand", () => {
   it("warns for a denial rather than crying error over somebody's decision", async () => {
     await render(view().element);
     await userEvent.press(screen.getByRole("button", { name: "Deny" }));
-    await pressSecond("Deny");
+    await denyInForm();
     expect(notify).toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Warning);
     expect(notify).not.toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Error);
   });

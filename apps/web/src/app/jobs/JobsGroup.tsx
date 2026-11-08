@@ -27,7 +27,7 @@ import {
 import type { HarnessJobsView, JobKind } from "@chipschat/protocol";
 import { Icon, type IconName } from "@chipschat/ui";
 import { type Ref, useEffect, useState } from "react";
-import { recall, remember } from "../context/memory.ts";
+import { recall, remember, watch } from "../context/memory.ts";
 import { useLands } from "../Waiting.tsx";
 
 /** The store's reads and writes the group and the job's page use. */
@@ -79,6 +79,14 @@ export function useHarnessJobs(reads: JobsReads | undefined, harnessId: string, 
     may ? recall<HarnessJobsView>(jobsKey(harnessId)) : undefined,
   );
   const [reading, setReading] = useState(true);
+  // A job switched on its own page, beside this one (ADR 0284).
+  useEffect(
+    () =>
+      watch(jobsKey(harnessId), (told) => {
+        if (told === "copy" && may) setView(recall<HarnessJobsView>(jobsKey(harnessId)));
+      }),
+    [harnessId, may],
+  );
   useEffect(() => {
     if (!may || reads === undefined) {
       setView(undefined);

@@ -237,11 +237,13 @@ function snapshotOf(
 jest.mock("./ViewerWindow", () => ({
   ViewerWindow: (props: {
     statusBarHidden: boolean;
+    leaving?: boolean;
     item?: { kind: string; attachment: { width?: number; height?: number } };
   }) =>
     require("react").createElement(require("react-native").View, {
       testID: "viewer-window",
       statusBarHidden: props.statusBarHidden,
+      leaving: props.leaving,
       pinnedWidth: props.item?.kind === "video" ? props.item.attachment.width : 0,
       pinnedHeight: props.item?.kind === "video" ? props.item.attachment.height : 0,
     }),
@@ -833,11 +835,16 @@ describe("the media viewer, opened from a room", () => {
     expect(hidden()).toBe(true);
     await act(async () => stage().props["onTap"]());
     expect(hidden()).toBe(false);
-    // Hidden with the bars, it is the room's again from the moment the viewer starts to leave.
+    // Hidden with the bars, it is the room's again from the moment the viewer starts to leave,
+    // and in the room's ink (`ViewerWindow.test.tsx`).
+    const leaving = () =>
+      screen.getByTestId("viewer-window", { includeHiddenElements: true }).props["leaving"];
     await act(async () => stage().props["onTap"]());
     expect(hidden()).toBe(true);
+    expect(leaving()).toBe(false);
     await act(async () => stage().props["onDismiss"]());
     expect(hidden()).toBe(false);
+    expect(leaving()).toBe(true);
     await waitFor(() => expect(screen.queryByTestId("viewer")).toBeNull());
   });
 

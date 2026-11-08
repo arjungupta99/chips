@@ -27,10 +27,16 @@ import {
   waitingLink,
 } from "@chipschat/core";
 import { Avatar, Icon } from "@chipschat/ui";
+import { createContext, useContext } from "react";
 import { useArrivals } from "./Arrive.tsx";
+import { OpenedPage } from "./context/pages.ts";
 import { FleetWord, STATUS_TONE, saysStatus } from "./Sidebar.tsx";
 import { Swap } from "./Swap.tsx";
+import { useNarrow } from "./useNarrow.ts";
 import { useNow } from "./useNow.ts";
+
+/** Connect a harness is open beside the list (ADR 0284's addendum): its tile is the one chosen. */
+export const ConnectShown = createContext(false);
 
 export function HarnessShelf({
   model,
@@ -111,11 +117,15 @@ function Tile({
     tile.trouble !== undefined ? "amber" : busy ? STATUS_TONE[entry?.status ?? ""] : undefined;
   // Named by what it shows, its name then its line ("Scout 1 agent"), so a voice that says what it
   // sees finds it; the face says the name again and is left out of it.
+  const opened = useContext(OpenedPage);
+  const chosen = opened?.kind === "harness_page" && opened.harnessId === tile.id;
   return (
     <button
       type="button"
       className="shelf-tile"
       data-testid={`harness-tile-${tile.id}`}
+      data-chosen={chosen ? "true" : undefined}
+      aria-current={chosen ? "page" : undefined}
       onClick={() => onOpen(tile.id)}
     >
       <span className="shelf-face" aria-hidden="true">
@@ -150,12 +160,17 @@ function ConnectTile(props: {
   readonly onConnect: (from: HTMLElement) => void;
 }) {
   const words = connectTileWords(props.waiting);
+  const chosen = useContext(ConnectShown);
+  // A dialog at a phone's width; beside the list, a page in the second column.
+  const phone = useNarrow();
   return (
     <button
       type="button"
       className="shelf-tile shelf-add"
-      aria-haspopup="dialog"
+      aria-haspopup={phone ? "dialog" : undefined}
       data-testid="harness-connect"
+      data-chosen={chosen ? "true" : undefined}
+      aria-current={chosen ? "page" : undefined}
       data-waiting={props.waiting === undefined ? undefined : "true"}
       onClick={(event) => props.onConnect(event.currentTarget)}
     >

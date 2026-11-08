@@ -40,7 +40,15 @@
 
 import { type NeedsYouItem, ownsWorkspace, type Store, serverHost } from "@chipschat/core";
 import { useIsFocused, useRouter } from "expo-router";
-import { type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useChips } from "../store/provider";
@@ -51,13 +59,14 @@ import { MarkBeside } from "../ui/MarkBeside";
 import { useMenuCommand } from "../ui/menuBar";
 import { PANE_BAR, PaneBar, PaneButton, PaneWordsButton } from "../ui/Pane";
 import { SheetDock } from "../ui/Sheet";
-import { THIRD, useThirdFits } from "../ui/Split";
+import { THIRD, useDetailWidth, useListBesideThird, useThirdFits } from "../ui/Split";
 import { usePalette } from "../ui/theme";
 import { useTabTop } from "../ui/windowInsets";
+import type { RoomSpan } from "./heldWidth";
 import { RoomDrop } from "./RoomDrop";
 import { type Room, RoomName, UniverseButton, useRoom } from "./RoomHead";
 import { RoomSheet } from "./RoomSheet";
-import { SpaceView } from "./SpaceView";
+import { type GoTo, SpaceView } from "./SpaceView";
 import { UniverseSheet } from "./Universe";
 import { useUniverseCall } from "./universeSeen";
 
@@ -74,7 +83,6 @@ export function RoomPane({
   sheet = false,
   onDetails,
   preview,
-  onGoTo,
 }: {
   readonly store: Store;
   readonly spaceId: string;
@@ -99,8 +107,6 @@ export function RoomPane({
    * details' buttons.
    */
   readonly preview?: (() => void) | undefined;
-  /** A line its sheet goes to: the route's `at`, unless the pane keeps where it is itself. */
-  readonly onGoTo?: ((lineId: string) => void) | undefined;
 }) {
   const palette = usePalette();
   const router = useRouter();
@@ -117,20 +123,24 @@ export function RoomPane({
   const top = useTabTop();
   // The bar's own height, measured, as the phone's is: a larger text size makes it taller.
   const [bar, setBar] = useState(PANE_BAR);
+  // A line the room's sheet sends the reader to, which the room goes to and lights.
+  const [goTo, setGoTo] = useState<GoTo | undefined>(undefined);
   const details = useDetails(room, preview !== undefined);
   // Universe, from the bar's right (ADR 0227), calling while the project has a change for this
   // reader that they haven't opened it at: in the details' column where they have one, in its
   // place (ADR 0276's addendum), and a sheet anywhere else.
   const { universe, setUniverse } = useUniverse(details.docked);
   const universeCall = useUniverseCall(spaceId, space?.project, selfId);
-  useRoomCommands(details, space, preview);
+  const span = useRoomSpan(details, space !== undefined, universe);
+  const list = useListAway(details, universe, setUniverse);
+  useRoomCommands(details, list, space, preview);
   const parent = space?.parentSpaceId;
   const head = (
     <PaneBar
       onBack={parent === undefined ? undefined : () => onOpen(parent)}
       ruled={!glassy}
       ends={barEnds(preview !== undefined, marking, space?.project !== undefined)}
-      leading={<ListToggle shown={preview === undefined} />}
+      leading={<ListToggle list={list} shown={preview === undefined} />}
       trailing={
         <>
           <Marks
@@ -179,10 +189,12 @@ export function RoomPane({
         onOpenAgent={onOpenAgent}
         at={at}
         words={words}
+        goTo={goTo}
         onDetails={onDetails}
         onTakenSeen={onClose}
         headHeight={glassy ? bar : 0}
         bandReach={glassy ? top : 0}
+        span={span}
         onOpenRoom={details.show}
         // A frame on, so what was laid out has been drawn, and the new-space window can go into it.
         onListed={() => requestAnimationFrame(room.drawn)}
@@ -203,7 +215,7 @@ export function RoomPane({
         onClose={details.close}
         files={paired?.files}
         workspace={paired?.device.workspaceName ?? "the workspace"}
-        onGoTo={onGoTo ?? ((lineId) => goTo(router, lineId))}
+        onGoTo={(lineId) => setGoTo({ lineId, nonce: Date.now() })}
         // An agent's row opens its card over the room, in this pane (ADR 0111's addendum); in the
         // column beside the room, inside the column (ADR 0276).
         onOpenAgent={onOpenAgent}
@@ -266,9 +278,19 @@ export function RoomPane({
   );
 }
 
-/** A line the room's sheet goes to, on the route, which the room lands on. */
-function goTo(router: ReturnType<typeof useRouter>, lineId: string) {
-  router.setParams({ at: `line:${lineId}`, words: undefined });
+/**
+ * Where the room stands beside its column of details or Universe, while one stands there, where the
+ * split says how wide the detail is: an iPad. The room's lines take a change of its width once,
+ * with their words out of sight, kept to the edge that stays put (ADR 0279).
+ */
+function useRoomSpan(details: Details, space: boolean, universe: boolean): RoomSpan | undefined {
+  const across = useDetailWidth();
+  const docked = details.docked && ((space && details.open) || universe);
+  const end = docked ? THIRD : 0;
+  return useMemo(
+    () => (across === undefined ? undefined : { width: across - end, end }),
+    [across, end],
+  );
 }
 
 /**
@@ -284,32 +306,64 @@ function barEnds(previewing: boolean, marking: boolean, project: boolean): numbe
  * The menu bar's for a room (ADR 0256): its details and the list, as its bar's buttons do, while
  * Spaces is in front with the room open beside the list. Not for a room seen from a search.
  */
-function useRoomCommands(details: Details, space: unknown, preview: (() => void) | undefined) {
+function useRoomCommands(
+  details: Details,
+  list: ListAway,
+  space: unknown,
+  preview: (() => void) | undefined,
+) {
   const focused = useIsFocused();
-  const { listHidden, setListHidden } = useChrome();
   const on = space !== undefined && preview === undefined && focused;
   useMenuCommand(
     "details",
     on ? details.toggle : undefined,
     details.open ? "Hide Details" : "Show Details",
   );
-  useMenuCommand(
-    "list",
-    on ? () => setListHidden(!listHidden) : undefined,
-    listHidden ? "Show List" : "Hide List",
-  );
+  useMenuCommand("list", on ? list.toggle : undefined, list.away ? "Show List" : "Hide List");
+}
+
+/** Whether the list beside the room is away, and what puts it away or brings it back. */
+interface ListAway {
+  readonly away: boolean;
+  readonly toggle: () => void;
+}
+
+/**
+ * The list beside the room: put away from the room's bar (ADR 0256), or stepped aside for the
+ * room's details or Universe where the window has no room for the list beside both, an iPad upright
+ * (ADR 0276). There the list and that column take turns: the list's button brings it back and puts
+ * the column away, as the column's button steps the list aside. Arjun's iPad, 7 November 2026: "in
+ * ipad portrait, when a space is open, there is no way to view the spaces list"; the button put a
+ * list away that had already stepped aside.
+ */
+function useListAway(
+  details: Details,
+  universe: boolean,
+  setUniverse: (universe: boolean) => void,
+): ListAway {
+  const { listHidden, setListHidden } = useChrome();
+  const beside = useListBesideThird();
+  const aside = details.docked && (details.open || universe) && !beside;
+  const away = listHidden || aside;
+  const toggle = useCallback(() => {
+    if (!away) return setListHidden(true);
+    setListHidden(false);
+    if (!aside) return;
+    if (details.open) details.close();
+    if (universe) setUniverse(false);
+  }, [away, aside, details, universe, setUniverse, setListHidden]);
+  return { away, toggle };
 }
 
 /** Put the list away, and the room has the window; or bring it back. Not seen from a search. */
-function ListToggle({ shown }: { readonly shown: boolean }) {
-  const { listHidden, setListHidden } = useChrome();
+function ListToggle({ list, shown }: { readonly list: ListAway; readonly shown: boolean }) {
   if (!shown) return null;
   return (
     <PaneButton
       icon="sidebar"
-      label={listHidden ? "Show the list" : "Hide the list"}
-      on={listHidden}
-      onPress={() => setListHidden(!listHidden)}
+      label={list.away ? "Show the list" : "Hide the list"}
+      on={list.away}
+      onPress={list.toggle}
       testID="room-list-toggle"
     />
   );

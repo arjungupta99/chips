@@ -11,10 +11,11 @@
 import type { Snapshot, Store } from "@chipschat/core";
 import { nameOf, serverHost } from "@chipschat/core";
 import { useRouter } from "expo-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import { AgentPane } from "../../src/agents/AgentPane";
 import { Agents } from "../../src/agents/Agents";
 import { All } from "../../src/harnesses/All";
+import { ConnectBeside, ConnectPane, useConnectThird } from "../../src/harnesses/Connect";
 import { JobPage } from "../../src/harnesses/jobs/JobPage";
 import { Profile } from "../../src/harnesses/Profile";
 import { type HarnessPart, isHarnessPart, PART_FROM, PART_TITLE } from "../../src/harnesses/parts";
@@ -54,36 +55,49 @@ function Tab({
   const { wide } = useLayout();
   const [opened, go] = useOpened("agents", AGENTS_OPEN);
   const { agent, harness } = opened;
+  // Connect a harness opens beside the list, in the pane, from the shelf's last tile and View all's
+  // foot alike, and its tile is the one chosen while it stands there; a card picked in its gallery
+  // stands in the third column (ADR 0284's addendum).
+  const connecting = opened["connect"] === "1";
+  const connectThird = useConnectThird();
+  const here = useMemo(
+    () => ({ open: () => go({ connect: "1" }), chosen: connecting }),
+    [go, connecting],
+  );
   if (!wide) return <Agents store={store} selfId={selfId} server={server} noRelay={noRelay} />;
-  const { detail, third } = beside({
-    store,
-    snapshot,
-    selfId,
-    opened,
-    go,
-    openRoom: (spaceId) => router.push(`/spaces/${spaceId}`),
-  });
+  const { detail, third } = connecting
+    ? { detail: <ConnectPane onClose={() => go({})} />, third: connectThird }
+    : beside({
+        store,
+        snapshot,
+        selfId,
+        opened,
+        go,
+        openRoom: (spaceId) => router.push(`/spaces/${spaceId}`),
+      });
   return (
-    <Split
-      tab="agents"
-      list={
-        <Agents
-          store={store}
-          selfId={selfId}
-          server={server}
-          noRelay={noRelay}
-          selected={agent ?? harness}
-          onOpen={(id) => go({ agent: id })}
-          onOpenLocked={(id) => go({ agent: id, lock: "1" })}
-          onOpenHarness={(id) => go({ harness: id })}
-          onAllHarnesses={() => go({ harnesses: "all" })}
-        />
-      }
-      detail={detail}
-      third={third}
-      // An agent's card opens its choices in the third column rather than over it (ADR 0276).
-      sheetsBeside={agent !== undefined}
-    />
+    <ConnectBeside value={here}>
+      <Split
+        tab="agents"
+        list={
+          <Agents
+            store={store}
+            selfId={selfId}
+            server={server}
+            noRelay={noRelay}
+            selected={agent ?? harness}
+            onOpen={(id) => go({ agent: id })}
+            onOpenLocked={(id) => go({ agent: id, lock: "1" })}
+            onOpenHarness={(id) => go({ harness: id })}
+            onAllHarnesses={() => go({ harnesses: "all" })}
+          />
+        }
+        detail={detail}
+        third={third}
+        // An agent's card opens its choices in the third column rather than over it (ADR 0276).
+        sheetsBeside={agent !== undefined}
+      />
+    </ConnectBeside>
   );
 }
 
@@ -288,8 +302,18 @@ function partPane({
 
 /**
  * What says what is open beside Agents: an agent's card or its history, a harness's page, one of
- * its own jobs (ADR 0252) or a page its page opens (ADR 0254), or every harness's card — and, with a harness, that it was opened from
+ * its own jobs (ADR 0252) or a page its page opens (ADR 0254), every harness's card, or Connect a
+ * harness (ADR 0284's addendum) — and, with a harness, that it was opened from
  * there; with an agent, that it was
  * opened from its Locked, so its lock's row glows (ADR 0199).
  */
-const AGENTS_OPEN = ["agent", "harness", "history", "harnesses", "lock", "job", "part"] as const;
+const AGENTS_OPEN = [
+  "agent",
+  "harness",
+  "history",
+  "harnesses",
+  "lock",
+  "job",
+  "part",
+  "connect",
+] as const;

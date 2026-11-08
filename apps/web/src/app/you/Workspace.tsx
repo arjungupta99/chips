@@ -63,6 +63,7 @@ import {
   type SetRulesInput,
   SPACE_INVITE_ROLES,
   type Space,
+  type StopLetWorkInput,
   selfLabel,
   sharedSpaces,
   sortDevices,
@@ -139,6 +140,8 @@ export function WorkspaceGroup(props: {
   readonly log: boolean;
   /** Send a harness's rules changed (ADR 0195): Allowed always's form. Absent, no row. */
   readonly onSetRules?: ((input: SetRulesInput) => void) | undefined;
+  /** Stop an agent working without asking, from Allowed always (ADR 0281). */
+  readonly onStopLetWork?: ((input: StopLetWorkInput) => void) | undefined;
   /** Opens an ask's space, from every ask so far on Allowed always (ADR 0255). */
   readonly onOpenSpace?: ((spaceId: string) => void) | undefined;
 }) {
@@ -211,6 +214,7 @@ export function WorkspaceGroup(props: {
         limits={props.limits}
         connected={props.connected}
         onSetRules={props.onSetRules}
+        onStopLetWork={props.onStopLetWork}
         onOpenSpace={props.onOpenSpace}
       />
       {props.log && (
@@ -238,6 +242,7 @@ function WorkspaceSettings(props: {
   readonly limits: LimitsService | undefined;
   readonly connected: boolean;
   readonly onSetRules: ((input: SetRulesInput) => void) | undefined;
+  readonly onStopLetWork: ((input: StopLetWorkInput) => void) | undefined;
   readonly onOpenSpace: ((spaceId: string) => void) | undefined;
 }) {
   const { model, directory, limits, onSetRules } = props;
@@ -297,6 +302,7 @@ function WorkspaceSettings(props: {
           directory={directory}
           selfId={props.selfId}
           onSetRules={onSetRules}
+          onStopLetWork={props.onStopLetWork}
           onOpenSpace={props.onOpenSpace}
           onGone={gone}
         />

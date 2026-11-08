@@ -139,6 +139,43 @@ jest.mock("./src/spaces/SelectMotion", () => {
   };
 });
 
+// What moves on the ask screen (`needs/AskMotion.tsx`, ADR 0280): each drawn as it ends up. A lit
+// word says so by its testID, and Approve's face by the words it shows, so a test reads the
+// screen as it lands; the light, the fill and the tick are the simulator's to show.
+jest.mock("./src/needs/AskMotion", () => {
+  const react = require("react");
+  const { Text, View } = require("react-native");
+  return {
+    LitWords: ({ text, lit, style, ink, litInk, testID }) =>
+      react.createElement(
+        View,
+        { testID },
+        react.createElement(Text, { style: [style, { color: lit ? litInk : ink }] }, text),
+      ),
+    Sweep: () => null,
+    StripFill: ({ style }) => react.createElement(View, { style }),
+    Fold: ({ style, children }) => react.createElement(View, { style }, children),
+    AnswerFace: ({ answered, word, done, wordStyle, style }) =>
+      react.createElement(
+        View,
+        { style },
+        react.createElement(Text, { style: wordStyle }, answered ? done : word),
+      ),
+  };
+});
+
+// The band under a room's bar while an agent works without asking (`spaces/LetWorkMotion.tsx`, ADR
+// 0281): drawn as it ends up, the band there, its words, and a dot that stands still.
+jest.mock("./src/spaces/LetWorkMotion", () => {
+  const react = require("react");
+  const { View } = require("react-native");
+  return {
+    BandIn: ({ children, style, testID }) => react.createElement(View, { style, testID }, children),
+    BandWords: ({ children }) => react.createElement(View, null, children),
+    Pulse: () => null,
+  };
+});
+
 // The line under a screen's name coming and going (`ui/UnderMotion.tsx`): Select all while a list
 // picks, Search's chips. Under Node its room is open from the render it comes in, and shut with
 // it, so a test reads the list laid out as it ends up; that it glides is the simulator's to show.
@@ -162,10 +199,9 @@ jest.mock("./src/ui/UnderMotion", () => {
 // the words as they are now.
 jest.mock("./src/ui/Swap", () => ({ Swap: ({ children }) => children }));
 
-// How an iPad's tabs move between the capsule and the sidebar (`src/ui/SidebarMotion.tsx`, ADR
-// 0276), on Reanimated: under Node each piece simply stands at its frame, and what has faded is
-// not drawn.
-jest.mock("./src/ui/SidebarMotion", () => {
+// How an iPad's bar moves as it folds and opens out (`src/ui/PadBarMotion.tsx`, ADR 0276), on
+// Reanimated: under Node each piece simply stands at its frame, and what has faded is not drawn.
+jest.mock("./src/ui/PadBarMotion", () => {
   const react = require("react");
   const { View } = require("react-native");
   return {
@@ -182,7 +218,7 @@ jest.mock("./src/ui/SidebarMotion", () => {
 });
 
 // How the panes beside an iPad's list move (`src/ui/PaneMotion.tsx`, ADR 0276), on Reanimated:
-// under Node a box simply stands at its width, and what has gone is gone at once.
+// under Node a box simply stands at its width or its padding, and what has gone is gone at once.
 jest.mock("./src/ui/PaneMotion", () => {
   const react = require("react");
   const { View } = require("react-native");
@@ -190,7 +226,43 @@ jest.mock("./src/ui/PaneMotion", () => {
     __esModule: true,
     Widening: ({ width, style, testID, children }) =>
       react.createElement(View, { style: [style, { width }], testID }, children),
+    Clearing: ({ left, style, children }) =>
+      react.createElement(View, { style: [style, { paddingLeft: left }] }, children),
     useKept: (value) => value,
+    useGone: (hidden) => hidden,
+    PaneLead: react.createContext(0),
+  };
+});
+
+// The words of a room's lines going while they take a new width (`src/spaces/RoomWords.tsx`, ADR
+// 0279), on Reanimated: under Node the room's lines are drawn as they are, with a view beside them
+// while the words are going or coming back, which says they have gone and are back when their
+// frames would have; and a bubble's words, and its face and pictures, are simply there.
+jest.mock("./src/spaces/RoomWords", () => {
+  const react = require("react");
+  const { View } = require("react-native");
+  const { WORDS_IN, WORDS_OUT, WORDS_WAIT } = require("./src/spaces/heldWidth");
+  function RoomWords({ words, gone, back, children }) {
+    react.useEffect(() => {
+      if (words === undefined) return undefined;
+      const timer =
+        words === "going" ? setTimeout(gone, WORDS_WAIT + WORDS_OUT) : setTimeout(back, WORDS_IN);
+      return () => clearTimeout(timer);
+    }, [words, gone, back]);
+    return react.createElement(
+      react.Fragment,
+      null,
+      children,
+      words === undefined
+        ? null
+        : react.createElement(View, { testID: "room-words", words, pointerEvents: "none" }),
+    );
+  }
+  return {
+    __esModule: true,
+    RoomWords,
+    Ink: ({ children }) => children,
+    Gliding: ({ children }) => children,
   };
 });
 
@@ -732,6 +804,8 @@ jest.mock("./src/spaces/ScrollColours", () => {
     lifting: { value: 0 },
     goal: { value: 0 },
     home: { value: 0 },
+    glide: { value: 0 },
+    shift: { value: 0 },
   };
   // Each row is asked whether it has just landed as it is drawn, as the list's own cell asks, and
   // one that has is drawn in a box that says so (`arriving-<its key>`), and how (`arrival`: rises,
@@ -779,6 +853,8 @@ jest.mock("./src/ui/growing", () => {
     __esModule: true,
     GROWS: undefined,
     GROWS_UP: undefined,
+    ASIDE: undefined,
+    RISES: undefined,
     OPENS: undefined,
     CLOSES: undefined,
     Opens: ({ children }) => children,
@@ -863,6 +939,8 @@ jest.mock("./src/spaces/RoomMotion", () => {
     madeHere: jest.fn(),
     // A send's ask for the foot, which a test can see asked for or not.
     homeward: jest.fn(),
+    // The room's moves told of a change of width on the UI thread, and then the lines take it.
+    glideFor: (_field, _by, take) => take(),
     FadingUp: ({ held, children }) =>
       react.createElement(View, { style: { opacity: held ? 0 : 1 } }, children),
   };

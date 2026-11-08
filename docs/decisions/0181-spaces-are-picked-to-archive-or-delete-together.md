@@ -404,3 +404,9 @@ the next react-native press put inside a moving view would be lost the same way,
 say so: Jest swaps gesture handler's `Pressable` for React Native's, and a simulator's click does not
 move. Turning it on needs the phone app's presses on gesture handler as one rule with a guardrail
 that refuses react-native's, and the gain measured on his iPhone at 120 Hz first.
+
+## Addendum, 5 November 2026: rooms are asked at once
+
+A batch asks the server about every picked room at once, without waiting for each answer (ADR
+0182's addendum of the same day, core's `actAll`). "Deleting stays one room at a time" above no
+longer holds.

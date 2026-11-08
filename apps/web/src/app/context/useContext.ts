@@ -18,7 +18,7 @@ import {
 } from "@chipschat/core";
 import type { AgentContextView, HarnessContextView } from "@chipschat/protocol";
 import { useEffect, useMemo, useState } from "react";
-import { recall, remember } from "./memory.ts";
+import { recall, remember, watch } from "./memory.ts";
 
 export const agentKey = (agentId: string) => `agent:${agentId}`;
 export const harnessKey = (harnessId: string) => `harness:${harnessId}`;
@@ -51,7 +51,18 @@ export function useRead<T>(key: string, read: (() => Promise<T>) | undefined, fo
 function useReadState<T>(key: string, read: (() => Promise<T>) | undefined, focus: number) {
   const [copy, setCopy] = useState<T | undefined>(() => recall<T>(key));
   const [reading, setReading] = useState(true);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `focus` is why it reads again.
+  // A page still drawn beside the one that changed its files (ADR 0284): a new copy is shown, and
+  // a file saved is read again, as it would be had the page been drawn anew.
+  const [landed, setLanded] = useState(0);
+  useEffect(
+    () =>
+      watch(key, (told) => {
+        if (told === "copy") setCopy(recall<T>(key));
+        else setLanded((was) => was + 1);
+      }),
+    [key],
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `focus` and `landed` are why it reads again.
   useEffect(() => {
     setCopy(recall<T>(key));
     if (read === undefined) return;
@@ -68,7 +79,7 @@ function useReadState<T>(key: string, read: (() => Promise<T>) | undefined, focu
     return () => {
       alive = false;
     };
-  }, [key, read === undefined, focus]);
+  }, [key, read === undefined, focus, landed]);
   return { copy, reading };
 }
 

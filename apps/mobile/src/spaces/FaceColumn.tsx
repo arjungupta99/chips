@@ -375,7 +375,7 @@ export function FaceColumn({
                 choice={everyone}
                 directory={directory}
                 ground={palette.surface}
-                small
+                foot
               />
             </View>
           )}
@@ -433,15 +433,18 @@ function Slot({
   choice,
   directory,
   ground,
-  small = false,
+  foot = false,
 }: {
   readonly slide: FaceSlide;
   readonly index: number;
   readonly choice: Choice;
   readonly directory: Directory;
   readonly ground: string;
-  /** Everyone's, whose faces are several: drawn a size down, so they fit the column. */
-  readonly small?: boolean;
+  /**
+   * Everyone's, under the line: the mark from two (`marked`), as big as the faces above it and
+   * with no number, so it stands on their line and the tag says who.
+   */
+  readonly foot?: boolean;
 }) {
   const { form, lift, up, across } = slide;
   const grown = useAnimatedStyle(() => {
@@ -450,9 +453,14 @@ function Slot({
     return { transform: [{ scale: grownBy(at, up.value, across.value, shape) }] };
   });
   return (
-    <View style={[styles.slot, small ? styles.footSlot : null]}>
+    <View style={[styles.slot, foot ? styles.footSlot : null]}>
       <Animated.View style={grown}>
-        <Faces step={stepOf(directory, choice.ids)} size={small ? "xs" : "sm"} ground={ground} />
+        <Faces
+          step={stepOf(directory, choice.ids)}
+          ground={ground}
+          everyone={choice.pick === "all"}
+          counted={false}
+        />
       </Animated.View>
     </View>
   );

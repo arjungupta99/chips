@@ -11,7 +11,7 @@ import { faceGround } from "@chipschat/ui";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AgentSections } from "./Agents.tsx";
-import { Sidebar } from "./Sidebar.tsx";
+import { SpacesList } from "./Sidebar.tsx";
 
 const FIXTURES = `${resolve(import.meta.dirname, "../../../../packages/protocol/fixtures")}/`;
 const ARJUN = "usr_01K4ZQPX0000000000000ARJUN";
@@ -52,7 +52,7 @@ const hueOf = (tag: HTMLElement) => tag.style.getPropertyValue("--main-hue");
 describe("the Main tag (ADR 0145)", () => {
   it("is worn by the Main room in the Spaces rail, and by no other room", () => {
     const { container } = render(
-      <Sidebar
+      <SpacesList
         model={model}
         directory={directory}
         readState={{}}

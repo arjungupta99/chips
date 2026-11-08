@@ -170,6 +170,9 @@
   --mine: #007c87;
   --mine-ink: #ffffff;
 
+  /* a switch's knob: white in either appearance, as the phone's is (ADR 0281). */
+  --knob: #ffffff;
+
   /* nineteen more grounds a space's chosen mark may sit on, beside the eight above. The first
      four are the phone's own teal, an ochre, a moss and a plum; the fifteen after them (26
      September 2026) are a red, an orange, an olive, three greys and a deep shade of every hue.

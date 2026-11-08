@@ -41,12 +41,19 @@ without that by the action's kind, `shell.exec`, which is the policy engine's wo
 it. A label is not a question: `Kit edit: connectors/robinhood.yaml` is what changed, and the
 person needs to know that it turns the connector off.
 
+An ask whose input has a `command` is drawn one part to a line, the way Chips reads it, with the
+words a standing yes would keep in bold, thrown-away output struck through, and a write into a file
+in red. So a question needn't quote the command: one it quotes at its end is dropped from the
+headline, and a preview that is the input as JSON, or says the command again, gives way to the
+command's own lines. A preview that says something else still shows.
+
 ## A decision is more than yes or no
 
 | Part | What it means |
 | --- | --- |
 | `decision` | `approved`, `edited`, `denied`, or `expired`. |
 | `scope` | `once`, `session`, or `always`. `always` becomes a policy rule. |
+| `for_minutes` | With `once` and a yes: the asking agent's asks of that kind go ahead in that space for this long. |
 | `updated_input` | The edited action, when the approver changed it before allowing. |
 | `reason` | Why. The harness gets to read this. |
 | `resolved_by` | Who answered, or `system` on an expiry. |
@@ -67,6 +74,25 @@ the moment it arrives, with no card: the harness hears an `approval.resolved` by
 the rule's reason. A *deny* holds at every level. An *allow* holds from L1, where every harness
 starts; at L0 every action still asks, and a workspace capped at L0 or L1 lets no harness's rule
 allow past it.
+
+## A yes that holds on
+
+The apps offer two yeses that hold past their ask, both given once and both kept by Chips, so the
+harness is answered once:
+
+- *For an hour*, sent as `scope: "once"` with `for_minutes: 60`.
+- *Let it work without asking*, a switch over the choices, sent as `scope: "once"` with
+  `until_stopped: true`. It holds until somebody stops it.
+
+While either holds, everything the same agent asks in that space goes ahead without a card,
+decided by `system` the moment it arrives: commands Chips can't read part by part too, and ones
+that use `rm`, `sudo` or `git push`. An ask that matters (money, a message to someone outside,
+anything marked as not undoable) still waits for a person, and a rule a person set that says no
+still says it. Only a person gives one, and only as a yes, and never for an ask that matters.
+
+The room shows a band under its name while one holds (`Jiro is working without asking`), with
+Stop; You's Allowed always lists them too. Stop sends `approval.held_stopped` with the space and
+the agent (`asker`), and the agent's next ask comes to a person.
 
 ## Rules the protocol keeps
 

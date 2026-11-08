@@ -87,6 +87,13 @@ export const hello = defineEvent({
       .object({
         name: z.string().min(1).max(120).describe("Usually `chipsd`."),
         version: z.string().min(1).max(60).describe("The server's own version."),
+        takes: z
+          .array(z.string().min(1).max(40))
+          .max(32)
+          .optional()
+          .describe(
+            "What this server keeps of what a person's client may send beyond the base set, by the names in `SERVER_TAKES`. `held_yes` is `for_minutes` and `until_stopped` on `approval.resolved`. A server older than the field says nothing, and drops those fields, so a client offers neither to it (ADR 0281).",
+          ),
       })
       .describe("Who the client is talking to."),
     harnesses: z
@@ -323,6 +330,21 @@ export const approvalResolved = defineEvent({
       .optional()
       .describe(
         "With `always`: the rule is the harness's in every space, not only this one (ADR 0239). An owner or an admin only.",
+      ),
+    for_minutes: z
+      .number()
+      .int()
+      .min(5)
+      .max(240)
+      .optional()
+      .describe(
+        "With `once` and a yes: for this many minutes, everything the asking agent asks in this space goes ahead without a card (ADR 0239, addendum of 6 November 2026; ADR 0281), commands Chips can't read too. An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once.",
+      ),
+    until_stopped: z
+      .literal(true)
+      .optional()
+      .describe(
+        "With `once` and a yes, instead of `for_minutes`: everything the asking agent asks in this space goes ahead without a card until a person stops it (`approval.held_stopped`, ADR 0281). An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once.",
       ),
     updated_input: z
       .unknown()

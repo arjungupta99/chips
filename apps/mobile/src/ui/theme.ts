@@ -19,6 +19,11 @@ export function useScheme(): Scheme {
   return system === "dark" ? "dark" : "light";
 }
 
+/** The status bar's ink, the opposite of the page: light words on a dark app. */
+export function statusInk(scheme: Scheme): Scheme {
+  return scheme === "dark" ? "light" : "dark";
+}
+
 export function usePalette(): Palette {
   return useScheme() === "dark" ? dark : light;
 }

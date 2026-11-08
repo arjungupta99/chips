@@ -19,6 +19,7 @@ import {
   applyRunTransition,
   type CarriedSpend,
   type Change,
+  type HeldStopped,
   type ProjectionTable,
   type Row,
   type RunState,
@@ -80,6 +81,9 @@ export async function applyChanges(
         break;
       case "session_rule":
         await sessionRule(trx, change);
+        break;
+      case "held_stopped":
+        await heldStopped(trx, change);
         break;
       case "take_runs":
         await takeRuns(trx, change);
@@ -295,43 +299,105 @@ async function replacePlan(
     .execute();
 }
 
-/** A decision for this session, as a rule: the approval's own action, decided the same way. */
+/**
+ * A decision for this session, as a rule: the approval's own action, decided the same way. A yes
+ * that holds on (`until`, a time or `null`) is kept with the approval's space and the run's agent,
+ * or its harness, since it holds past the run; it reaches every ask there (ADR 0281), so it keeps
+ * the action's kind as `*` and none of its flags or starts.
+ */
 async function sessionRule(trx: Transaction<Database>, change: SessionRule): Promise<void> {
   const approvalId = change.key["id"];
   const workspaceId = change.key["workspace_id"];
   if (typeof approvalId !== "string" || typeof workspaceId !== "string") return;
   const approval = await trx
     .selectFrom("approvals")
-    .select("action")
+    .select(["action", "space_id"])
     .where("workspace_id", "=", workspaceId)
     .where("id", "=", approvalId)
     .executeTakeFirst();
   if (approval === undefined) return;
-  const action = JSON.parse(approval.action) as {
-    kind: string;
-    external?: boolean;
-    irreversible?: boolean;
-    input?: unknown;
-  };
-  // A command is remembered by how its parts start, never as its kind whole (ADR 0239).
-  const offer = standingOffer(action.input);
-  if (offer !== undefined && offer.kind !== "starts") return;
+  const held = await heldWhere(trx, workspaceId, change, approval.space_id);
+  if (held === undefined) return;
+  const ruled = ruleOf(JSON.parse(approval.action) as RuledAction, held.space_id !== null);
+  if (ruled === undefined) return;
   await trx
     .insertInto("session_rules")
     .values({
       workspace_id: workspaceId,
       run_id: change.runId,
       approval_id: approvalId,
-      match: action.kind,
-      external: action.external === true ? 1 : 0,
-      irreversible: action.irreversible === true ? 1 : 0,
+      ...ruled,
       decision: change.decision,
       decided_at: change.decidedAt,
-      starts_with: offer === undefined ? null : JSON.stringify(offer.starts),
+      ...held,
     })
     .onConflict((oc) =>
       oc.columns(["run_id", "approval_id"]).doUpdateSet({ decision: change.decision }),
     )
+    .execute();
+}
+
+interface RuledAction {
+  readonly kind: string;
+  readonly external?: boolean;
+  readonly irreversible?: boolean;
+  readonly input?: unknown;
+}
+
+/**
+ * What a rule matches: the action's kind and flags, and a command by how its parts start (ADR
+ * 0239), never as its kind whole, so a command that can't be kept that way keeps nothing. A yes
+ * that holds on in a space matches every ask (`holds`, ADR 0281).
+ */
+function ruleOf(
+  action: RuledAction,
+  holds: boolean,
+): { match: string; external: 0 | 1; irreversible: 0 | 1; starts_with: string | null } | undefined {
+  if (holds) return { match: "*", external: 0, irreversible: 0, starts_with: null };
+  const offer = standingOffer(action.input);
+  if (offer !== undefined && offer.kind !== "starts") return undefined;
+  return {
+    match: action.kind,
+    external: action.external === true ? 1 : 0,
+    irreversible: action.irreversible === true ? 1 : 0,
+    starts_with: offer === undefined ? null : JSON.stringify(offer.starts),
+  };
+}
+
+/**
+ * Where a yes that holds on (`until`) holds: the approval's space, for the run's agent or else its
+ * harness; nothing when either can't be found. A This session row holds none of it.
+ */
+async function heldWhere(
+  trx: Transaction<Database>,
+  workspaceId: string,
+  change: SessionRule,
+  spaceId: string | null,
+): Promise<
+  { space_id: string | null; participant_id: string | null; until: string | null } | undefined
+> {
+  if (change.until === undefined) return { space_id: null, participant_id: null, until: null };
+  // A yes until stopped is the one row with a space and no end.
+  if (spaceId === null) return undefined;
+  const run = await trx
+    .selectFrom("runs")
+    .select(["agent_id", "harness_id"])
+    .where("workspace_id", "=", workspaceId)
+    .where("id", "=", change.runId)
+    .executeTakeFirst();
+  if (run === undefined) return undefined;
+  return { space_id: spaceId, participant_id: run.agent_id ?? run.harness_id, until: change.until };
+}
+
+/** A person's stop (ADR 0281): the agent's yeses still holding in the space end now. */
+async function heldStopped(trx: Transaction<Database>, change: HeldStopped): Promise<void> {
+  await trx
+    .updateTable("session_rules")
+    .set({ until: change.at })
+    .where("workspace_id", "=", change.workspaceId)
+    .where("space_id", "=", change.spaceId)
+    .where("participant_id", "=", change.asker)
+    .where((eb) => eb.or([eb("until", "is", null), eb("until", ">", change.at)]))
     .execute();
 }
 

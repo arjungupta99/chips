@@ -23,7 +23,33 @@ import {
   repeatOf,
 } from "@chipschat/protocol";
 import { type Directory, nameOf } from "../events.js";
+import { runGoing } from "./readers.js";
 import type { Line, Space } from "./types.js";
+
+/**
+ * How near the hold a run may have ended for its job to have come to the amount as it finished: a
+ * harness that says a turn's cost only at its end (Claude Code over ACP) reports it a moment before
+ * the turn's last words, and Chips holds the agents between the two (ADR 0282).
+ */
+const FINISHED_WITHIN_MS = 60_000;
+
+/**
+ * The job Chips held at the ceiling once it had already finished, as the banner names it: "Jiro's
+ * job" for one agent's, "This job" for several. Nothing while a run there is still going, or when
+ * none ended near the hold.
+ */
+function finishedJob(space: Space, directory: Directory): string | undefined {
+  const at = space.pausedSpend?.at;
+  if (at === undefined || space.runs.some(runGoing)) return undefined;
+  const held = Date.parse(at);
+  const ended = space.runs.filter(
+    (run) =>
+      run.endedAt !== undefined && Math.abs(Date.parse(run.endedAt) - held) <= FINISHED_WITHIN_MS,
+  );
+  const who = [...new Set(ended.map((run) => run.harnessId))];
+  if (who.length === 0) return undefined;
+  return who.length === 1 ? `${nameOf(directory, who[0] as string)}'s job` : "This job";
+}
 
 /** What the room says under the agents' fold, and at which stage. */
 export interface ExchangeLine {
@@ -160,6 +186,10 @@ export function pauseWords(space: Space, directory: Directory): string | undefin
   }
   if (pausedSince(space) && space.pausedSpend !== undefined) {
     const { spentUsd, ceilingUsd } = space.pausedSpend;
+    const finished = finishedJob(space, directory);
+    if (finished !== undefined) {
+      return `${finished} came to ${dollars(spentUsd)} when it finished, past the ${dollars(ceilingUsd)} this space allows a job. The agents start nothing new until somebody lets them.`;
+    }
     return `This job has spent ${dollars(spentUsd)} of the ${dollars(ceilingUsd)} this space allows. The agents start nothing new until somebody lets them carry on.`;
   }
   const talk = talkSince(space, space.lines.length - 1);

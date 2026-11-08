@@ -93,6 +93,7 @@ import {
   hideAct,
   inviteSomeoneNew,
   isShared,
+  lastJobWords,
   leadOf,
   leaveAsking,
   mayAddToRoom,
@@ -129,7 +130,7 @@ import {
   whyFaceNotSaved,
   workspaceOwnerName,
 } from "@chipschat/core";
-import type { JobSpend, SpaceIcon, SpaceNotifications } from "@chipschat/protocol";
+import type { RoomSpend, SpaceIcon, SpaceNotifications } from "@chipschat/protocol";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -181,7 +182,8 @@ type Page =
   | { readonly kind: "elsewhere" }
   | { readonly kind: "media" }
   | { readonly kind: "lead" }
-  | { readonly kind: "spend" }
+  /** Spend per job; from the banner's Raise the limit, its Save lets the agents carry on too. */
+  | { readonly kind: "spend"; readonly carryOn?: boolean }
   | { readonly kind: "notify" }
   | { readonly kind: "new" }
   | { readonly kind: "invite" }
@@ -210,8 +212,15 @@ const keyOf = (page: Page) =>
 const isAgentPage = (page: Page): page is Extract<Page, { readonly kind: "agent" | "history" }> =>
   page.kind === "agent" || page.kind === "history";
 
-/** The page the sheet stands on when it is opened: its first, Add, Spend per job, or Project. */
-export type RoomPage = "who" | "add" | "spend" | "project";
+/**
+ * The page the sheet stands on when it is opened: its first, Add, Spend per job, or Project; or
+ * Spend per job to carry on with, from the banner's Raise the limit (ADR 0282).
+ */
+export type RoomPage = "who" | "add" | "spend" | "project" | "raise";
+
+/** The sheet's page for where it was asked to open. */
+const pageOf = (opensOn: RoomPage): Page =>
+  opensOn === "raise" ? { kind: "spend", carryOn: true } : { kind: opensOn };
 
 export function RoomSheet({
   store,
@@ -266,7 +275,7 @@ export function RoomSheet({
   /** The room's name in its bar: on an iPad without the column for them, it opens beside it. */
   readonly from?: SheetFrom | undefined;
 }) {
-  const [page, setPage] = useState<Page>({ kind: opensOn });
+  const [page, setPage] = useState<Page>(() => pageOf(opensOn));
   // A column beside the room, where an agent's card is one of its pages.
   const docked = useContext(SheetDock) !== undefined;
   // What Add has put in the room since the sheet came up, which it keeps where it was, ticked; and
@@ -281,13 +290,13 @@ export function RoomSheet({
     setShown(open);
     setOn(opensOn);
     if (open) {
-      setPage({ kind: opensOn });
+      setPage(pageOf(opensOn));
       setKept([]);
       setAsked([]);
     }
   } else if (on !== opensOn) {
     setOn(opensOn);
-    if (open) setPage({ kind: opensOn });
+    if (open) setPage(pageOf(opensOn));
   }
   const filesRead = useRoomFiles(store, space, open);
   const spend = useRoomSpend(store, space, open);
@@ -386,12 +395,20 @@ export function RoomSheet({
     onClose();
   };
   // What the room allows a job (ADR 0117): saved, the first page shows it, and the room says who.
-  const spending = async (usd: number | null) => {
+  // Opened from Raise the limit, it lets the agents carry on with it too, and the sheet goes, so
+  // the room shows them going on (ADR 0282).
+  const spending = async (usd: number | null, carryOn: boolean) => {
     setBusy(true);
     setFailed(undefined);
     try {
-      await store.setSpendCeiling(space.id, usd);
-      go({ kind: "who" });
+      if (!carryOn) {
+        await store.setSpendCeiling(space.id, usd);
+        go({ kind: "who" });
+      } else {
+        // The amount changed or not: the server lets the held agents carry on either way.
+        await store.setSpendCeiling(space.id, usd, { carryOn: true });
+        onClose();
+      }
     } catch (error) {
       setFailed(error instanceof Error ? error.message : "The server would not do it.");
     } finally {
@@ -520,8 +537,19 @@ export function RoomSheet({
         space={space}
         spend={spend}
         busy={busy}
+        carryOn={shown.carryOn === true}
+        directory={snapshot.directory}
+        selfId={selfId}
         onBack={() => go({ kind: "who" })}
-        onSave={(usd) => void spending(usd)}
+        onSave={(usd) => void spending(usd, shown.carryOn === true)}
+        onGoTo={
+          onGoTo === undefined
+            ? undefined
+            : (lineId) => {
+                onClose();
+                onGoTo(lineId);
+              }
+        }
       />
     ) : shown.kind === "lead" ? (
       <Lead
@@ -985,7 +1013,7 @@ function Who({
   /** Who leads the room's page (ADR 0104). */
   readonly onLead: () => void;
   /** What the room's job has spent, once the server has said (ADR 0117). */
-  readonly spend: JobSpend | undefined;
+  readonly spend: RoomSpend | undefined;
   /** What the room allows a job's page (ADR 0117). */
   readonly onSpend: () => void;
   /** What this room sends this phone, and its page (ADR 0198). */
@@ -1270,7 +1298,7 @@ function roomTiles({
   readonly selfId: string;
   readonly lead: string | undefined;
   readonly leads: string | undefined;
-  readonly spend: JobSpend | undefined;
+  readonly spend: RoomSpend | undefined;
   readonly notify: SpaceNotifications;
   /** Hidden by the reader (ADR 0205): Notifications says Off while hidden. */
   readonly hidden: boolean;
@@ -1353,7 +1381,7 @@ function agentTiles({
   readonly selfId: string;
   readonly lead: string | undefined;
   readonly leads: string | undefined;
-  readonly spend: JobSpend | undefined;
+  readonly spend: RoomSpend | undefined;
   readonly onLead: () => void;
   readonly onSpend: () => void;
 }): ReactNode[] {
@@ -1376,6 +1404,7 @@ function agentTiles({
             ceiling={spendCeilingOf(space)}
             spend={spend}
             words={spentWords(spend, spends ? undefined : workspaceOwnerName(model, directory))}
+            last={lastJobWords(spend)}
             onPress={spends ? onSpend : undefined}
           />,
         ]

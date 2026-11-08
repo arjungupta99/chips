@@ -146,3 +146,80 @@ commands, the engine, the server's paths and doors, the fake, the cards, and
    Recommended: every space, since the starts are narrow.
 3. **No "Any command" for a person** (decision 2). Recommended. The mock drew it with a red
    warning line.
+
+## Addendum, 6 November 2026: output thrown away is read, a start is the program, and For an hour
+
+**What happened.** On 5 November between 11:08 and 11:11 PM PST, Ike (Claude Code, at L1) asked
+Arjun six times in "Chips design and architecture", each a chain of read-only commands
+(`cd`, `ls`, `git log`, `cat`, `head`). Every card offered only Just this once. His words: "Its
+repeatedly asking me for permission with no way for me to Always allow, or just allow for X
+minutes or something." Two causes, read from the live database:
+
+- Three of the six ended in `2>/dev/null` or `2>&1`, which this ADR's reader refused as a
+  redirection, so the card had no scope at all.
+- Where a command could be read, its Always remembered two words, `cat README.md …`,
+  `cd /Users/…/chips-main …`, `head -50 …`, and an agent looking around names another file or
+  folder each time. Over all ten command asks the workspace had ever had, an Always on each would
+  have let **none** of the later ones through.
+
+He also sent the decide screen with Hand to… open: every choice there was a dead end in his
+workspace (the one other person, not in the space; The admins, nobody; The owners and Anyone in the space,
+only him; The lane's lead, on a run that was no lane's), and the line saying why the command was
+answered once sat under Hand to…, as if it were about handing on.
+
+**The mock** (https://claude.ai/artifact/1Cq5PGPrhJqgD69dyDvvca) put today beside A (read the
+output thrown away, remember the program) and B (A plus For an hour, in place of This session),
+counting tonight's cards: 6 today, 5 under A, 1 under B. His answer: **"Build B"**.
+
+**Decided.**
+
+1. **Output thrown away or merged is read** (`commandParts`): `2>/dev/null`, `>/dev/null`,
+   `&>/dev/null`, `>>/dev/null`, `2>&1`, `>&2`, dropped from the words. Anything else that
+   writes, `> out.txt` included, still can't be read and is answered each time.
+2. **A start is the program and the word that picks what it does** (`startOf`): the subcommand
+   of a program that has them (`git log`, `pnpm test`), the script a runner runs (`node game.js`,
+   `python3 build.py`), or a leading flag (`sed -n`, `ls -la`, `node --check`); otherwise the
+   program alone (`cat`, `cd`, `head` for `head -50`, `echo`). A start another start of the same
+   command covers is left out (`ls -la` beside `ls`). Rules already kept with two words keep
+   working, since a start is matched as a prefix.
+3. **The never list grows by what writes over a file or publishes**, since `cat` now reaches
+   every file: `cp`, `mv`, `tee`, `truncate`, `sed -i`, `sed --in-place`, `npm publish`,
+   `pnpm publish`, `yarn publish`.
+4. **For an hour takes This session's place on the card** (phone, web, Mac). This session ended
+   with the agent's reply and never said when that was. For an hour is a yes given once that holds
+   on: for 60 minutes, the asking agent's asks of that kind in that space go ahead without a card.
+   For a command, any command Chips can read that uses nothing on the never list, whatever
+   programs it runs; an ask that matters still waits for a person. The line under it says so:
+   "Ike's commands in this space go ahead without a card until 12:08 AM. Commands Chips can't
+   read, and any that use rm, sudo, git push and the like, still come to you." A no picked under
+   it is a no this once. The protocol keeps `session` for harnesses and older apps.
+5. **On the wire** it is `approval.resolved` with `scope: "once"` and `for_minutes` (5–240; the
+   card sends 60). The harness is answered once, as a bridge already answers a command's Always,
+   so no bridge changes and an older one ignores the field. Chips keeps the rule: a
+   `session_rules` row with `until`, `space_id` and `participant_id` (the run's agent, else its
+   harness), migration 0060, read by space and asker until its time (`rulesForAWhile`), never as
+   the run's This session. The engine reads it after This session and before the harness's own
+   rules, as a rule for the kind whole, and only when `heldRules` says the command is one a
+   standing yes may reach. The door refuses `for_minutes` from a harness, with any scope but
+   `once`, on a no, on an ask that matters, and on a command Chips can't read or that uses one on
+   the never list.
+6. **Why an ask is answered once is said where the choices would be**, above Deny and Approve, on
+   the phone and the web (`onceWhy` on the web card).
+7. **Hand to… lists only choices that reach somebody other than the reader** (core
+   `handChoices`, used by the phone and the web): The admins and The owners when the space holds
+   another of them, Anyone in the space when another person is in it, The lane's lead only on a
+   lane's run. With nobody to hand it to, the card offers no Hand to….
+
+**Consequences.** On a night like 5 November, one For an hour on Ike's first card lets the next
+five through. Always now pays off too: tonight's taps would have left `cd`, `ls`, `cat`, `head`,
+`grep -i`, `git log`, `wc -l`, `echo`, `tail`, which cover most of an agent's reading from then on.
+An Always on `cat` lets an agent read any file it can reach, in every space; during the hour, an
+agent can run any readable command off the never list in that space, `node script.js` and
+`npm install` included. A yes for a while is not listed under Allowed always and can't be turned
+off early; it ends on its own. The Asks list shows it as the person's yes.
+
+**Cost.** Protocol (reader, starts, never list, `for_minutes`, `pnpm gen:protocol`); server
+(migration 0060, the projection, the writer, `rulesForAWhile`, `heldRules`, the door); core
+(`whileWords`, `handChoices`, `forMinutes` on `resolveApproval`); the phone's and the web's decide
+cards and the ui card's `onceWhy`; tests at each layer and the phone's `decide.spec.ts`. A chipsd
+restart for the migration.

@@ -223,24 +223,3 @@ export function usePick<T extends { readonly id: string }>({
 }
 
 export type Picks<T extends { readonly id: string }> = ReturnType<typeof usePick<T>>;
-
-/**
- * Asks the server to act on each row in turn, waiting for each: what it did, and what it would not,
- * with why.
- */
-export async function actAll<T extends { readonly id: string }>(
-  items: readonly T[],
-  act: (item: T) => Promise<void> | void,
-): Promise<{ done: string[]; refused: { readonly item: T; readonly error: unknown }[] }> {
-  const done: string[] = [];
-  const refused: { readonly item: T; readonly error: unknown }[] = [];
-  for (const item of items) {
-    try {
-      await act(item);
-      done.push(item.id);
-    } catch (error) {
-      refused.push({ item, error });
-    }
-  }
-  return { done, refused };
-}

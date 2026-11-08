@@ -83,6 +83,7 @@ import { desktop, inDesktop } from "../native.ts";
 import type { AgentsService } from "./Agents.tsx";
 import type { Chosen } from "./Ask.tsx";
 import { AgentPane } from "./agent/AgentPane.tsx";
+import { Columns, ColumnsShellFrame, useNarrowForThird } from "./Columns.tsx";
 import type { DecisionInput } from "./Decide.tsx";
 import type { OnFeedback } from "./Feedback.tsx";
 import { useFirstRun } from "./FirstRun.tsx";
@@ -98,7 +99,6 @@ import type { RowActs } from "./RowMenu.tsx";
 import { RunPanel } from "./RunPanel.tsx";
 import type { SpaceActions } from "./room/actions.ts";
 import type { ProjectActions } from "./room/Project.tsx";
-import { usePanelMotion } from "./room/panelMotion.ts";
 import { AskedPage } from "./room/Universe.tsx";
 import {
   type Beside,
@@ -107,11 +107,19 @@ import {
   type SearchSession,
   useSearchSession,
 } from "./Search.tsx";
-import { DemoTag, Sidebar, type Tab, type WorkspaceTab } from "./Sidebar.tsx";
+import {
+  DemoTag,
+  Sidebar,
+  type SidebarProps,
+  SpacesList,
+  type Tab,
+  type WorkspaceTab,
+} from "./Sidebar.tsx";
 import { type LineFocus, type SheetFor, SpaceView, seedField } from "./SpaceView.tsx";
 import type { RoomActs } from "./select/rooms.tsx";
 import { Turns } from "./Turns.tsx";
 import { type Messaging, useMessaging } from "./useMessaging.ts";
+import { useNarrow } from "./useNarrow.ts";
 import { usePatience } from "./usePatience.ts";
 import { DirectAsks } from "./you/DirectAskDialog.tsx";
 import { FEEDBACK_ON } from "./you/Feedback.tsx";
@@ -491,6 +499,10 @@ export function Shell({
       decision: input.decision,
       scope: input.scope,
       ...(input.everywhere === true ? { everywhere: true } : {}),
+      // A yes that holds on, for the hour or until stopped (ADR 0281): it went unsent here from
+      // 6 November, so For an hour on the web and the Mac held for nothing past its ask.
+      ...(input.forMinutes === undefined ? {} : { forMinutes: input.forMinutes }),
+      ...(input.untilStopped === true ? { untilStopped: true } : {}),
       ...(input.reason === undefined ? {} : { reason: input.reason }),
       ...(input.updatedInput === undefined ? {} : { updatedInput: input.updatedInput }),
     });
@@ -563,6 +575,7 @@ export function Shell({
       joins={snapshot.joins}
       directory={directory}
       busy={busy}
+      keepsHeldYes={snapshot.keepsHeldYes}
       selected={selected}
       device={device}
       workspaceName={workspaceName}
@@ -621,15 +634,65 @@ export function Shell({
     />
   );
   const side = useAfterTheBeat(sideOf(tab, selected, run, sessions));
-  const panel = usePanelMotion(side, panelRoom(tab, selectedId));
+  const runPanel = (going: Run) => (
+    <RunPanel
+      run={going}
+      directory={directory}
+      harness={model.harnesses[going.harnessId]}
+      busy={busy.has(going.runId) || busy.has(going.harnessId)}
+      sessions={sessions}
+      chainCostUsd={laneChainCostUsd(model, going.runId)}
+      onPickSession={setPickedSession}
+      onPause={() => carryOut({ kind: "pause" })}
+      onResume={() => carryOut({ kind: "resume" })}
+      onStop={(reason) => carryOut({ kind: "stop", reason })}
+      onAutonomy={turnDial}
+      turnsDial={mayTurnDial(model, device.participantId)}
+    />
+  );
+  const railProps: SidebarProps = {
+    model,
+    directory,
+    readState,
+    spaceIcons,
+    hiddenSpaces,
+    pinnedSpaces,
+    selectedSpaceId: selectedId,
+    empty,
+    awaiting: snapshot.awaiting,
+    reach: {
+      connection,
+      link,
+      lostAt: snapshot.lostAt,
+      server: serverHostOf(device),
+      rekeyed: snapshot.rekeyed,
+      onRetry: store.wake,
+    },
+    selfId: device.participantId,
+    tab,
+    onSelectTab: selectTab,
+    onSelectSpace: open,
+    onNewSpace: after(() => setMenu(false), newSpaceFrom),
+    workspaces: workspaces ?? [],
+    onSwitch,
+    onPairAnother,
+    onRemoveDemo,
+    onWatchDemo,
+    onRenameWorkspace: mayRenameWorkspace(myRole(model, device.participantId))
+      ? (name) => store.renameWorkspace(name)
+      : undefined,
+    desktop: inDesktop(),
+    // A demo has nothing to set up, and no welcome (ADR 0213, point 1).
+    setup: firstRun.setup,
+    roomActs,
+    rowActs,
+  };
+  // At a phone's width the rooms are in the rail's menu; at a desk's, Spaces' first column.
+  const narrow = useNarrow();
 
   return (
     <OpenRelay.Provider value={openRelay}>
-      <div
-        className="shell"
-        data-panel={panel.laid ? "true" : "false"}
-        data-menu={menu ? "true" : "false"}
-      >
+      <ColumnsShellFrame room={roomShown(tab, selected, searchBeside)} menu={menu}>
         <NarrowBar
           workspace={workspace}
           demo={demo}
@@ -644,66 +707,19 @@ export function Shell({
               unreadCount(space, readState) > 0,
           )}
         />
-        <Sidebar
-          model={model}
-          directory={directory}
-          readState={readState}
-          spaceIcons={spaceIcons}
-          hiddenSpaces={hiddenSpaces}
-          pinnedSpaces={pinnedSpaces}
-          selectedSpaceId={selectedId}
-          empty={empty}
-          awaiting={snapshot.awaiting}
-          reach={{
-            connection,
-            link,
-            lostAt: snapshot.lostAt,
-            server: serverHostOf(device),
-            rekeyed: snapshot.rekeyed,
-            onRetry: store.wake,
-          }}
-          selfId={device.participantId}
-          tab={tab}
-          onSelectTab={selectTab}
-          onSelectSpace={open}
-          onNewSpace={after(() => setMenu(false), newSpaceFrom)}
-          workspaces={workspaces ?? []}
-          onSwitch={onSwitch}
-          onPairAnother={onPairAnother}
-          onRemoveDemo={onRemoveDemo}
-          onWatchDemo={onWatchDemo}
-          onRenameWorkspace={
-            mayRenameWorkspace(myRole(model, device.participantId))
-              ? (name) => store.renameWorkspace(name)
-              : undefined
-          }
-          desktop={inDesktop()}
-          // A demo has nothing to set up, and no welcome (ADR 0213, point 1).
-          setup={firstRun.setup}
-          roomActs={roomActs}
-          rowActs={rowActs}
-        />
+        <Sidebar {...railProps} rooms={narrow} />
 
-        {/* The section and its run panel, which fade through to the next section (ADR 0274). */}
+        {/* The section, which fades through to the next one (ADR 0274), in its columns (ADR 0284). */}
         <Turns at={tab} depth={0} way={THROUGH} name="section">
-          {middle}
-          {panel.shown?.kind === "run" && (
-            <RunPanel
-              run={panel.shown.run}
-              motion={panel.motion}
-              directory={directory}
-              harness={model.harnesses[panel.shown.run.harnessId]}
-              busy={busy.has(panel.shown.run.runId) || busy.has(panel.shown.run.harnessId)}
-              sessions={sessions}
-              chainCostUsd={laneChainCostUsd(model, panel.shown.run.runId)}
-              onPickSession={setPickedSession}
-              onPause={() => carryOut({ kind: "pause" })}
-              onResume={() => carryOut({ kind: "resume" })}
-              onStop={(reason) => carryOut({ kind: "stop", reason })}
-              onAutonomy={turnDial}
-              turnsDial={mayTurnDial(model, device.participantId)}
-            />
-          )}
+          <SpacesColumns
+            on={tab === "spaces"}
+            rail={railProps}
+            narrow={narrow}
+            middle={middle}
+            room={selected !== undefined}
+            side={side}
+            runPanel={runPanel}
+          />
         </Turns>
         {newSpace.dialog}
         {firstRun.phone}
@@ -735,7 +751,7 @@ export function Shell({
           files={files}
           onClose={closeAsked}
         />
-      </div>
+      </ColumnsShellFrame>
     </OpenRelay.Provider>
   );
 }
@@ -910,6 +926,7 @@ interface MiddlePaneProps {
   readonly joins: Snapshot["joins"];
   readonly directory: Snapshot["directory"];
   readonly busy: Snapshot["busy"];
+  readonly keepsHeldYes: Snapshot["keepsHeldYes"];
   readonly selected: Snapshot["model"]["spaces"][number] | undefined;
   readonly device: Device;
   /** What the workspace is called now, and what to call it in a sentence (`workspaceLabel`). */
@@ -1037,6 +1054,42 @@ function useSearchBeside(on: {
  */
 type Side = { readonly kind: "run"; readonly room: Space; readonly run: Run } | undefined;
 
+/** Whether a room stands in the second column: Spaces' open room, or the one Search opened beside. */
+function roomShown(tab: Tab, selected: Space | undefined, beside: Beside | undefined): boolean {
+  if (tab === "spaces") return selected !== undefined;
+  return tab === "search" && beside?.kind === "space";
+}
+
+/**
+ * Spaces in its columns (ADR 0284): the rooms in the first, under the rail's top (in the rail's menu
+ * at a phone's width), the room in the second, and the run beside it in the third. The run stands
+ * there only where the list keeps its place beside both, so a run starting never puts the list
+ * away; narrower, the room's own bar says it. Another section is its own columns already.
+ */
+function SpacesColumns(props: {
+  readonly on: boolean;
+  readonly rail: SidebarProps;
+  readonly narrow: boolean;
+  readonly middle: ReactNode;
+  readonly room: boolean;
+  readonly side: Side;
+  readonly runPanel: (run: Run) => ReactNode;
+}) {
+  const crowded = useNarrowForThird();
+  if (!props.on) return props.middle;
+  const run = crowded ? undefined : props.side?.run;
+  return (
+    <Columns
+      name="spaces"
+      as="div"
+      list={props.narrow ? null : <SpacesList {...props.rail} />}
+      detail={props.middle}
+      third={run === undefined ? undefined : props.runPanel(run)}
+      room={props.room}
+    />
+  );
+}
+
 function sideOf(
   tab: Tab,
   room: Space | undefined,
@@ -1048,14 +1101,6 @@ function sideOf(
     (each) => each !== undefined && runGoing(each),
   );
   return going ? { kind: "run", room, run } : undefined;
-}
-
-/**
- * The room the run panel slides beside: Spaces's open room only. To another section the panel goes
- * with the section's fade (ADR 0274), so a change of section counts as another room.
- */
-function panelRoom(tab: Tab, roomId: string | undefined): string | undefined {
-  return tab === "spaces" ? roomId : undefined;
 }
 
 /**
@@ -1268,6 +1313,7 @@ function MiddlePane(p: MiddlePaneProps) {
         workspaces={p.workspaces}
         onSwitch={p.onSwitch}
         onSetRules={(input) => p.store.setRules(input)}
+        onStopLetWork={(input) => p.store.stopLetWork(input)}
         spaceIcons={p.spaceIcons}
         onOpenSpace={(spaceId) => p.open(spaceId)}
       />
@@ -1454,6 +1500,7 @@ function roomView(p: MiddlePaneProps, selected: Space, headEnd?: ReactNode) {
         p.carryOut(parseCommand(text), attachments, aim, replyTo)
       }
       onDecide={p.decide}
+      keepsHeldYes={p.keepsHeldYes}
       onRoute={(approval, to, reason) =>
         p.store.routeApproval({
           spaceId: selected.id,
@@ -1467,6 +1514,7 @@ function roomView(p: MiddlePaneProps, selected: Space, headEnd?: ReactNode) {
       onFeedback={p.feedback}
       onOpenAgent={p.onOpenAgent}
       onStopLane={(lane) => stopLane(p.store, lane)}
+      onStopLetWork={(asker) => p.store.stopLetWork({ spaceId: selected.id, asker })}
       onDiscard={(key) => p.store.discard(key)}
       onRead={(seq) => p.store.markRead(selected.id, seq)}
       onLine={p.onLine}
@@ -1602,7 +1650,7 @@ function spaceActions(
     ask: (harnessId, name) => store.askAgent(harnessId, spaceId, name),
     takeArrival: () => store.takeArrival(spaceId),
     lead: (agentId) => store.setLead(spaceId, agentId),
-    spend: (usd) => store.setSpendCeiling(spaceId, usd),
+    spend: (usd, options) => store.setSpendCeiling(spaceId, usd, options),
     lock: (locked) => store.setLock(spaceId, locked),
     icon: (face) => store.setSpaceIcon(spaceId, face),
     roomSpend: () => store.roomSpend(spaceId),

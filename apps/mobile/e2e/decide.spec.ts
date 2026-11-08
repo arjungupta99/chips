@@ -112,8 +112,8 @@ test("an ask that matters waits for you and is answered once: no scope beyond it
     await asks(page).getByRole("button", { name: "Details" }).last().click();
     await expect(page.getByTestId("waits-for-you")).toContainText("Waits for you");
     await expect(page.getByTestId("once-only")).toHaveText(ONCE_ONLY_WORDS);
-    await expect(page.getByRole("radio", { name: "This session" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Approve" }).click();
+    await expect(page.getByRole("radio", { name: "For an hour" })).toHaveCount(0);
+    await page.getByRole("button", { name: "Approve once" }).click();
     expect(await harness.next("approval.resolved")).toMatchObject({
       decision: "approved",
       scope: "once",
@@ -148,11 +148,12 @@ test("approve a smaller ask with a scope beyond this once, which is a policy rul
     });
     await expect(asks(page).getByText("Juniper asks").last()).toBeVisible({ timeout: 20_000 });
     await asks(page).getByRole("button", { name: "Details" }).last().click();
-    await page.getByRole("radio", { name: "This session" }).click();
-    await page.getByRole("button", { name: "Approve" }).click();
+    await page.getByRole("radio", { name: "For an hour" }).click();
+    await page.getByRole("button", { name: "Approve for an hour" }).click();
     expect(await harness.next("approval.resolved")).toMatchObject({
       decision: "approved",
-      scope: "session",
+      scope: "once",
+      for_minutes: 60,
     });
   } finally {
     harness.close();

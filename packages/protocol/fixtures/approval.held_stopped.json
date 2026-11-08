@@ -1,0 +1,15 @@
+{
+  "v": 1,
+  "type": "approval.held_stopped",
+  "id": "evt_01K4ZQPX0000000000000000DA",
+  "ts": "2026-09-06T12:05:00.004Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "space_id": "spc_01K4ZQPX000000000000000002",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "idempotency_key": "stop-held-1",
+  "asker": "agt_01K4ZQPX000000000000000001",
+  "stopped_by": "usr_01K4ZQPX000000000000000003"
+}

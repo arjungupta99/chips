@@ -29,9 +29,31 @@ import Animated, {
 const GROW_MS = 190;
 const GROW_EASING = Easing.out(Easing.cubic);
 const GROW_TIMING = { duration: GROW_MS, easing: GROW_EASING };
+const AT_ONCE = { duration: 0 };
 
 /** How what is inside a capsule that grows moves to its new place in it: the words' row. */
 export const GROWS = LinearTransition.duration(GROW_MS).easing(GROW_EASING);
+
+/**
+ * `GROWS` up and down only: across, the new place and width at once, as the field's own glass takes
+ * them (`GROWS_UP`). For what is inside a room's field, which on an iPad narrows and widens every
+ * frame as the panes move: the words' row, and Send, which trailed the glass's edge out past it.
+ */
+export function RISES(values: LayoutAnimationsValues): LayoutAnimation {
+  "worklet";
+  return {
+    initialValues: {
+      originX: values.targetOriginX,
+      originY: values.currentOriginY,
+      width: values.targetWidth,
+      height: values.currentHeight,
+    },
+    animations: {
+      originY: withTiming(values.targetOriginY, GROW_TIMING),
+      height: withTiming(values.targetHeight, GROW_TIMING),
+    },
+  };
+}
 
 /**
  * How a capsule that grows moves to its new size: up from its foot, which stays where it was drawn.
@@ -45,21 +67,50 @@ export const GROWS = LinearTransition.duration(GROW_MS).easing(GROW_EASING);
  * tallest thing on its row, so the capsule starts where its top was drawn — its new foot less its
  * old height — and only its top moves. The words' row inside moves on `GROWS`, on the same clock
  * and curve, by the same distance the other way, and so holds still.
+ *
+ * Across, it takes its new place and width at once: it grows up, not sideways. A room's composer on
+ * an iPad goes with the panes as the list steps aside or comes back (`Clearing`), a new width every
+ * frame, and each began a transition of its own from where the last had got to, so the field
+ * trailed the + beside it and was drawn over it (the 13-inch simulator upright, 7 November 2026).
  */
 export function GROWS_UP(values: LayoutAnimationsValues): LayoutAnimation {
   "worklet";
   return {
     initialValues: {
-      originX: values.currentOriginX,
+      originX: values.targetOriginX,
       originY: values.targetOriginY + values.targetHeight - values.currentHeight,
-      width: values.currentWidth,
+      width: values.targetWidth,
       height: values.currentHeight,
     },
     animations: {
-      originX: withTiming(values.targetOriginX, GROW_TIMING),
       originY: withTiming(values.targetOriginY, GROW_TIMING),
-      width: withTiming(values.targetWidth, GROW_TIMING),
       height: withTiming(values.targetHeight, GROW_TIMING),
+    },
+  };
+}
+
+/**
+ * How the field's words move aside for the faces in front of them as those change (a pick, a slide
+ * up the column, an @): across, on the faces' own clock and curve, so they keep pace with the edge
+ * of the capsule that grows or shrinks beside them rather than jump ahead of it in a frame (Arjun,
+ * 6 November 2026: "super smooth motion"). Only across: the rest of the frame lands at once, so a
+ * line typed changes the words' height as it always did. All four values are named, as a move
+ * merged into one still going needs (`spaces/roomFrame.ts`).
+ */
+export function ASIDE(values: LayoutAnimationsValues): LayoutAnimation {
+  "worklet";
+  return {
+    initialValues: {
+      originX: values.currentOriginX,
+      originY: values.targetOriginY,
+      width: values.targetWidth,
+      height: values.targetHeight,
+    },
+    animations: {
+      originX: withTiming(values.targetOriginX, GROW_TIMING),
+      originY: withTiming(values.targetOriginY, AT_ONCE),
+      width: withTiming(values.targetWidth, AT_ONCE),
+      height: withTiming(values.targetHeight, AT_ONCE),
     },
   };
 }

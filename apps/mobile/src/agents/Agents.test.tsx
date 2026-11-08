@@ -646,7 +646,7 @@ describe("picking agents to archive or delete together (ADR 0182)", () => {
     ["on", true],
     ["off", false],
   ])(
-    "deletes the picked agents one by one, with the spaces they leave while the switch is %s",
+    "deletes the picked agents, with the spaces they leave while the switch is %s",
     async (_, on) => {
       const store = fakeStore(owned());
       await render(<Agents store={store} selfId={ME} />);
@@ -666,6 +666,31 @@ describe("picking agents to archive or delete together (ADR 0182)", () => {
       ]);
     },
   );
+
+  it("asks the server about every picked agent at once, not each after the last has answered", async () => {
+    const asked: string[] = [];
+    const answers: (() => void)[] = [];
+    const holding = Object.assign(fakeStore(owned()), {
+      deleteAgent: (agentId: string) => {
+        asked.push(agentId);
+        return new Promise<void>((resolve) => answers.push(resolve));
+      },
+    });
+    await render(<Agents store={holding} selfId={ME} />);
+    await userEvent.press(screen.getByTestId("select-agents"));
+    await userEvent.press(row("agt_shopping"));
+    await userEvent.press(row("agt_main"));
+    await press("Delete 2");
+    const sheet = within(await screen.findByTestId("confirm-sheet"));
+    await userEvent.press(sheet.getByTestId("confirm-go"));
+
+    // Each in a room of its own, so neither waits for the other: through the relay each answer is
+    // a round trip.
+    expect(asked).toEqual(["agt_main", "agt_shopping"]);
+    await act(async () => {
+      for (const answer of answers) answer();
+    });
+  });
 
   it("keeps the sheet up with an agent the server would not delete, and why", async () => {
     const store = fakeStore(agentsSnapshot());

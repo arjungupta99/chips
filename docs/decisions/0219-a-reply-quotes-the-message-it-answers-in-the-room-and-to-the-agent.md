@@ -167,3 +167,25 @@ itself passes them too. An agent's name and "your message" are as they were.
 Jacobian writes the same words itself (point 6). Its channel says a person's standing on both
 names, on each of the room's lines since it last spoke and on what a working turn overhears
 (Jacobian `0c48cff`, live 25 October 2026).
+
+## Addendum, 6 November 2026: a line's flash is a moment, not a state
+
+Arjun, on his iPad, after tapping a job under Spend per job (ADR 0282): the room went to its reply
+and the line flashed, "but now it seems to be stuck in some odd state. Whenever I open the right
+panel on iPad it seems to replay the shimmer on that message". The line gone to stays the room's
+lit one, by design, so a second *Go to message* can light it again. But the phone's sweep started
+over whenever the line's width changed, and opening or closing the details column changes it. The
+light also played again whenever the line's cell was drawn anew. On the phone:
+
+1. The room keeps when it lit a line (`since`), and `Flash` plays the light and the sweep once for
+   that time, while it is new (`FLASH_MS`, the light held and faded: 1.9 s). A new width, or the
+   cell drawn again after that, draws the line plain. A new time, from going to the same line
+   again, lights it again.
+2. The line lit last is the room's lit line, whichever way it was lit. A card's *Go to message*
+   used to win over a link's landing for good, so a line linked to after a card never lit.
+3. The room sheet's go-to (a file's *Go to message*, a job's reply) uses the room's own way of
+   going to a line (`SpaceView`'s `goTo`), not the route's `at`. Through `at`, the same line twice
+   was the same link, and the room stayed where the reader had scrolled.
+
+The web's sweep is a CSS animation, which a new width does not restart, and its jump carries a
+nonce already. It stays as it is.

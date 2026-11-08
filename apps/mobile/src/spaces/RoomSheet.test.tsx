@@ -1639,6 +1639,141 @@ describe("what the room allows a job (ADR 0117)", () => {
     });
   });
 
+  it("opens on Raise the limit at the next amount up, lists the jobs before this one, and saves with a carry on (ADR 0282)", async () => {
+    const reply = {
+      id: "ln_reply",
+      seq: 30,
+      kind: "summary",
+      authorId: "agt_hello",
+      authorKind: "harness",
+      text: "Done",
+      ts: "t",
+      runId: "run_1",
+    };
+    const space = room({
+      ...two(),
+      lines: [reply],
+      runs: [{ runId: "run_1", steps: [{ kind: "tool", status: "done" }] }],
+    } as never);
+    const snap = withRoom(space);
+    const base = fakeStore(snap);
+    const store = {
+      ...base,
+      roomSpend: async () => ({
+        ceiling_usd: 3,
+        spent_usd: 0,
+        since_seq: 40,
+        uncounted_runs: 0,
+        started: { at: "2026-11-06T15:15:50.962Z", by: "per_arjun", act: "carry_on" as const },
+        total_usd: 3.096_719,
+        jobs: [
+          {
+            since_seq: 20,
+            started_at: "2026-11-06T09:50:58.793Z",
+            last_at: "2026-11-06T14:58:33.287Z",
+            spent_usd: 3.096_719,
+            uncounted_runs: 0,
+            run_ids: ["run_1"],
+            by: ["agt_hello"],
+            held: true,
+          },
+        ],
+      }),
+    };
+    const went: string[] = [];
+    let closed = 0;
+    await render(
+      <RoomSheet
+        store={store}
+        snapshot={snap}
+        space={space}
+        title="Hello"
+        selfId="per_arjun"
+        open
+        opensOn="raise"
+        onClose={() => {
+          closed += 1;
+        }}
+        onOpenAgent={() => undefined}
+        onGoTo={(lineId) => went.push(lineId)}
+      />,
+    );
+    // The next amount up is picked, and Save says it carries on with it.
+    expect(await screen.findByTestId("room-sheet-spend-save")).toHaveTextContent(
+      "Save $5.00 and carry on",
+    );
+    expect(await screen.findByTestId("room-sheet-spend-since")).toHaveTextContent(
+      /^Since you let them carry on/,
+    );
+    const job = screen.getByTestId("room-sheet-spend-job-20");
+    expect(within(job).getByText("$3.10")).toBeOnTheScreen();
+    expect(within(job).getByText("Held")).toBeOnTheScreen();
+    expect(within(job).getByText(/1 step$/)).toBeOnTheScreen();
+    expect(
+      within(screen.getByTestId("room-sheet-spend-total")).getByText("$3.10"),
+    ).toBeOnTheScreen();
+    await userEvent.press(screen.getByTestId("room-sheet-spend-save"));
+    expect(store.calls).toContainEqual({
+      name: "setSpendCeiling",
+      args: { spaceId: "sp_1", usd: 5, options: { carryOn: true } },
+    });
+    await waitFor(() => expect(closed).toBe(1));
+    // The room's own amount picked: no new amount, the agents only carry on.
+    await userEvent.press(screen.getByTestId("room-sheet-spend-default"));
+    expect(screen.getByTestId("room-sheet-spend-save")).toHaveTextContent("Carry on at $3.00");
+    await userEvent.press(screen.getByTestId("room-sheet-spend-save"));
+    expect(store.calls).toContainEqual({
+      name: "setSpendCeiling",
+      args: { spaceId: "sp_1", usd: null, options: { carryOn: true } },
+    });
+    // A job goes to its reply.
+    await userEvent.press(job);
+    expect(went).toEqual(["ln_reply"]);
+  });
+
+  it("says the last job on the tile once one before this one spent (ADR 0282)", async () => {
+    const space = two();
+    const snap = withRoom(space);
+    const base = fakeStore(snap);
+    const store = {
+      ...base,
+      roomSpend: async () => ({
+        ceiling_usd: 3,
+        spent_usd: 0,
+        since_seq: 40,
+        uncounted_runs: 0,
+        total_usd: 3.1,
+        jobs: [
+          {
+            since_seq: 20,
+            started_at: "2026-11-06T09:50:58.793Z",
+            last_at: "2026-11-06T14:58:33.287Z",
+            spent_usd: 3.1,
+            uncounted_runs: 0,
+            run_ids: [],
+            by: ["agt_hello"],
+            held: false,
+          },
+        ],
+      }),
+    };
+    await render(
+      <RoomSheet
+        store={store}
+        snapshot={snap}
+        space={space}
+        title="Hello"
+        selfId="per_arjun"
+        open
+        onClose={() => undefined}
+        onOpenAgent={() => undefined}
+      />,
+    );
+    const tile = screen.getByTestId("room-sheet-spend");
+    expect(await within(tile).findByText("Last job $3.10")).toBeOnTheScreen();
+    expect(tile.props["accessibilityLabel"]).toMatch(/, Last job \$3\.10$/);
+  });
+
   /** The room as somebody else in it sees it: a member or a guest of the workspace. */
   const asOther = async (role: "member" | "guest") => {
     const space = room({

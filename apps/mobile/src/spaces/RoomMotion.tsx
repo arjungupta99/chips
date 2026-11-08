@@ -77,6 +77,7 @@ import Animated, {
   type Animation,
   cancelAnimation,
   defineAnimation,
+  Easing,
   type EntryAnimationsValues,
   type LayoutAnimation,
   LayoutAnimationConfig,
@@ -89,8 +90,10 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 import { useReduceMotion } from "../ui/useReduceMotion";
 import type { Field, Own } from "./field";
+import { GLIDE } from "./heldWidth";
 import { movedGoal } from "./liftGoal";
 import { wholeFrame } from "./roomFrame";
 import type { Row } from "./spaces";
@@ -284,10 +287,11 @@ function speedOf(letGo: LetGo, previous: unknown, since: number): number {
  * there — back a frame, sixty points, the gap over it opening and staying (the simulator,
  * 6 October 2026).
  */
-function drawnFrom(previous: unknown, value: AnimatableValue): number {
+function drawnFrom(previous: unknown, value: AnimatableValue, by = 0): number {
   "worklet";
-  const before = previous as Partial<RoomSpring> | undefined | null;
-  return before?.room === true && before.current !== undefined ? before.current : Number(value);
+  const before = previous as Partial<RoomSpring & RoomGlide> | undefined | null;
+  const ours = before?.room === true || before?.glide === true;
+  return ours && before?.current !== undefined ? before.current - by : Number(value);
 }
 
 /**
@@ -379,6 +383,75 @@ function roomFade(to: number, ms: number, clock: SharedValue<Clock>): number {
   }) as unknown as number;
 }
 
+/** The panes' ease out (`PadBarMotion.tsx`'s `EASE`), as a function a worklet can call. */
+const PANES_EASE = Easing.bezierFn(0.32, 0.72, 0, 1);
+
+interface RoomGlide extends Animation<RoomGlide> {
+  readonly glide: true;
+  from: number;
+  since: number;
+  current: number;
+  landed: boolean;
+}
+
+/** Where a glide sets off from, and what it tells (`roomGlide`). */
+interface GlideFrom {
+  /** From here, rather than from where the view is drawn: the list's offset (`Lift.slide`). */
+  readonly from?: number;
+  /** When, on the room's clock: that of the rows it goes with, set off a frame before (`Lift.slide`). */
+  readonly since?: number;
+  /** Told where it stands at every step: the list's offset is set there, not drawn (`Lift`). */
+  readonly each?: (at: number) => void;
+  /** Told when it has finished, or been taken over or stopped. */
+  readonly done?: (finished?: boolean) => void;
+  /**
+   * How far what holds the view moved with this change, at once (the lines' column, `Field.shift`):
+   * a move it takes over from was drawn that much off where it now stands in what holds it.
+   */
+  readonly by?: number;
+}
+
+/**
+ * A glide to `to` on the panes' ease out over `GLIDE`, on the room's clock: how a row and a bubble
+ * take a change of the room's width (ADR 0279), their words out of sight. Every view the one layout
+ * moved sets off at the same instant on the clock, whatever order the mount starts them in, and
+ * they all land together, before the words come back: on the room's spring a long row was still
+ * settling as the frost that hid them then cleared.
+ */
+function roomGlide(to: number, clock: SharedValue<Clock>, from: GlideFrom = {}): number {
+  "worklet";
+  return defineAnimation<RoomGlide>(to, () => {
+    "worklet";
+    const onStart = (
+      animation: RoomGlide,
+      value: AnimatableValue,
+      now: number,
+      previous: Animation<RoomGlide> | undefined,
+    ) => {
+      animation.from = from.from ?? drawnFrom(previous, value, from.by);
+      animation.since = from.since ?? started(clock, now);
+      animation.current = animation.from;
+      animation.landed = false;
+    };
+    const onFrame = (animation: RoomGlide, now: number) => {
+      const share = Math.min(1, Math.max(0, (ticked(clock, now) - animation.since) / GLIDE));
+      animation.current = animation.from + (to - animation.from) * PANES_EASE(share);
+      from.each?.(animation.current);
+      return share >= 1 && landed(animation);
+    };
+    return {
+      onStart,
+      onFrame,
+      callback: from.done,
+      glide: true,
+      from: to,
+      since: 0,
+      current: to,
+      landed: false,
+    } as unknown as RoomGlide;
+  }) as unknown as number;
+}
+
 /**
  * How a line that has just landed comes in, decided once, as its cell is first drawn (`useArrivals`,
  * in `SpaceView.tsx`):
@@ -439,6 +512,13 @@ export interface Lift {
   readonly follow: (by: number) => void;
   /** The offset, and where any lift goes, moved by `by` at once. */
   readonly keep: (by: number) => void;
+  /**
+   * The offset moved by `by` on the glide of the rows it is kept among (`roomGlide`, ADR 0279), as
+   * of when they set off (`since`, on the room's clock), so the line across the foot of the glass
+   * stays where it is on the glass while the rows round it glide. Under a lift or a finger, at once,
+   * as `keep`.
+   */
+  readonly slide: (by: number, since: number) => void;
   readonly stop: () => void;
 }
 
@@ -514,6 +594,30 @@ function liftOf(
     place(from);
     go(movedGoal(goal.value, by), from);
   };
+  const slide = (by: number, since: number) => {
+    "worklet";
+    if (lifting.value === 1 || held.value !== 0) {
+      keep(by);
+      return;
+    }
+    const from = scroll.value;
+    const y = from + by;
+    offset.value = from;
+    set.value = from;
+    lifting.value = 1;
+    goal.value = y;
+    offset.value = roomGlide(y, clock, {
+      from,
+      since,
+      each: place,
+      done: (finished) => {
+        "worklet";
+        if (finished !== true) return;
+        lifting.value = 0;
+        onRest(y);
+      },
+    });
+  };
   const stop = () => {
     "worklet";
     if (lifting.value === 0) return;
@@ -521,7 +625,7 @@ function liftOf(
     lifting.value = 0;
     onRest(scroll.value);
   };
-  return { lifting, held, to, later, follow, keep, stop };
+  return { lifting, held, to, later, follow, keep, slide, stop };
 }
 
 /**
@@ -537,14 +641,47 @@ function transitionOf(
   kept: SharedValue<number>,
   lift: Lift,
 ): Transition {
-  const { far, own, home, scroll, top, viewportHeight, list } = field;
+  const { far, own, home, scroll, top, viewportHeight, list, glide, shift } = field;
   // Up the history, in a change that is not the reader's own: where the room keeps their place.
   const away = (now: number) => {
     "worklet";
     return far.value === 1 && !owned(own, now);
   };
-  const frame = (values: LayoutAnimationsValues, reporting: boolean): LayoutAnimation => {
+  // The one layout an iPad's room takes as its column moves, mounting (`useHeldWidth`, ADR 0279).
+  const gliding = () => {
     "worklet";
+    return Date.now() <= glide.value;
+  };
+  // A row's cell stands in the lines' column, whose start a change of width may move at once
+  // (`Field.shift`): the cell sets off from where it was drawn on the glass, and glides with the
+  // column's start as it does with its own width. What stands in a cell moves with the cell. The
+  // shift is that one layout's: every cell it moves is started in the same mount, and what moves
+  // in a frame after it has not been moved by it.
+  const frame = (
+    values: LayoutAnimationsValues,
+    reporting: boolean,
+    cell = false,
+  ): LayoutAnimation => {
+    "worklet";
+    if (gliding()) {
+      const by = cell ? shift.value : 0;
+      if (by !== 0) {
+        requestAnimationFrame(() => {
+          shift.value = 0;
+        });
+      }
+      return {
+        initialValues: {
+          originX: values.currentOriginX - by,
+          originY: values.currentOriginY,
+          width: values.currentWidth,
+          height: values.currentHeight,
+        },
+        animations: wholeFrame(values, (value, which) =>
+          roomGlide(value, clock, which === "originX" ? { by } : {}),
+        ),
+      };
+    }
     const still = away(timestamp());
     const to = (value: number, lowest?: SharedValue<Lowest>) =>
       roomSpring(value, clock, lowest === undefined ? { still } : { still, lowest });
@@ -571,7 +708,7 @@ function transitionOf(
     const was = values.currentOriginY + values.currentHeight;
     const is = values.targetOriginY + values.targetHeight;
     if (far.value === 0 && is !== was) lift.follow(is - was);
-    return frame(values, false);
+    return frame(values, false, true);
   };
   // Up the history the rows a change moves go at once, and the list's offset goes with the one
   // across the foot of the glass, so the reader sees nothing move. React Native's own way of doing
@@ -584,14 +721,23 @@ function transitionOf(
   // scroll handler, whose updates commit the tree the mount is holding, and the app stopped. So the
   // rows hold where they are drawn for the mount's frame (`roomSpring`, `still`) and go in the
   // next, with the offset.
-  const keep = (values: LayoutAnimationsValues, now: number) => {
+  //
+  // A change of the room's width glides every row (`gliding`), up the history too, and the offset
+  // glides with the row across the foot of the glass, from the same instant on the room's clock, so
+  // on the glass that row holds still and the rows round it glide (`Lift.slide`, ADR 0279).
+  const keep = (values: LayoutAnimationsValues, now: number, glides: boolean) => {
     "worklet";
     const at = scroll.value;
     const by = values.targetOriginY - values.currentOriginY;
     if (by === 0 || now - kept.value <= ONE_CHANGE_MS) return;
     if (at < values.currentOriginY || at >= values.currentOriginY + values.currentHeight) return;
     kept.value = now;
-    requestAnimationFrame(() => lift.keep(by));
+    if (!glides) {
+      requestAnimationFrame(() => lift.keep(by));
+      return;
+    }
+    const since = clock.value.at;
+    requestAnimationFrame(() => lift.slide(by, since));
   };
   // A message of yours sent from near the foot (`homeward`): the change that draws it takes the list
   // down to the foot, with the rows it moves up, so on the glass the room rises once, by the line
@@ -603,8 +749,14 @@ function transitionOf(
     home.value = 0;
     if (asked && scroll.value > 0) lift.to(0);
   };
+  const glideRow = (values: LayoutAnimationsValues): LayoutAnimation => {
+    "worklet";
+    if (far.value === 1) keep(values, timestamp(), true);
+    return frame(values, false, true);
+  };
   const row = (values: LayoutAnimationsValues): LayoutAnimation => {
     "worklet";
+    if (gliding()) return glideRow(values);
     // The rows a change moves are started one after another in the mount; the lowest of them is
     // the one a row landing in the same change comes in under. The list is inverted, so the
     // lowest row is the one nearest the start of its content.
@@ -620,7 +772,7 @@ function transitionOf(
           velocity: 0,
         }
       : { ...was, stamp: now };
-    if (holding) keep(values, now);
+    if (holding) keep(values, now, false);
     else homeFor();
     return frame(values, lower);
   };
@@ -695,6 +847,23 @@ function transitionOf(
     return arrive(values);
   };
   return { move, foot, row, arrive, send, open, answer, rise };
+}
+
+/**
+ * Tells the room's moves that the change of width the lines take next is a glide (`Field.glide`),
+ * which moves the start of their column `by` points on the glass (`Field.shift`), and then has them
+ * take it (`take`). Told on the UI thread, before the lines are laid out: written from JavaScript as
+ * they took it, the moves sometimes heard after the layout had been drawn, and its rows went on the
+ * room's spring with the column, which jumped (the simulator, 6 November 2026).
+ */
+export function glideFor(field: Field, by: number, take: () => void) {
+  const { glide, shift } = field;
+  scheduleOnUI(() => {
+    "worklet";
+    shift.value = by;
+    glide.value = Date.now() + GLIDE;
+    scheduleOnRN(take);
+  });
 }
 
 /**

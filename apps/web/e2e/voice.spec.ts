@@ -68,7 +68,9 @@ test("a voice note recorded in the browser reaches the harness as its sound and 
   await pair(page);
   const harness = await Harness.connect(newRunId());
   try {
-    await page.getByRole("button", { name: "Record a voice note" }).click();
+    // The microphone is in the composer's +, as the iPad's is (ADR 0284).
+    await page.getByRole("button", { name: "Add to the message" }).click();
+    await page.getByRole("menuitem", { name: "Voice note" }).click();
     const recorder = page.getByTestId("voice-recorder");
     await expect(recorder.getByTestId("voice-line")).toHaveText(/^Recording/, { timeout: 10_000 });
     // Long enough for the sentence, which starts as the recording does.

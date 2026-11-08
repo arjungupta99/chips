@@ -7,8 +7,9 @@
  * Delete. A Main agent can't be picked, nor another's agent for somebody who may not change it
  * (`mayPickAgent`, the swipe's own rule); the harnesses, and the rows that open other pages, step
  * back. Archive asks once, as an agent's swipe asks; Delete asks, with one switch for the rooms
- * the agents leave empty, and goes agent by agent, a shared room going with the last of its agents
- * (`roomGoesWith`). Both wait for the server, and what it refuses stays on the sheet, with why.
+ * the agents leave empty. Every agent is asked of the server at once, but a room's agents one at a
+ * time (`agentLane`), a shared room going with the last of them (`roomGoesWith`). Both wait for
+ * the server, and what it refuses stays on the sheet, with why.
  *
  * A locked agent can't be picked either (ADR 0199), as a locked room can't be on Spaces (ADR
  * 0181): its circle is Locked's padlock, and pressed, it says to unlock it on its card.
@@ -20,6 +21,7 @@
 
 import {
   type AgentRow,
+  agentLane,
   agentLine,
   agentLocked,
   agentsArchiveAsking,
@@ -210,7 +212,7 @@ export function Going({
 
 /**
  * The sheet that asks before picked agents are archived or deleted (ADR 0182): what core says of
- * them, their faces, and each agent asked of the server in turn.
+ * them, their faces, and every agent asked of the server at once, a room's agents in turn.
  */
 export function AgentsBatch({
   store,
@@ -242,6 +244,7 @@ export function AgentsBatch({
           deleteRoom: roomGoesWith(directory, ids(plan.going), rooms).has(row.id),
         });
       }}
+      lane={(row) => agentLane(directory, row.id)}
       why={(_kind, error) => whyNotKept(error)}
     />
   );

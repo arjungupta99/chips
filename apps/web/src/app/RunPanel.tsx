@@ -37,14 +37,11 @@ import {
   type TimelineItem,
 } from "@chipschat/ui";
 import { useState } from "react";
-import type { PanelMotion } from "./room/panelMotion.ts";
 import { clockTime } from "./time.ts";
 import { useNow } from "./useNow.ts";
 
 export interface RunPanelProps {
   readonly run: Run;
-  /** Come in the room that is open, or going from it as its run ends (`room/panelMotion.ts`). */
-  readonly motion?: PanelMotion | undefined;
   readonly directory: Directory;
   /** The harness's standing across the workspace: its budget and what it has spent. */
   readonly harness?: HarnessPolicyModel | undefined;
@@ -124,12 +121,6 @@ const ENDED: Readonly<Record<string, string>> = {
   cancelled: "Stopped",
 };
 
-/** How the panel says it is moving; going, it is nothing to find or to press any more. */
-function moving(motion: PanelMotion | undefined) {
-  if (motion !== "leaving") return { "data-motion": motion };
-  return { "data-motion": motion, inert: true, "aria-hidden": true } as const;
-}
-
 export function RunPanel(props: RunPanelProps) {
   const { run, directory, busy, onPause, onResume, onStop } = props;
   const ended = ENDED[run.state] !== undefined;
@@ -139,7 +130,7 @@ export function RunPanel(props: RunPanelProps) {
   // A goal that is a message in the room is not its title: the room already shows it.
   const goal = goalWords(run);
   return (
-    <aside className="runpanel" aria-label="Run" {...moving(props.motion)}>
+    <aside className="runpanel" aria-label="Run">
       <div className="rp-h">
         <span>Run</span>
       </div>

@@ -42,8 +42,9 @@ const SHAPES: readonly Shape[] = [
       },
       risk: ["external"],
     },
-    shows: ["It runs in /workspace.", "Just this once", "date"],
-    lasts: "once",
+    // A command is drawn on its plate (ADR 0280), whose Approve says "Approve once": the card
+    // draws no "Just this once" for it, and the Markdown fence that only says the command again.
+    shows: ["It runs in /workspace.", "date", "Approve once"],
   },
   {
     who: "Jacobian, a connector turned off",

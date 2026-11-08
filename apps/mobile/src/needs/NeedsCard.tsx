@@ -28,7 +28,7 @@
  */
 
 import type { Approval, NeedsYouItem, Question, Snapshot } from "@chipschat/core";
-import { nameOf, plainWords } from "@chipschat/core";
+import { commandPlate, nameOf, plainWords } from "@chipschat/core";
 import { memo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -44,7 +44,8 @@ import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { timeLeft } from "../ui/when";
 import { approvalFor, askHeading, laneTrail, lapseWords, OUTSIDE, refusalWords } from "../words";
 import { Ask, type Chosen } from "./Ask";
-import { AskPreview, Effect, Headline, Lasts } from "./Asked";
+import { Effect, Headline, Lasts } from "./Asked";
+import { AskShown, saysLasts } from "./CommandPlate";
 import { Crossing } from "./Crossing";
 import { swipeDecision } from "./swipe";
 
@@ -139,12 +140,18 @@ function Body({
   const palette = usePalette();
   const left = timeLeft(item.expiresAt, now);
   if (approval !== undefined) {
+    const plate = commandPlate(approval);
     return (
       <>
-        <Headline approval={approval} style={styles.ask} numberOfLines={4} />
+        <Headline
+          approval={approval}
+          style={styles.ask}
+          numberOfLines={4}
+          plated={plate !== undefined}
+        />
         <Effect approval={approval} />
-        <AskPreview approval={approval} compact />
-        <Lasts approval={approval} />
+        <AskShown approval={approval} plate={plate} compact />
+        {saysLasts(approval, plate) ? <Lasts approval={approval} /> : null}
         <Risk classes={approval.risk} />
         {left === undefined ? null : <Lapse left={left} fallback={approval.fallback} />}
       </>

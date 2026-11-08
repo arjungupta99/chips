@@ -303,6 +303,7 @@ export function Tiles({
 function Tile({
   mark,
   value,
+  under,
   name,
   label,
   onPress,
@@ -312,6 +313,8 @@ function Tile({
 }: {
   readonly mark: ReactNode;
   readonly value: ReactNode;
+  /** A line under the value: Spend's last job (ADR 0282). */
+  readonly under?: string | undefined;
   readonly name: string;
   /** What a screen reader says of it. */
   readonly label: string;
@@ -334,6 +337,11 @@ function Tile({
       <Text style={[styles.value, { color: palette.ink }]} numberOfLines={1}>
         {value}
       </Text>
+      {under === undefined ? null : (
+        <Text style={[styles.under, { color: palette.ink2 }]} numberOfLines={1}>
+          {under}
+        </Text>
+      )}
       <Text style={[styles.name, { color: palette.ink3 }]} numberOfLines={1}>
         {name}
       </Text>
@@ -478,12 +486,15 @@ export function SpendTile({
   ceiling,
   spend,
   words,
+  last,
   onPress,
 }: {
   readonly ceiling: number;
   readonly spend: JobSpend | undefined;
   /** The row's line, `This job so far: $0.28`, and who sets it for one who doesn't: said aloud. */
   readonly words: string | undefined;
+  /** `Last job $3.10`, once a job before this one spent (ADR 0282). */
+  readonly last?: string | undefined;
   readonly onPress: (() => void) | undefined;
 }) {
   const palette = usePalette();
@@ -500,8 +511,9 @@ export function SpendTile({
           </>
         )
       }
+      under={last}
       name="Spend per job"
-      label={`Spend per job, ${dollars(ceiling)}${words === undefined ? "" : `, ${words}`}`}
+      label={`Spend per job, ${dollars(ceiling)}${words === undefined ? "" : `, ${words}`}${last === undefined ? "" : `, ${last}`}`}
       onPress={onPress}
       testID="room-sheet-spend"
     >
@@ -717,6 +729,7 @@ const styles = StyleSheet.create({
   value: { fontSize: TEXT.md + 1, fontWeight: "600" },
   of: { fontSize: TEXT.sm + 1, fontWeight: "500" },
   name: { fontSize: TEXT.sm, marginTop: 1 },
+  under: { fontSize: TEXT.sm, fontVariant: ["tabular-nums"] },
   bar: {
     position: "absolute",
     left: SPACE.md,

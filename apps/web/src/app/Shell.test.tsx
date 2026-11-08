@@ -27,6 +27,7 @@ import {
   type SearchPage,
   type ServerFacts,
   type Snapshot,
+  type StopLetWorkInput,
   type Store,
   THINKING_GRACE_MS,
   type UpdateSpaceInput,
@@ -191,7 +192,7 @@ interface FakeStore extends Store {
   /** The agents paused or let go on, room by room (ADR 0097). */
   readonly exchanges: { spaceId: string; state: "paused" | "going" }[];
   readonly leads: { spaceId: string; agentId: string | null }[];
-  readonly ceilings: { spaceId: string; usd: number | null }[];
+  readonly ceilings: { spaceId: string; usd: number | null; carryOn?: true }[];
   /** Rooms whose changes were locked or let go (ADR 0156), and what the next one answers. */
   readonly locks: { spaceId: string; locked: boolean }[];
   lockRefusal: string | undefined;
@@ -258,6 +259,8 @@ interface FakeStore extends Store {
   readonly devicesRevoked: string[];
   /** Approvals handed on (M5.5). */
   readonly routed: RouteApprovalInput[];
+  /** Agents stopped working without asking (ADR 0281). */
+  readonly stoppedWork: StopLetWorkInput[];
   /** The person's notification settings (M5.6), and each save of them. */
   notifySettings: NotificationSettings;
   readonly notifySaved: NotificationSettings[];
@@ -379,6 +382,7 @@ function fakeStore(initial: Snapshot): FakeStore {
     connectorCards: [],
     devicesRevoked: [],
     routed: [],
+    stoppedWork: [],
     notifySettings: DEFAULT_NOTIFICATION_SETTINGS,
     notifySaved: [],
     iconsLoaded: 0,
@@ -394,6 +398,9 @@ function fakeStore(initial: Snapshot): FakeStore {
     found: { hits: [], nextCursor: null },
     routeApproval(input) {
       store.routed.push(input);
+    },
+    stopLetWork(input) {
+      store.stoppedWork.push(input);
     },
     notificationSettings() {
       return store.notifySettings;
@@ -785,8 +792,12 @@ function fakeStore(initial: Snapshot): FakeStore {
     async setLead(spaceId, agentId) {
       store.leads.push({ spaceId, agentId });
     },
-    async setSpendCeiling(spaceId, usd) {
-      store.ceilings.push({ spaceId, usd });
+    async setSpendCeiling(spaceId, usd, options) {
+      store.ceilings.push({
+        spaceId,
+        usd,
+        ...(options?.carryOn === true ? { carryOn: true } : {}),
+      });
     },
     async setLock(spaceId, locked) {
       if (store.lockRefusal !== undefined) throw new Error(store.lockRefusal);
@@ -962,14 +973,19 @@ function fakeStore(initial: Snapshot): FakeStore {
   return store;
 }
 
-/** The room's sheet (ADR 0151), opened from who is here in the header. */
+/** The room's sheet (ADR 0151), opened from the round Details button in the header (ADR 0284). */
 function openSheet(): HTMLElement {
-  fireEvent.click(screen.getByRole("button", { name: /^\d+ members?$/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Details" }));
   return screen.getByTestId("room-sheet");
 }
 
-/** The left rail, where a room's row is, apart from the room's own name in its header. */
+/** Spaces' list, where a room's row is, apart from the room's own name in its header (ADR 0284). */
 function sidebar(): HTMLElement {
+  return screen.getByTestId("spaces-list");
+}
+
+/** The rail's top: the workspace, its +, and the four tabs (ADR 0284). */
+function rail(): HTMLElement {
   return screen.getByRole("complementary", { name: "Workspace" });
 }
 
@@ -1392,11 +1408,13 @@ describe("the space", () => {
 });
 
 describe("the approval card", () => {
-  it("sends Approve and Deny to the store, for the approval's own run", () => {
+  it("sends Approve to the store, for the approval's own run", () => {
     const store = renderShell(asking());
     const card = screen.getByRole("article", { name: /Approval/ });
 
-    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    fireEvent.click(
+      within(card).getByRole("button", { name: /^Approve (once|for an hour|always)$/ }),
+    );
     expect(store.resolved).toEqual([
       {
         spaceId: SPACE,
@@ -1406,7 +1424,14 @@ describe("the approval card", () => {
         scope: "once",
       },
     ]);
+    // Approve turns to a tick as it goes, and takes no second answer while it does (ADR 0280).
+    expect(within(card).getByRole("button", { name: "Approved" })).toHaveProperty("disabled", true);
+    expect(within(card).getByRole("button", { name: "Deny" })).toHaveProperty("disabled", true);
+  });
 
+  it("sends Deny with the reason the harness gets to read", () => {
+    const store = renderShell(asking());
+    const card = screen.getByRole("article", { name: /Approval/ });
     // Deny asks why first; the reason goes with the decision, and the harness gets to read it.
     fireEvent.click(within(card).getByRole("button", { name: "Deny" }));
     const form = screen.getByTestId("deny-form");
@@ -1422,7 +1447,9 @@ describe("the approval card", () => {
   it("is busy while a decision is on its way, so it cannot be sent twice", () => {
     const store = renderShell(asking(), { busy: new Set([APPROVAL]) });
     const card = screen.getByRole("article", { name: /Approval/ });
-    const approve = within(card).getByRole("button", { name: "Approve" }) as HTMLButtonElement;
+    const approve = within(card).getByRole("button", {
+      name: /^Approve (once|for an hour|always)$/,
+    }) as HTMLButtonElement;
     expect(approve.disabled).toBe(true);
     fireEvent.click(approve);
     expect(store.resolved).toEqual([]);
@@ -1493,8 +1520,57 @@ describe("the approval card", () => {
     ]);
     const card = screen.getByRole("article", { name: /Approval/ });
     fireEvent.click(within(card).getByLabelText("Always"));
-    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    fireEvent.click(
+      within(card).getByRole("button", { name: /^Approve (once|for an hour|always)$/ }),
+    );
     expect(store.resolved.at(-1)).toMatchObject({ decision: "approved", scope: "always" });
+  });
+
+  it("sends For an hour and Let it work as a yes that holds on (ADR 0281)", () => {
+    const store = renderShell([
+      ...opened(),
+      fixture("run.started", 4),
+      fixture("approval.request", 5, {
+        action: { kind: "tracker.write", input: { row: 4471 } },
+        risk: [],
+      }),
+    ]);
+    const card = screen.getByRole("article", { name: /Approval/ });
+    fireEvent.click(within(card).getByLabelText("For an hour"));
+    fireEvent.click(within(card).getByRole("button", { name: "Approve for an hour" }));
+    expect(store.resolved.at(-1)).toMatchObject({ scope: "once", forMinutes: 60 });
+    expect(store.resolved.at(-1)).not.toHaveProperty("untilStopped");
+  });
+
+  it("draws the room's band while the agent works without asking, and Stop sends (ADR 0281)", () => {
+    const store = renderShell([
+      ...opened(),
+      fixture("run.started", 4),
+      fixture("approval.request", 5, {
+        action: { kind: "tracker.write", input: { row: 4471 } },
+        risk: [],
+      }),
+      fixture("approval.resolved", 6, { resolved_by: ARJUN, until_stopped: true }),
+    ]);
+    const band = screen.getByTestId("let-work-band");
+    expect(band.textContent).toMatch(/ is working without askingStop$/);
+    fireEvent.click(within(band).getByRole("button", { name: /^Stop .* working without asking$/ }));
+    expect(store.stoppedWork).toEqual([{ spaceId: expect.any(String), asker: expect.any(String) }]);
+  });
+
+  it("sends Let it work as a yes until stopped (ADR 0281)", () => {
+    const store = renderShell([
+      ...opened(),
+      fixture("run.started", 4),
+      fixture("approval.request", 5, {
+        action: { kind: "tracker.write", input: { row: 4471 } },
+        risk: [],
+      }),
+    ]);
+    const card = screen.getByRole("article", { name: /Approval/ });
+    fireEvent.click(within(card).getByRole("switch", { name: /work without asking/ }));
+    fireEvent.click(within(card).getByRole("button", { name: "Approve and let it work" }));
+    expect(store.resolved.at(-1)).toMatchObject({ scope: "once", untilStopped: true });
   });
 
   it("offers no scope for an ask that matters, and says it waits for you (ADR 0195)", () => {
@@ -1502,7 +1578,9 @@ describe("the approval card", () => {
     const card = screen.getByRole("article", { name: /Approval/ });
     expect(within(card).queryByLabelText("Always")).toBeNull();
     expect(screen.getByTestId("waits-for-you").textContent).toContain("Waits for you");
-    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    fireEvent.click(
+      within(card).getByRole("button", { name: /^Approve (once|for an hour|always)$/ }),
+    );
     expect(store.resolved.at(-1)).toMatchObject({ decision: "approved", scope: "once" });
   });
 
@@ -1585,7 +1663,7 @@ describe("the approval card", () => {
     const card = screen.getByRole("article", { name: /Approval/ });
     expect(card.textContent).toContain("Approved by Arjun");
     expect(card.textContent).toContain("sent");
-    expect(within(card).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(within(card).queryByRole("button", { name: /^Approve/ })).toBeNull();
   });
 });
 
@@ -1721,7 +1799,7 @@ describe("the sidebar", () => {
   it("puts the + beside the workspace's name, over the tabs, as the iPad does (ADR 0264)", () => {
     // The owner may open a space; somebody who may not has no + (ADR 0196).
     renderShell([ownerJoined(), ...opened()]);
-    const plus = within(sidebar()).getByRole("button", { name: "Create new space" });
+    const plus = within(rail()).getByRole("button", { name: "Create new space" });
     const nav = screen.getByRole("navigation", { name: "Sections" });
     expect(plus.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(
@@ -1730,6 +1808,24 @@ describe("the sidebar", () => {
         { name: "Create new space" },
       ),
     ).toBeNull();
+  });
+
+  it("stands the + under the tabs while the rail is folded to its icons, the mark alone over them", () => {
+    // Arjun, 7 November 2026: folded, the mark and the + side by side looked off.
+    renderShell([ownerJoined(), ...opened()]);
+    fireEvent.click(screen.getByRole("button", { name: "Hide the list" }));
+    const nav = screen.getByRole("navigation", { name: "Sections" });
+    const plus = screen.getByTestId("new-space");
+    expect(plus.classList.contains("side-new-folded")).toBe(true);
+    expect(nav.compareDocumentPosition(plus) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The one beside the name is folded away with it, out of reach.
+    const top = rail().querySelector<HTMLElement>(".side-top > .side-new");
+    expect(top?.hasAttribute("inert")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Show the list" }));
+    expect(rail().querySelector(".side-new-folded")).toBeNull();
+    expect(screen.getByTestId("new-space")).toBe(top);
+    expect(top?.hasAttribute("inert")).toBe(false);
   });
 
   it("says nothing on the shelf for a harness finished or never run (ADR 0050 rule 1)", () => {
@@ -1888,7 +1984,10 @@ describe("the run panel", () => {
     renderShell([...running(), fixture("run.cancel", 6)]);
     // What the run did is asked of the line that closed it, as on the phone.
     expect(screen.queryByRole("complementary", { name: "Run" })).toBeNull();
-    expect(document.querySelector(".shell")?.getAttribute("data-panel")).toBe("false");
+    // Spaces' third column stays closed (ADR 0284).
+    expect(document.querySelector('[data-columns="spaces"]')?.getAttribute("data-third")).toBe(
+      "false",
+    );
   });
 
   it("comes once its run has been going the thinking beat, as the bubble does (ADR 0268 addendum)", () => {
@@ -2052,11 +2151,11 @@ describe("what a message shows about the run", () => {
     expect(screen.queryByTestId("receipt-card")).toBeNull();
     // The receipt's one line under the menu's item, and the receipt itself once asked for.
     const item = within(openSummaryMenu()).getByRole("menuitem", { name: "What the run did" });
-    expect(item.textContent).toContain("1 step · 13s · ≈$1.47");
+    expect(item.textContent).toContain("≈$1.47 · 1 step · 13s");
     fireEvent.click(item);
     const card = screen.getByTestId("run-did");
     // One step was logged as done; the three still planned are not in the receipt.
-    expect(card.textContent).toContain("1 step · 13s · ≈$1.47");
+    expect(card.textContent).toContain("≈$1.47 · 1 step · 13s");
     expect(card.textContent).toContain("Email Dana to confirm");
     // And it is put away again.
     fireEvent.click(within(card).getByRole("button", { name: "Close" }));
@@ -2068,7 +2167,7 @@ describe("what a message shows about the run", () => {
     renderShell([...opened(), fixture("run.started", 4), fixture("run.completed", 5)]);
     const card = openRunDid();
     expect(card.querySelector("details")).toBeNull();
-    expect(card.querySelector(".ui-receipt")?.textContent).toBe("13s · ≈$1.47");
+    expect(card.querySelector(".ui-receipt")?.textContent).toBe("≈$1.47 · 13s");
   });
 
   it("draws no receipt for a run with no steps and no cost", () => {
@@ -2105,8 +2204,10 @@ describe("what a message shows about the run", () => {
     ]);
     expect(document.querySelector(".conv-h .ui-pill")).toBeNull();
     expect(document.querySelector(".rp-h .ui-pill")).toBeNull();
-    // The header wears the room's own face, its row's in the list, lit while it works (ADR 0268).
-    const face = document.querySelector(".conv-h .ui-avatar") as HTMLElement;
+    // The room's own face is its row's in the list, lit while it works (ADR 0268); the header is the
+    // iPad's, its name alone between round buttons (ADR 0284).
+    expect(document.querySelector(".conv-h .ui-avatar")).toBeNull();
+    const face = sidebar().querySelector('.ui-avatar[aria-label="PO-4471"]') as HTMLElement;
     expect(face.getAttribute("aria-label")).toBe("PO-4471");
     expect(face.getAttribute("data-busy")).toBe("true");
     expect(screen.getByTestId("doing").getAttribute("aria-label")).toBe(
@@ -2334,7 +2435,9 @@ describe("two harnesses at work in one room (the OpenClaw test, finding 22)", ()
     const card = screen.getByRole("article", { name: /Approval/ });
     expect(card.textContent).toContain("Scout asks");
     expect(card.textContent).toContain("Send this email to dana@northwind.com?");
-    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    fireEvent.click(
+      within(card).getByRole("button", { name: /^Approve (once|for an hour|always)$/ }),
+    );
     expect(store.resolved).toEqual([
       { spaceId: SPACE, runId: RUN, approvalId: APPROVAL, decision: "approved", scope: "once" },
     ]);
@@ -2386,7 +2489,7 @@ describe("the workspace's log", () => {
 
   it("is not in the sidebar, and opens beside You's list (Arjun, 3 November 2026)", async () => {
     renderShell([...opened(), ownerJoined(4)]);
-    expect(within(sidebar()).queryByRole("button", { name: /Audit/ })).toBeNull();
+    expect(within(rail()).queryByRole("button", { name: /Audit/ })).toBeNull();
     await openLog();
     // You stays lit over it: it is one of You's pages, and the list is still there beside it.
     expect(screen.getByTestId("you").getAttribute("data-active")).toBe("true");
@@ -2451,7 +2554,7 @@ describe("the empty Agents page (ADR 0261)", () => {
     // Said once, by the page: not under its name, nor in the sidebar, nor as "Agents · 0".
     expect(screen.queryByText(/No harnesses yet/)).toBeNull();
     expect(screen.queryByText("Agents · 0")).toBeNull();
-    expect(within(sidebar()).queryByText("Harnesses")).toBeNull();
+    expect(within(rail()).queryByText("Harnesses")).toBeNull();
     // The cards are the way in: no second Connect a harness in the header.
     expect(screen.queryByRole("button", { name: "Connect a harness" })).toBeNull();
   });
@@ -2866,7 +2969,8 @@ describe("attachments (M1.5)", () => {
   it("records a voice note from the composer, says it is being written down, and sends the words (ADR 0055)", async () => {
     // Without a recorder there is no microphone to offer.
     renderShell(opened());
-    expect(screen.queryByRole("button", { name: "Record a voice note" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add to the message" }));
+    expect(screen.queryByRole("menuitem", { name: "Voice note" })).toBeNull();
     cleanup();
 
     const microphone = installMicrophone();
@@ -2891,12 +2995,13 @@ describe("attachments (M1.5)", () => {
         },
       };
       const store = renderShell(opened(), {}, files);
-      fireEvent.click(screen.getByRole("button", { name: "Record a voice note" }));
+      // The microphone is in the composer's +, as the iPad's is (ADR 0284).
+      fireEvent.click(screen.getByRole("button", { name: "Add to the message" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Voice note" }));
       fireEvent.click(await screen.findByRole("button", { name: "Stop and add" }));
-      expect(screen.getByRole("button", { name: "Record a voice note" })).toHaveProperty(
-        "disabled",
-        true,
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Add to the message" }));
+      expect(screen.getByRole("menuitem", { name: "Voice note" })).toHaveProperty("disabled", true);
+      fireEvent.keyDown(document, { key: "Escape" });
 
       const chips = await screen.findByRole("list", { name: "Attachments" });
       expect(within(chips).getByText(/^voice-note-\d{4}-\d{4}\.webm$/)).toBeDefined();
@@ -3462,7 +3567,52 @@ describe("the harnesses on the Agents tab (M1.6, ADR 0087)", () => {
     expect(screen.getByRole("region", { name: "Scout" })).toBeTruthy();
   });
 
-  it("folds Add harness away on Escape, the × or a click outside, at either step (ADR 0084)", async () => {
+  it("stands Connect a harness in the second column, its tile chosen, and puts it away on Escape or its × at either step (ADR 0284's addendum)", async () => {
+    renderShell(opened());
+    fireEvent.click(screen.getByRole("button", { name: /^Agents/ }));
+    for (const leave of ["escape", "close"] as const) {
+      fireEvent.click(screen.getByRole("button", { name: "Connect a harness" }));
+      const page = screen.getByTestId("add-harness-dialog");
+      // A page where a row's page stands, not a dialog over the window.
+      expect(page.closest(".col-detail")).toBeTruthy();
+      expect(page.tagName).toBe("SECTION");
+      expect(screen.getByTestId("harness-connect").getAttribute("aria-current")).toBe("page");
+      if (leave === "escape") fireEvent.keyDown(page, { key: "Escape" });
+      if (leave === "close") fireEvent.click(within(page).getByRole("button", { name: "Close" }));
+      expect(screen.queryByTestId("add-harness-dialog")).toBeNull();
+      expect(screen.getByTestId("harness-connect").hasAttribute("aria-current")).toBe(false);
+    }
+
+    // With the token up, the same.
+    fireEvent.click(screen.getByRole("button", { name: "Connect a harness" }));
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Relay bot" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create and get a token" }));
+    await screen.findByTestId("harness-token");
+    fireEvent.keyDown(screen.getByTestId("add-harness-dialog"), { key: "Escape" });
+    expect(screen.queryByTestId("add-harness-dialog")).toBeNull();
+
+    // A row of the list opens its page in its place.
+    fireEvent.click(screen.getByRole("button", { name: "Connect a harness" }));
+    fireEvent.click(screen.getByTestId(`harness-tile-${SCOUT}`));
+    expect(screen.queryByTestId("add-harness-dialog")).toBeNull();
+    expect(await screen.findByRole("region", { name: "Scout" })).toBeTruthy();
+  });
+
+  it("folds Add harness away on Escape, the × or a click outside, at either step, at a phone's width (ADR 0084)", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(max-width: 640px)",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    try {
+      await foldsTheDialog();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  /** At a phone's width Connect is a dialog over the page, with every way out a dialog has. */
+  async function foldsTheDialog() {
     renderShell(opened());
     fireEvent.click(screen.getByRole("button", { name: /^Agents/ }));
     for (const leave of ["escape", "close", "outside"] as const) {
@@ -3488,7 +3638,7 @@ describe("the harnesses on the Agents tab (M1.6, ADR 0087)", () => {
     fireEvent(dialog, new Event("cancel", { cancelable: true }));
     fireEvent.animationEnd(dialog);
     expect(screen.queryByTestId("add-harness-dialog")).toBeNull();
-  });
+  }
 
   it("points the curl lines at the server the desktop app paired with, not at its own page", async () => {
     // The desktop app's page is `tauri://localhost`, which no harness can reach.
@@ -3801,7 +3951,10 @@ describe("the harnesses on the Agents tab (M1.6, ADR 0087)", () => {
     };
     renderShell(asking(), { directory: one });
     openHarnesses();
-    fireEvent.click(screen.getByTestId("agent-agt_Ada"));
+    // The harness's page's own row, not the list's beside it (ADR 0284).
+    fireEvent.click(
+      within(screen.getByRole("region", { name: "Scout" })).getByTestId("agent-agt_Ada"),
+    );
     expect(await screen.findByTestId("agent-card")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "‹ Scout" }));
     expect(screen.getByRole("region", { name: "Scout" })).toBeTruthy();
@@ -4655,6 +4808,63 @@ describe("a group space (M3.3)", () => {
     expect(store.membersRemoved).toEqual([]);
   });
 
+  it("raises the limit from the banner at the ceiling and carries on with it, the jobs before this one listed (ADR 0282)", async () => {
+    const TREE = "agt_01K4ZQPX0000000000000TREE";
+    const agents: Directory = {
+      ...WIDER,
+      [TREE]: { id: TREE, kind: "agent", harnessId: SCOUT, displayName: "Tree", room: SPACE },
+    };
+    const room = [
+      ...opened(),
+      fixture("membership.replaced", 4, { actor: person(ARJUN), from: SCOUT, to: TREE }),
+      fixture("person.joined", 5, { participant_id: ARJUN, display_name: "Arjun", role: "owner" }),
+      fixture("exchange.set", 6, {
+        actor: { kind: "system", id: "system" },
+        state: "paused",
+        why: "spend",
+        spend: { ceiling_usd: 3, spent_usd: 3.1, since_seq: 5, uncounted_runs: 0 },
+      }),
+    ];
+    const store = fakeStore(snapshotOf(room, { directory: agents }));
+    Object.assign(store, {
+      roomSpend: async () => ({
+        ceiling_usd: 3,
+        spent_usd: 0,
+        since_seq: 6,
+        uncounted_runs: 0,
+        total_usd: 3.1,
+        jobs: [
+          {
+            since_seq: 5,
+            started_at: "2026-11-06T09:50:58.793Z",
+            last_at: "2026-11-06T14:58:33.287Z",
+            spent_usd: 3.1,
+            uncounted_runs: 0,
+            run_ids: [],
+            by: [TREE],
+            held: true,
+          },
+        ],
+      }),
+    });
+    render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
+    const banner = screen.getByTestId("paused-banner");
+    expect(within(banner).getByRole("button", { name: "Carry on at $3.00" })).toBeTruthy();
+    fireEvent.click(within(banner).getByRole("button", { name: "Raise the limit" }));
+    const sheet = await screen.findByTestId("room-sheet");
+    // The next amount up, and Save that carries on with it.
+    expect((within(sheet).getByTestId("spend-5") as HTMLInputElement).checked).toBe(true);
+    const job = await within(sheet).findByTestId("spend-job-5");
+    expect(job.textContent).toContain("Tree");
+    expect(job.textContent).toContain("Held");
+    expect(job.textContent).toContain("$3.10");
+    expect(within(sheet).getByTestId("spend-total").textContent).toBe("All jobs here$3.10");
+    fireEvent.click(within(sheet).getByRole("button", { name: "Save $5.00 and carry on" }));
+    await waitFor(() =>
+      expect(store.ceilings).toEqual([{ spaceId: SPACE, usd: 5, carryOn: true }]),
+    );
+  });
+
   it("sets what the room allows a job on its page, an amount or Other's, with Save, shows a member only the amount and a guest none (ADR 0117, ADR 0196)", async () => {
     const TREE = "agt_01K4ZQPX0000000000000TREE";
     const agents: Directory = {
@@ -4811,20 +5021,37 @@ describe("a group space (M3.3)", () => {
     expect(within(sheet).queryByLabelText("The space's name")).toBeNull();
     expect(store.spaceUpdates).toEqual([]);
 
-    // Escape anywhere else: the dialog's cancel.
-    fireEvent(sheet, new Event("cancel", { cancelable: true }));
+    // Escape anywhere else in it: docked in the third column it hears the key itself, where the
+    // dialog it was had the browser's cancel (ADR 0284).
+    fireEvent.keyDown(sheet, { key: "Escape" });
     await gone();
 
-    // A click on the dim around it.
+    // Its round Details button again: beside the room the sheet is the third column, with no dim
+    // round it to click (ADR 0284).
     sheet = openSheet();
-    fireEvent.pointerDown(sheet);
-    fireEvent.click(sheet);
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
     await gone();
 
     // Its X, from the header's name this time: the sheet has no Done, as the phone's (ADR 0268).
     fireEvent.click(screen.getByTestId("room-title"));
     fireEvent.click(within(screen.getByTestId("room-sheet")).getByTestId("room-sheet-close"));
     await gone();
+  });
+
+  it("stands the sheet over the room as a dialog at a phone's width, which has no third column (ADR 0284)", () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(max-width: 640px)",
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    try {
+      renderShell(group(), { directory: WIDER });
+      const sheet = openSheet();
+      expect(sheet.hasAttribute("data-docked")).toBe(false);
+      expect(screen.getByTestId("third-column").contains(sheet)).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("offers no harness that was removed to add, and still names one that is here (ADR 0078)", () => {
@@ -5105,9 +5332,9 @@ describe("a group space (M3.3)", () => {
 
     it("says Everyone before your first message, then where your last one went", () => {
       const store = renderShell(group());
-      expect(capsule().getAttribute("aria-label")).toBe("To Everyone");
-      // Everyone is everyone here, Dana too, though only the agents answer.
-      expect(faces(capsule())).toEqual(["Scout", "Ledger", "Dana"]);
+      expect(capsule().getAttribute("aria-label")).toBe("To Everyone, 1 person, 2 agents");
+      // Everyone is everyone here, Dana too, though only the agents answer: one mark from two.
+      expect(within(capsule()).getByTestId("faces-count").textContent).toBe("3");
 
       store.update(
         snapshotOf([...group(), said(5, ARJUN, "@Ledger the quotes?", { addressed_to: [LEDGER] })]),
@@ -5135,7 +5362,9 @@ describe("a group space (M3.3)", () => {
       expect(box.getAttribute("placeholder")).toBe("Message Everyone");
       // One box: the faces and the words share it (Arjun's A), and the list comes into it too.
       const shared = box.closest(".ui-composer__field") as HTMLElement;
-      expect(within(shared).getByRole("button", { name: "To Everyone" })).toBeTruthy();
+      expect(
+        within(shared).getByRole("button", { name: "To Everyone, 1 person, 2 agents" }),
+      ).toBeTruthy();
       fireEvent.click(capsule());
       expect(
         within(shared).getByRole("listbox", { name: "Where the next message goes" }),
@@ -5143,7 +5372,7 @@ describe("a group space (M3.3)", () => {
       // A press anywhere else closes it, picking nothing.
       fireEvent.pointerDown(document.body);
       expect(screen.queryByRole("listbox")).toBeNull();
-      expect(capsule().getAttribute("aria-label")).toBe("To Everyone");
+      expect(capsule().getAttribute("aria-label")).toBe("To Everyone, 1 person, 2 agents");
     });
 
     describe("a press, a slide and a release (ADR 0229)", () => {
@@ -5186,7 +5415,7 @@ describe("a group space (M3.3)", () => {
         letGoOver(document.body);
         fireEvent.pointerUp(document.body, { clientX: 500, clientY: 300 });
         expect(screen.queryByRole("listbox")).toBeNull();
-        expect(capsule().getAttribute("aria-label")).toBe("To Everyone");
+        expect(capsule().getAttribute("aria-label")).toBe("To Everyone, 1 person, 2 agents");
       });
     });
 
@@ -5235,7 +5464,7 @@ describe("a group space (M3.3)", () => {
         ),
       ];
 
-      it("draws six as one mark and a number, and three as their faces", () => {
+      it("draws six as one mark and a number, and Everyone of three as one too", () => {
         // Five agents and Dana: a person is counted apart from the agents (ADR 0204).
         renderShell(crowd(), { directory: many });
         expect(capsule().getAttribute("aria-label")).toBe("To Everyone, 1 person, 5 agents");
@@ -5243,10 +5472,12 @@ describe("a group space (M3.3)", () => {
         expect(capsule().querySelectorAll(".ui-faces__mark i")).toHaveLength(4);
         expect(faces(capsule())).toEqual([]);
         cleanup();
+        // Everyone is the mark from two (Arjun, 6 November 2026); named, two are still faces.
         renderShell(crowd([]), { directory: many });
-        expect(capsule().getAttribute("aria-label")).toBe("To Everyone");
-        expect(within(capsule()).queryByTestId("faces-mark")).toBeNull();
-        expect(faces(capsule())).toEqual(["Scout", "Ledger", "Dana"]);
+        expect(capsule().getAttribute("aria-label")).toBe("To Everyone, 1 person, 2 agents");
+        expect(within(capsule()).getByTestId("faces-count").textContent).toBe("3");
+        expect(capsule().querySelectorAll(".ui-faces__mark i")).toHaveLength(3);
+        expect(faces(capsule())).toEqual([]);
       });
 
       it("lists the lead first, scrolls the rest, and holds Everyone at the foot", () => {
@@ -5271,7 +5502,9 @@ describe("a group space (M3.3)", () => {
         ]);
         const everyone = screen.getByRole("option", { name: /^Everyone/ });
         expect(rows.contains(everyone)).toBe(false);
-        expect(within(everyone).getByTestId("faces-count").textContent).toBe("6");
+        // The mark with no number: the row's words say who, and a number pushed it off the faces' line.
+        expect(within(everyone).getByTestId("faces-mark")).toBeTruthy();
+        expect(within(everyone).queryByTestId("faces-count")).toBeNull();
         // The arrows walk from the rows down into Everyone, held apart from them.
         fireEvent.keyDown(screen.getByRole("listbox"), { key: "End" });
         expect(document.activeElement).toBe(everyone);
@@ -5451,7 +5684,8 @@ describe("a group space (M3.3)", () => {
         "false",
         "true",
       ]);
-      expect(faces(options[3] as HTMLElement)).toEqual(["Scout", "Ledger", "Dana"]);
+      expect((options[3] as HTMLElement).querySelectorAll(".ui-faces__mark i")).toHaveLength(3);
+      expect(within(options[3] as HTMLElement).queryByTestId("faces-count")).toBeNull();
 
       // A click on an agent adds it, and the list stays (ADR 0114); Escape puts it away.
       fireEvent.click(within(options[1] as HTMLElement).getByTestId("aim-add-Ledger"));
@@ -5467,7 +5701,7 @@ describe("a group space (M3.3)", () => {
       ]);
       // The pick was that draft's. This store draws nothing pending, so the room's rule says
       // where the next one goes, and before a first message that is everyone.
-      expect(capsule().getAttribute("aria-label")).toBe("To Everyone");
+      expect(capsule().getAttribute("aria-label")).toBe("To Everyone, 1 person, 2 agents");
       send("hi both");
       expect(store.sent[1]).toEqual({
         spaceId: SPACE,
@@ -5494,7 +5728,7 @@ describe("a group space (M3.3)", () => {
       fireEvent.keyDown(menu, { key: "Escape" });
       expect(screen.queryByRole("listbox")).toBeNull();
       expect(document.activeElement).toBe(capsule());
-      expect(capsule().getAttribute("aria-label")).toBe("To Everyone");
+      expect(capsule().getAttribute("aria-label")).toBe("To Everyone, 1 person, 2 agents");
 
       fireEvent.click(capsule());
       expect(screen.getByRole("listbox")).toBeTruthy();
@@ -5682,7 +5916,7 @@ describe("a group space (M3.3)", () => {
         "This job has spent $3.02 of the $3.00 this space allows. The agents start nothing new until somebody lets them carry on.",
       );
       expect(screen.getByTestId("paused").textContent).toBe("Paused");
-      fireEvent.click(within(banner).getByRole("button", { name: "Let them carry on" }));
+      fireEvent.click(within(banner).getByRole("button", { name: "Carry on at $3.00" }));
       expect(store.exchanges).toEqual([{ spaceId: SPACE, state: "going" }]);
     });
   });
@@ -5697,7 +5931,7 @@ describe("a group space (M3.3)", () => {
     renderShell(events, { model: buildModel(events, { selfId: ARJUN }) });
     const card = screen.getByRole("article", { name: /Approval/ });
     expect(within(card).getByTestId("waiting-on").textContent).toBe("Waiting on Dana");
-    expect(within(card).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(within(card).queryByRole("button", { name: /^Approve/ })).toBeNull();
   });
 
   it("opens a room of people from the sidebar's +, and shows it the moment it comes back", () => {
@@ -6086,7 +6320,7 @@ describe("a group space (M3.3)", () => {
       within(screen.getByTestId("messages")).getByText(/archived this space/).textContent,
     ).toContain("Arjun");
 
-    fireEvent.click(screen.getByRole("button", { name: /^\d+ members?$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
     fireEvent.click(screen.getByTestId("unarchive-space"));
     expect(store.spaceUpdates).toEqual([{ spaceId: SPACE, state: "open" }]);
   });
@@ -7184,7 +7418,7 @@ describe("approval routing (M5.5)", () => {
     const card = screen.getByTestId("decide");
     expect(within(card).getByTestId("routed").textContent).toContain("Handed to Dana by Arjun");
     expect(within(card).getByTestId("routed").textContent).toContain("Dana knows the Northwind");
-    expect(within(card).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(within(card).queryByRole("button", { name: /^Approve/ })).toBeNull();
     expect(within(card).getByRole("button", { name: "Hand to…" })).toBeTruthy();
 
     // A member who was not named may not hand it on either.
@@ -7384,7 +7618,12 @@ describe("the Agents page (ADR 0087, Phase 5)", () => {
       }));
 
     it("turns to an agent's page over the list, which stands under it with nothing in it to find", async () => {
-      moving();
+      // A phone's width, where the page stands over the list rather than beside it (ADR 0284).
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches: query === "(max-width: 640px)",
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }));
       try {
         renderShell(treeIn(), { directory: agents });
         fireEvent.click(screen.getByRole("button", { name: /^Agents/ }));
@@ -8057,10 +8296,8 @@ describe("join requests (ADR 0122)", () => {
     const link = (await screen.findByTestId("join-connect")).dataset["link"];
     expect(store.linksMade).toHaveLength(1);
 
-    // Put away, the dialog leaves the link working, and the tile says it waits.
-    const dialog = screen.getByTestId("add-harness-dialog");
-    fireEvent(dialog, new Event("cancel", { cancelable: true }));
-    fireEvent.animationEnd(dialog);
+    // Put away, the page leaves the link working, and the tile says it waits.
+    fireEvent.keyDown(screen.getByTestId("add-harness-dialog"), { key: "Escape" });
     expect(screen.queryByTestId("add-harness-dialog")).toBeNull();
     const tile = screen.getByTestId("harness-connect");
     // Named by what it shows, then what for (ADR 0275), as voice control needs.
@@ -8100,16 +8337,53 @@ describe("join requests (ADR 0122)", () => {
     expect(here.textContent).toContain("If this one has stopped, its page says why.");
     expect(store.linksMade).toEqual([]);
 
-    // Back is the gallery; Connect another Scout is the card's link, made then.
-    fireEvent.click(within(here).getByTestId("join-here-back"));
-    fireEvent.click(await screen.findByTestId("join-card-scout"));
-    fireEvent.click(
-      within(await screen.findByTestId("join-here-already")).getByRole("button", {
-        name: "Connect another Scout",
-      }),
-    );
+    // Beside the list the card stands in the third column, the gallery marking it beside it, so it
+    // has no Back (ADR 0284's addendum, point 4). Connect another Scout is the card's link, made then.
+    expect(screen.getByTestId("third-column").contains(here)).toBe(true);
+    expect(screen.getByTestId("join-card-scout").getAttribute("aria-current")).toBe("page");
+    expect(within(here).queryByTestId("join-here-back")).toBeNull();
+    fireEvent.click(within(here).getByRole("button", { name: "Connect another Scout" }));
     await screen.findByTestId("join-command");
     expect(store.linksMade).toHaveLength(1);
+  });
+
+  it("opens a card picked in Connect's gallery in the third column beside it, and puts the card alone away (ADR 0284's addendum, point 4)", async () => {
+    const store = fakeStore(snapshotOf(owned()));
+    render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Agents/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect a harness" }));
+    const page = screen.getByTestId("add-harness-dialog");
+    fireEvent.click(within(page).getByTestId("join-way-own"));
+
+    // The card beside the gallery, which stays in the second column and marks it.
+    const card = await screen.findByTestId("add-harness-card");
+    expect(screen.getByTestId("third-column").contains(card)).toBe(true);
+    expect(page.closest(".col-detail")).toBeTruthy();
+    expect(within(page).getByTestId("join-way-own").getAttribute("aria-current")).toBe("page");
+    expect(within(card).getByTestId("join-connect").getAttribute("data-way")).toBe("own");
+    await waitFor(() => expect(store.linksMade).toHaveLength(1));
+
+    // Another card takes its place in the third column.
+    fireEvent.click(within(page).getByTestId("join-way-http"));
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("add-harness-card"))
+          .getByTestId("join-connect")
+          .getAttribute("data-way"),
+      ).toBe("http"),
+    );
+    expect(within(page).getByTestId("join-way-own").hasAttribute("aria-current")).toBe(false);
+
+    // Escape on the card, or its ×, puts the card away and leaves the gallery.
+    for (const leave of ["escape", "close"] as const) {
+      if (leave === "close") fireEvent.click(within(page).getByTestId("join-way-own"));
+      const shown = await screen.findByTestId("add-harness-card");
+      if (leave === "escape") fireEvent.keyDown(shown, { key: "Escape" });
+      if (leave === "close") fireEvent.click(within(shown).getByRole("button", { name: "Close" }));
+      await waitFor(() => expect(screen.queryByTestId("add-harness-card")).toBeNull());
+      expect(screen.getByTestId("add-harness-dialog")).toBe(page);
+      expect(within(page).queryByRole("button", { current: "page" })).toBeNull();
+    }
   });
 
   it("offers a new agent of a harness here already, on its page with the dialog up (ADR 0190)", async () => {
@@ -8162,15 +8436,15 @@ describe("join requests (ADR 0122)", () => {
     const gallery = await screen.findByTestId("join-gallery");
     expect(within(gallery).getByRole("heading", { name: "Connect a harness" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Connect a harness" })).toBeTruthy();
-    const dialog = screen.getByTestId("add-harness-dialog");
-    fireEvent(dialog, new Event("cancel", { cancelable: true }));
-    fireEvent.animationEnd(dialog);
+    // Beside the list, in the second column (ADR 0284's addendum).
+    expect(screen.getByTestId("add-harness-dialog").closest(".col-detail")).toBeTruthy();
+    fireEvent.keyDown(screen.getByTestId("add-harness-dialog"), { key: "Escape" });
     expect(screen.queryByTestId("add-harness-dialog")).toBeNull();
 
     // The Agents page reached any other way opens without it.
     fireEvent.click(screen.getByTestId("you"));
     await screen.findByRole("main", { name: "You" });
-    fireEvent.click(within(sidebar()).getByRole("button", { name: /^Agents/ }));
+    fireEvent.click(within(rail()).getByRole("button", { name: /^Agents/ }));
     expect(screen.getByRole("button", { name: "Connect a harness" })).toBeTruthy();
     expect(screen.queryByTestId("add-harness-dialog")).toBeNull();
   });
@@ -8845,7 +9119,7 @@ describe("Select on the rail and the Agents page (ADR 0181, ADR 0182)", () => {
     expect(screen.getByTestId("recent-heading").textContent).toBe("3 selected");
   });
 
-  it("deletes room by room, and keeps in the dialog the one the server refused, with why", async () => {
+  it("deletes the rooms, and keeps in the dialog the one the server refused, with why", async () => {
     const store = renderShell(rooms());
     Object.assign(store, {
       eraseSpace: async (spaceId: string) => {
@@ -8939,6 +9213,35 @@ describe("Select on the rail and the Agents page (ADR 0181, ADR 0182)", () => {
       // Select all picks the rest.
       fireEvent.click(onPage().getByTestId("pick-hint-all"));
       expect(screen.getByTestId("agents-title").textContent).toBe("1 selected");
+    });
+
+    it("asks about a shared room's agents one after the other, the room going with the last", async () => {
+      const store = renderShell(opened(), {
+        directory: {
+          ...agents,
+          [TREE]: { ...agents[TREE], room: SPACE } as Directory[string],
+          [ELM]: { ...agents[ELM], room: SPACE } as Directory[string],
+        },
+      });
+      const answers: (() => void)[] = [];
+      Object.assign(store, {
+        deleteAgent: (agentId: string, options?: { readonly deleteRoom?: boolean }) => {
+          store.agentsDeleted.push({ agentId, deleteRoom: options?.deleteRoom === true });
+          return new Promise<void>((resolve) => answers.push(resolve));
+        },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /^Agents/ }));
+      fireEvent.click(screen.getByTestId("select-agents"));
+      fireEvent.click(screen.getByTestId(`agent-${TREE}`));
+      fireEvent.click(screen.getByTestId(`agent-${ELM}`));
+      fireEvent.click(onPage().getByTestId("pick-delete"));
+      fireEvent.click(within(screen.getByTestId("confirm-dialog")).getByTestId("confirm-go"));
+      // The server refuses a room deleted with an agent while another is still in it.
+      await waitFor(() => expect(store.agentsDeleted).toHaveLength(1));
+      await act(async () => answers.shift()?.());
+      await waitFor(() => expect(store.agentsDeleted).toHaveLength(2));
+      expect(store.agentsDeleted.map((each) => each.deleteRoom)).toEqual([false, true]);
+      await act(async () => answers.shift()?.());
     });
 
     it("picks archived agents in their fold, unarchives them at once, and deletes a mix", async () => {
@@ -9336,7 +9639,7 @@ describe("sections change places in a fade-through (ADR 0274)", () => {
   it("fades through to another section, which takes clicks at once, and not to the one on screen", () => {
     moving();
     renderShell(opened());
-    const agents = () => within(sidebar()).getByRole("button", { name: "Agents" });
+    const agents = () => within(rail()).getByRole("button", { name: "Agents" });
     fireEvent.click(agents());
     const [going, coming] = sections();
     // The room going stays as it was drawn, under the Agents page, with nothing in it to find.

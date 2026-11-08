@@ -13,9 +13,10 @@
  * is the promise of where a message goes, made before it is sent, and a send keeps it: the aim
  * travels with the message as `to`, or as the reply itself.
  *
- * A room of many (ADR 0113): four or more are one mark and a number (`FaceGroup`), the list
- * stands at most half the window with the lead at its top and Everyone held at its foot, the
- * rest scrolling between, and Everyone picked stays everyone when an agent joins before the send.
+ * A room of many (ADR 0113): four or more are one mark and a number (`FaceGroup`), and Everyone
+ * is from two (6 November 2026); the list stands at most half the window with the lead at its top
+ * and Everyone held at its foot, the rest scrolling between, and Everyone picked stays everyone
+ * when an agent joins before the send.
  *
  * Several, picked from the list (ADR 0114): a click on an agent's name, or Enter, picks it alone
  * and closes the list; a click on the circle at its right, or Space, adds it to who the message
@@ -49,7 +50,7 @@ import {
   roomLeadOf,
   type Space,
 } from "@chipschat/core";
-import { FACES_UP_TO, FaceGroup, Icon, type TrailHop } from "@chipschat/ui";
+import { FaceGroup, Icon, marked, type TrailHop } from "@chipschat/ui";
 import {
   type KeyboardEvent,
   type PointerEvent as PressEvent,
@@ -304,11 +305,10 @@ export function useAddressInField(props: AddressProps): AddressInField {
   const included = (choice: Choice) =>
     choice.pick === "all" ? whole : !whole && choice.ids.every((id) => aim.ids.includes(id));
   const words = aimWordsOf(aim, space, directory);
+  const everyone = words === "Everyone";
   // How many, where the mark stands for Everyone (ADR 0113); "4 agents" says so already.
   const many =
-    words === "Everyone" && aim.ids.length > FACES_UP_TO
-      ? `, ${countedWords(aim.ids, directory)}`
-      : "";
+    everyone && marked(aim.ids.length, true) ? `, ${countedWords(aim.ids, directory)}` : "";
   // Pressed, the list opens at once; let go on a row after sliding, and that row is picked alone.
   const press = (event: PressEvent<HTMLButtonElement>) => {
     if (event.button !== 0 || event.isPrimary === false) return;
@@ -360,7 +360,9 @@ export function useAddressInField(props: AddressProps): AddressInField {
         <span className="aim-arrow" aria-hidden="true">
           →
         </span>
-        {aim.ids.length > 0 && <FaceGroup faces={facesOf(aim.ids, directory)} small />}
+        {aim.ids.length > 0 && (
+          <FaceGroup faces={facesOf(aim.ids, directory)} small everyone={everyone} />
+        )}
       </span>
       <AimBy by={aim.by} />
     </button>
@@ -454,7 +456,12 @@ function Menu(props: {
     >
       {/* The faces say again what the words say: seen, not read out. */}
       <span className="aim-option-faces" aria-hidden="true">
-        <FaceGroup faces={facesOf(choice.ids, props.directory)} small />
+        <FaceGroup
+          faces={facesOf(choice.ids, props.directory)}
+          small
+          everyone={choice.pick === "all"}
+          counted={false}
+        />
       </span>
       <span className="aim-option-words">
         <span className="aim-option-name">

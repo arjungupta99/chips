@@ -548,6 +548,23 @@ describe("the store", () => {
     expect(h.snapshots.at(-1)?.workspaceName).toBe("Gupta Labs");
   });
 
+  it("hears from each hello whether the server keeps a yes that holds on (ADR 0281)", async () => {
+    const h = harness();
+    await started();
+    h.flush();
+    // Until a hello says, the choices stand.
+    expect(h.snapshots.at(-1)?.keepsHeldYes).toBeUndefined();
+
+    h.wire().onEvent({ type: "hello", spaces: [], server: { takes: ["held_yes"] } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsHeldYes).toBe(true);
+
+    // An older server says nothing, and would drop how long the yes holds.
+    h.wire().onEvent({ type: "hello", spaces: [], server: { name: "chipsd" } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsHeldYes).toBe(false);
+  });
+
   it("takes a rename the socket brings, and its own from the server's answer, but not one the cache replays (ADR 0194)", async () => {
     const kept = new Map<string, unknown>([["dev_1", { ...DEVICE, workspaceName: "Solo" }]]);
     const deviceStorage: DeviceStorage = {
@@ -1935,6 +1952,79 @@ describe("a space made here, before the server sends it back (ADR 0149's third a
     const spaces = h.store.getSnapshot().model.spaces.filter((space) => space.id === spaceId);
     expect(spaces).toHaveLength(1);
     expect(spaces[0]?.lastEventSeq).toBe(40);
+  });
+
+  it("keeps who was sent in until the server sends them back, so the room never empties", async () => {
+    const h = harness();
+    await started();
+    const spaceId = makeRoom(h);
+    const key = h.sent.find((each) => each["type"] === "membership.added")?.["idempotency_key"];
+    h.wire().onEvent(
+      event(40, {
+        type: "space.created",
+        space_id: spaceId,
+        actor: { kind: "person", id: "usr_1" },
+        kind: "direct",
+        asked_of: "hrn_2",
+        title: "Dude chat",
+        idempotency_key: `space-${spaceId}`,
+      }),
+    );
+    h.flush();
+    // The server's own, and the harness still in it: "What would you like to do?", not "Nobody's
+    // here yet", while its membership.added is on its way.
+    expect(spaceIn(h, spaceId)?.lastEventSeq).toBe(40);
+    expect(spaceIn(h, spaceId)?.members).toEqual(["usr_1", "hrn_2"]);
+    h.wire().onEvent(
+      event(41, {
+        type: "membership.added",
+        space_id: spaceId,
+        actor: { kind: "person", id: "usr_1" },
+        participant_id: "hrn_2",
+        participant_kind: "harness",
+        role: "member",
+        agent_name: "Luis",
+        idempotency_key: key,
+      }),
+    );
+    h.flush();
+    expect(spaceIn(h, spaceId)?.members).toEqual(["usr_1", "hrn_2"]);
+    // Sent back, it is the server's to say from here: taken out, it is gone.
+    h.wire().onEvent(
+      event(42, {
+        type: "membership.removed",
+        space_id: spaceId,
+        actor: { kind: "person", id: "usr_1" },
+        participant_id: "hrn_2",
+      }),
+    );
+    h.flush();
+    expect(spaceIn(h, spaceId)?.members).toEqual(["usr_1"]);
+  });
+
+  it("stops keeping one the server would not put in", async () => {
+    const h = harness();
+    await started();
+    const spaceId = makeRoom(h);
+    const key = h.sent.find((each) => each["type"] === "membership.added")?.["idempotency_key"];
+    h.wire().onEvent(
+      event(40, {
+        type: "space.created",
+        space_id: spaceId,
+        actor: { kind: "person", id: "usr_1" },
+        kind: "direct",
+        asked_of: "hrn_2",
+        title: "Dude chat",
+        idempotency_key: `space-${spaceId}`,
+      }),
+    );
+    h.wire().onError?.({
+      code: "not_found",
+      message: "that harness was removed",
+      idempotencyKey: String(key),
+    });
+    h.flush();
+    expect(spaceIn(h, spaceId)?.members).toEqual(["usr_1"]);
   });
 
   it("waits for its own space.created after the server's yes, which may come first", async () => {
@@ -4147,6 +4237,72 @@ describe("a pin put back as it stood (ADR 0240)", () => {
     expect(pinnedAsBefore(["x", "c"], "a", ["a", "c"])).toEqual(["a", "x", "c"]);
     // The pins it stood behind are gone too: it goes first.
     expect(pinnedAsBefore(["c"], "b", ["a", "b", "c"])).toEqual(["b", "c"]);
+  });
+});
+
+describe("an agent deleted, from the store (ADR 0095)", () => {
+  const agent = "agt_1";
+  const listed = (removedAt: string | null) => ({
+    participants: [
+      {
+        id: agent,
+        kind: "agent",
+        display_name: "Shopping",
+        owner_id: null,
+        harness_id: "hrn_1",
+        room: removedAt === null ? "spc_1" : null,
+        removed_at: removedAt,
+      },
+    ],
+  });
+
+  it("is gone at the server's yes, and a read of the directory already on its way does not bring it back", async () => {
+    const asked: string[] = [];
+    // Each read of the directory waits for the test to answer it.
+    const reads: ((answer: unknown) => void)[] = [];
+    const h = harness({
+      cached: [OPENED],
+      get: (path) => {
+        if (path !== "/v1/participants") return Promise.resolve({});
+        asked.push(path);
+        return new Promise((resolve) => reads.push(resolve));
+      },
+      remove: async (path) => {
+        asked.push(`DELETE ${path}`);
+        return { agent_id: agent, room: "archived" };
+      },
+    });
+    /** The next read of the directory answered, once it has been asked. */
+    const answer = async (body: unknown) => {
+      while (reads.length === 0) await started();
+      reads.shift()?.(body);
+      await started();
+    };
+    // The store's own reads as it starts.
+    await answer(listed(null));
+    while (reads.length > 0) await answer(listed(null));
+    const now = () => {
+      h.flush();
+      return h.store.getSnapshot().directory[agent];
+    };
+    expect(now()).toMatchObject({ displayName: "Shopping", room: "spc_1" });
+    expect(now()?.removedAt).toBeUndefined();
+
+    // A read from before the delete, still on its way when the server says yes.
+    void h.store.refreshDirectory();
+    // Done with no read answered: through the relay each one is another round trip.
+    await h.store.deleteAgent(agent);
+    expect(asked.at(-1)).toBe(`DELETE /v1/agents/${agent}`);
+    expect(now()).toMatchObject({ displayName: "Shopping", room: null });
+    expect(now()?.removedAt).toEqual(expect.any(String));
+
+    // The old read lands saying it is still there: it stays gone, and the directory is read again.
+    await answer(listed(null));
+    expect(now()?.removedAt).toEqual(expect.any(String));
+    expect(reads).toHaveLength(1);
+    await answer(listed("2026-11-05T21:00:00.000Z"));
+    expect(now()?.removedAt).toBe("2026-11-05T21:00:00.000Z");
+    expect(reads).toHaveLength(0);
   });
 });
 

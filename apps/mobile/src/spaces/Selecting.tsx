@@ -26,7 +26,7 @@
  * What moves is next door (`SelectMotion.tsx`), mocked under Jest.
  */
 
-import type { Asking, ConnectionState } from "@chipschat/core";
+import { type Asking, actAll, type ConnectionState } from "@chipschat/core";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { SheetFrom } from "../ui/beside";
@@ -488,8 +488,8 @@ export interface ActPlan<T> {
 
 /**
  * The sheet that asks before a batch is archived or deleted. It holds what it asks about past the
- * close, as the swipe's does, and the act goes row by row, waiting for the server: rows it would
- * not take stay on the sheet, with why, to be asked again or left.
+ * close, as the swipe's does, and the server is asked about every row at once (`actAll`): rows it
+ * would not take stay on the sheet, with why, to be asked again or left.
  */
 export function BatchSheet<T extends { readonly id: string }>({
   ask,
@@ -497,6 +497,7 @@ export function BatchSheet<T extends { readonly id: string }>({
   who: whoOf,
   nameOf,
   act,
+  lane,
   why,
   onClose,
   onActing,
@@ -514,6 +515,8 @@ export function BatchSheet<T extends { readonly id: string }>({
   readonly nameOf: (item: T) => string;
   /** The act on one row, as the server is asked to do it. */
   readonly act: (kind: BatchAsk<T>["kind"], item: T, plan: ActPlan<T>) => Promise<void> | void;
+  /** Rows that must go one at a time share a lane (`agentLane`); without it, each has its own. */
+  readonly lane?: ((item: T) => string) | undefined;
   /** Why the server would not, in words worth reading, after "not archived" or "not deleted". */
   readonly why: (kind: BatchAsk<T>["kind"], error: unknown) => string;
   readonly onClose: () => void;
@@ -557,8 +560,10 @@ export function BatchSheet<T extends { readonly id: string }>({
     setSaid({ asking, who: whoOf(going) });
     setFailed(undefined);
     onActing(kind, going);
-    const { done, refused } = await actAll(going, (item) =>
-      act(kind, item, { too, asking, going }),
+    const { done, refused } = await actAll(
+      going,
+      (item) => act(kind, item, { too, asking, going }),
+      lane,
     );
     setBusy(false);
     setSaid(undefined);
@@ -596,27 +601,6 @@ export function BatchSheet<T extends { readonly id: string }>({
       too={{ on: too, onChange: setToo }}
     />
   );
-}
-
-/**
- * Each row asked of the server in turn; one it refuses does not stop the rest. What it did, and
- * what it would not, with what it said.
- */
-async function actAll<T extends { readonly id: string }>(
-  items: readonly T[],
-  act: (item: T) => Promise<void> | void,
-): Promise<{ done: string[]; refused: { readonly item: T; readonly error: unknown }[] }> {
-  const done: string[] = [];
-  const refused: { readonly item: T; readonly error: unknown }[] = [];
-  for (const item of items) {
-    try {
-      await act(item);
-      done.push(item.id);
-    } catch (error) {
-      refused.push({ item, error });
-    }
-  }
-  return { done, refused };
 }
 
 const styles = StyleSheet.create({

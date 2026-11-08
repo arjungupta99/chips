@@ -381,6 +381,9 @@ function harness(options: HarnessOptions = {}) {
     async sessionRules() {
       return [...(options.session ?? [])];
     },
+    async rulesForAWhile() {
+      return [];
+    },
     async workspaceRole(_workspaceId: string, participantId: string) {
       const roles = options.workspaceRoles ?? WORKSPACE_ROLES_BY_DEFAULT;
       return roles[participantId];
@@ -2153,7 +2156,7 @@ describe("a decision made always, or twice (M1.4)", () => {
     });
     const echo: PolicyRule = {
       match: "shell.exec",
-      when: { starts_with: ["echo", "ok"] },
+      when: { starts_with: ["echo"] },
       decision: "allow",
     };
     const { submit, store } = harness({
@@ -2172,11 +2175,11 @@ describe("a decision made always, or twice (M1.4)", () => {
     expect(rules.map((rule) => rule.when?.starts_with)).toEqual([
       ["node", "--check"],
       ["sort"],
-      ["echo", "ok"],
+      ["echo"],
     ]);
     expect(rules.every((rule) => rule.match === "shell.exec")).toBe(true);
     expect(String(policy["reason"])).toBe(
-      "Arjun decided node --check …, echo ok …, sort … is fine always.",
+      "Arjun decided node --check …, echo …, sort … is fine always.",
     );
   });
 

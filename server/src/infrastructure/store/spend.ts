@@ -10,10 +10,15 @@
  * run whose reports in the job said no cost, and none did, counts nothing and is told apart.
  *
  * As of a seq, so a message delivered again is handed the same spend it was the first time.
+ *
+ * The room's history job by job (ADR 0282) is the same count, walked once from the room's
+ * beginning: each report goes to the job that was running when it came, and a job Chips held at
+ * the ceiling says so.
  */
 
+import { type JobStart, PERSON_ACTS, SPENT_JOBS_SHOWN, type SpentJob } from "@chipschat/protocol";
 import { type Kysely, sql } from "kysely";
-import type { JobSpendView } from "../../application/ports/index.js";
+import type { JobSpendView, SpendHistoryView } from "../../application/ports/index.js";
 import type { Database } from "../db/schema.js";
 import { lastPersonAct } from "./exchange.js";
 
@@ -22,6 +27,48 @@ interface Report {
   readonly run_id: string | null;
   readonly scope: string | null;
   readonly usd: number | null;
+}
+
+/** A report with where and when it came, and whose run said it, for the history. */
+interface Dated extends Report {
+  readonly seq: number;
+  readonly ts: string;
+  readonly actor_id: string;
+}
+
+/** Where a job began: a person's act, or a brief handed in. */
+interface Start {
+  readonly seq: number;
+  readonly ts: string;
+  readonly actor_id: string;
+  readonly type: string;
+  readonly actor_kind: string;
+}
+
+/** A job as the history adds it up. */
+interface Adding {
+  readonly since_seq: number;
+  started_at: string;
+  last_at: string;
+  spent: number;
+  readonly runs: string[];
+  readonly by: string[];
+  readonly costed: Set<string>;
+  readonly silent: Set<string>;
+}
+
+const ANSWERS: ReadonlySet<string> = new Set([
+  "approval.resolved",
+  "approval.routed",
+  "question.answered",
+]);
+
+/** What a start was, in the words a device says it with. */
+function actOf(start: Start): JobStart {
+  if (start.actor_kind !== "person") return "brief";
+  if (start.type === "message.post") return "message";
+  if (start.type === "exchange.set") return "carry_on";
+  return ANSWERS.has(start.type) ? "answer" : "act";
 }
 
 export function createSpendReads(db: Kysely<Database>) {
@@ -139,7 +186,161 @@ export function createSpendReads(db: Kysely<Database>) {
         uncounted_runs: uncounted,
       };
     },
+
+    async spendHistoryOf(workspaceId: string, spaceId: string): Promise<SpendHistoryView> {
+      const [starts, reports, held] = await Promise.all([
+        startsIn(workspaceId, spaceId),
+        datedReportsIn(workspaceId, spaceId),
+        heldJobsIn(workspaceId, spaceId),
+      ]);
+      const jobs = addUp(starts, reports);
+      const last = starts.at(-1);
+      const now = last?.seq ?? 0;
+      const total = jobs.reduce((sum, job) => sum + job.spent, 0);
+      return {
+        started:
+          last === undefined
+            ? undefined
+            : {
+                at: last.ts,
+                ...(last.actor_kind === "person" ? { by: last.actor_id } : {}),
+                act: actOf(last),
+              },
+        jobs: jobs
+          .filter((job) => job.since_seq !== now)
+          .map((job) => spentJob(job, held))
+          .filter((job) => job.spent_usd > 0 || job.uncounted_runs > 0)
+          .reverse()
+          .slice(0, SPENT_JOBS_SHOWN),
+        total_usd: usd(total),
+      };
+    },
   };
+
+  /** Every point a job began in the room, oldest first: a person's act or a brief handed in. */
+  async function startsIn(workspaceId: string, spaceId: string): Promise<Start[]> {
+    return await db
+      .selectFrom("events")
+      .select(["seq", "ts", "actor_id", "actor_kind", "type"])
+      .where("workspace_id", "=", workspaceId)
+      .where("space_id", "=", spaceId)
+      .where((eb) =>
+        eb.or([
+          eb.and([
+            eb("actor_kind", "=", "person"),
+            eb.or([
+              eb("type", "in", [...PERSON_ACTS]),
+              eb.and([
+                eb("type", "=", "exchange.set"),
+                eb(sql<string>`json_extract(payload, '$.state')`, "=", "going"),
+              ]),
+            ]),
+          ]),
+          eb.and([
+            eb("type", "=", "run.requested"),
+            eb(sql<string | null>`json_extract(payload, '$.lane_id')`, "is not", null),
+          ]),
+        ]),
+      )
+      .orderBy("seq", "asc")
+      .execute();
+  }
+
+  /** Every `usage` report in the room, oldest first, with when it came and whose it was. */
+  async function datedReportsIn(workspaceId: string, spaceId: string): Promise<Dated[]> {
+    return await db
+      .selectFrom("events")
+      .select([
+        "seq",
+        "ts",
+        "run_id",
+        "actor_id",
+        sql<string | null>`json_extract(payload, '$.scope')`.as("scope"),
+        sql<number | null>`json_extract(payload, '$.cost.usd')`.as("usd"),
+      ])
+      .where("workspace_id", "=", workspaceId)
+      .where("space_id", "=", spaceId)
+      .where("type", "=", "usage")
+      .orderBy("seq", "asc")
+      .execute();
+  }
+
+  /** The jobs Chips held the agents in at the room's ceiling, by where each began (ADR 0118). */
+  async function heldJobsIn(workspaceId: string, spaceId: string): Promise<Set<number>> {
+    const rows = await db
+      .selectFrom("events")
+      .select(sql<number | null>`json_extract(payload, '$.spend.since_seq')`.as("since"))
+      .where("workspace_id", "=", workspaceId)
+      .where("space_id", "=", spaceId)
+      .where("type", "=", "exchange.set")
+      .where("actor_kind", "=", "system")
+      .where(sql<string>`json_extract(payload, '$.why')`, "=", "spend")
+      .execute();
+    return new Set(rows.flatMap((row) => (row.since === null ? [] : [row.since])));
+  }
+}
+
+/**
+ * The room's reports, each counted into the job running when it came: the newest start before
+ * it, or the room's beginning. One count of each run's total for the whole walk, so a run that
+ * spans jobs adds to each what it reported in it, as `jobSpendOf` counts the present one.
+ */
+function addUp(starts: readonly Start[], reports: readonly Dated[]): Adding[] {
+  const jobs: Adding[] = [];
+  const totals = new Map<string, number>();
+  let at = -1;
+  for (const report of reports) {
+    while (at + 1 < starts.length && (starts[at + 1]?.seq ?? 0) < report.seq) at += 1;
+    const start = starts[at];
+    const since = start?.seq ?? 0;
+    let job = jobs.at(-1);
+    if (job === undefined || job.since_seq !== since) {
+      job = {
+        since_seq: since,
+        started_at: start?.ts ?? report.ts,
+        last_at: report.ts,
+        spent: 0,
+        runs: [],
+        by: [],
+        costed: new Set(),
+        silent: new Set(),
+      };
+      jobs.push(job);
+    }
+    addTo(job, report, totals);
+  }
+  return jobs;
+}
+
+function addTo(job: Adding, report: Dated, totals: Map<string, number>): void {
+  const run = report.run_id ?? "";
+  if (report.run_id !== null && !job.runs.includes(report.run_id)) job.runs.push(report.run_id);
+  if (!job.by.includes(report.actor_id)) job.by.push(report.actor_id);
+  if (report.usd === null) {
+    job.silent.add(run);
+    return;
+  }
+  job.costed.add(run);
+  job.spent += count(totals, report);
+  job.last_at = report.ts;
+}
+
+function spentJob(job: Adding, held: ReadonlySet<number>): SpentJob {
+  return {
+    since_seq: job.since_seq,
+    started_at: job.started_at,
+    last_at: job.last_at,
+    spent_usd: usd(job.spent),
+    uncounted_runs: [...job.silent].filter((run) => !job.costed.has(run)).length,
+    run_ids: job.runs,
+    by: job.by,
+    held: held.has(job.since_seq),
+  };
+}
+
+/** An amount to the millionth of a dollar, never below nought. */
+function usd(amount: number): number {
+  return Math.max(0, Math.round(amount * 1e6) / 1e6);
 }
 
 /**

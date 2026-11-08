@@ -18,6 +18,7 @@ import {
   type Directory,
   harnessOf,
   isShared,
+  lastJobWords,
   leadOf,
   mayAddToRoom,
   mayChooseLead,
@@ -42,7 +43,7 @@ import {
   whoIsHere,
   workspaceOwnerName,
 } from "@chipschat/core";
-import type { JobSpend } from "@chipschat/protocol";
+import type { RoomSpend } from "@chipschat/protocol";
 import { Icon } from "@chipschat/ui";
 import {
   type KeyboardEvent,
@@ -87,7 +88,7 @@ export function Who(props: {
   readonly listed: readonly RoomFileOf[] | undefined;
   /** What the card's pictures are fetched with; no card without it, as nothing could open. */
   readonly files: FileService | undefined;
-  readonly spend: JobSpend | undefined;
+  readonly spend: RoomSpend | undefined;
   /** Something asked of the server and not yet answered. */
   readonly busy: boolean;
   readonly onAgent: ((agentId: string) => void) | undefined;
@@ -435,6 +436,7 @@ function Settings(props: Parameters<typeof Who>[0]) {
           ceiling={spendCeilingOf(space)}
           spend={props.spend}
           words={spentWords(props.spend, setBy)}
+          last={lastJobWords(props.spend)}
           onClick={spends ? () => props.onPage("spend") : undefined}
         />
       )}

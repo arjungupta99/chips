@@ -6,13 +6,15 @@
  * why when clicked, as a locked room on the rail does. The page's archived agents fold under it
  * rather than on a page of their own, so it picks them too, and the bar's first act is the Spaces
  * list's: Archive, or Unarchive where every agent picked is archived, which puts them back at once.
- * Archive and Delete ask first, Delete with one switch for the rooms the agents leave empty, a
- * shared room going with the last of its agents (`roomGoesWith`).
+ * Archive and Delete ask first, Delete with one switch for the rooms the agents leave empty. Every
+ * agent is asked of the server at once, but a room's agents one at a time (`agentLane`), a shared
+ * room going with the last of them (`roomGoesWith`).
  */
 
 import {
   type AgentRow,
   agentHintWords,
+  agentLane,
   agentLocked,
   agentsArchiveAsking,
   agentsDeleteAsking,
@@ -118,6 +120,7 @@ export function useAgentPicking({
             deleteRoom: roomGoesWith(directory, ids(plan.going), rooms).has(row.id),
           });
         }}
+        lane={(row) => agentLane(directory, row.id)}
         onCancel={() => setAsk(undefined)}
         onActing={(going) => {
           hold(going, ask.kind, "held");

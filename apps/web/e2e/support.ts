@@ -430,8 +430,8 @@ export async function pickEmpty(page: Page): Promise<void> {
 }
 
 /**
- * The open room's sheet (ADR 0151), opened from *N members* if it is not up already. By its test id:
- * the button is named by its words, which are "1 member" in a room of one.
+ * The open room's sheet (ADR 0151), opened from the header's round Details button (ADR 0284) if it
+ * is not up already, by its test id.
  */
 export async function roomSheet(page: Page): Promise<Locator> {
   const sheet = page.getByTestId("room-sheet");

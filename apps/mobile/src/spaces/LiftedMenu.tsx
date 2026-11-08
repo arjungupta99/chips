@@ -59,6 +59,8 @@ export interface LiftRow {
   readonly label: string;
   /** A line under it: the run's one line, on What the run did. */
   readonly sub?: string | undefined;
+  /** A figure that heads that line in ink: the run's cost (ADR 0282). */
+  readonly lead?: string | undefined;
   /** A deletion's row, in red (ADR 0167). */
   readonly danger?: boolean | undefined;
   readonly onPress: () => void;
@@ -349,11 +351,12 @@ function Quick({
 function Row({ row }: { readonly row: LiftRow }) {
   const palette = usePalette();
   const ink = row.danger === true ? palette.red : palette.ink;
+  const under = [row.lead, row.sub].filter((part) => part !== undefined && part !== "");
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={row.label}
-      accessibilityHint={row.sub}
+      accessibilityHint={under.length === 0 ? undefined : under.join(" · ")}
       onPress={row.onPress}
       testID={`lift-${row.key}`}
       style={({ pressed }) => [
@@ -363,8 +366,12 @@ function Row({ row }: { readonly row: LiftRow }) {
     >
       <View style={styles.rowWords}>
         <Text style={[styles.rowLabel, { color: ink }]}>{row.label}</Text>
-        {row.sub === undefined ? null : (
+        {under.length === 0 ? null : (
           <Text numberOfLines={1} style={[styles.rowSub, { color: palette.ink3 }]}>
+            {row.lead === undefined ? null : (
+              <Text style={[styles.rowLead, { color: palette.ink }]}>{row.lead}</Text>
+            )}
+            {row.lead !== undefined && row.sub !== undefined && row.sub !== "" ? " · " : null}
             {row.sub}
           </Text>
         )}
@@ -409,4 +416,5 @@ const styles = StyleSheet.create({
   rowWords: { flex: 1, gap: 1 },
   rowLabel: { fontSize: TEXT.body },
   rowSub: { fontSize: TEXT.sm },
+  rowLead: { fontWeight: "600", fontVariant: ["tabular-nums"] },
 });

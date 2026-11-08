@@ -21,6 +21,14 @@
  * New agent on a harness's page (ADR 0190, point 4) is here too, so the gallery's card for a
  * harness here can hand over to it, and so one sheet is ever up at a time.
  *
+ * Beside a list on an iPad the same pages stand in the pane, not a sheet (ADR 0284's addendum;
+ * Arjun, 7 November 2026: "this 'connect a harness' can also make use of right section instead of
+ * popup. Please fix this in ipad as well"): the split says how its list opens Connect
+ * (`ConnectBeside`), and its pane holds the pages while it is open (`ConnectPane`), the link they
+ * made still followed here when the pane gives them up. The gallery stays in the pane, and the card
+ * picked in it stands in a third column beside it (`useConnectThird`; Arjun, the same evening:
+ * "Tapping detail item under connect a harness can open in third tab"), its × back to the gallery.
+ *
  * Which words, which steps and what the arrival says are core's (`connect.ts`), the desktop's too.
  */
 
@@ -93,6 +101,8 @@ import { useGround } from "../ui/ground";
 import { success, tap } from "../ui/haptics";
 import { Icon } from "../ui/Icon";
 import { PageBack } from "../ui/PageBack";
+import { Pane } from "../ui/Pane";
+import { useColumn } from "../ui/Screen";
 import { Segmented } from "../ui/Segmented";
 import { CLOSE_ROOM, Sheet, SheetPages, SheetScroll } from "../ui/Sheet";
 import { shareText } from "../ui/share";
@@ -117,14 +127,103 @@ export interface Connecting {
   readonly waiting: Waiting | undefined;
   /** New agent on a harness's page (ADR 0190, point 4). */
   readonly newAgent: (harnessId: string) => void;
+  /** Beside a list, Connect is what its pane shows: the tile and the row wear the chosen ground. */
+  readonly chosen?: boolean | undefined;
 }
 
 const NONE: Connecting = { open: () => undefined, waiting: undefined, newAgent: () => undefined };
 const ConnectContext = createContext<Connecting>(NONE);
 
-export function useConnect(): Connecting {
-  return useContext(ConnectContext);
+/** How a list beside its pane opens Connect there, and whether the pane shows it now. */
+export interface ConnectHere {
+  readonly open: () => void;
+  readonly chosen: boolean;
 }
+
+const ConnectHereContext = createContext<ConnectHere | undefined>(undefined);
+
+/** Put round a split whose pane holds Connect (ADR 0284's addendum): its list opens it there. */
+export const ConnectBeside = ConnectHereContext.Provider;
+
+export function useConnect(): Connecting {
+  const connecting = useContext(ConnectContext);
+  const here = useContext(ConnectHereContext);
+  return useMemo(
+    () =>
+      here === undefined ? connecting : { ...connecting, open: here.open, chosen: here.chosen },
+    [connecting, here],
+  );
+}
+
+/** A pane holding the pages: while it does, the sheet is not drawn, and the pane's close is its own. */
+interface Held {
+  readonly hold: (close: () => void) => () => void;
+  /** The gallery, which the pane shows. */
+  readonly gallery: ReactNode;
+  /** The card picked in it, in a third column beside it while the pane holds them. */
+  readonly beside: ReactNode;
+}
+
+const HeldContext = createContext<Held | undefined>(undefined);
+
+/**
+ * Connect a harness in a pane beside a list (ADR 0284's addendum): the sheet's pages under the
+ * pane's bar, on the grouped ground they stood on in the sheet. As every pane a row opens, it has
+ * no × (ADR 0276): another row puts it away, and Say hello or New agent close it as they closed the
+ * sheet (`onClose`). A link it made is still followed, and the shelf's tile counts it down.
+ */
+export function ConnectPane({ onClose }: { readonly onClose: () => void }) {
+  const held = useContext(HeldContext);
+  const close = useRef(onClose);
+  close.current = onClose;
+  const hold = held?.hold;
+  useEffect(() => hold?.(() => close.current()), [hold]);
+  // Settings' margins, as every page beside the list has them (ADR 0276's addendum).
+  const column = useColumn();
+  if (held === undefined) return null;
+  return (
+    <Pane title="Connect a harness" grouped>
+      <InPane.Provider value>
+        <View style={[column, styles.inPane]} testID="connect-pane">
+          {held.gallery}
+        </View>
+      </InPane.Provider>
+    </Pane>
+  );
+}
+
+/**
+ * The card picked in the pane's gallery, for the split's third column (ADR 0284's addendum, point
+ * 4): nothing until one is picked, or while no pane holds the pages.
+ */
+export function useConnectThird(): ReactNode {
+  return useContext(HeldContext)?.beside ?? undefined;
+}
+
+/** A card's page in the third column: its name on the pane's bar, its × back to the gallery. */
+function ConnectThird({
+  title,
+  onClose,
+  children,
+}: {
+  readonly title: string;
+  readonly onClose: () => void;
+  readonly children: ReactNode;
+}) {
+  const column = useColumn();
+  return (
+    <Pane title={title} onClose={onClose} grouped>
+      <InPane.Provider value>
+        <View style={[column, styles.inPane]} testID="connect-third">
+          {children}
+        </View>
+      </InPane.Provider>
+    </Pane>
+  );
+}
+
+/** Drawn in a pane, whose bar names it: the gallery and a card's page say no title of their own. */
+const InPane = createContext(false);
 
 /** Mounted once, inside the window's insets: the sheets, and what the tile and the row read. */
 export function ConnectProvider({ children }: { readonly children: ReactNode }) {
@@ -150,6 +249,20 @@ type Page =
 
 const keyOf = (page: Page): string =>
   page.kind === "connect" ? `connect-${choiceKey(page.choice)}` : page.kind;
+
+/**
+ * Which card the pane's gallery marks: the one whose page, or whose hello, stands beside it. The
+ * sheet's gallery marks none.
+ */
+function chosenOf(page: Page, made: Made | undefined, inPane: boolean): string | undefined {
+  if (!inPane) return undefined;
+  if (page.kind === "connect") return choiceKey(page.choice);
+  return page.kind === "arrived" ? made?.key : undefined;
+}
+
+/** A card's page names it on the third column's bar; the hello says its own words. */
+const titleOf = (page: Page): string =>
+  page.kind === "connect" ? connectHead(page.choice, false).title : "";
 
 /** A link made here: the request, the link, and the card it was made for. */
 interface Made {
@@ -214,9 +327,8 @@ function Paired({
       : undefined;
   const waits = waiting !== undefined;
 
-  const open = useCallback(() => {
-    if (shown) return;
-    tap();
+  // The pages, put up: where they were while this phone's link waits, else on the gallery.
+  const begin = () => {
     setFailed(undefined);
     setPage(
       waits && made !== undefined ? { kind: "connect", choice: made.choice } : { kind: "gallery" },
@@ -228,15 +340,44 @@ function Paired({
       (found) => setCards(found),
       () => setCards((was) => was ?? []),
     );
-  }, [shown, waits, made, store]);
+  };
+  const beginNow = useRef(begin);
+  beginNow.current = begin;
 
-  const close = useCallback(() => setUp(false), []);
+  const open = useCallback(() => {
+    if (shown) return;
+    tap();
+    beginNow.current();
+  }, [shown]);
+
+  // A pane beside a list holds the pages instead of the sheet (ADR 0284's addendum): its close is
+  // the pages' way out, and letting go of them is the sheet gone.
+  const pane = useRef<(() => void) | undefined>(undefined);
+  const [inPane, setInPane] = useState(false);
   const gone = useCallback(() => {
     setShown(false);
     setPage({ kind: "gallery" });
     const next = after.current;
     after.current = undefined;
     next?.();
+  }, []);
+  const hold = useCallback(
+    (closePane: () => void) => {
+      pane.current = closePane;
+      setInPane(true);
+      beginNow.current();
+      return () => {
+        pane.current = undefined;
+        setInPane(false);
+        setUp(false);
+        gone();
+      };
+    },
+    [gone],
+  );
+  const close = useCallback(() => {
+    if (pane.current === undefined) setUp(false);
+    else pane.current();
   }, []);
 
   const makeLink = useCallback(
@@ -276,12 +417,12 @@ function Paired({
     (harnessId: string) => {
       if (shown) {
         after.current = () => setAsking(harnessId);
-        setUp(false);
+        close();
         return;
       }
       setAsking(harnessId);
     },
-    [shown],
+    [shown, close],
   );
 
   // Cancel link (Arjun, 18 October 2026: "do we have a way to cancel connect your own harness?"):
@@ -297,9 +438,9 @@ function Paired({
     (roomId: string) => {
       after.current = () => router.push({ pathname: "/spaces/[id]", params: { id: roomId } });
       setMade(undefined);
-      setUp(false);
+      close();
     },
-    [router],
+    [router, close],
   );
 
   const value = useMemo(() => ({ open, waiting, newAgent }), [open, waiting, newAgent]);
@@ -338,22 +479,27 @@ function Paired({
         onHello={goTo}
         onDone={() => {
           setMade(undefined);
-          setUp(false);
+          close();
         }}
       />
     );
   };
 
+  // Beside a list the gallery stays in the pane and marks the card standing beside it.
+  const chosen = chosenOf(page, made, inPane);
+  const gallery = (
+    <Gallery
+      cards={cards}
+      here={connectedNames(snapshot.directory)}
+      chosen={chosen}
+      onPick={(choice) => setPage({ kind: "connect", choice })}
+    />
+  );
+
   const render = (now: Page) => {
     switch (now.kind) {
       case "gallery":
-        return (
-          <Gallery
-            cards={cards}
-            here={connectedNames(snapshot.directory)}
-            onPick={(choice) => setPage({ kind: "connect", choice })}
-          />
-        );
+        return gallery;
       case "connect":
         return connectPage(now.choice);
       case "arrived":
@@ -361,10 +507,22 @@ function Paired({
     }
   };
 
+  const pages = <SheetPages page={page} keyOf={keyOf} render={render} />;
+  const beside =
+    inPane && page.kind !== "gallery" ? (
+      <ConnectThird
+        key={keyOf(page)}
+        title={titleOf(page)}
+        onClose={() => setPage({ kind: "gallery" })}
+      >
+        {render(page)}
+      </ConnectThird>
+    ) : undefined;
+
   return (
     <ConnectContext.Provider value={value}>
-      {children}
-      {shown ? (
+      <HeldContext.Provider value={{ hold, gallery, beside }}>{children}</HeldContext.Provider>
+      {shown && !inPane ? (
         <Sheet
           open={up}
           onClose={close}
@@ -373,7 +531,7 @@ function Paired({
           cap={0.9}
           testID="connect-sheet"
         >
-          <SheetPages page={page} keyOf={keyOf} render={render} />
+          {pages}
         </Sheet>
       ) : null}
       <NewAgentSheet
@@ -393,20 +551,26 @@ function Paired({
 function Gallery({
   cards,
   here,
+  chosen,
   onPick,
 }: {
   /** The docs' cards; nothing until they are read, when the two ways stand alone a moment. */
   readonly cards: readonly Connector[] | undefined;
   readonly here: ReadonlySet<string>;
+  /** The card whose page stands beside the pane, by `choiceKey`: its row is chosen. */
+  readonly chosen?: string | undefined;
   readonly onPick: (choice: ConnectChoice) => void;
 }) {
   const palette = usePalette();
   const on = useGround();
+  const inPane = useContext(InPane);
   return (
     <View style={styles.page} testID="connect-gallery">
-      <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>
-        Connect a harness
-      </Text>
+      {inPane ? null : (
+        <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>
+          Connect a harness
+        </Text>
+      )}
       <Text style={[styles.lede, { color: palette.ink2 }]}>
         Pick what runs your agents. You run one line on that computer, and it shows up here.
       </Text>
@@ -423,6 +587,7 @@ function Gallery({
                   line={connected ? "Connected here. Tap for another, or a new agent." : card.line}
                   tag={connected ? "Connected" : kindWords(card).words}
                   on={connected}
+                  chosen={chosen === choiceKey(card)}
                   face={<Avatar name={card.name} kind="harness" size="md" />}
                   onPress={() => onPick(card)}
                   testID={`connect-card-${card.id}`}
@@ -444,6 +609,7 @@ function Gallery({
               line={CONNECT_WAYS[way].sub}
               tag={CONNECT_WAYS[way].kind}
               on={false}
+              chosen={chosen === choiceKey(way)}
               face={
                 <Avatar
                   name={CONNECT_WAYS[way].name}
@@ -468,6 +634,7 @@ function GalleryRow({
   line,
   tag,
   on,
+  chosen,
   face,
   onPress,
   testID,
@@ -478,6 +645,8 @@ function GalleryRow({
   readonly tag: string;
   /** The tag in green: the harness is here already. */
   readonly on: boolean;
+  /** Its page stands beside the pane: the row wears the chosen ground, as a list's open row does. */
+  readonly chosen: boolean;
   readonly face: ReactNode;
   readonly onPress: () => void;
   readonly testID: string;
@@ -488,11 +657,12 @@ function GalleryRow({
       accessibilityRole="button"
       accessibilityLabel={`${name}, ${tag}`}
       accessibilityHint={line}
+      accessibilityState={{ selected: chosen }}
       onPress={onPress}
       testID={testID}
       style={({ pressed }) => [
         styles.galleryRow,
-        pressed ? { backgroundColor: palette.surface3 } : null,
+        pressed || chosen ? { backgroundColor: palette.surface3 } : null,
       ]}
     >
       {first ? null : <View style={[styles.rule, { backgroundColor: palette.line }]} />}
@@ -574,9 +744,11 @@ function ConnectPage({
     if (shown && !asks && made === undefined) onMakeLink();
   }, [shown, asks, made === undefined]);
   const head = connectHead(choice, saying);
+  // In the third column the pane's bar names it, and its × is the way back (ADR 0284's addendum).
+  const inPane = useContext(InPane);
   return (
     <View style={styles.page} testID="connect-page">
-      <PageBack title={head.title} onBack={onBack} testID="connect-back" />
+      {inPane ? null : <PageBack title={head.title} onBack={onBack} testID="connect-back" />}
       <SheetScroll style={styles.scroll} contentContainerStyle={styles.connectList}>
         <Who choice={choice} saying={saying} here={asks} />
         {asks && here !== undefined ? (
@@ -688,9 +860,12 @@ function NotHere({
   readonly choice: ConnectChoice;
   readonly onBack: () => void;
 }) {
+  const inPane = useContext(InPane);
   return (
     <View style={styles.page} testID="connect-page">
-      <PageBack title={connectHead(choice, false).title} onBack={onBack} testID="connect-back" />
+      {inPane ? null : (
+        <PageBack title={connectHead(choice, false).title} onBack={onBack} testID="connect-back" />
+      )}
       <Who choice={choice} saying={false} here={false} />
       <NotInDemo />
     </View>
@@ -1329,6 +1504,9 @@ function Arrival({
 const styles = StyleSheet.create({
   // A page is a column the sheet bounds, and its list is what gives: it scrolls in what is left.
   page: { flexShrink: 1, minHeight: 0 },
+  // In a pane, the pages fill what is under its bar, and their lists scroll in it, with the sheet's
+  // own margins either side (`Sheet`'s panel), or the words stood at the pane's very edge.
+  inPane: { flex: 1, minHeight: 0, paddingTop: SPACE.sm, paddingHorizontal: SPACE.lg },
   scroll: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
   title: {
     fontSize: TEXT.xl + 2,

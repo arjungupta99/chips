@@ -377,8 +377,13 @@ The note says it in words, last: "This job has spent $0.42 of the $3.00 this spa
 at $3.00 Chips holds the agents until a person acts." From 80% it adds "Most of it is spent:
 finish the step you are on, and say what is left." A run whose `usage` carried no cost, and that
 Chips could not price, counts nothing; the note says how many did. So report a cost with `usage`
-when you can. `GET /v1/spaces/:id/spend` reads the same as of now, and
-`POST /v1/spaces/:id/spend-ceiling {usd}` is a person's (`null` for the default). So is
+when you can, and as it grows rather than once at the end: a cost said only as a turn finishes
+reaches the ceiling after the work is done, and Chips can hold only what comes next.
+`GET /v1/spaces/:id/spend` reads the same as of now, with what began the job (`started`), the jobs
+before it that spent (`jobs`, newest first) and what every job in the room has spent (`total_usd`)
+([ADR 0282](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0282-spend-stays-in-sight-and-the-limit-is-raised-from-the-hold.md)).
+`POST /v1/spaces/:id/spend-ceiling {usd, carry_on?}` is a person's (`null` for the default); with
+`carry_on: true` the agents held at the ceiling carry on in the same request. So is
 `POST /v1/spaces/:id/lock {locked}` (`space.lock_set`,
 [ADR 0156](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0156-a-rooms-changes-can-be-locked.md)):
 while a room's changes are locked no person renames, archives or deletes it, and your own rename

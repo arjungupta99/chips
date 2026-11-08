@@ -47,7 +47,9 @@ const acts: RowActs = {
 
 function rail(more: readonly ClientEvent[] = [], readState: ReadState = {}) {
   return (
+    // The rail's top and, under it, Spaces' list, as the phone's menu draws them (ADR 0284).
     <Sidebar
+      rooms
       model={buildModel([...events, ...more])}
       directory={directory}
       readState={readState}

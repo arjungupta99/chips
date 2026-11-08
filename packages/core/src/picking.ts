@@ -31,6 +31,58 @@ export function keepLeaving<T extends { readonly id: string }>(
   return out;
 }
 
+/** What a batch did: the rows the server took, by id, and those it would not, with what it said. */
+export interface ActedAll<T> {
+  readonly done: string[];
+  readonly refused: { readonly item: T; readonly error: unknown }[];
+}
+
+/**
+ * Asks the server to act on every picked row (ADR 0181, ADR 0182): all at once, since each ask is
+ * a round trip and through the relay a batch of them in turn took seconds a row. Rows in one lane
+ * are asked in turn, in the order given, each once the one before has answered; one the server
+ * refuses does not stop the rest. What it did, and what it would not, come back in the order given.
+ */
+export async function actAll<T extends { readonly id: string }>(
+  items: readonly T[],
+  act: (item: T) => Promise<void> | void,
+  laneOf: (item: T) => string = (item) => item.id,
+): Promise<ActedAll<T>> {
+  const lanes = new Map<string, T[]>();
+  for (const item of items) {
+    const lane = laneOf(item);
+    lanes.set(lane, [...(lanes.get(lane) ?? []), item]);
+  }
+  const failed = new Map<T, unknown>();
+  await Promise.all(
+    [...lanes.values()].map(async (lane) => {
+      for (const item of lane) {
+        try {
+          await act(item);
+        } catch (error) {
+          failed.set(item, error);
+        }
+      }
+    }),
+  );
+  return {
+    done: items.filter((item) => !failed.has(item)).map((item) => item.id),
+    refused: items
+      .filter((item) => failed.has(item))
+      .map((item) => ({ item, error: failed.get(item) })),
+  };
+}
+
+/**
+ * An agent's lane in a batch (ADR 0182): its room's, so a room's agents go one at a time. The
+ * last of them may take the room with it (`roomGoesWith`), which the server refuses while another
+ * is still there, and two leaving at once could both find the room empty and archive it twice. An
+ * agent in no room has a lane of its own.
+ */
+export function agentLane(directory: Directory, agentId: string): string {
+  return directory[agentId]?.room ?? agentId;
+}
+
 /**
  * What the line under the name says while picking, about the rows that can't be picked. Short
  * enough to stand beside Select all on a phone: "the Main room" in full did not (the simulator,

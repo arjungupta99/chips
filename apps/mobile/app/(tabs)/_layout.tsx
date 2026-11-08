@@ -48,15 +48,15 @@ import { PLUS_GAP, PLUS_SIZE } from "../../src/newSpace/plusRoom";
 import { summonSearch } from "../../src/search/summon";
 import { useChips } from "../../src/store/provider";
 import { barFrame, barLift } from "../../src/ui/barShape";
-import { usePadSidebar } from "../../src/ui/chrome";
+import { PAD_BAR, usePadBar } from "../../src/ui/chrome";
 import { useDuo } from "../../src/ui/duo";
 import { alpha } from "../../src/ui/Glass";
 import { useLayout } from "../../src/ui/layout";
 import { useMenuCommand } from "../../src/ui/menuBar";
 import { OpenedProvider } from "../../src/ui/opened";
+import { PadBar } from "../../src/ui/PadBar";
 import { PhoneBar, shrinkTo } from "../../src/ui/PhoneBar";
 import { chooseTab, ReadingFeed } from "../../src/ui/phoneBarNative";
-import { Sidebar } from "../../src/ui/Sidebar";
 import { COLUMN_PLUS, SideColumn } from "../../src/ui/SideColumn";
 import { TabBarAsideProvider, useTabBarAside } from "../../src/ui/tabBarAside";
 import { inBar, TAB_ORDER, TABS, type TabName, tabsShown } from "../../src/ui/tabs";
@@ -94,8 +94,9 @@ export default function TabsLayout() {
  * little higher, and stay shrunk.
  *
  * On an iPad wide enough for a list beside what it opens, the tabs are Chips' own and UIKit's bar is
- * hidden, as on an iPhone: a capsule at the window's bottom left with the gold + beside it, and the
- * sidebar ☰ grows out of it, floating over the list (`Sidebar.tsx`, ADR 0276). Until 3 November 2026
+ * hidden, as on an iPhone: a bar at the window's bottom left, across the foot of the list, with the
+ * gold + at its end, level with a room's composer (`PadBar.tsx`, ADR 0276). Until 5 November 2026 it
+ * was a smaller capsule with ☰ in it, which grew a sidebar over the list. Until 3 November 2026
  * they were iPadOS's pill at the top middle, with the gold + measured past its end, under 1100 points
  * across or with a space's details open, and a sidebar beside the list above that (ADR 0256). In a
  * narrow window, where iPadOS puts its bar at the foot, the + is still the bar's own: a tab of the
@@ -121,7 +122,7 @@ function Tabs({ store, selfId }: { readonly store: Store; readonly selfId: strin
   const still = useReduceMotion();
   const chosen = useChosenTab();
   const { wide } = useLayout();
-  const pad = usePadSidebar();
+  const pad = usePadBar();
   const column = useColumn();
   const landscape = width > height;
   // On its side a phone has little height to spare, so there the bar is always shrunk.
@@ -182,14 +183,11 @@ function Tabs({ store, selfId }: { readonly store: Store; readonly selfId: strin
           />
         </View>
         {pad ? (
-          <Sidebar
-            store={store}
-            selfId={selfId}
+          <PadBar
             tabs={SHOWN}
             chosen={chosen}
             onChoose={choose}
-            onOpenSpace={(id) => router.push(`/spaces/${id}`)}
-            plus={opens ? gold(styles.sidePlus) : null}
+            plus={opens ? gold(styles.padPlus) : null}
             aside={aside}
           />
         ) : null}
@@ -438,7 +436,7 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   row: { flex: 1, flexDirection: "row" },
   plus: { position: "absolute" },
-  sidePlus: { width: 44, height: 44, borderRadius: 22 },
+  padPlus: { width: PAD_BAR.plus, height: PAD_BAR.plus, borderRadius: PAD_BAR.plus / 2 },
   columnPlus: { width: COLUMN_PLUS, height: COLUMN_PLUS, borderRadius: COLUMN_PLUS / 2 },
   fab: { position: "absolute", right: PLUS_GAP },
 });

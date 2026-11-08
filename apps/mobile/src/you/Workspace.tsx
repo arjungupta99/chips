@@ -11,7 +11,8 @@
  * many links are open and when the next runs out, read each time the connection opens (ADR 0209).
  *
  * Connect a harness does what the Agents shelf's last tile does (ADR 0185's addendum): it opens
- * the sheet that walks a harness to its hello (ADR 0190), and says so while a link waits. Arjun, 17 October 2026: "I do not
+ * the sheet that walks a harness to its hello (ADR 0190), and says so while a link waits; beside
+ * the list on an iPad, the same pages in You's pane (ADR 0284's addendum). Arjun, 17 October 2026: "I do not
  * expect connect a harness to be use a whole lot, so let's keep it as the last tile. Also show it
  * as an option in the You section."
  *
@@ -36,8 +37,8 @@
  *
  * The sheets stand beside You's scroll, not in it (`You.tsx`). Beside the list on an iPad, the
  * attachment limits, the messages between agents and what is allowed always are pages there
- * instead (`pages.tsx`). Connect a harness stays the sheet the Agents shelf's last tile opens: it
- * is the one sheet both open, and the link it makes is waited on behind it.
+ * instead (`pages.tsx`), and so is Connect a harness, whose pages and the link they make are held
+ * by one provider for You and the Agents shelf alike (ADR 0284's addendum).
  */
 
 import {
@@ -122,6 +123,7 @@ export function useWorkspaceGroup({
   const allowedPage = useSheetPage("always", () => setAllowed(true));
   const [links, setLinks] = useState<readonly Invite[] | undefined>(undefined);
   const connecting = useConnect();
+  const connectPage = useSheetPage("connect", connecting.open);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `people` is when to read again.
   useEffect(() => {
     if (!invites || !connected) return;
@@ -213,7 +215,8 @@ export function useWorkspaceGroup({
                 ? "Connecting…"
                 : `Waiting, ${connecting.waiting.left}`
           }
-          onPress={connecting.open}
+          onPress={connectPage.onPress}
+          selected={connectPage.selected}
           testID="connect-harness-row"
         />
         <GroupRow

@@ -14,6 +14,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { AgentPane } from "../../src/agents/AgentPane";
 import { useLanding } from "../../src/pairing/landing";
+import { useWordsLead } from "../../src/spaces/heldWidth";
 import { List } from "../../src/spaces/List";
 import { RoomPane } from "../../src/spaces/RoomPane";
 import { stepSpace } from "../../src/spaces/step";
@@ -23,6 +24,7 @@ import { useLayout } from "../../src/ui/layout";
 import { useMenuCommand } from "../../src/ui/menuBar";
 import { useOpened } from "../../src/ui/opened";
 import { PaneEmpty } from "../../src/ui/Pane";
+import { PaneLead } from "../../src/ui/PaneMotion";
 import { Split, THIRD, useListBesideThird, useThirdFits } from "../../src/ui/Split";
 import { usePalette } from "../../src/ui/theme";
 
@@ -91,6 +93,9 @@ function Spaces({
   const shown = snapshot.model.spaces.some((each) => each.id === space) ? space : undefined;
   useSpaceSteps(wide, snapshot, shown, open);
   const { away, docked } = useRoomBeside(shown !== undefined);
+  // The panes wait for the room's words to go before they move (ADR 0279), while the room is what
+  // the pane shows rather than an agent's card over it.
+  const lead = useWordsLead(shown !== undefined && agent === undefined);
   if (!wide) return <List store={store} snapshot={snapshot} selfId={selfId} server={server} />;
   const close = () => go({});
   // An agent's card opened from the room stands over it in the pane, with the way back to it, as a
@@ -115,48 +120,50 @@ function Spaces({
       </View>
     );
   return (
-    <Split
-      tab="index"
-      away={away}
-      docked={docked}
-      list={
-        <List
-          store={store}
-          snapshot={snapshot}
-          selected={shown}
-          onOpen={open}
-          selfId={selfId}
-          server={server}
-        />
-      }
-      detail={
-        shown === undefined ? (
-          <PaneEmpty icon="chat" title="No space open">
-            {mayOpenSpace(myRole(snapshot.model, selfId))
-              ? "Choose a space on the left, or make one with +."
-              : "Choose a space on the left."}
-          </PaneEmpty>
-        ) : (
-          <View style={styles.fill}>
-            <RoomPane
-              key={shown}
-              store={store}
-              spaceId={shown}
-              selfId={selfId}
-              onOpen={open}
-              onOpenAgent={(id) => go({ space: shown, agent: id })}
-              onClose={close}
-              at={at}
-              words={words}
-              add={add === "1"}
-              sheet={sheet === "1"}
-              onDetails={(item) => router.push(`/needs/${item.id}`)}
-            />
-            {card}
-          </View>
-        )
-      }
-    />
+    <PaneLead.Provider value={lead}>
+      <Split
+        tab="index"
+        away={away}
+        docked={docked}
+        list={
+          <List
+            store={store}
+            snapshot={snapshot}
+            selected={shown}
+            onOpen={open}
+            selfId={selfId}
+            server={server}
+          />
+        }
+        detail={
+          shown === undefined ? (
+            <PaneEmpty icon="chat" title="No space open">
+              {mayOpenSpace(myRole(snapshot.model, selfId))
+                ? "Choose a space on the left, or make one with +."
+                : "Choose a space on the left."}
+            </PaneEmpty>
+          ) : (
+            <View style={styles.fill}>
+              <RoomPane
+                key={shown}
+                store={store}
+                spaceId={shown}
+                selfId={selfId}
+                onOpen={open}
+                onOpenAgent={(id) => go({ space: shown, agent: id })}
+                onClose={close}
+                at={at}
+                words={words}
+                add={add === "1"}
+                sheet={sheet === "1"}
+                onDetails={(item) => router.push(`/needs/${item.id}`)}
+              />
+              {card}
+            </View>
+          )
+        }
+      />
+    </PaneLead.Provider>
   );
 }
 

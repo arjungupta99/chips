@@ -12,7 +12,7 @@
  */
 
 import type { Approval } from "@chipschat/core";
-import { askHeadline } from "@chipschat/core";
+import { askHeadline, plateHeadline } from "@chipschat/core";
 import { StyleSheet, Text, type TextStyle, View } from "react-native";
 import { CodeBlock, Markdown } from "../spaces/Markdown";
 import { Pill } from "../ui/Pill";
@@ -30,14 +30,17 @@ export function Headline({
   approval,
   style,
   numberOfLines,
+  plated = false,
 }: {
   readonly approval: Approval;
   readonly style: TextStyle;
   readonly numberOfLines?: number;
+  /** Whether the command is drawn on its plate below, so the headline needn't quote it (ADR 0280). */
+  readonly plated?: boolean;
 }) {
   return (
     <CodeWords
-      words={askHeadline(approval)}
+      words={plated ? plateHeadline(approval) : askHeadline(approval)}
       style={style}
       numberOfLines={numberOfLines}
       testID="ask-headline"
@@ -49,18 +52,25 @@ export function Headline({
 export function CodeWords({
   words,
   style,
+  ink,
   numberOfLines,
   testID,
 }: {
   readonly words: string;
   readonly style: TextStyle;
+  /** The words' colour, when it is not the page's ink: a line under the command, in the third. */
+  readonly ink?: string | undefined;
   readonly numberOfLines?: number | undefined;
   readonly testID?: string | undefined;
 }) {
   const palette = usePalette();
   const parts = words.split(/(`[^`]+`)/);
   return (
-    <Text style={[style, { color: palette.ink }]} numberOfLines={numberOfLines} testID={testID}>
+    <Text
+      style={[style, { color: ink ?? palette.ink }]}
+      numberOfLines={numberOfLines}
+      testID={testID}
+    >
       {parts.map((part, index) =>
         part.startsWith("`") && part.endsWith("`") && part.length > 2 ? (
           // A split's pieces have no ids, and their order is the sentence's.

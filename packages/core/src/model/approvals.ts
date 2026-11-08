@@ -4,6 +4,7 @@ import { type ActionFlags, actionMatters, type Preview } from "@chipschat/protoc
 import type { ClientEvent } from "../events.js";
 import { markStep } from "./runs.js";
 import {
+  type Building,
   deadline,
   type FoldStep,
   field,
@@ -13,7 +14,7 @@ import {
   spaceOf,
   TERMINAL,
 } from "./state.js";
-import type { Approval, Question } from "./types.js";
+import type { Approval, LetWork, Question } from "./types.js";
 
 export function updateApproval(
   run: MutableRun,
@@ -23,6 +24,34 @@ export function updateApproval(
   const index = run.approvals.findIndex((approval) => approval.approvalId === approvalId);
   const approval = run.approvals[index];
   if (approval !== undefined) run.approvals[index] = change(approval);
+}
+
+/**
+ * A yes that lets the asker work in the space without asking (ADR 0281), for an hour or until
+ * stopped. One that holds longer than the one already there takes its place; a shorter one, given
+ * on an ask still open from before, does not cut it short.
+ */
+function letWork(state: Building, event: ClientEvent, asker: string, by: string): void {
+  const minutes = field<number>(event, "for_minutes");
+  if (minutes === undefined && field<boolean>(event, "until_stopped") !== true) return;
+  const space = spaceOf(state, event);
+  if (space === undefined || asker === "") return;
+  const given: LetWork = {
+    asker,
+    by,
+    since: event.ts,
+    ...(minutes === undefined
+      ? {}
+      : { until: new Date(Date.parse(event.ts) + minutes * 60_000).toISOString() }),
+  };
+  space.letWork ??= new Map();
+  const held = space.letWork.get(asker);
+  if (held === undefined || outlasts(given, held)) space.letWork.set(asker, given);
+}
+
+function outlasts(given: LetWork, held: LetWork): boolean {
+  if (held.until === undefined) return given.until === undefined;
+  return given.until === undefined || given.until > held.until;
 }
 
 /** What a hand-on carries of the ask, for a reader who never saw the request (ADR 0042). */
@@ -159,6 +188,7 @@ export const APPROVAL_FOLDS: Readonly<Record<string, FoldStep>> = {
       };
     });
     if (!TERMINAL.includes(run.state)) run.state = "running";
+    if (decision === "approved" || decision === "edited") letWork(state, event, run.harnessId, by);
     state.audit.push({
       seq: event.seq,
       ts: event.ts,
@@ -169,6 +199,11 @@ export const APPROVAL_FOLDS: Readonly<Record<string, FoldStep>> = {
       runId: event.run_id,
       reason: field<string>(event, "reason"),
     });
+  },
+
+  // Somebody stopped an agent working without asking here (ADR 0281): its asks come to a person.
+  "approval.held_stopped": (state, event) => {
+    spaceOf(state, event)?.letWork?.delete(required<string>(event, "asker"));
   },
 
   "approval.executed": (state, event) => {

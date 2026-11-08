@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { FaceGroup, Trail, trailLabel } from "./trail.js";
+import { FaceGroup, marked, Trail, trailLabel } from "./trail.js";
 
 const ARJUN = { name: "Arjun", kind: "person" as const };
 const SCOUT = { name: "Scout", kind: "harness" as const };
@@ -67,5 +67,26 @@ describe("FaceGroup", () => {
     const faces = container.querySelector("button > span.ui-faces");
     expect(faces?.getAttribute("data-many")).toBe("true");
     expect(within(screen.getByRole("button")).getAllByRole("img")).toHaveLength(2);
+  });
+
+  it("is one mark and how many from four, and from two where they are Everyone", () => {
+    const { container, rerender } = render(<FaceGroup faces={[SCOUT, LEDGER]} everyone small />);
+    expect(container.querySelectorAll(".ui-faces__mark i")).toHaveLength(2);
+    expect(screen.getByTestId("faces-count").textContent).toBe("2");
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+    rerender(<FaceGroup faces={[SCOUT, LEDGER, SCOUT, LEDGER]} small />);
+    expect(container.querySelectorAll(".ui-faces__mark i")).toHaveLength(4);
+    expect(marked(1, true)).toBe(false);
+    expect(marked(2, true)).toBe(true);
+    expect(marked(3)).toBe(false);
+    expect(marked(4)).toBe(true);
+  });
+
+  it("leaves the number off a mark that is a choice, whose words say who", () => {
+    const { container } = render(
+      <FaceGroup faces={[SCOUT, LEDGER, SCOUT]} everyone small counted={false} />,
+    );
+    expect(container.querySelectorAll(".ui-faces__mark i")).toHaveLength(3);
+    expect(screen.queryByTestId("faces-count")).toBeNull();
   });
 });

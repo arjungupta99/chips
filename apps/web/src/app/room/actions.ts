@@ -4,7 +4,7 @@
  */
 
 import type { IssuedInvite, RoomFileOf, WorkspaceRole } from "@chipschat/core";
-import type { JobSpend, SpaceIcon } from "@chipschat/protocol";
+import type { RoomSpend, SpaceIcon } from "@chipschat/protocol";
 import type { ProjectActions } from "./Project.tsx";
 
 export interface SpaceActions {
@@ -28,16 +28,20 @@ export interface SpaceActions {
   readonly lead: (agentId: string | null) => Promise<void>;
   /**
    * Set what the room allows a job (ADR 0117), or `null` to follow the default again; rejects
-   * with the server's reason.
+   * with the server's reason. With `carryOn`, the agents held at the ceiling carry on too, in the
+   * same request, the amount changed or not (ADR 0282).
    */
-  readonly spend: (usd: number | null) => Promise<void>;
+  readonly spend: (usd: number | null, options?: { readonly carryOn?: boolean }) => Promise<void>;
   /**
    * Lock the room's changes, or let them go (ADR 0156): while they are locked, nobody renames,
    * archives or deletes it. Rejects with the server's reason.
    */
   readonly lock: (locked: boolean) => Promise<void>;
-  /** What the room's job has spent so far against what the room allows a job (ADR 0117). */
-  readonly roomSpend: () => Promise<JobSpend>;
+  /**
+   * What the room's job has spent so far against what the room allows a job (ADR 0117), what
+   * began it, and the jobs before it that spent (ADR 0282).
+   */
+  readonly roomSpend: () => Promise<RoomSpend>;
   /** Move an agent into this room from the one it is in (ADR 0087); rejects with the reason. */
   readonly move: (agentId: string) => Promise<void>;
   /**

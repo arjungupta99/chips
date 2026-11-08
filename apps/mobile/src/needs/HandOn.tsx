@@ -3,11 +3,12 @@
  * workspace, a role, anyone here, or the lane's lead.
  *
  * Being named on an ask is standing enough to answer it, so the list reaches past the space
- * (ADR 0042) — but not to guests: a guest is in one space and answers there.
+ * (ADR 0042) — but not to guests: a guest is in one space and answers there. A standing that
+ * would reach nobody but the reader is left out (`handChoices`).
  */
 
-import type { Directory, PersonModel } from "@chipschat/core";
-import { nameOf } from "@chipschat/core";
+import type { HandOnFacts } from "@chipschat/core";
+import { handChoices } from "@chipschat/core";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { Button } from "../ui/Button";
@@ -15,38 +16,11 @@ import { type Choice, Choices } from "../ui/Choices";
 import { Field } from "../ui/Field";
 import { SPACE } from "../ui/tokens";
 
-/** The refs that are not a person: what the request's own words allow. */
-const STANDING: readonly Choice[] = [
-  { value: "role:admin", label: "The admins" },
-  { value: "role:owner", label: "The owners" },
-  { value: "any", label: "Anyone in the space" },
-  { value: "lead", label: "The lane's lead" },
-];
-
-export function candidates(
-  directory: Directory,
-  members: readonly string[],
-  people: Readonly<Record<string, PersonModel>>,
-  selfId: string,
-): readonly Choice[] {
-  const here = members.filter((id) => id !== selfId && directory[id]?.kind === "person");
-  const elsewhere = Object.values(people)
-    .filter(
-      (person) =>
-        person.role !== "guest" &&
-        person.participantId !== selfId &&
-        !here.includes(person.participantId),
-    )
-    .map((person) => person.participantId);
-  return [
-    ...here.map((id) => ({ value: id, label: nameOf(directory, id) })),
-    ...elsewhere.map((id) => ({
-      value: id,
-      label: people[id]?.displayName ?? nameOf(directory, id),
-      description: "Not in this space",
-    })),
-    ...STANDING,
-  ];
+/** Whoever the ask could be handed to, as the form's choices. */
+export function candidates(facts: HandOnFacts): readonly Choice[] {
+  return handChoices(facts).map((choice) =>
+    choice.elsewhere === true ? { ...choice, description: "Not in this space" } : choice,
+  );
 }
 
 export function HandOn({

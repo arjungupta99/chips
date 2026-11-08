@@ -63,6 +63,60 @@ export function withSteadySpring(
   }) as unknown as number;
 }
 
+interface SteadyTiming extends Animation<SteadyTiming> {
+  from: number;
+  last: number;
+  elapsed: number;
+  current: number;
+}
+
+/** How a steady timing goes: over `ms`, eased by `ease`, after `wait`, all on the steady clock. */
+export interface SteadyTimingConfig {
+  readonly ms: number;
+  /** A function a worklet can call (`Easing.bezierFn`). */
+  readonly ease: (share: number) => number;
+  readonly wait?: number;
+}
+
+/**
+ * A timing to `to` on the steady clock. A short fade let go with a mount is all of it, or none of
+ * it, by the first frame that draws it on the clock every other animation keeps: a room's frost (ADR
+ * 0279, since gone), a sixty millisecond fade let go with the details' pane, was whole in its first
+ * frame (the simulator, 5 November 2026). On this one a frame the phone could not draw is a frame of it.
+ */
+export function withSteadyTiming(
+  to: number,
+  { ms, ease, wait = 0 }: SteadyTimingConfig,
+  callback?: AnimationCallback,
+): number {
+  "worklet";
+  return defineAnimation<SteadyTiming>(to, () => {
+    "worklet";
+    const onStart = (animation: SteadyTiming, value: AnimatableValue, now: number) => {
+      animation.from = Number(value);
+      animation.current = Number(value);
+      animation.last = now;
+      animation.elapsed = 0;
+    };
+    const onFrame = (animation: SteadyTiming, now: number) => {
+      animation.elapsed += Math.min(STEADY_FRAME_MS, Math.max(0, now - animation.last));
+      animation.last = now;
+      const share = Math.min(1, Math.max(0, animation.elapsed - wait) / ms);
+      animation.current = animation.from + (to - animation.from) * ease(share);
+      return share >= 1;
+    };
+    return {
+      onStart,
+      onFrame,
+      from: to,
+      last: 0,
+      elapsed: 0,
+      current: to,
+      callback,
+    } as SteadyTiming;
+  }) as unknown as number;
+}
+
 interface Glide extends Animation<Glide> {
   from: number;
   last: number;

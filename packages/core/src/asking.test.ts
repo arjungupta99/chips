@@ -12,29 +12,40 @@ import {
   alwaysRules,
   alwaysSheetWhy,
   alwaysSummary,
+  answeredWords,
   askHistory,
   askingOpening,
   askingPromises,
+  askLastings,
   askMatters,
   askStanding,
   asksGoTo,
   changeScope,
   changesStill,
   dayMonth,
+  holdsWords,
+  hourEnds,
+  lettingWork,
+  letWorkWords,
   ONCE_ONLY_WORDS,
+  offersLetWork,
   ownToolsWords,
   RULES_CHANGE_MS,
   type RulesChange,
   reachWords,
   rulesOf,
   startWords,
+  stoppedWords,
   switchedRule,
-  UNREADABLE_WORDS,
+  untilStoppedWords,
   waitsWords,
+  whileUntil,
+  whileWords,
   withChanges,
   withoutRule,
   withRuleBack,
   withRules,
+  workingWords,
   workspaceAskHistory,
 } from "./asking.js";
 import type { ClientEvent, Directory } from "./events.js";
@@ -441,6 +452,99 @@ describe("the ask card's words (ADR 0195)", () => {
     expect(waitsWords(false)).toBe("Waits for a person");
   });
 
+  it("says what For an hour lets through, and the strip says until when (ADRs 0280, 0281)", () => {
+    expect(whileWords("Ike")).toBe(
+      "Everything Ike asks in this space goes ahead without a card for the hour, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+    );
+    expect(whileUntil(Date.parse("2026-11-06T07:08:00.000Z")).toISOString()).toBe(
+      "2026-11-06T08:08:00.000Z",
+    );
+    const now = new Date(2026, 10, 5, 23, 9).getTime();
+    expect(hourEnds(now)).toEqual({ from: "Now, 11:09 PM", until: "Until 12:09 AM" });
+    expect(answeredWords("once", now, "space", "Bakery")).toBe("Approved");
+    expect(answeredWords("hour", now, "space", "Bakery")).toBe("Until 12:09 AM");
+    expect(answeredWords("always", now, "everywhere", "Bakery")).toBe("Always, in every space");
+    expect(answeredWords("always", now, "space", "Bakery")).toBe("Always, in Bakery");
+    expect(answeredWords("work", now, "space", "Bakery")).toBe("Until you stop it");
+  });
+
+  it("offers Let it work on every ask but one that matters, and says what it lets through (ADR 0281)", () => {
+    const standing = (action: Record<string, unknown>) => {
+      const approval = asked(action);
+      if (approval === undefined) throw new Error("no ask");
+      return askStanding(approval);
+    };
+    const command = standing({ kind: "acp.execute", input: { command: "ls -la" } });
+    const unread = standing({ kind: "acp.execute", input: { command: "for r in a; do ls; done" } });
+    const matters = standing({ kind: "email.send", external: true });
+    expect(askLastings(command)).toEqual(["once", "hour", "always"]);
+    expect(askLastings(standing({ kind: "file.edit" }))).toEqual(["once", "hour", "always"]);
+    expect(askLastings(unread)).toEqual(["once", "hour"]);
+    expect(askLastings(matters)).toEqual([]);
+    expect([command, unread, matters].map((each) => offersLetWork(each))).toEqual([
+      true,
+      true,
+      false,
+    ]);
+    // A server that wouldn't keep a yes that holds on is offered neither.
+    expect(askLastings(command, false)).toEqual(["once", "always"]);
+    expect(askLastings(unread, false)).toEqual([]);
+    expect([command, unread, matters].map((each) => offersLetWork(each, false))).toEqual([
+      false,
+      false,
+      false,
+    ]);
+    expect(letWorkWords("Jiro", "Chips explain")).toEqual({
+      title: "Let Jiro work without asking",
+      sub: "In Chips explain, until you stop it",
+    });
+    expect(untilStoppedWords("Jiro")).toBe(
+      "Everything Jiro asks here goes ahead without a card until you stop it, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+    );
+  });
+
+  it("keeps who is let work without asking in each room, until stopped or its hour is up (ADR 0281)", () => {
+    const given = (seq: number, approvalId: string, extra: Record<string, unknown>) => [
+      fixture("approval.request", seq, { approval_id: approvalId, action: { kind: "shell.exec" } }),
+      fixture("approval.resolved", seq + 1, { approval_id: approvalId, ...extra }),
+    ];
+    const start = [fixture("space.created", 1), fixture("run.started", 2)];
+    const hour = buildModel([
+      ...start,
+      ...given(3, "apr_01K4ZQPX00000000000000000A", { for_minutes: 60 }),
+    ]);
+    const room = hour.spaces[0];
+    const held = room?.letWork?.[0];
+    expect(held).toMatchObject({ asker: KIT, by: ARJUN });
+    if (held === undefined) throw new Error("not held");
+    const at = Date.parse(held.since);
+    expect(lettingWork(room, at + 59 * 60_000)).toHaveLength(1);
+    expect(lettingWork(room, at + 61 * 60_000)).toEqual([]);
+    expect(holdsWords(held)).toMatch(/^Until \d+:\d\d [AP]M$/);
+    expect(workingWords("Jiro", held)).toMatch(
+      /^Jiro is working without asking until \d+:\d\d [AP]M$/,
+    );
+
+    // Until stopped outlasts the hour, a shorter yes doesn't cut it, and a stop ends it.
+    const stopped = [
+      ...start,
+      ...given(3, "apr_01K4ZQPX00000000000000000A", { until_stopped: true }),
+      ...given(5, "apr_01K4ZQPX00000000000000000B", { for_minutes: 60 }),
+    ];
+    const working = buildModel(stopped).spaces[0];
+    expect(working?.letWork).toEqual([expect.not.objectContaining({ until: expect.anything() })]);
+    expect(holdsWords(working?.letWork?.[0] ?? held)).toBe("Until you stop it");
+    expect(workingWords("Jiro", working?.letWork?.[0] ?? held)).toBe(
+      "Jiro is working without asking",
+    );
+    const stop = fixture("approval.held_stopped", 7, { asker: KIT });
+    expect(buildModel([...stopped, stop]).spaces[0]?.letWork).toBeUndefined();
+    expect(stoppedWords("Jiro")).toBe("Stopped. Jiro asks again from its next step.");
+    // A no, or a yes given once, lets nothing work.
+    const no = given(3, "apr_01K4ZQPX00000000000000000A", { decision: "denied", for_minutes: 60 });
+    expect(buildModel([...start, ...no]).spaces[0]?.letWork).toBeUndefined();
+  });
+
   it("offers a command's yes beyond once by its parts' starts, or says why not (ADR 0239)", () => {
     const standing = (action: Record<string, unknown>, risk: string[] = []) => {
       const approval = asked(action, risk);
@@ -449,27 +553,37 @@ describe("the ask card's words (ADR 0195)", () => {
     expect(standing({ kind: "file.edit", input: { path: "a.md" } })).toEqual({ kind: "any" });
     expect(
       standing({ kind: "acp.execute", input: { command: "node --check game.js && echo ok" } }),
-    ).toEqual({ kind: "starts", starts: ["node --check …", "echo ok …"] });
+    ).toEqual({ kind: "starts", starts: ["node --check …", "echo …"] });
+    // Output thrown away is read (ADR 0239 addendum), and a file read is remembered by its program.
+    expect(
+      standing({
+        kind: "acp.execute",
+        input: { command: "cat package.json 2>/dev/null | head -60" },
+      }),
+    ).toEqual({ kind: "starts", starts: ["cat …", "head …"] });
     expect(standing({ kind: "acp.execute", input: { command: "echo hi > out.txt" } })).toEqual({
       kind: "once",
-      why: UNREADABLE_WORDS,
+      why: "This writes to `out.txt`, so there is no Always for it.",
+      holds: true,
     });
     expect(standing({ kind: "acp.execute", input: { command: "ls && rm x" } })).toEqual({
       kind: "once",
-      why: "Asks that use rm are answered each time.",
+      why: "There is no Always for asks that use rm.",
+      holds: true,
     });
     expect(standing({ kind: "email.send", external: true })).toEqual({
       kind: "once",
       why: ONCE_ONLY_WORDS,
+      holds: false,
     });
   });
 
   it("says how far a standing yes reaches, and what still comes to a person (ADR 0239)", () => {
     expect(reachWords("everywhere", "Bakery", true)).toBe(
-      "Commands made only of these go ahead without a card in every space. Anything else still comes to you.",
+      "Commands made only of the lit words go ahead without a card in every space. Anything else still comes to you.",
     );
     expect(reachWords("space", "Bakery", true)).toBe(
-      "Commands made only of these go ahead without a card in Bakery. Anything else still comes to you.",
+      "Commands made only of the lit words go ahead without a card in Bakery. Anything else still comes to you.",
     );
     expect(reachWords("session", "Bakery", false)).toBe(
       "Asks like this go ahead without a card until this session ends.",

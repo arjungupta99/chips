@@ -39,6 +39,7 @@ import {
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore } from "../testing/fixtures";
 import { chooseAppearance } from "../ui/appearance";
+import { type Duo, DuoContext } from "../ui/duo";
 import { PIN_REST } from "../ui/outline";
 import { avatarHue, hueColours, sourceColours } from "../ui/sourceColours";
 import { BUBBLE, ICON_GROUNDS, light, SPACE } from "../ui/tokens";
@@ -237,6 +238,16 @@ describe("the lines a space draws", () => {
     // 10:00 UTC, in whatever the runner's clock calls it: the digits are the point. Inside the
     // line, because the separator over it says the hour too.
     expect(within(screen.getByTestId("line-ln_1")).getByText(/\d{1,2}:\d{2}/)).toBeTruthy();
+  });
+
+  it("keeps its list inside the box that holds its width, so the screen's edge settings reach it", async () => {
+    // What this renderer cannot show: on the phone a view with a test id and no more is drawn
+    // empty, with its children moved up after it, and the screen looking down its first children
+    // for the list stopped at it. The list kept iOS's own edge effect, a dark veil over the whole
+    // conversation (an iPad's window in Split View, 7 November 2026).
+    const { element } = open(state([line()]));
+    await render(element);
+    expect(screen.getByTestId("room-held").props["collapsable"]).toBe(false);
   });
 
   it("draws a taken-back line as a tombstone rather than dropping it", async () => {
@@ -652,10 +663,10 @@ describe("the lines a space draws", () => {
 
     await userEvent.longPress(screen.getByTestId("hold-ln_1"));
     // The lifted menu says the run in one line, and opens the receipt on its own page.
-    expect(screen.getByText("2 steps · 1 failed · ≈$0.42")).toBeTruthy();
+    expect(screen.getByText("≈$0.42 · 2 steps · 1 failed")).toBeTruthy();
     await userEvent.press(screen.getByTestId("lift-receipt"));
     expect(await screen.findByTestId("receipt")).toBeTruthy();
-    expect(screen.getByText("2 steps · 1 failed · ≈$0.42")).toBeTruthy();
+    expect(screen.getByText("≈$0.42 · 2 steps · 1 failed")).toBeTruthy();
     expect(screen.getByText(/Drafted the email/)).toBeTruthy();
     expect(screen.getByText(/Sent it/)).toBeTruthy();
     expect(screen.getByText("12s")).toBeTruthy();
@@ -756,10 +767,10 @@ describe("the lines a space draws", () => {
     const reply = line({ kind: "summary", runId: "run_1", text: "There are 6 things on the list" });
     const { rerender } = await render(open(state([reply], { runs: answered })).element);
     await userEvent.longPress(screen.getByTestId("hold-ln_1"));
-    expect(screen.getByText("4s · ≈$0.03")).toBeTruthy();
+    expect(screen.getByText("≈$0.03 · 4s")).toBeTruthy();
     await userEvent.press(screen.getByTestId("lift-receipt"));
     expect(await screen.findByTestId("receipt")).toBeTruthy();
-    expect(screen.getByText("4s · ≈$0.03")).toBeTruthy();
+    expect(screen.getByText("≈$0.03 · 4s")).toBeTruthy();
 
     const unpriced = [{ ...answered[0], costUsd: undefined }];
     await rerender(open(state([reply], { runs: unpriced })).element);
@@ -778,7 +789,7 @@ describe("the lines a space draws", () => {
     await render(open(state([failed], { runs: receipted })).element);
     expect(screen.queryByTestId("receipt")).toBeNull();
     await userEvent.longPress(screen.getByTestId("hold-ln_1"));
-    expect(screen.getByText("2 steps · 1 failed · ≈$0.42")).toBeTruthy();
+    expect(screen.getByText("≈$0.42 · 2 steps · 1 failed")).toBeTruthy();
   });
 
   it("keeps unattributed replies neutral even when a run completes", async () => {
@@ -1479,6 +1490,17 @@ describe("the composer", () => {
       name: "send",
       args: { spaceId: "sp_1", text: "On it" },
     });
+  });
+
+  it("floats the room's whole width on the Duo folded, whose page keeps the column clear", async () => {
+    // The room's page pads by the column iOS keeps down the Duo's edge (`useSides`), and the foot
+    // floats inside it. It kept the column clear a second time, and the field and the card it opens
+    // into stood 84 points short of it (the simulator, 5 November 2026; ADR 0256's addendum).
+    const folded: Duo = { side: "right", column: 84, bar: undefined, top: 24, fold: undefined };
+    await render(
+      <DuoContext.Provider value={folded}>{open(state([line()])).element}</DuoContext.Provider>,
+    );
+    expect(screen.getByTestId("floating-foot")).toHaveStyle({ left: 0, right: 0 });
   });
 
   it("takes the room to the foot when the message it sent lands, and not before", async () => {
@@ -2558,6 +2580,70 @@ describe("landing on the line a link points at", () => {
     }
   });
 
+  it("goes to a line its sheet sends it to, and again to the same line (ADR 0219, addendum)", async () => {
+    const scrolled = jest
+      .spyOn(FlatList.prototype, "scrollToIndex")
+      .mockImplementation(() => undefined);
+    try {
+      const snapshot = said();
+      const room = (goTo?: { lineId: string; nonce: number }) =>
+        onAPhone(
+          <SpaceView
+            store={fakeStore(snapshot)}
+            snapshot={snapshot}
+            spaceId="sp_1"
+            selfId="per_arjun"
+            goTo={goTo}
+          />,
+        );
+      const { rerender } = await render(room());
+      await built();
+      // A job's reply, from Spend per job.
+      await rerender(room({ lineId: "ln_1", nonce: 1 }));
+      await frames();
+      expect(scrolled).toHaveBeenLastCalledWith({ index: 3, viewPosition: 0.5, animated: true });
+      expect(screen.getByTestId("flash-ln_1")).toBeTruthy();
+      // The reader scrolls away and taps the same job again: the room goes there again.
+      const went = scrolled.mock.calls.length;
+      await rerender(room({ lineId: "ln_1", nonce: 2 }));
+      await frames();
+      expect(scrolled.mock.calls.length).toBeGreaterThan(went);
+      expect(scrolled).toHaveBeenLastCalledWith({ index: 3, viewPosition: 0.5, animated: true });
+    } finally {
+      scrolled.mockRestore();
+    }
+  });
+
+  it("lights the line gone to last: a card's after a link's", async () => {
+    const scrolled = jest
+      .spyOn(FlatList.prototype, "scrollToIndex")
+      .mockImplementation(() => undefined);
+    try {
+      const snapshot = said();
+      const room = (at: string, goTo?: { lineId: string; nonce: number }) =>
+        onAPhone(
+          <SpaceView
+            store={fakeStore(snapshot)}
+            snapshot={snapshot}
+            spaceId="sp_1"
+            selfId="per_arjun"
+            at={at}
+            goTo={goTo}
+          />,
+        );
+      const { rerender } = await render(room("line:ln_1"));
+      await built();
+      await frames();
+      expect(screen.getByTestId("flash-ln_1")).toBeTruthy();
+      await rerender(room("line:ln_1", { lineId: "ln_3", nonce: 1 }));
+      await frames();
+      expect(screen.getByTestId("flash-ln_3")).toBeTruthy();
+      expect(screen.queryByTestId("flash-ln_1")).toBeNull();
+    } finally {
+      scrolled.mockRestore();
+    }
+  });
+
   it("draws the asks the space is holding at its foot, and takes a yes from there", async () => {
     const runs = [
       {
@@ -2901,7 +2987,7 @@ describe("who a message is for (ADR 0081)", () => {
   it("says Everyone before your first message, and sends it to all", async () => {
     const { store, element } = open(pair([]));
     await render(element);
-    expect(screen.getByRole("button", { name: "To Everyone" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "To Everyone, 2 agents" })).toBeTruthy();
     await userEvent.type(screen.getByTestId("composer"), "Hi both");
     await userEvent.press(screen.getByRole("button", { name: "Send" }));
     expect(store.calls).toContainEqual({
@@ -3023,7 +3109,7 @@ describe("who a message is for (ADR 0081)", () => {
       fireEvent(room, "responderRelease");
       await waitFor(() => expect(screen.queryByTestId("address-menu")).toBeNull());
       expect(away).not.toHaveBeenCalled();
-      expect(screen.getByRole("button", { name: "To Everyone" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "To Everyone, 2 agents" })).toBeTruthy();
       // Closed, it takes nothing first again: a bubble's own press and the list's drag are theirs.
       expect(room.props["onStartShouldSetResponderCapture"]()).toBe(false);
     } finally {
@@ -3320,7 +3406,7 @@ describe("who a message is for (ADR 0081)", () => {
     ]);
   });
 
-  it("says the job's spend in the margin at 80%, and at the ceiling the banner says it with Let them carry on (ADR 0118)", async () => {
+  it("says the job's spend in the margin at 80%, and at the ceiling the banner says it with Carry on at the ceiling (ADR 0118, ADR 0282)", async () => {
     const lines = [
       line({
         id: "q",
@@ -3358,10 +3444,69 @@ describe("who a message is for (ADR 0081)", () => {
       "This job has spent $3.02 of the $3.00 this space allows. The agents start nothing new until somebody lets them carry on.",
       { exact: false },
     );
+    expect(screen.getByTestId("carry-on")).toHaveTextContent("Carry on at $3.00");
+    // Without a way to the room's sheet, nothing to raise it from.
+    expect(screen.queryByTestId("raise-limit")).toBeNull();
     await userEvent.press(screen.getByTestId("carry-on"));
     expect(room.store.calls.filter((each) => each.name === "setExchange")).toEqual([
       { name: "setExchange", args: { spaceId: "sp_1", state: "going" } },
     ]);
+  });
+
+  it("offers the owner Raise the limit at the ceiling, which opens Spend per job to carry on with (ADR 0282)", async () => {
+    const snapshot = pair([
+      line({
+        id: "q",
+        seq: 1,
+        authorId: "per_arjun",
+        text: "Read the trials",
+        addressedTo: ["har_scout"],
+      }),
+    ]);
+    const [space] = snapshot.model.spaces;
+    const held = (role: string) =>
+      ({
+        ...snapshot,
+        model: {
+          ...snapshot.model,
+          people: {
+            per_arjun: { participantId: "per_arjun", displayName: "Arjun", role, joinedAt: "t1" },
+          },
+          spaces: [
+            { ...space, actedSeq: 1, pausedSeq: 9, pausedSpend: { spentUsd: 3.1, ceilingUsd: 3 } },
+          ],
+        },
+      }) as unknown as Snapshot;
+    const asked: (string | undefined)[] = [];
+    const owner = held("owner");
+    const { rerender } = await render(
+      onAPhone(
+        <SpaceView
+          store={fakeStore(owner)}
+          snapshot={owner}
+          spaceId="sp_1"
+          selfId="per_arjun"
+          onOpenRoom={(page) => asked.push(page)}
+        />,
+      ),
+    );
+    await userEvent.press(screen.getByTestId("raise-limit"));
+    expect(asked).toEqual(["raise"]);
+    expect(screen.getByTestId("carry-on")).toHaveTextContent("Carry on at $3.00");
+    // A member carries on; the owner sets what a job may spend (ADR 0196).
+    const member = held("member");
+    await rerender(
+      onAPhone(
+        <SpaceView
+          store={fakeStore(member)}
+          snapshot={member}
+          spaceId="sp_1"
+          selfId="per_arjun"
+          onOpenRoom={(page) => asked.push(page)}
+        />,
+      ),
+    );
+    expect(screen.queryByTestId("raise-limit")).toBeNull();
   });
 
   /** Scout and Tree taking turns, from the first of `WORDS` to the `n`th. */
@@ -3467,7 +3612,7 @@ describe("a slide up from the faces (ADR 0229)", () => {
     await act(() => told().onLit(0));
     expect(screen.getByRole("button", { name: "To Scout" })).toBeTruthy();
     await act(() => told().onLit(-1));
-    expect(screen.getByRole("button", { name: "To Everyone" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "To Everyone, 2 agents" })).toBeTruthy();
     expect(screen.getByTestId("composer-hint", HIDDEN)).toHaveTextContent("Message Everyone");
   });
 
@@ -3480,7 +3625,7 @@ describe("a slide up from the faces (ADR 0229)", () => {
       told().onPick(2);
       told().onLit(-1);
     });
-    expect(screen.getByRole("button", { name: "To Everyone" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "To Everyone, 2 agents" })).toBeTruthy();
   });
 });
 
@@ -3533,11 +3678,30 @@ describe("a room of many agents (ADR 0113)", () => {
     expect(screen.getByTestId("composer").props["placeholderTextColor"]).toBe("transparent");
   });
 
-  it("draws three as their faces, as before", async () => {
+  it("draws Everyone as the mark from two: a half and two quarters for three, halves for two", async () => {
+    // Arjun, 6 November 2026: "I want to show the tile icon even for 2+".
     await render(view(crowd([], { members: ROOM.slice(0, 4) })));
-    const token = screen.getByRole("button", { name: "To Everyone" });
-    expect(within(token).getAllByTestId("trail-face", HIDDEN)).toHaveLength(3);
-    expect(within(token).queryByTestId("faces-mark", HIDDEN)).toBeNull();
+    const token = screen.getByRole("button", { name: "To Everyone, 3 agents" });
+    expect(within(token).queryAllByTestId("trail-face", HIDDEN)).toHaveLength(0);
+    expect(within(token).getByTestId("faces-count", HIDDEN)).toHaveTextContent("3");
+    const sides = (cells: readonly { props: { style?: unknown } }[]) =>
+      cells.map((cell) => {
+        const { width, height } = StyleSheet.flatten(cell.props.style as never) ?? {};
+        return [width, height];
+      });
+    const cell = (20 - 1.5) / 2;
+    expect(sides(within(token).getAllByTestId("faces-mark-cell", HIDDEN))).toEqual([
+      [cell, 20],
+      [cell, cell],
+      [cell, cell],
+    ]);
+    await screen.unmount();
+    await render(view(crowd([], { members: ROOM.slice(0, 3) })));
+    const two = screen.getByRole("button", { name: "To Everyone, 2 agents" });
+    expect(sides(within(two).getAllByTestId("faces-mark-cell", HIDDEN))).toEqual([
+      [cell, 20],
+      [cell, 20],
+    ]);
   });
 
   it("lists the lead first, scrolls the rest under half the window, and holds Everyone at the foot", async () => {
@@ -3557,7 +3721,9 @@ describe("a room of many agents (ADR 0113)", () => {
     // Everyone is under the rows that scroll, not one of them.
     const everyone = screen.getByRole("menuitem", { name: "Everyone, all answer" });
     expect(within(scroll).queryByRole("menuitem", { name: "Everyone, all answer" })).toBeNull();
-    expect(within(everyone).getByTestId("faces-count", HIDDEN)).toHaveTextContent("5");
+    // The mark with no number: the row's words say who, and a number pushed it off the faces' line.
+    expect(within(everyone).getByTestId("faces-mark", HIDDEN)).toBeTruthy();
+    expect(within(everyone).queryByTestId("faces-count", HIDDEN)).toBeNull();
     // Half Jest's window less the words' row, less Everyone's row and the list's padding.
     const { height } = Dimensions.get("window");
     expect(scroll).toHaveStyle({ maxHeight: height / 2 - 34 - 52 - 12 });

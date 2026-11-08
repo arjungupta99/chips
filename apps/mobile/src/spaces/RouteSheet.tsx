@@ -1,8 +1,8 @@
 /**
  * Who a message went to, every one of them, people too (ADR 0113, ADR 0204): what a tap on the route over a message
  * opens. Arjun, 4 October 2026: "tapping the route UI should also provide a scrollable list of all
- * the agents". A route draws faces and never names, and from four agents it is one mark and a
- * number (`Faces`), so this is where the names are.
+ * the agents". A route draws faces and never names, and from four agents (from two, to Everyone)
+ * it is one mark and a number (`Faces`), so this is where the names are.
  *
  * "To Everyone", how many, and which message, then each agent with its harness and the room's
  * lead marked, as the room sheet lists them. The list scrolls in what the sheet leaves it, and

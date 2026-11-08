@@ -8,6 +8,7 @@
  */
 
 import type { ContextOwner } from "@chipschat/core";
+import { createContext } from "react";
 import type { HarnessPart } from "../harness/parts.ts";
 
 export type ContextPage =
@@ -85,3 +86,9 @@ export function pageName(page: ContextPage): string {
       return `job ${page.harnessId} ${page.jobId}`;
   }
 }
+
+/**
+ * The page open in the second column beside the Agents list (ADR 0284): its row or tile in the list
+ * wears the chosen ground, as the iPad's does.
+ */
+export const OpenedPage = createContext<ContextPage | undefined>(undefined);

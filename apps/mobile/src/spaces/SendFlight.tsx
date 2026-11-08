@@ -654,7 +654,7 @@ function RouteFlight({
       testID="send-flight-route"
     >
       <Arrow />
-      <Faces step={stepOf(directory, route.to)} />
+      <Faces step={stepOf(directory, route.to)} everyone={route.everyone} />
     </Animated.View>
   );
 }

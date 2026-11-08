@@ -22,9 +22,10 @@
  *
  * A room of many (ADR 0113, 4 October 2026): one face each ran past the field at fourteen agents,
  * and the list ran off the top of the screen, the lead first. Four or more are one mark and a
- * number (`Faces`). The list stands at most half the window, the field's words included, and
- * never past the room's bar (`listRoom`): the lead at its top, Everyone held at its foot by the
- * thumb, and the rest scrolling between, fading at the top while there is more above.
+ * number (`Faces`), and Everyone is from two (6 November 2026). The list stands at most half the
+ * window, the field's words included, and never past the room's bar (`listRoom`): the lead at its
+ * top, Everyone held at its foot by the thumb, and the rest scrolling between, fading at the top
+ * while there is more above.
  *
  * Several, picked from the list (ADR 0114): a tap on an agent's name picks it alone and closes
  * the list, as it always did; a tap on the circle at its right adds it to who the message goes
@@ -57,11 +58,12 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { TOUCH_TARGET } from "../ui/Button";
 import { Fades } from "../ui/Fades";
 import { alpha } from "../ui/Glass";
-import { Appearing } from "../ui/growing";
+import { Appearing, GROWS, GrowingView } from "../ui/growing";
 import { Icon } from "../ui/Icon";
+import { Swap } from "../ui/Swap";
 import { usePalette } from "../ui/theme";
 import { SPACE, TEXT } from "../ui/tokens";
-import { Arrow, FACES_UP_TO, Faces, stepOf } from "./LaneChain";
+import { Arrow, Faces, marked, stepOf } from "./LaneChain";
 import { LeadMark } from "./LeadMark";
 
 /** The token's height: Send's, so one line of the field stays fifty points with both in it. */
@@ -168,7 +170,12 @@ export function messageWords(aim: Aim, space: Space, directory: Directory): stri
   return `Message ${aimWordsOf(aim, space, directory)}`;
 }
 
-/** The faces at the front of the field, which open the list. */
+/**
+ * The faces at the front of the field, which open the list. A change of who the words go to moves
+ * on the field's own clock (`GROWS`): the capsule grows or shrinks to what it now holds, its end
+ * going with it, and the faces crossfade where they stand, so a pick, a slide up the column or an
+ * @ never swaps them in a frame (Arjun, 6 November 2026: "super smooth motion").
+ */
 export function AddressToken({
   aim,
   space,
@@ -188,11 +195,10 @@ export function AddressToken({
 }) {
   const palette = usePalette();
   const words = aimWordsOf(aim, space, directory);
+  const everyone = words === "Everyone";
   // How many, where the mark stands for Everyone (ADR 0113); "4 agents" says so already.
   const many =
-    words === "Everyone" && aim.ids.length > FACES_UP_TO
-      ? `, ${countedWords(aim.ids, directory)}`
-      : "";
+    everyone && marked(aim.ids.length, true) ? `, ${countedWords(aim.ids, directory)}` : "";
   return (
     <Pressable
       accessibilityRole="button"
@@ -203,16 +209,29 @@ export function AddressToken({
       accessibilityState={{ expanded: open }}
       hitSlop={4}
       onPress={onPress}
-      style={[styles.token, { backgroundColor: alpha(palette.ink, open ? 0.11 : 0.06) }]}
       testID="address-capsule"
     >
-      <View ref={routeRef} collapsable={false} style={styles.route}>
-        <Arrow />
-        {aim.ids.length === 0 ? null : (
-          <Faces step={stepOf(directory, aim.ids)} size="xs" ground={palette.surface} />
-        )}
-      </View>
-      <ByMark by={aim.by} open={open} />
+      <GrowingView
+        layout={GROWS}
+        style={[styles.token, { backgroundColor: alpha(palette.ink, open ? 0.11 : 0.06) }]}
+      >
+        <View ref={routeRef} collapsable={false} style={styles.route}>
+          <Arrow />
+          {aim.ids.length === 0 ? null : (
+            <Swap swapKey={everyone ? "everyone" : aim.ids.join(",")}>
+              <Faces
+                step={stepOf(directory, aim.ids)}
+                size="xs"
+                ground={palette.surface}
+                everyone={everyone}
+              />
+            </Swap>
+          )}
+        </View>
+        <GrowingView layout={GROWS}>
+          <ByMark by={aim.by} open={open} />
+        </GrowingView>
+      </GrowingView>
     </Pressable>
   );
 }
@@ -396,7 +415,13 @@ function ChoiceRow({
       ]}
       testID={`address-choice-${choice.name}`}
     >
-      <Faces step={stepOf(directory, choice.ids)} size="xs" ground={palette.surface} />
+      <Faces
+        step={stepOf(directory, choice.ids)}
+        size="xs"
+        ground={palette.surface}
+        everyone={choice.pick === "all"}
+        counted={false}
+      />
       <ChoiceWords choice={choice} />
       {onAdd === undefined ? (
         on ? (

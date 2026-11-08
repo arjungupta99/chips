@@ -98,8 +98,9 @@ describe("Universe on the phone (ADR 0227)", () => {
     };
     await open(store);
     await userEvent.press(await screen.findByTestId("universe-document-a.html"));
-    expect(await screen.findByTestId("page-sheet")).toBeOnTheScreen();
-    expect(screen.getByTestId("universe-orbit")).toBeOnTheScreen();
+    const sheet = await screen.findByTestId("page-sheet");
+    // The page's own planets: the list's may still be fading out behind it.
+    expect(within(sheet).getByTestId("universe-orbit")).toBeOnTheScreen();
     expect(asked.map((signal) => signal.aborted)).toEqual([false]);
     await userEvent.press(screen.getByTestId("page-done"));
     expect(asked.map((signal) => signal.aborted)).toEqual([true]);

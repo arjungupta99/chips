@@ -1,7 +1,7 @@
 /** What is said in a room, and what is done to what was said. */
 
 import { DEFAULT_SPEND_CEILING_USD, dollars, eventIdOfMessage } from "@chipschat/protocol";
-import { actorKind } from "../events.js";
+import { actorKind, type ClientEvent } from "../events.js";
 import { compactedWords } from "../tokens.js";
 import { addLine, lineIndexOf, messageAudit, textLine, withFeedback } from "./lines.js";
 import { claimChange } from "./project.js";
@@ -15,7 +15,7 @@ import {
   required,
   spaceOf,
 } from "./state.js";
-import type { Line } from "./types.js";
+import type { Line, PausedSpend } from "./types.js";
 
 /** The quiet line under what was nobody's turn, handed to the room's lead (ADR 0104). */
 const LEAD_TOOK_IT = "took it as the lead: it was nobody's turn";
@@ -141,20 +141,25 @@ export const MESSAGE_FOLDS: Readonly<Record<string, FoldStep>> = {
 
   // A person pausing the agents here, or letting them carry on (ADR 0097): one line, theirs. Chips
   // pausing them at the room's spend ceiling (ADR 0118) draws none: the banner says it while it
-  // lasts, and the line of whoever lets them carry on says a new job begins.
+  // lasts, and the line of whoever lets them carry on says what the job spent and that a new one
+  // begins (ADR 0282). Carried on together with a new ceiling, from the banner's Raise the limit,
+  // the ceiling's line says both.
   "exchange.set": (state, event) => {
     const space = spaceOf(state, event);
     const exchange = field<string>(event, "state");
     if (space === undefined || (exchange !== "paused" && exchange !== "going")) return;
     if (actorKind(event.actor) !== "person") return;
     // Read before this event is noted: whether the pause it ends was the spend ceiling's.
-    const atCeiling = space.pausedSpend !== undefined && space.pausedSeq > space.actedSeq;
+    const held = space.pausedSeq > space.actedSeq ? space.pausedSpend : undefined;
+    if (exchange === "going" && held !== undefined && raisedAndCarriedOn(space, event, held)) {
+      return;
+    }
     const ceiling = dollars(space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD);
     const words =
       exchange === "paused"
         ? "paused the agents"
-        : atCeiling
-          ? `let the agents carry on. A new ${ceiling} starts now.`
+        : held !== undefined
+          ? `let the agents carry on after ${dollars(held.spentUsd)}. A new ${ceiling} starts now.`
           : "let the agents carry on";
     addLine(space, { ...textLine(event, words), kind: "system", exchange });
   },
@@ -271,3 +276,22 @@ export const MESSAGE_FOLDS: Readonly<Record<string, FoldStep>> = {
     });
   },
 };
+
+/**
+ * The agents let carry on at the ceiling by the person who has just set it, from the banner's Raise
+ * the limit (ADR 0282): their line about the ceiling, the room's last, says both, and no second
+ * line is drawn. Whether it did.
+ */
+function raisedAndCarriedOn(space: MutableSpace, event: ClientEvent, held: PausedSpend): boolean {
+  const set = space.ceilingLine;
+  const last = space.lines.at(-1);
+  if (set === undefined || last === undefined || last.id !== set.id) return false;
+  if (set.by !== event.actor.id || set.seq <= space.pausedSeq) return false;
+  const after = `and let the agents carry on after ${dollars(held.spentUsd)}.`;
+  const text =
+    set.usd === undefined
+      ? `set the limit back to the default, ${dollars(DEFAULT_SPEND_CEILING_USD)}, ${after}`
+      : `${set.usd > set.was ? "raised" : "set"} the limit to ${dollars(set.usd)} ${after}`;
+  space.lines[space.lines.length - 1] = { ...last, text, exchange: "going" };
+  return true;
+}

@@ -487,6 +487,14 @@ export interface SessionRulesTable {
    * with no command, which answers its kind whole.
    */
   starts_with: string | null;
+  /**
+   * A yes for a while (ADR 0239, addendum of 6 November 2026): the space it holds in, whose asks
+   * it lets through (the agent, else the harness), and when it stops. `null` on a This session
+   * row, which is the run's alone.
+   */
+  space_id: string | null;
+  participant_id: string | null;
+  until: string | null;
 }
 
 /**

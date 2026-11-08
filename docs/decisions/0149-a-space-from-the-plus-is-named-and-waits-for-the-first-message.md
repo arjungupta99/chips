@@ -158,3 +158,31 @@ the room never said it had drawn, and the window held its blank page for all of 
    and were turned away. One the history the cache folded already has is not sent again. Once the
    server has said yes, it is never sent again, though it is still drawn until its own event comes
    back: sent again after the room was erased, it would make the room again.
+
+## Addendum, 7 November 2026: the room keeps who was sent into it until the server sends them back
+
+Arjun, making a space from the + on his iPhone: "there is some screen flipping between 'Nobody's
+here' and 'What would you like to do'. Looks very unpolished."
+
+The server sends a space made here back as separate events: its `space.created`, then a
+`membership.added` for each harness asked into it, each appended and sent on its own. The phone let
+go of what it had drawn at the first (point 2 of the addendum above), so for as long as the second
+took, the room held nobody but the person, and `awaitsAgents` drew "Nobody's here yet" between two
+"What would you like to do?". On the simulator against a server on the same Mac the two came 17 ms
+apart, too quick to see; his phone reaches the Mac over Wi-Fi or the relay, where it is a round
+trip or more.
+
+1. **Who was sent in is drawn in the server's own until the server sends them back** (core
+   `madeHere.ts`). Once the model has the space, each harness sent into it that the server's space
+   does not have yet is added to it, with its role and the first name held for its agent, as the
+   space made here drew them.
+2. **Sent back is by key.** Each event the server sends back carries the key it was sent with
+   (`heardMadeHere`); once a `membership.added`'s key is heard, or the participant is in the server's
+   space, it is not drawn any more. So a harness the server put in and someone then took out is gone,
+   not drawn again.
+3. **Turned away is heard too.** The server's no to a `membership.added` stops it being waited for,
+   and the room's notice says why, as before.
+4. **A space the server sent back and then lost is not drawn again** from what was sent: erased
+   before its agents came, it stays gone.
+5. **After a relaunch,** a kept space the cache's history already has is let go at once, as before:
+   nothing of it was sent again, so nothing of it is waited for.

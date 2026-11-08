@@ -1,7 +1,7 @@
 /**
  * The split's third column (ADR 0276): a page one level deeper beside the page it came from, the
  * detail narrowing for it, the list stepping aside where the detail would be too narrow, and the
- * deeper page in the detail's place where no third column fits. What it tells the capsule: how
+ * deeper page in the detail's place where no third column fits. What it tells the bar: how
  * wide the detail is at the window's edge, less a column the detail stands beside itself. And a
  * sheet opened in the detail standing in the third column where the caller asks (ADR 0276's
  * addendum), and a room's details and its Universe sharing the one column beside it.
@@ -66,13 +66,13 @@ describe("a third column", () => {
   });
 });
 
-/** What the Spaces tab's split told the capsule about its detail's foot. */
+/** What the Spaces tab's split told the bar about its detail's foot. */
 function Foot() {
   const foot = useChrome().feet["index"];
   return <Text testID="foot">{foot === undefined ? "none" : `${foot.atEdge} ${foot.width}`}</Text>;
 }
 
-describe("the capsule over the detail", () => {
+describe("the bar over the detail", () => {
   it("is told the room's width at the window's edge, less the details beside it", async () => {
     on(1032, 1376);
     await render(

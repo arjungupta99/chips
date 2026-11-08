@@ -3,9 +3,12 @@
  * box grows with the message, and the chips beside it — Steer, for now — are the slash
  * commands with a face. The commands themselves are M1.2's. Beside the clip, a microphone
  * starts a voice note where the page can record one; what records it is the app's.
+ *
+ * As the iPad's (`plus`, ADR 0284): one round + before the field, which opens what can go with the
+ * words (a photo or a file, a voice note), and the chips and Send inside the field's own box.
  */
 
-import type { KeyboardEvent, ReactNode, Ref } from "react";
+import { type KeyboardEvent, type ReactNode, type Ref, useEffect, useRef, useState } from "react";
 import { AttachmentChip, type AttachmentKind } from "../attachment/attachment.js";
 import { Button } from "../button/button.js";
 import { Icon, type IconName } from "../icon/icon.js";
@@ -67,6 +70,8 @@ export interface ComposerProps {
   readonly onEscape?: (() => void) | undefined;
   /** The text box itself, for the app to put the caret in: a reply started takes it there. */
   readonly inputRef?: Ref<HTMLTextAreaElement>;
+  /** The iPad's: a + before the field for the clip and the microphone, Send inside the field. */
+  readonly plus?: boolean;
 }
 
 /** How many lines the box needs, one per line break, up to the cap. */
@@ -94,6 +99,7 @@ export function Composer({
   above,
   onEscape,
   inputRef,
+  plus = false,
 }: ComposerProps) {
   const ready = !disabled && sendable && (value.trim() !== "" || canSendEmpty);
 
@@ -112,9 +118,40 @@ export function Composer({
     }
   };
 
+  // Steer and Send: after the field, or inside its box (`plus`).
+  const ends = (
+    <>
+      {chips.map((chip) => (
+        <button
+          type="button"
+          key={chip.id}
+          className="ui-composer__chip"
+          data-active={chip.active === true ? "true" : undefined}
+          onClick={chip.onClick}
+          disabled={disabled}
+        >
+          {chip.icon !== undefined && <Icon name={chip.icon} size={12} />}
+          {chip.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="ui-composer__send"
+        aria-label="Send"
+        // By the name the film's render presses it by (ADR 0217, `taps` in a beats file).
+        data-testid="composer-send"
+        onClick={send}
+        disabled={!ready}
+      >
+        <Icon name="up" />
+      </button>
+    </>
+  );
+
   return (
     <div
       className={className === undefined ? "ui-composer" : `ui-composer ${className}`}
+      data-plus={plus ? "true" : undefined}
       data-disabled={disabled ? "true" : undefined}
     >
       {attachments.length > 0 && (
@@ -132,28 +169,39 @@ export function Composer({
         </ul>
       )}
       <div className="ui-composer__row">
-        {onAttach !== undefined && (
-          <Button
-            icon="clip"
-            iconOnly
-            aria-label="Attach a photo or file"
-            onClick={onAttach}
+        {plus ? (
+          <PlusMenu
+            onAttach={onAttach}
+            onRecord={onRecord}
+            recording={recording}
             disabled={disabled}
-            className="ui-composer__attach"
           />
+        ) : (
+          <>
+            {onAttach !== undefined && (
+              <Button
+                icon="clip"
+                iconOnly
+                aria-label="Attach a photo or file"
+                onClick={onAttach}
+                disabled={disabled}
+                className="ui-composer__attach"
+              />
+            )}
+            {onRecord !== undefined && (
+              <Button
+                icon="mic"
+                iconOnly
+                aria-label="Record a voice note"
+                aria-pressed={recording}
+                onClick={onRecord}
+                disabled={disabled || recording}
+                className="ui-composer__attach"
+              />
+            )}
+          </>
         )}
-        {onRecord !== undefined && (
-          <Button
-            icon="mic"
-            iconOnly
-            aria-label="Record a voice note"
-            aria-pressed={recording}
-            onClick={onRecord}
-            disabled={disabled || recording}
-            className="ui-composer__attach"
-          />
-        )}
-        <Field lead={lead} above={above}>
+        <Field lead={lead} above={above} boxed={plus} end={plus ? ends : undefined}>
           <textarea
             ref={inputRef}
             className="ui-composer__input"
@@ -166,33 +214,100 @@ export function Composer({
             onKeyDown={keyDown}
           />
         </Field>
-        {chips.map((chip) => (
-          <button
-            type="button"
-            key={chip.id}
-            className="ui-composer__chip"
-            data-active={chip.active === true ? "true" : undefined}
-            onClick={chip.onClick}
-            disabled={disabled}
-          >
-            {chip.icon !== undefined && <Icon name={chip.icon} size={12} />}
-            {chip.label}
-          </button>
-        ))}
-        <button
-          type="button"
-          className="ui-composer__send"
-          aria-label="Send"
-          // By the name the film's render presses it by (ADR 0217, `taps` in a beats file).
-          data-testid="composer-send"
-          onClick={send}
-          disabled={!ready}
-        >
-          <Icon name="up" />
-        </button>
+        {!plus && ends}
       </div>
     </div>
   );
+}
+
+/**
+ * The iPad's + (ADR 0284): what can go with the words, in a short menu over it. It closes on a pick,
+ * on Escape, and on a press anywhere else.
+ */
+function PlusMenu(props: {
+  readonly onAttach: (() => void) | undefined;
+  readonly onRecord: (() => void) | undefined;
+  readonly recording: boolean;
+  readonly disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    // The first pick takes the focus, as a menu's does; the arrows move it, Escape gives it back.
+    pickItems(box.current)[0]?.focus();
+    const away = (event: Event) => {
+      if (event.target instanceof Node && box.current?.contains(event.target) === true) return;
+      setOpen(false);
+    };
+    const key = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        box.current?.querySelector<HTMLButtonElement>(".ui-composer__plus-button")?.focus();
+      } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        stepFocus(pickItems(box.current), event.key === "ArrowDown" ? 1 : -1);
+      }
+    };
+    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("pointerdown", away, true);
+      document.removeEventListener("keydown", key);
+    };
+  }, [open]);
+  const pick = (act: (() => void) | undefined) => () => {
+    setOpen(false);
+    act?.();
+  };
+  if (props.onAttach === undefined && props.onRecord === undefined) return null;
+  return (
+    <div ref={box} className="ui-composer__plus" data-open={open ? "true" : undefined}>
+      <Button
+        icon="plus"
+        iconOnly
+        aria-label="Add to the message"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((now) => !now)}
+        disabled={props.disabled}
+        className="ui-composer__plus-button"
+      />
+      {open && (
+        <div className="ui-composer__menu" role="menu" aria-label="Add to the message">
+          {props.onAttach !== undefined && (
+            <button type="button" role="menuitem" onClick={pick(props.onAttach)}>
+              <Icon name="clip" size={16} />
+              Photo or file
+            </button>
+          )}
+          {props.onRecord !== undefined && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={pick(props.onRecord)}
+              disabled={props.recording}
+            >
+              <Icon name="mic" size={16} />
+              Voice note
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The menu's picks that can be pressed now, in order. */
+function pickItems(box: HTMLElement | null): HTMLButtonElement[] {
+  return [...(box?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+}
+
+/** The focus one pick on or back, round from the last to the first. */
+function stepFocus(items: readonly HTMLButtonElement[], step: 1 | -1) {
+  if (items.length === 0) return;
+  const at = items.indexOf(document.activeElement as HTMLButtonElement);
+  items[(at + step + items.length) % items.length]?.focus();
 }
 
 /**
@@ -206,13 +321,19 @@ export function Composer({
 function Field({
   lead,
   above,
+  boxed = false,
+  end,
   children,
 }: {
   readonly lead: ReactNode;
   readonly above: ReactNode;
+  /** Drawn as a box whatever leads it: the iPad's field, which holds Send (`plus`). */
+  readonly boxed?: boolean;
+  /** What stands in the box after the words: the chips and Send, as the iPad's field holds them. */
+  readonly end?: ReactNode;
   readonly children: ReactNode;
 }) {
-  const bare = lead === undefined && above === undefined;
+  const bare = !boxed && lead === undefined && above === undefined;
   return (
     <div
       className="ui-composer__field"
@@ -223,6 +344,7 @@ function Field({
       <div className="ui-composer__line">
         {lead}
         {children}
+        {end}
       </div>
     </div>
   );

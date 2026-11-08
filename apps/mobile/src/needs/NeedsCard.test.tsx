@@ -60,6 +60,32 @@ describe("the ask's card", () => {
     expect(screen.getByRole("button", { name: "Deny" })).toBeDisabled();
   });
 
+  it("draws a command a few parts deep, and not again as JSON (ADR 0280)", async () => {
+    const command =
+      "cd /room; ls -la; git log --oneline | wc -l; cat package.json 2>/dev/null | head -60";
+    await draw({
+      snapshot: snapshot({
+        approvals: [
+          approval({
+            actionKind: "acp.execute",
+            risk: [],
+            question: `Look around the room? \`${command.slice(0, 30)}…\``,
+            input: { command },
+            preview: JSON.stringify({ command }),
+            previewFormat: "json",
+            lasts: "once",
+          }),
+        ],
+      }),
+    });
+    expect(screen.getByTestId("ask-headline")).toHaveTextContent("Look around the room?");
+    expect(screen.getAllByTestId("plate-part")).toHaveLength(4);
+    expect(screen.getByTestId("plate-more")).toHaveTextContent("and 2 more parts");
+    expect(screen.queryByTestId("plate-caption")).toBeNull();
+    expect(screen.queryByText(/"command"/)).toBeNull();
+    expect(screen.queryByText("Just this once")).toBeNull();
+  });
+
   it("shows the risks and what lapsing would mean", async () => {
     await draw({
       item: needsItem({ expiresAt: new Date(Date.now() + 20 * 60_000).toISOString() }),

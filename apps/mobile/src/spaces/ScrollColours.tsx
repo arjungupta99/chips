@@ -126,6 +126,8 @@ export function useColourField(): Field {
   const lifting = useSharedValue(0);
   const goal = useSharedValue(0);
   const home = useSharedValue(0);
+  const glide = useSharedValue(0);
+  const shift = useSharedValue(0);
   const own = useSharedValue<Own>({ until: 0, at: 0 });
   const still = useReduceMotion();
   const list = useAnimatedRef<FlatList<Row>>();
@@ -143,9 +145,26 @@ export function useColourField(): Field {
       lifting,
       goal,
       home,
+      glide,
+      shift,
       own,
     }),
-    [scroll, layout, viewportTop, viewportHeight, top, still, list, far, lifting, goal, home, own],
+    [
+      scroll,
+      layout,
+      viewportTop,
+      viewportHeight,
+      top,
+      still,
+      list,
+      far,
+      lifting,
+      goal,
+      home,
+      glide,
+      shift,
+      own,
+    ],
   );
 }
 

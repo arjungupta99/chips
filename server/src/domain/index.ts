@@ -85,6 +85,7 @@ export { DEFAULT_PRICE_TABLE, estimateCost, parsePriceTable, priceFor } from "./
 export type {
   CarriedSpend,
   Change,
+  HeldStopped,
   Patch,
   ProjectionTable,
   Remove,

@@ -12,6 +12,7 @@ import {
   askedAtWords,
   askerName,
   askVerdict,
+  commandPlate,
   type Directory,
   type FoundAsk,
   roomName,
@@ -26,7 +27,8 @@ import { Card } from "../ui/Card";
 import { Risk } from "../ui/Risk";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
-import { AskPreview, Effect, Headline, Lasts } from "./Asked";
+import { Effect, Headline, Lasts } from "./Asked";
+import { AskShown, saysLasts } from "./CommandPlate";
 
 export function Answered({
   found,
@@ -46,6 +48,7 @@ export function Answered({
 }) {
   const palette = usePalette();
   const { approval, run, spaceId } = found;
+  const plate = commandPlate(approval);
   const asker = askerName(run, directory);
   const space = roomName(model, spaceId, directory);
   const verdict = askVerdict(found, directory, selfId, now);
@@ -68,10 +71,10 @@ export function Answered({
       </View>
       <Card>
         <View style={styles.card}>
-          <Headline approval={approval} style={styles.title} />
+          <Headline approval={approval} style={styles.title} plated={plate !== undefined} />
           <Effect approval={approval} />
-          <AskPreview approval={approval} titled={approval.question !== undefined} />
-          <Lasts approval={approval} />
+          <AskShown approval={approval} plate={plate} titled={approval.question !== undefined} />
+          {saysLasts(approval, plate) ? <Lasts approval={approval} /> : null}
           <Risk classes={approval.risk} />
           <View
             style={[styles.verdict, { backgroundColor: ground[answer.end] ?? palette.greenSoft }]}

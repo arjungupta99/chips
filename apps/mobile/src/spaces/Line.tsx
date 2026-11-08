@@ -81,23 +81,16 @@ import { BubbleWatch } from "./BubbleWatch";
 import { type Asker, type Crumbling, Eraser, Veil } from "./Dust";
 import type { Given } from "./Feedback";
 import type { FileService } from "./files";
-import {
-  Arrow,
-  FACES_UP_TO,
-  type Faces,
-  Faces as FacesOf,
-  hopOf,
-  LaneChain,
-  stepOf,
-} from "./LaneChain";
+import { Arrow, type Faces, Faces as FacesOf, hopOf, LaneChain, marked, stepOf } from "./LaneChain";
 import { LiftedMenu, type LiftQuick, type LiftRow } from "./LiftedMenu";
 import { LiftBox, type LiftBoxRef, useLiftBox } from "./LiftedMotion";
-import { hasReceipt, type LineChange, type LinePage, LinePages, receiptLine } from "./LinePages";
+import { hasReceipt, type LineChange, type LinePage, LinePages, receiptParts } from "./LinePages";
 import type { Box, Span } from "./lift";
 import { HoldLine, Markdown } from "./Markdown";
 import { RepliesMark, ReplyCard } from "./ReplyCard";
 import { ReplyGrip } from "./ReplySwipe";
 import { FadingUp, Leaving, MovingBubble, Whole } from "./RoomMotion";
+import { Gliding, Ink } from "./RoomWords";
 import { type RouteDrawn, RouteSheet } from "./RouteSheet";
 import { returning } from "./returning";
 import { FrozenColour, OutgoingColour } from "./ScrollColours";
@@ -277,7 +270,9 @@ function Margin({ line, directory, onOpenAgent }: LineProps) {
         testID={`compacted-${line.id}`}
         style={({ pressed }) => [styles.margin, pressed ? styles.marginPressed : null]}
       >
-        <Text style={[styles.marginWords, { color: palette.ink3 }]}>{words}</Text>
+        <Ink>
+          <Text style={[styles.marginWords, { color: palette.ink3 }]}>{words}</Text>
+        </Ink>
       </Pressable>
     );
   }
@@ -288,7 +283,9 @@ function Margin({ line, directory, onOpenAgent }: LineProps) {
           Checkpoint
         </Text>
       ) : null}
-      <Text style={[styles.marginWords, { color: palette.ink3 }]}>{words}</Text>
+      <Ink>
+        <Text style={[styles.marginWords, { color: palette.ink3 }]}>{words}</Text>
+      </Ink>
     </View>
   );
 }
@@ -369,7 +366,9 @@ function Message(props: LineProps) {
   // emulator, 16 October 2026).
   const pageStamp = stamped ? (
     <Leaving>
-      <Stamp line={line} offline={props.offline} mine={mine} ink={ink} onPage />
+      <Ink>
+        <Stamp line={line} offline={props.offline} mine={mine} ink={ink} onPage />
+      </Ink>
     </Leaving>
   ) : null;
   const held = useHeldMenu(props, { name, offered, breaking });
@@ -409,14 +408,20 @@ function Message(props: LineProps) {
       {/* What the room says of the message stands under it, clear of the face, which stays
           beside the bubble's foot: under Natalie's words in Foodie (19 October 2026) the face of
           the agent that hadn't picked them up was drawn over hers, which had dropped to the
-          room's line. */}
-      <View style={[styles.under, !mine && props.named ? styles.underFaced : null]}>
-        <Said line={line} directory={directory} unsent={props.unsent} />
-        <Heard line={line} directory={directory} mine={mine} />
-        <Waits lineId={line.id} mine={mine} />
-        <RepliesMark replies={props.replies ?? NO_REPLIES} mine={mine} onPress={props.onReplies} />
-        <ChangeMark change={props.change} mine={mine} onPress={() => held.openPage("change")} />
-      </View>
+          room's line. Its marks are words, and go with the bubble's as the room's width changes. */}
+      <Ink>
+        <View style={[styles.under, !mine && props.named ? styles.underFaced : null]}>
+          <Said line={line} directory={directory} unsent={props.unsent} />
+          <Heard line={line} directory={directory} mine={mine} />
+          <Waits lineId={line.id} mine={mine} />
+          <RepliesMark
+            replies={props.replies ?? NO_REPLIES}
+            mine={mine}
+            onPress={props.onReplies}
+          />
+          <ChangeMark change={props.change} mine={mine} onPress={() => held.openPage("change")} />
+        </View>
+      </Ink>
       <HeldMenus
         {...props}
         held={held}
@@ -725,11 +730,13 @@ function rowsFor(
     });
   }
   if (offered.receipt !== undefined) {
+    const { cost, rest } = receiptParts(offered.receipt);
     rows.push({
       key: "receipt",
       icon: "list",
       label: "What the run did",
-      sub: receiptLine(offered.receipt),
+      lead: cost,
+      sub: rest,
       onPress: () => putDown("receipt"),
     });
   }
@@ -770,17 +777,20 @@ function Hanging({
   readonly breaking: Breaking | undefined;
 }) {
   if (line.attachments === undefined) return null;
+  // What glides is the box the bubble's new shape moves: inside it, nothing had moved.
   return (
-    <View collapsable={false}>
-      <Attachments
-        attachments={line.attachments}
-        files={files}
-        lineId={line.id}
-        lineKey={line.key}
-        mine={mine}
-      />
-      {breaking === undefined ? null : <Veil backwards={breaking.crumbling.backwards} />}
-    </View>
+    <Gliding style={mine ? styles.hangsMine : null}>
+      <View collapsable={false}>
+        <Attachments
+          attachments={line.attachments}
+          files={files}
+          lineId={line.id}
+          lineKey={line.key}
+          mine={mine}
+        />
+        {breaking === undefined ? null : <Veil backwards={breaking.crumbling.backwards} />}
+      </View>
+    </Gliding>
   );
 }
 
@@ -891,8 +901,8 @@ function useBreaking(
  * of sight while the capsule's copy of them flies up (`SendFlight.tsx`), and your face comes in
  * once it is on them.
  *
- * A tap lists who it went to, every one, on a sheet (`RouteSheet`, ADR 0113): from four it is one
- * mark and a number, and never names anybody.
+ * A tap lists who it went to, every one, on a sheet (`RouteSheet`, ADR 0113): from four, or from
+ * two where it went to Everyone, it is one mark and a number, and never names anybody.
  */
 function Route({
   route,
@@ -910,42 +920,42 @@ function Route({
   const [sheet, setSheet] = useState<"up" | "going" | undefined>(undefined);
   // "Went to", where the field's faces say "To": the one is where a message went, the other
   // where the next goes. How many where the mark stands for them (ADR 0113).
-  const many =
-    route.words === "Everyone" && route.to.length > FACES_UP_TO
-      ? `, ${route.to.length} agents`
-      : "";
+  const everyone = route.words === "Everyone";
+  const many = everyone && marked(route.to.length, true) ? `, ${route.to.length} agents` : "";
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Went to ${route.words}${many}`}
-        accessibilityHint="Shows who it went to"
-        onPress={() => {
-          Keyboard.dismiss();
-          setSheet("up");
-        }}
-        style={({ pressed }) => [
-          styles.route,
-          mine ? styles.routeMine : null,
-          pressed ? styles.routePressed : null,
-        ]}
-        testID={`route-${line.id}`}
-      >
-        {mine ? (
-          <FadingUp held={landing.held}>
-            <FacesOf step={hopOf(directory, route.from)} />
-          </FadingUp>
-        ) : null}
-        <View
-          collapsable={false}
-          style={[styles.onward, landing.held ? styles.held : null]}
-          testID="route-onward"
+      <Ink>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Went to ${route.words}${many}`}
+          accessibilityHint="Shows who it went to"
+          onPress={() => {
+            Keyboard.dismiss();
+            setSheet("up");
+          }}
+          style={({ pressed }) => [
+            styles.route,
+            mine ? styles.routeMine : null,
+            pressed ? styles.routePressed : null,
+          ]}
+          testID={`route-${line.id}`}
         >
-          <BubbleWatch told={landing.told} eager />
-          <Arrow />
-          <FacesOf step={stepOf(directory, route.to)} />
-        </View>
-      </Pressable>
+          {mine ? (
+            <FadingUp held={landing.held}>
+              <FacesOf step={hopOf(directory, route.from)} />
+            </FadingUp>
+          ) : null}
+          <View
+            collapsable={false}
+            style={[styles.onward, landing.held ? styles.held : null]}
+            testID="route-onward"
+          >
+            <BubbleWatch told={landing.told} eager />
+            <Arrow />
+            <FacesOf step={stepOf(directory, route.to)} everyone={everyone} />
+          </View>
+        </Pressable>
+      </Ink>
       {sheet === undefined ? null : (
         <RouteSheet
           open={sheet === "up"}
@@ -1081,7 +1091,11 @@ function Face({
 }) {
   if (!named || mine) return null;
   if (place === "first" || place === "middle") return <View style={styles.faceGap} />;
-  return <Avatar name={name} {...face} size="sm" cantAnswer={marked} pinsOut />;
+  return (
+    <Gliding>
+      <Avatar name={name} {...face} size="sm" cantAnswer={marked} pinsOut />
+    </Gliding>
+  );
 }
 
 /** The static fallback beneath the outgoing field, or the neutral incoming surface. */
@@ -1253,8 +1267,11 @@ function Bubble(
         {props.mine ? <OutgoingColour /> : null}
         <BubbleWatch told={landing.told} eager />
         <LiftBox box={props.box} />
-        <BubbleWords props={props} look={look} />
-        {props.stamp}
+        {/* Out of sight while an iPad's room takes a new width, the bubble standing (ADR 0279). */}
+        <Ink>
+          <BubbleWords props={props} look={look} />
+          {props.stamp}
+        </Ink>
         {erasing(props.breaking)}
       </MovingBubble>
     </ReplyGrip>
@@ -1350,12 +1367,17 @@ function Tags({
         {words.join(" · ")}
       </Text>
     );
-  if (line.heartbeat !== true) return said;
   return (
-    <View style={[styles.tagRow, mine ? styles.tagsMine : null]}>
-      <HeartbeatTag />
-      {said}
-    </View>
+    <Ink>
+      {line.heartbeat !== true ? (
+        said
+      ) : (
+        <View style={[styles.tagRow, mine ? styles.tagsMine : null]}>
+          <HeartbeatTag />
+          {said}
+        </View>
+      )}
+    </Ink>
   );
 }
 
@@ -1534,6 +1556,8 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   changeMine: { alignSelf: "flex-end" },
+  // Pictures of yours, at the right, as their own box where they glide (`Gliding`).
+  hangsMine: { alignSelf: "flex-end" },
   changeWords: { fontSize: TEXT.sm, fontWeight: "600" },
   faceGap: { width: FACE },
   task: { gap: SPACE.xs },

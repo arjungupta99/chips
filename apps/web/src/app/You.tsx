@@ -31,6 +31,7 @@ import {
   myRole,
   nameOf,
   type SetRulesInput,
+  type StopLetWorkInput,
   standingWords,
   WAY_VALUE,
   type WorkspaceModel,
@@ -40,8 +41,10 @@ import {
 import type { SpaceIcon } from "@chipschat/protocol";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Log } from "./Audit.tsx";
+import { Columns, ListButton } from "./Columns.tsx";
 import { YourFace } from "./face/YourFace.tsx";
 import { Turns, type Way } from "./Turns.tsx";
+import { useNarrow } from "./useNarrow.ts";
 import { ConnectionPage, type WayFacts } from "./you/ConnectionCard.tsx";
 import { DeleteAccountRow } from "./you/DeleteAccount.tsx";
 import { Devices, Passkeys } from "./you/Devices.tsx";
@@ -50,7 +53,7 @@ import { Group, ListRow, RowMark } from "./you/list.tsx";
 import { moveOf, useViewMotion } from "./you/motion.ts";
 import { Notifications } from "./you/Notifications.tsx";
 import { Appearance, type HeldWorkspace, MeGroup } from "./you/Profile.tsx";
-import { FormHostContext, Pane, PaneEmpty, useForms, useSplit, type YouPage } from "./you/pane.tsx";
+import { FormHostContext, Pane, PaneEmpty, useForms, type YouPage } from "./you/pane.tsx";
 import { RelayPage, useRelayRow } from "./you/Relay.tsx";
 import type {
   LimitsService,
@@ -113,6 +116,8 @@ export interface YouProps {
   readonly onConnectHarness?: (() => void) | undefined;
   /** Send a harness's rules changed, from Allowed always (ADR 0195). Absent, no row. */
   readonly onSetRules?: ((input: SetRulesInput) => void) | undefined;
+  /** Stop an agent working without asking, from Allowed always (ADR 0281). */
+  readonly onStopLetWork?: ((input: StopLetWorkInput) => void) | undefined;
   /** The faces this person chose for rooms, which a person's spaces wear (ADR 0209's addendum). */
   readonly spaceIcons?: ReadonlyMap<string, SpaceIcon> | undefined;
   /** Open a room from a person's spaces, or from the log. Absent, the rooms are only listed. */
@@ -146,7 +151,8 @@ export function You(props: YouProps) {
   const { workspace, heading } = workspaceWords(props.workspaceName);
   const here = useRef<HTMLElement>(null);
   const ghosts = useRef<HTMLDivElement>(null);
-  const split = useSplit(here);
+  // Beside the list at a desk's width, the list the first column (ADR 0284); a phone's has one.
+  const split = !useNarrow();
   useViewMotion(here, ghosts);
   const { opened, show, forms, host } = useOpened(split);
   const links = useLinks(props.people, props.connected && mayInvite(role), directory);
@@ -219,6 +225,7 @@ export function You(props: YouProps) {
           onConnectHarness={props.onConnectHarness}
           log
           onSetRules={props.onSetRules}
+          onStopLetWork={props.onStopLetWork}
           onOpenSpace={props.onOpenSpace}
         />
         <ThisDevice
@@ -251,18 +258,36 @@ export function You(props: YouProps) {
     ...pagesOf(props, links, workspace, standing),
   });
 
+  const pane = (
+    <PaneColumn
+      split={split}
+      page={page}
+      at={viewAt(opened, page !== undefined, forms.open)}
+      form={forms.open}
+      slot={forms.setSlot}
+    />
+  );
   return (
     <FormHostContext.Provider value={host}>
       <main ref={here} className="conv you" data-split={split ? "true" : "false"} aria-label="You">
         <h1 className="ui-visually-hidden">You</h1>
-        {list}
-        <PaneColumn
-          split={split}
-          page={page}
-          at={viewAt(opened, page !== undefined, forms.open)}
-          form={forms.open}
-          slot={forms.setSlot}
-        />
+        {split ? (
+          <Columns
+            name="you"
+            list={list}
+            detail={
+              <div className="you-detail">
+                <ListButton />
+                {pane}
+              </div>
+            }
+          />
+        ) : (
+          <>
+            {list}
+            {pane}
+          </>
+        )}
         {/* Where a view going is drawn as it goes (`motion.ts`): React never draws in it. */}
         <div ref={ghosts} className="you-ghosts" aria-hidden="true" />
       </main>

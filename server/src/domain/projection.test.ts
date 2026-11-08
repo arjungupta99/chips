@@ -204,6 +204,36 @@ describe("what an event means", () => {
     expect(expired.some((change) => change.kind === "session_rule")).toBe(false);
   });
 
+  it("keeps a yes for a while until its time, from when it was given (ADR 0239 addendum)", () => {
+    const given = { ...fixture("approval.resolved"), for_minutes: 60 };
+    const rule = project(given).find((change) => change.kind === "session_rule");
+    expect(rule).toMatchObject({
+      decision: "allow",
+      runId: "run_01K4ZQPX000000000000000005",
+      until: new Date(Date.parse(String(given.ts)) + 3_600_000).toISOString(),
+    });
+    const no = project({ ...given, decision: "denied" });
+    expect(no.some((change) => change.kind === "session_rule")).toBe(false);
+  });
+
+  it("keeps a yes until stopped with no end, and a stop ends the asker's yeses there (ADR 0281)", () => {
+    const rule = project({ ...fixture("approval.resolved"), until_stopped: true }).find(
+      (change) => change.kind === "session_rule",
+    );
+    expect(rule).toMatchObject({ decision: "allow", until: null });
+    const stop = fixture("approval.held_stopped");
+    expect(project(stop)).toEqual([
+      {
+        kind: "held_stopped",
+        table: "session_rules",
+        workspaceId: stop.workspace_id,
+        spaceId: stop.space_id,
+        asker: "agt_01K4ZQPX000000000000000001",
+        at: stop.ts,
+      },
+    ]);
+  });
+
   it("files an attachment under the space and the message that carried it", () => {
     const post = fixture("message.post");
     const withFile = {

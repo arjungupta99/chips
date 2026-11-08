@@ -146,4 +146,47 @@ describe("Composer", () => {
     expect(screen.getByRole("textbox")).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "Send" })).toHaveProperty("disabled", true);
   });
+
+  it("as the iPad's, holds the clip and the microphone in one + and Send in the field", () => {
+    const onAttach = vi.fn();
+    const onRecord = vi.fn();
+    const { container } = render(
+      <Composer
+        value="hi"
+        onChange={() => undefined}
+        onSend={() => undefined}
+        onAttach={onAttach}
+        onRecord={onRecord}
+        chips={[{ id: "steer", label: "Steer" }]}
+        plus
+      />,
+    );
+    // Nothing beside the field but the +; Steer and Send stand inside its box.
+    expect(screen.queryByRole("button", { name: "Attach a photo or file" })).toBeNull();
+    const field = container.querySelector(".ui-composer__field");
+    expect(field?.getAttribute("data-bare")).toBeNull();
+    expect(field?.contains(screen.getByRole("button", { name: "Send" }))).toBe(true);
+    expect(field?.contains(screen.getByRole("button", { name: "Steer" }))).toBe(true);
+
+    const plus = screen.getByRole("button", { name: "Add to the message" });
+    expect(plus.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(plus);
+    expect(plus.getAttribute("aria-expanded")).toBe("true");
+    const first = screen.getByRole("menuitem", { name: "Photo or file" });
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(document, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Voice note" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Voice note" }));
+    expect(onRecord).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    fireEvent.click(plus);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(document.activeElement).toBe(plus);
+    fireEvent.click(plus);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(onAttach).not.toHaveBeenCalled();
+  });
 });

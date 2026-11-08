@@ -36,7 +36,7 @@ import { UNDER_A_BAR } from "../src/ui/bars";
 import { ChromeProvider } from "../src/ui/chrome";
 import { DuoProvider } from "../src/ui/duo";
 import { loadFaceTheme } from "../src/ui/faceTheme";
-import { usePalette, useScheme } from "../src/ui/theme";
+import { statusInk, usePalette, useScheme } from "../src/ui/theme";
 import { useAwake } from "../src/ui/useAwake";
 import { useDeepLinks } from "../src/ui/useDeepLinks";
 import { WindowInsets } from "../src/ui/windowInsets";
@@ -151,7 +151,7 @@ function Curtain() {
 
 /** The status bar's ink, the opposite of the page: light words on a dark app. */
 function Status() {
-  return <StatusBar style={useScheme() === "dark" ? "light" : "dark"} />;
+  return <StatusBar style={statusInk(useScheme())} />;
 }
 
 /**

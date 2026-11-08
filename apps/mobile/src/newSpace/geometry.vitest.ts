@@ -157,7 +157,7 @@ describe("the new-space window on a wide screen", () => {
     // Nearer the right edge, it stops short of it.
     const right = cardUnder(IPAD.width, 16, { ...plus, x: 800 });
     expect(right.x).toBe(IPAD.width - 16 - CARD_MOST);
-    // In the sidebar, at the left, it stops short of that edge.
+    // At the window's left, it stops short of that edge.
     expect(cardUnder(1376, 16, { x: 240, y: 32, width: 44, height: 44 }).x).toBe(16);
     // A window narrower than a card and its edges narrows it.
     expect(cardUnder(500, 16, plus)).toMatchObject({ x: 16, width: 468 });

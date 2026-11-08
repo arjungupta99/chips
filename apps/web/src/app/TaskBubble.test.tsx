@@ -69,4 +69,28 @@ describe("a queued turn's bubble", () => {
     drawn("❓ Engineer asks: Deny and reopen?\n💭 Worked 40s · 1 step");
     expect(screen.getByText("❓ Engineer asks: Deny and reopen?")).toBeTruthy();
   });
+
+  it("stands still when it is drawn, and rises and lights only when an edit changes what it says", () => {
+    const at = (text: string) => {
+      const task = readTaskBubble(text);
+      if (task === undefined) throw new Error(`not a task bubble: ${text}`);
+      return <TaskBubble task={task} colour="#14879a" />;
+    };
+    // A room drawn anew, as on switching back to it: nothing crosses a bubble already there.
+    const { container, rerender } = render(at("💭 Worked 25s · 2 steps"));
+    expect(container.querySelector(".task-sheen")).toBeNull();
+    expect(container.querySelector(".task-words")?.hasAttribute("data-edited")).toBe(false);
+
+    const working = render(at("💭 Checking the hours\n▸ web_search · hours"));
+    expect(working.container.querySelector(".task-sheen")).toBeNull();
+    // The message edited while it is seen: the words rise and the light crosses on that beat.
+    working.rerender(at("💭 Reading the page\n▸ web_search · hours\n▸ browser · https://a.b/c"));
+    expect(working.container.querySelector(".task-sheen")).not.toBeNull();
+    expect(working.container.querySelector(".task-words")?.getAttribute("data-edited")).toBe(
+      "true",
+    );
+    // An edit that says the same thing moves nothing new.
+    rerender(at("💭 Worked 25s · 2 steps"));
+    expect(container.querySelector(".task-sheen")).toBeNull();
+  });
 });

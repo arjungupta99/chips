@@ -32,6 +32,7 @@ import {
   agentsTab,
   type ConnectionState,
   type ContextReads,
+  choiceKey,
   connectedNames,
   contextValue,
   type Directory,
@@ -72,13 +73,14 @@ import {
 } from "./Agents.tsx";
 import { AgentFace } from "./agent/AgentFace.tsx";
 import { AgentHistory } from "./agent/AgentHistory.tsx";
+import { Columns, ListButton, useThird } from "./Columns.tsx";
 import { ContextFile } from "./context/ContextFile.tsx";
-import { type ContextPage, pageName } from "./context/pages.ts";
+import { type ContextPage, OpenedPage, pageName } from "./context/pages.ts";
 import { useHarnessContext } from "./context/useContext.ts";
 import { NotInDemo, useNotInDemo } from "./demo/NotInDemo.tsx";
 import type { FileService } from "./files.ts";
 import { GrowingDialog } from "./GrowingDialog.tsx";
-import { HarnessShelf } from "./HarnessShelf.tsx";
+import { ConnectShown, HarnessShelf } from "./HarnessShelf.tsx";
 import { Checklist, DeskGroup, type TokenService } from "./harness/Desk.tsx";
 import { HarnessCards } from "./harness/HarnessCards.tsx";
 import { HarnessPage } from "./harness/HarnessPage.tsx";
@@ -100,6 +102,7 @@ import { Swap } from "./Swap.tsx";
 import { useAgentPicking } from "./select/agents.tsx";
 import { PickBar, PickHint, SelectButton } from "./select/PickParts.tsx";
 import { Turns } from "./Turns.tsx";
+import { useNarrow } from "./useNarrow.ts";
 
 export interface HarnessesProps {
   readonly model: WorkspaceModel;
@@ -230,6 +233,15 @@ export function Harnesses(props: HarnessesProps) {
   const push = (page: ContextPage) => setOver([...shown, page]);
   const pop = () => setOver(shown.slice(0, -1));
   const openAgent = (agentId: string) => push({ kind: "agent", agentId });
+  // A row of the list beside the pages opens its page in the second column in place of what was
+  // there, as the iPad's list does (ADR 0284); a page's own rows push over it.
+  const openRoot = (page: ContextPage) => {
+    setAdding(undefined);
+    setOver([page]);
+  };
+  const split = splitStack(shown);
+  // A phone's width has no columns: the list, and each page over the one under it, as the phone's.
+  const narrow = useNarrow();
   // The list's archived folds, kept here so the list is as it was left when a page goes back to it.
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [elsewhereOpen, setElsewhereOpen] = useState(false);
@@ -244,12 +256,18 @@ export function Harnesses(props: HarnessesProps) {
   // it down, and Connect opens on its card again while it waits, as the phone's does.
   const [kept, setKept] = useState<KeptLink | undefined>(undefined);
   const waiting = waitingKept(kept, props.joins, model, directory);
+  // Beside the list it is a page in the second column, in place of what was open there, as a
+  // row's page is (ADR 0284's addendum); at a phone's width, a dialog over the page.
   const connect =
     setUp === undefined
-      ? (from: HTMLElement, way?: Choice) => setAdding(addingFor(from, way, waiting))
+      ? (from: HTMLElement, way?: Choice) => {
+          setAdding(addingFor(from, way, waiting));
+          if (!narrow) setOver([]);
+        }
       : undefined;
   const dialog = adding !== undefined && (
     <AddHarness
+      inPlace={!narrow}
       from={adding.from}
       way={adding.way}
       resume={adding.resume === true}
@@ -288,7 +306,7 @@ export function Harnesses(props: HarnessesProps) {
     />
   );
 
-  const page = overPage(shown, {
+  const pages: Parameters<typeof overPage>[1] = {
     model,
     directory,
     selfId: props.selfId,
@@ -368,7 +386,7 @@ export function Harnesses(props: HarnessesProps) {
         ? (from) => connect(from)
         : undefined,
     ),
-  });
+  };
   const home = waitsForList(props) ? (
     <ListWaiting {...props} />
   ) : (
@@ -383,25 +401,167 @@ export function Harnesses(props: HarnessesProps) {
       connectors={galleryCards(props)}
       cards={cards()}
       folds={folds}
-      onOpenHarness={(harnessId) => push({ kind: "harness_page", harnessId })}
-      onAllHarnesses={() => push({ kind: "harnesses" })}
-      onOpenAgent={openAgent}
+      onOpenHarness={(harnessId) => openRoot({ kind: "harness_page", harnessId })}
+      onAllHarnesses={() => openRoot({ kind: "harnesses" })}
+      onOpenAgent={(agentId) => openRoot({ kind: "agent", agentId })}
     />
   );
-  // The page on top, or the list: the blank before it, or the empty page's gallery, which gives way
-  // to the list as the first harness comes, each by a turn in place.
+  // The page on top of them all, which a phone's width shows alone and the third column shows beside
+  // the second's.
+  const top = overPage(shown, pages);
+  const connects = connect !== undefined;
+  if (!narrow) {
+    return (
+      <AgentsColumns
+        props={props}
+        split={split}
+        page={overPage(split.detail, pages)}
+        top={top}
+        home={home}
+        connects={connects}
+        connecting={dialog || undefined}
+        onCloseThird={() => setOver(split.detail)}
+      />
+    );
+  }
   return (
     <>
-      <Turns
-        at={turnName(props, shown, page !== undefined, connect !== undefined)}
-        depth={page === undefined ? 0 : shown.length}
-        keeps=".harnesses-body"
-      >
-        {page ?? home}
-      </Turns>
+      <AgentsStack props={props} shown={shown} top={top} home={home} connects={connects} />
       {/* Connect's dialog stands apart from the pages, so a page turning under it leaves it be. */}
       {dialog}
     </>
+  );
+}
+
+/**
+ * A phone's width, which has no columns: the list, and each page over the one under it, as the
+ * phone's own Agents tab; the blank before the list, or the empty page's gallery, each by a turn.
+ */
+function AgentsStack(props: {
+  readonly props: HarnessesProps;
+  readonly shown: readonly ContextPage[];
+  readonly top: ReactNode;
+  readonly home: ReactNode;
+  readonly connects: boolean;
+}) {
+  const onTop = props.top !== undefined;
+  return (
+    <Turns
+      at={turnName(props.props, props.shown, onTop, props.connects)}
+      depth={onTop ? props.shown.length : 0}
+      keeps=".harnesses-body"
+    >
+      {onTop ? props.top : props.home}
+    </Turns>
+  );
+}
+
+/**
+ * The list, or the blank before it, in the first column; the page a row opened in the second; one
+ * level deeper in the third (ADR 0284). The empty workspace's gallery is too wide for the list's
+ * column: it stands in the second, with nothing listed beside it.
+ */
+function AgentsColumns(props: {
+  readonly props: HarnessesProps;
+  readonly split: ReturnType<typeof splitStack>;
+  /** The second column's page: the top of the pages that stand there. */
+  readonly page: ReactNode;
+  /** The top of them all, the third column's when a page stands there. */
+  readonly top: ReactNode;
+  readonly home: ReactNode;
+  readonly connects: boolean;
+  /** Connect a harness, open: the second column's page, its tile chosen (ADR 0284's addendum). */
+  readonly connecting: ReactNode;
+  readonly onCloseThird: () => void;
+}) {
+  const { split } = props;
+  const listName = waitsForList(props.props) ? "blank" : homeName(props.props, props.connects);
+  const gallery = listName === "gallery";
+  const deeper = split.third.length > 0;
+  const connecting = props.connecting !== undefined;
+  return (
+    <Columns
+      name="agents"
+      list={
+        gallery ? null : (
+          <OpenedPage.Provider value={split.detail[0]}>
+            <ConnectShown.Provider value={connecting}>
+              <Turns at={listName} depth={0} keeps=".harnesses-body">
+                {props.home}
+              </Turns>
+            </ConnectShown.Provider>
+          </OpenedPage.Provider>
+        )
+      }
+      detail={
+        <div className="agents-detail" data-depth={connecting ? 1 : split.detail.length}>
+          <ListButton />
+          <Turns
+            at={detailName(split, gallery, connecting)}
+            depth={connecting ? 1 : split.detail.length}
+            keeps=".harnesses-body"
+          >
+            {props.connecting ?? (gallery ? props.home : (props.page ?? <NothingOpen />))}
+          </Turns>
+        </div>
+      }
+      third={
+        deeper ? (
+          <Turns at={split.third.map(pageName).join(" / ")} depth={split.third.length}>
+            {props.top}
+          </Turns>
+        ) : undefined
+      }
+      onCloseThird={props.onCloseThird}
+    />
+  );
+}
+
+/** Which page the second column shows, for the turn to it: Connect, the gallery, a page or none. */
+function detailName(
+  split: ReturnType<typeof splitStack>,
+  gallery: boolean,
+  connecting: boolean,
+): string {
+  if (connecting) return "connect";
+  if (gallery) return "gallery";
+  return split.detail.map(pageName).join(" / ") || "none";
+}
+
+/** The pages a page opens one level deeper, which stand in the third column (ADR 0284). */
+const DEEPER: ReadonlySet<ContextPage["kind"]> = new Set([
+  "agent_history",
+  "agent_face",
+  "harness_part",
+  "file",
+  "job",
+]);
+
+/**
+ * The pages open, as the columns stand them: the second column's, to the last page that is not one
+ * level deeper, and the third's, the deeper pages over it.
+ */
+function splitStack(shown: readonly ContextPage[]): {
+  readonly detail: readonly ContextPage[];
+  readonly third: readonly ContextPage[];
+} {
+  let root = -1;
+  shown.forEach((page, index) => {
+    if (!DEEPER.has(page.kind)) root = index;
+  });
+  return { detail: shown.slice(0, root + 1), third: shown.slice(root + 1) };
+}
+
+/** The second column before a row is opened: a word on where to look, as You's says. */
+function NothingOpen() {
+  return (
+    <div className="agents-none" data-testid="agents-nothing-open">
+      <span className="agents-none-mark" aria-hidden="true">
+        <Icon name="chip" size={22} />
+      </span>
+      <p className="agents-none-t">Nothing open</p>
+      <p>Choose an agent or a harness on the left.</p>
+    </div>
   );
 }
 
@@ -693,6 +853,7 @@ function AgentsHome({
               folds={folds}
               pickOf={picks.rowOf}
               held={[...picks.leaving.values()]}
+              face="md"
             />
           </>
         )}
@@ -985,7 +1146,8 @@ function backLabelOf(under: ContextPage | undefined, directory: Directory): stri
 
 /**
  * Under the page's name: how many agents, archived ones, and harnesses. Nothing on a page with none
- * of them, whose body says so once (ADR 0261).
+ * of them, whose body says so once (ADR 0261). It is the list's caption beside Select in the first
+ * column (ADR 0284), so it says no more than the counts: "in this workspace" pushed Select under it.
  */
 function countWords(
   model: WorkspaceModel,
@@ -1000,11 +1162,7 @@ function countWords(
   return [
     `${agents} ${agents === 1 ? "agent" : "agents"}`,
     ...(archived === 0 ? [] : [`${archived} archived`]),
-    ...(harnesses === 0
-      ? []
-      : [
-          `${harnesses} ${harnesses === 1 ? "harness in this workspace" : "harnesses in this workspace"}`,
-        ]),
+    ...(harnesses === 0 ? [] : [`${harnesses} harness${harnesses === 1 ? "" : "es"}`]),
   ].join(" · ");
 }
 
@@ -1276,6 +1434,8 @@ function pickedPage(way: Choice, directory: Directory): AddPage {
  * made and never seen.
  */
 function AddHarness(props: {
+  /** A page in the second column, beside the list, rather than a dialog over the page. */
+  readonly inPlace?: boolean | undefined;
   readonly from: HTMLElement | null;
   readonly model: WorkspaceModel;
   readonly directory: Directory;
@@ -1301,6 +1461,7 @@ function AddHarness(props: {
   readonly onKept: (kept: KeptLink | undefined) => void;
 }) {
   const titleId = useId();
+  const cardTitleId = useId();
   const join = administers(myRole(props.model, props.selfId)) ? props.join : undefined;
   const [page, setPage] = useState<AddPage>(() => {
     if (join === undefined) return { kind: "advanced" };
@@ -1310,50 +1471,79 @@ function AddHarness(props: {
       : pickedPage(props.way, props.directory);
   });
   const [leaving, setLeaving] = useState(false);
+  const [cardLeaving, setCardLeaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState<AddedHarness | undefined>(undefined);
+  // Beside the list the gallery stays in the second column, and the card picked in it stands in the
+  // third, beside it, as a row's deeper page does (ADR 0284's addendum, point 4; Arjun, 7 November
+  // 2026: "Tapping detail item under connect a harness can open in third tab"). Its × and Escape put
+  // the card away and leave the gallery; Done and Open space close the whole. A card picked on the
+  // empty page's own gallery (ADR 0261) opens in its place as before, that gallery its way back.
+  const third = useThird();
+  const picked = props.way !== undefined && props.resume !== true;
+  const beside = props.inPlace === true && third !== undefined && join !== undefined && !picked;
   const leave = () => {
-    if (!busy) setLeaving(true);
+    if (busy) return;
+    setLeaving(true);
+    setCardLeaving(true);
   };
-  return (
-    <GrowingDialog
-      from={props.from}
-      labelledBy={titleId}
-      className="harness-dialog"
-      testId="add-harness-dialog"
-      focus={FOCUS[page.kind]}
-      leaving={leaving}
-      onLeave={leave}
-      onGone={props.onClosed}
-    >
-      <div className="harness-dialog-card">
-        {page.kind === "gallery" && (
-          <Gallery
-            titleId={titleId}
-            cards={props.cards}
-            connected={connectedNames(props.directory)}
-            onPick={(way) => setPage(pickedPage(way, props.directory))}
-            onClose={leave}
-          />
-        )}
-        {page.kind === "here" && (
+  const leaveCard = () => {
+    if (!busy) setCardLeaving(true);
+  };
+  const toGallery = beside ? leaveCard : () => setPage({ kind: "gallery" });
+  const shut = beside ? leaveCard : leave;
+  // Picked on the page, the gallery to go back to is the page's own. A withdrawn link is kept no more.
+  const cancelled = () => {
+    props.onKept(undefined);
+    if (beside || props.way === undefined || props.resume === true) toGallery();
+    else leave();
+  };
+  const advanced = (id: string) =>
+    added === undefined ? (
+      <AddForm
+        titleId={id}
+        busy={busy}
+        onBusy={setBusy}
+        onAdd={async (name, options) => setAdded(await props.onAdd(name, options))}
+        onCancel={shut}
+      />
+    ) : (
+      <Added
+        titleId={id}
+        added={added}
+        serverUrl={props.serverUrl}
+        connection={props.model.connections[added.harnessId]}
+        onOpen={() => {
+          props.onOpen(added.spaceId);
+          leave();
+        }}
+        onDone={leave}
+      />
+    );
+  const card = (id: string): ReactNode => {
+    switch (page.kind) {
+      case "gallery":
+        return null;
+      case "here":
+        return (
           <HereAlready
-            titleId={titleId}
+            titleId={id}
             card={page.way}
             harnessId={page.harnessId}
             model={props.model}
             directory={props.directory}
             selfId={props.selfId}
             onAnother={() => setPage({ kind: "connect", way: page.way })}
-            onBack={() => setPage({ kind: "gallery" })}
+            onBack={beside ? undefined : toGallery}
             onOpenHarness={props.onOpenHarness}
             onNewAgent={props.onNewAgent}
-            onClose={leave}
+            onClose={shut}
           />
-        )}
-        {page.kind === "connect" && join !== undefined && (
+        );
+      case "connect":
+        return join === undefined ? null : (
           <ConnectPage
-            titleId={titleId}
+            titleId={id}
             way={page.way}
             model={props.model}
             directory={props.directory}
@@ -1368,41 +1558,76 @@ function AddHarness(props: {
             foldSwitches={typeof page.way !== "string"}
             kept={props.kept}
             onKept={props.onKept}
-            // Picked on the page, the gallery to go back to is the page's own. A withdrawn link is
-            // kept no more.
-            onCancelled={() => {
-              props.onKept(undefined);
-              if (props.way === undefined || props.resume === true) setPage({ kind: "gallery" });
-              else leave();
-            }}
-            onClose={leave}
+            onCancelled={cancelled}
+            onClose={shut}
           />
-        )}
-        {page.kind === "advanced" && added === undefined && (
-          <AddForm
-            titleId={titleId}
-            busy={busy}
-            onBusy={setBusy}
-            onAdd={async (name, options) => setAdded(await props.onAdd(name, options))}
-            onCancel={leave}
-          />
-        )}
-        {page.kind === "advanced" && added !== undefined && (
-          <Added
-            titleId={titleId}
-            added={added}
-            serverUrl={props.serverUrl}
-            connection={props.model.connections[added.harnessId]}
-            onOpen={() => {
-              props.onOpen(added.spaceId);
-              leave();
-            }}
-            onDone={leave}
-          />
-        )}
+        );
+      case "advanced":
+        return advanced(id);
+    }
+  };
+  const gallery = (
+    <Gallery
+      titleId={titleId}
+      cards={props.cards}
+      connected={connectedNames(props.directory)}
+      chosen={beside && !cardLeaving ? chosenKey(page) : undefined}
+      onPick={(way) => {
+        setCardLeaving(false);
+        setPage(pickedPage(way, props.directory));
+      }}
+      onClose={leave}
+    />
+  );
+  return (
+    <GrowingDialog
+      inPlace={props.inPlace}
+      from={props.from}
+      labelledBy={titleId}
+      className="harness-dialog"
+      testId="add-harness-dialog"
+      focus={beside ? FOCUS.gallery : FOCUS[page.kind]}
+      leaving={leaving}
+      onLeave={leave}
+      onGone={props.onClosed}
+    >
+      <div className="harness-dialog-card">
+        {page.kind === "gallery" || beside ? gallery : card(titleId)}
       </div>
+      {beside && page.kind !== "gallery" && (
+        <GrowingDialog
+          key={pageKey(page)}
+          from={null}
+          labelledBy={cardTitleId}
+          className="harness-dialog"
+          testId="add-harness-card"
+          focus={FOCUS[page.kind]}
+          leaving={cardLeaving}
+          onLeave={leaveCard}
+          onGone={() => {
+            setCardLeaving(false);
+            setAdded(undefined);
+            setPage({ kind: "gallery" });
+          }}
+        >
+          <div className="harness-dialog-card">{card(cardTitleId)}</div>
+        </GrowingDialog>
+      )}
     </GrowingDialog>
   );
+}
+
+/** Which card a page is for, so the gallery beside it marks it: Advanced is Anything with HTTP's. */
+function chosenKey(page: AddPage): string | undefined {
+  if (page.kind === "gallery") return undefined;
+  return choiceKey(page.kind === "advanced" ? "http" : page.way);
+}
+
+/** A page of its own in the third column: another card's turns it in afresh. */
+function pageKey(page: AddPage): string {
+  return page.kind === "gallery" || page.kind === "advanced"
+    ? page.kind
+    : `${page.kind} ${choiceKey(page.way)}`;
 }
 
 /** The dialog's ×, the same as New space's. */

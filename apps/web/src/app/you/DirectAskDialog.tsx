@@ -116,6 +116,8 @@ export function DirectAskDialog(props: {
       labelledBy={titleId}
       className="harness-dialog"
       testId="direct-ask-dialog"
+      // A yes or no about somebody else's way in stays a question (ADR 0284).
+      stays
       focus="[data-testid=direct-ask-link]"
       leaving={leaving}
       onLeave={() => {

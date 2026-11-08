@@ -41,9 +41,9 @@ describe("the phone's formatting", () => {
 
   it("writes the receipt's own summary line", () => {
     const steps = [{ status: "done" }, { status: "failed" }, { status: "done" }];
-    expect(receiptSummary(steps, 12_000, 0.04)).toBe("3 steps · 1 failed · 12s · ≈$0.04");
+    expect(receiptSummary(steps, 12_000, 0.04)).toBe("≈$0.04 · 3 steps · 1 failed · 12s");
     expect(receiptSummary([{ status: "done" }])).toBe("1 step");
-    expect(receiptSummary([], 3600, 0.029)).toBe("4s · ≈$0.03");
+    expect(receiptSummary([], 3600, 0.029)).toBe("≈$0.03 · 4s");
     expect(formatDuration(125_000)).toBe("2m 05s");
     expect(formatCost(0.004)).toBe("<$0.01");
     expect(formatTokens(30_223)).toBe("30.2k");

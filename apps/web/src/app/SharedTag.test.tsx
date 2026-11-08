@@ -9,7 +9,7 @@ import { resolve } from "node:path";
 import { buildModel, type ClientEvent, type Directory } from "@chipschat/core";
 import { render, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { Sidebar } from "./Sidebar.tsx";
+import { SpacesList } from "./Sidebar.tsx";
 
 const FIXTURES = `${resolve(import.meta.dirname, "../../../../packages/protocol/fixtures")}/`;
 const ARJUN = "usr_01K4ZQPX0000000000000ARJUN";
@@ -62,7 +62,7 @@ const directory = {
 describe("the shared tag (ADR 0234)", () => {
   it("is worn in the Spaces rail by a room somebody else reads, and by no other", () => {
     const { container } = render(
-      <Sidebar
+      <SpacesList
         model={model}
         directory={directory}
         readState={{}}
@@ -93,7 +93,7 @@ describe("the shared tag (ADR 0234)", () => {
 
   it("says nothing until the rail knows who is reading", () => {
     const { container } = render(
-      <Sidebar
+      <SpacesList
         model={model}
         directory={directory}
         readState={{}}

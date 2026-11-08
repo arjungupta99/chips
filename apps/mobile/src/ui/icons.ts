@@ -172,6 +172,10 @@ export const SYSTEM_ICONS = {
    */
   bell: ["M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0"],
   info: [ring(12, 12, 9), "M12 11v6M12 7.5v.5"],
+  /** A room's list put away and back (ADR 0256), the web's and the Mac's too since ADR 0284. */
+  sidebar: ["M3.5 5h17v14h-17z", "M9.5 5v14"],
+  /** A space's details beside its room (ADR 0256), the web's and the Mac's too since ADR 0284. */
+  details: ["M3.5 5h17v14h-17z", "M14.5 5v14"],
 } as const;
 
 /** The phone's own marks, which the design system does not have: the media viewer's. */
@@ -274,12 +278,6 @@ export const PHONE_ICONS = {
     dot(10.6, 7.2),
     dot(15.5, 7.7),
   ],
-  /** A room's list put away and back (ADR 0256): a pane on the left. */
-  sidebar: ["M3.5 5h17v14h-17z", "M9.5 5v14"],
-  /** An iPad's tabs, out of the capsule into the sidebar and back (ADR 0276): three lines. */
-  menu: ["M4.5 7h15M4.5 12h15M4.5 17h15"],
-  /** A space's details beside its room (ADR 0256): a pane on the right. */
-  details: ["M3.5 5h17v14h-17z", "M14.5 5v14"],
   /** A page of Universe full screen: arrows out to two corners, as iOS's own. */
   fullScreen: ["M14 4h6v6", "M20 4l-6.5 6.5", "M10 20H4v-6", "M4 20l6.5-6.5"],
 } as const;

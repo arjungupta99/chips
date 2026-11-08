@@ -18,9 +18,9 @@
  * it ends, the ground between them, where the list's Select and the room's first button stood a few
  * points into it (`pagesOf`).
  *
- * On an iPad the detail's width is said rather than left to flex: the window less the list and the
- * sidebar. A turned iPad is laid out once at its new size before Chips hears of it, with the old
- * sidebar still standing, and a room squeezed for that one layout and widened again in the next
+ * On an iPad the detail's width is said rather than left to flex: the window less the list and any
+ * third column. A turned iPad is laid out once at its new size before Chips hears of it, with the old
+ * widths still standing, and a room squeezed for that one layout and widened again in the next
  * kept its bubbles at the squeezed width, cut off (the simulator, 1 November 2026). Said, the room
  * keeps its width through the first layout and changes it once, in the second.
  *
@@ -51,10 +51,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { Platform, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
-import { CAPSULE, capsuleClear, capsuleWidth, useChrome, usePadSidebar } from "./chrome";
+import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
+import { barClear, barWidth, PAD_BAR, useChrome, usePadBar } from "./chrome";
 import { type Fold, foldLine, useDuo } from "./duo";
-import { useKept, Widening } from "./PaneMotion";
+import { PaneLead, useGone, useKept, Widening } from "./PaneMotion";
 import { usePalette } from "./theme";
 import { SPACE } from "./tokens";
 import { useWindowInsets } from "./windowInsets";
@@ -183,8 +183,8 @@ export function Split({
   sheetsBeside = false,
 }: {
   /**
-   * The tab it stands on, whose capsule folds down to ☰ beside a narrow detail at the window's edge
-   * while that tab is in front (`chrome.tsx`). Without it, it says nothing.
+   * The tab it stands on, whose bar folds down to the tab in front beside a narrow detail at the
+   * window's edge while that tab is in front (`chrome.tsx`). Without it, it says nothing.
    */
   readonly tab?: string;
   readonly list: ReactNode;
@@ -195,7 +195,7 @@ export function Split({
   readonly away?: boolean;
   /**
    * How much of the detail a column of its own takes at its right: a space's details, which the
-   * room stands beside itself (`RoomPane`). What is left is how wide the room is under the capsule.
+   * room stands beside itself (`RoomPane`). What is left is how wide the room is under the bar.
    */
   readonly docked?: number;
   /** A sheet opened in the detail stands in the third column, where one fits (`useThirdHost`). */
@@ -207,11 +207,7 @@ export function Split({
   const { across, gap, hidden, columned, said } = useWidths(deeper, away);
   // Where a third column does not fit, the deeper page has the detail's place.
   const shown = present(deeper) && !columned ? deeper : detail;
-  const { clear, foot } = useCapsuleBeside(
-    tab,
-    hidden,
-    said === undefined ? undefined : said - docked,
-  );
+  const { clear, foot } = useBarBeside(tab, hidden, said === undefined ? undefined : said - docked);
   const listed = (
     <ListSide
       across={across}
@@ -257,10 +253,10 @@ export function Split({
 }
 
 /**
- * The list's side: the list's width, room at its foot for the capsule, and its rule unless the Duo's
+ * The list's side: the list's width, room at its foot for the bar, and its rule unless the Duo's
  * fold stands there instead. Where its width moves, it is the window's height in its box and steps
- * aside as a box of none it slides out of, out of reach of a tap and VoiceOver; anywhere else it is
- * put away.
+ * aside as a box of none it slides out of, out of reach of a tap and VoiceOver once it has gone
+ * (`useGone`); anywhere else it is put away.
  */
 function ListSide({
   across,
@@ -278,6 +274,7 @@ function ListSide({
   readonly children: ReactNode;
 }) {
   const palette = usePalette();
+  const gone = useGone(hidden);
   return (
     <View
       style={[
@@ -287,9 +284,9 @@ function ListSide({
         boxed ? styles.boxed : null,
         hidden && !boxed ? styles.away : null,
       ]}
-      pointerEvents={hidden ? "none" : "auto"}
-      accessibilityElementsHidden={hidden}
-      importantForAccessibility={hidden ? "no-hide-descendants" : "auto"}
+      pointerEvents={gone ? "none" : "auto"}
+      accessibilityElementsHidden={gone}
+      importantForAccessibility={gone ? "no-hide-descendants" : "auto"}
       testID="split-list"
     >
       <SideContext.Provider value="list">{children}</SideContext.Provider>
@@ -387,40 +384,46 @@ function useTurned(): boolean {
 }
 
 /**
- * The capsule at the window's bottom left (`Sidebar.tsx`, ADR 0276), on an iPad: the list keeps
- * room at its foot for it, and a detail standing at the window's edge under it keeps its foot clear
- * of it (`useFootClear`). The split tells its tab how its detail stands, which narrows the capsule.
+ * The bar at the window's bottom left (`PadBar.tsx`, ADR 0276), on an iPad: the list keeps room at
+ * its foot for it, and a detail standing at the window's edge under it keeps its foot clear of it
+ * (`useFootClear`). The split tells its tab how its detail stands, which folds the bar.
  */
-function useCapsuleBeside(tab: string | undefined, hidden: boolean, said: number | undefined) {
-  const pad = usePadSidebar();
+function useBarBeside(tab: string | undefined, hidden: boolean, said: number | undefined) {
+  const pad = usePadBar();
+  const { width: window } = useWindowDimensions();
   const { setFoot } = useChrome();
+  const lead = useContext(PaneLead);
   const atEdge = pad && hidden;
   const width = said ?? 0;
   useEffect(() => {
-    if (tab !== undefined && pad) setFoot(tab, { atEdge, width });
-  }, [tab, pad, atEdge, width, setFoot]);
-  // A room stands its lines in from its edges (`useRoomColumn`), already that far clear of the capsule.
+    if (tab !== undefined && pad) setFoot(tab, { atEdge, width, lead });
+  }, [tab, pad, atEdge, width, lead, setFoot]);
+  // A room stands its lines in from its edges (`useRoomColumn`), already that far clear of the bar.
   const centred = (width - Math.min(PANE_COLUMN, width * ROOM_SHARE)) / 2;
   return {
-    clear: atEdge ? Math.max(0, capsuleClear(capsuleWidth({ atEdge, width })) - centred) : 0,
-    foot: pad ? CAPSULE.height + CAPSULE_FOOT : 0,
+    clear: atEdge
+      ? Math.max(0, barClear(barWidth({ atEdge, width }, listWidth(window))) - centred)
+      : 0,
+    foot: pad ? PAD_BAR.middle + PAD_BAR.height / 2 + OVER_BAR : 0,
   };
 }
 
 const FootClear = createContext(0);
 
 /**
- * What keeps a detail's foot clear of the capsule and the gold +: a room's composer, where the list
- * is put away or has stepped aside and the room starts at the window's edge under them (ADR 0276).
- * Nothing anywhere else.
+ * How far in a detail's foot keeps clear of the bar and the gold +: a room's composer, where the
+ * list is put away or has stepped aside and the room starts at the window's edge under them (ADR
+ * 0276). Nought anywhere else. The foot goes there with the panes (`Clearing`, in
+ * `PaneMotion.tsx`): taken at once, it put an iPad's composer under the bar opening out while the
+ * list had yet to come back, and a hundred points right of where it stood while the list had yet to
+ * go (the 13-inch simulator upright, 7 November 2026).
  */
-export function useFootClear(): ViewStyle | null {
-  const clear = useContext(FootClear);
-  return clear > 0 ? { paddingLeft: clear } : null;
+export function useFootClear(): number {
+  return useContext(FootClear);
 }
 
-/** What the list keeps clear under the capsule, past its height: the gap under it and over it. */
-const CAPSULE_FOOT = 16;
+/** Between the list's last row and the top of the bar. */
+const OVER_BAR = 8;
 
 function present(node: ReactNode): boolean {
   return node !== undefined && node !== null && node !== false;
@@ -438,7 +441,7 @@ function useWidths(third: ReactNode, away: boolean) {
   const beside = useListBesideThird();
   const columned = present(third) && fits;
   const hidden = away || (columned && !beside);
-  // The sidebar floats over the list and takes no column of its own (ADR 0276).
+  // The bar floats over the list and takes no column of its own (ADR 0276).
   const taken = (hidden ? 0 : across + gap) + column + (columned ? THIRD : 0);
   return { across, gap, hidden, columned, said: SAID ? width - taken : undefined };
 }

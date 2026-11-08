@@ -250,6 +250,13 @@ function useUnder(under: Under | undefined) {
  * 2026). On the iPhone Duo it padded a page beside the column with the column's 84 points as well,
  * wherever the page stood, and its top with the window's 0, under UIKit's own bars' 24 (the
  * simulator, 2 November 2026): Invite someone stood in half its page.
+ *
+ * It keeps what it holds inside it (`collapsable={false}`), as the safe-area view did by being
+ * native. A view with only a colour and padding is drawn by React Native as an empty view, with
+ * its children moved up beside it, after it. The screen hands its settings to the first scroll view
+ * down the chain of first children (react-native-screens), and that chain stopped at the empty
+ * page: a room's list kept iOS's own edge effect, and a tall conversation stood under a dark veil
+ * from the top bar to the field (the simulator, 4 November 2026; ADR 0063's addendum).
  */
 function Page({
   edges,
@@ -270,7 +277,7 @@ function Page({
     paddingRight: sides.right,
   };
   return (
-    <View style={[style, padding]} testID={testID}>
+    <View collapsable={false} style={[style, padding]} testID={testID}>
       {children}
     </View>
   );
@@ -694,6 +701,21 @@ export function useRoomColumn(): ViewStyle {
   if (side === "detail") return styles.roomPane;
   return wide ? styles.roomColumn : styles.full;
 }
+
+/**
+ * How wide `useRoomColumn` lays a room's lines out in lines `width` across. The column stands in
+ * the middle, so a change of its width moves where it starts (ADR 0279's addendum).
+ */
+export function useRoomColumnWidth(): (width: number) => number {
+  const { wide } = useLayout();
+  const side = useSplitSide();
+  if (side === "detail") return paneLines;
+  return wide ? columnLines : fullLines;
+}
+
+const paneLines = (width: number) => Math.min(width * ROOM_SHARE, PANE_COLUMN);
+const columnLines = (width: number) => Math.min(width, ROOM_COLUMN);
+const fullLines = (width: number) => width;
 
 /**
  * The style for a screen's name and what stands under it: the page's column on a wide screen, so

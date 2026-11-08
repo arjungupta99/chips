@@ -147,3 +147,16 @@ Building the two short films (DM5) changed two details above:
 - **The copy's room is Milo · fork**, the name the room picker gives a copy's new room
   (`forkRoomTitle`), so the room is called what the sheet said it would be. The mock's name was
   "Birthday dinner · fork".
+
+## Addendum, 5 November 2026: Theo's card is a Tuscan sunset
+
+The deep green invite card read as a dark hole in Birthday dinner and in the App Store
+screenshots, and he asked for "some other media". Of three cards drawn (lemons, a Tuscan sunset,
+blush and gold), he took **the Tuscan sunset**: an apricot to violet sky, a low sun, plum hills
+and cypresses, with the words in plum. Milo's ask now says "A Tuscan sunset" where it said "Green
+and gold".
+
+- The card is still a 600 × 800 PNG (`picture.ts`), now in 256 colours and dithered so the sky
+  doesn't band, which makes it 54 KB where the green one was 8 KB.
+- Its attachment id moved from 1 to 2. A phone keeps a picture by its id, so a phone that looked
+  around before would otherwise go on showing the green card.

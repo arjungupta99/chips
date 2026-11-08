@@ -73,6 +73,46 @@ export const jobSpend = z
   .describe("What a room's job has spent, against what the room allows a job (ADR 0117).");
 export type JobSpend = z.infer<typeof jobSpend>;
 
+/**
+ * What began a room's job (ADR 0282): a person's message, an answer to an ask or a question,
+ * letting the agents carry on, a brief handed into the room, or another of the `PERSON_ACTS`.
+ */
+export type JobStart = "message" | "answer" | "carry_on" | "brief" | "act";
+
+/** A job before the room's present one that spent something, or ran without saying a cost. */
+export interface SpentJob {
+  /** Where it began, as `JobSpend.since_seq` says it of the present job. */
+  readonly since_seq: number;
+  /** When it began; when its first report came, for a job that began with the room. */
+  readonly started_at: string;
+  /** When its last report of a cost came. */
+  readonly last_at: string;
+  readonly spent_usd: number;
+  readonly uncounted_runs: number;
+  /** The runs that reported in it, oldest first. */
+  readonly run_ids: readonly string[];
+  /** The agents, or harnesses, whose runs reported, in the order they first did. */
+  readonly by: readonly string[];
+  /** Chips held the agents at the room's ceiling in it (ADR 0118). */
+  readonly held: boolean;
+}
+
+/**
+ * `GET /v1/spaces/:id/spend` (ADR 0282): the present job against the room's ceiling, what began
+ * it, the jobs before it that spent, newest first and at most `SPENT_JOBS_SHOWN`, and what every
+ * job in the room has spent together. A server from before ADR 0282 says the job alone.
+ */
+export interface RoomSpend extends JobSpend {
+  readonly started?:
+    | { readonly at: string; readonly by?: string | undefined; readonly act: JobStart }
+    | undefined;
+  readonly jobs?: readonly SpentJob[] | undefined;
+  readonly total_usd?: number | undefined;
+}
+
+/** How many of a room's jobs before the present one the spend read lists. */
+export const SPENT_JOBS_SHOWN = 30;
+
 /** An amount as the room's words say it: "$3.00", "$0.25". */
 export function dollars(usd: number): string {
   return `$${usd.toFixed(2)}`;

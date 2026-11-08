@@ -22,7 +22,10 @@ import { SPACE } from "../ui/tokens";
 /** Screens of their own on a phone: pushed over the tab there, by the same name. */
 export const YOU_ROUTES = ["people", "invite", "relay", "media", "connection"] as const;
 
-/** Sheets on a phone: beside the list, they are pages too. */
+/**
+ * Sheets on a phone: beside the list, they are pages too. Connect a harness's pages are its own
+ * provider's (`harnesses/Connect.tsx`), which the pane holds (ADR 0284's addendum).
+ */
 export const YOU_SHEETS = [
   "face",
   "decisions",
@@ -34,6 +37,7 @@ export const YOU_SHEETS = [
   "feedback",
   "pair",
   "delete",
+  "connect",
 ] as const;
 
 export const YOU_PAGES = [...YOU_ROUTES, ...YOU_SHEETS] as const;

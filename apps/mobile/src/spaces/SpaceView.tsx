@@ -153,6 +153,7 @@ import {
   PixelRatio,
   Platform,
   Pressable,
+  type StyleProp,
   StyleSheet,
   Text,
   View,
@@ -165,11 +166,9 @@ import { MediaProvider } from "../media/MediaViewer";
 import type { Chosen } from "../needs/Ask";
 import { NeedsCard } from "../needs/NeedsCard";
 import { useChips } from "../store/provider";
-import { useDuo } from "../ui/duo";
 import { Aside, alpha, EdgeBand, GLASS } from "../ui/Glass";
 import { useLayout } from "../ui/layout";
-import { Empty, useRoomColumn } from "../ui/Screen";
-import { useSplitSide } from "../ui/Split";
+import { Empty, useRoomColumn, useRoomColumnWidth } from "../ui/Screen";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { useHandler } from "../ui/useHandler";
@@ -182,8 +181,10 @@ import type { Given } from "./Feedback";
 import { ForkLine, NewAgentLine } from "./ForkLine";
 import type { FileService } from "./files";
 import { useHeldReplies } from "./heldReplies";
+import { type Edge, type RoomSpan, type Told, useHeldWidth } from "./heldWidth";
 import { KeyboardRoom } from "./KeyboardRoom";
 import { Arrow, Faces, stepOf } from "./LaneChain";
+import { LetWorkBand } from "./LetWorkBand";
 import { RoomSeen } from "./LiftedMotion";
 import { type Deleting, Line, stampWords } from "./Line";
 import type { LineChange } from "./LinePages";
@@ -191,9 +192,11 @@ import { Flash } from "./Motion";
 import { TakenOutNotice } from "./NoRooms";
 import { PausedBanner } from "./PausedBanner";
 import { ReplySwipe } from "./ReplySwipe";
-import { type Arrival, homeward, Moving, madeHere, NEAR } from "./RoomMotion";
+import { type Arrival, glideFor, homeward, Moving, madeHere, NEAR } from "./RoomMotion";
 import { RoomNotice } from "./RoomNotice";
 import { type ProjectActions, projectActions } from "./RoomProject";
+import type { RoomPage } from "./RoomSheet";
+import { Ink, RoomWords } from "./RoomWords";
 import type { RouteDrawn } from "./RouteSheet";
 import { returning } from "./returning";
 import { ColourList, type Field, useColourField } from "./ScrollColours";
@@ -607,7 +610,7 @@ function useLanding({
   readonly scroll: RowScroll;
 }) {
   const landed = useRef<string | undefined>(undefined);
-  const [flash, setFlash] = useState<string | undefined>(undefined);
+  const [flash, setFlash] = useState<Lit | undefined>(undefined);
   const [marking, setMarking] = useState<Marking | undefined>(undefined);
   const [placing, setPlacing] = useState(() => opensOnLine(at, lines, rows));
   // How many rows the list keeps drawn from its foot: every one to a line far up while it is placed.
@@ -632,7 +635,7 @@ function useLanding({
   const landOn = useCallback(
     (id: string, row: number, terms: readonly string[]) => {
       const lit = () => {
-        setFlash(id);
+        setFlash({ id, since: Date.now() });
         setMarking(terms.length === 0 ? undefined : { id, terms });
       };
       if (!placing) {
@@ -673,24 +676,40 @@ function useLanding({
 }
 
 /**
+ * A line the room lit, and when (`Flash`): its flash plays from then, once, and the line stays the
+ * room's lit one until another is.
+ */
+interface Lit {
+  readonly id: string;
+  readonly since: number;
+}
+
+/** A line the room's sheet sends the reader to: a file's, a job's. Each new one is gone to. */
+export interface GoTo {
+  readonly lineId: string;
+  readonly nonce: number;
+}
+
+/**
  * The room's two answers to the media viewer: scroll a line into view at once, and land on a line
  * and flash it, each the room's one way (`useRowScroll`). The line gone to stays the one marked,
- * as a link's landing does, and the flash is the moment it is marked again (`pulse`), so a second
+ * as a link's landing does, and the flash is the moment it is marked again (`since`), so a second
  * *Go to message* onto the same line — or onto the line a card landed on — flashes as the first did.
+ * Whichever was lit last is the room's lit line: a link followed after a card, or a card after it.
  */
 function useViewerAnswers(
   rows: readonly Row[],
   scroll: RowScroll,
-  landed: string | undefined,
+  landed: Lit | undefined,
 ): {
   readonly reveal: (lineId: string) => void;
   readonly goTo: (lineId: string) => void;
-  /** The line to flash: the one gone to from the viewer, else the one a link landed on. */
+  /** The line to flash: the one gone to or landed on last. */
   readonly flash: string | undefined;
-  /** Moves on at each *Go to message*, so a line already lit by a link flashes again. */
-  readonly pulse: number;
+  /** When it was lit, which a new *Go to message* moves on, so the line flashes again. */
+  readonly since: number;
 } {
-  const [goneTo, setGoneTo] = useState<{ readonly id: string; readonly pulse: number }>();
+  const [goneTo, setGoneTo] = useState<Lit>();
   const where = useRef(rows);
   where.current = rows;
   const reveal = useCallback(
@@ -705,11 +724,15 @@ function useViewerAnswers(
       const index = rowOfLine(where.current, lineId);
       if (index < 0) return;
       scroll.go(index, { animated: true });
-      setGoneTo((now) => ({ id: lineId, pulse: (now?.pulse ?? 0) + 1 }));
+      setGoneTo({ id: lineId, since: Date.now() });
     },
     [scroll],
   );
-  return { reveal, goTo, flash: goneTo?.id ?? landed, pulse: goneTo?.pulse ?? 0 };
+  const lit =
+    landed === undefined || (goneTo !== undefined && goneTo.since >= landed.since)
+      ? goneTo
+      : landed;
+  return { reveal, goTo, flash: lit?.id, since: lit?.since ?? 0 };
 }
 
 /** A row is in view once half of it is. */
@@ -1053,6 +1076,7 @@ export function SpaceView({
   selfId,
   at,
   words,
+  goTo,
   onDetails,
   files: givenFiles,
   onOpenSpace,
@@ -1060,6 +1084,7 @@ export function SpaceView({
   onOpenRoom,
   headHeight = 0,
   bandReach = 0,
+  span,
   inView = true,
   onListed,
   onDrawn,
@@ -1075,6 +1100,11 @@ export function SpaceView({
   readonly at?: string | undefined;
   /** What a search looked for, when it opened this room at a message: marked there (ADR 0133). */
   readonly words?: string | undefined;
+  /**
+   * A line the room's sheet sent the reader to (a file's *Go to message*, a job's reply): gone to
+   * and lit in an open room, again for each one, the same line too.
+   */
+  readonly goTo?: GoTo | undefined;
   /** An ask's own screen, for what a card cannot do: scope, edit, a reason, a hand-on. */
   readonly onDetails?: ((item: NeedsYouItem) => void) | undefined;
   /** How files are uploaded and opened (M4.4). Absent, the pairing's own service is used. */
@@ -1102,7 +1132,13 @@ export function SpaceView({
    */
   readonly bandReach?: number | undefined;
   /** Opens the room's sheet, to add an agent: the no-agent notice's Add an agent (ADR 0087). */
-  readonly onOpenRoom?: ((page?: "who" | "add") => void) | undefined;
+  readonly onOpenRoom?: ((page?: RoomPage) => void) | undefined;
+  /**
+   * Where the room stands, where the split says it (an iPad, `RoomPane.tsx`): its lines take a
+   * change of its width once, with their words out of sight, rather than at every width its column
+   * passes through (ADR 0279).
+   */
+  readonly span?: RoomSpan | undefined;
   /**
    * Whether the room has begun to come into view, when it slides in (`app/spaces/[id].tsx`). The
    * rows a room opened far up draws to its line wait for it: drawn the moment the room was mounted,
@@ -1244,7 +1280,12 @@ export function SpaceView({
   const scroll = useRowScroll(list);
   const landing = useLanding({ at, words, lines, rows, list, built, inView, scroll });
   const viewer = useViewerAnswers(rows, scroll, landing.flash);
-  const { flash, pulse } = viewer;
+  const { flash, since } = viewer;
+  // A line the room's sheet sent the reader to, the room's one way, as often as it is sent.
+  const { goTo: goToLine } = viewer;
+  useEffect(() => {
+    if (goTo !== undefined) goToLine(goTo.lineId);
+  }, [goTo, goToLine]);
   // A reply's card goes to the message it quotes, and the pill comes back (ADR 0219).
   const replying = useBackToReply(rows, viewer.goTo);
   const { clear: letBackGo } = replying;
@@ -1288,7 +1329,7 @@ export function SpaceView({
     runs,
     routes,
     flash,
-    pulse,
+    since,
     marking: landing.marking,
     snapshot,
     selfId,
@@ -1343,7 +1384,7 @@ export function SpaceView({
               {/* Where a held message's copy starts and ends: what is seen under the bar's band and
                   above the composer (ADR 0200). */}
               <RoomSeen top={head + (headHeight > 0 ? GLASS.rampTop : 0)} bottom={footHeight}>
-                <TapAway glass={glass} closeAddress={closeAddress}>
+                <TapAway glass={glass} closeAddress={closeAddress} span={span} field={field}>
                   {
                     // The list is there from the room's first frame, empty or not. The platform's
                     // settings for the room's scroll view — iOS's edge effects off (`app/spaces/[id].tsx`)
@@ -1358,7 +1399,7 @@ export function SpaceView({
                         field={field}
                         inverted
                         testID="space-lines"
-                        style={styles.list}
+                        style={listStyle(span)}
                         onLayout={onListed}
                         // Unseen while a room opened on a line places it (`useLanding`).
                         shown={!landing.placing}
@@ -1425,7 +1466,9 @@ export function SpaceView({
                   ) : null}
                 </TapAway>
                 <Head
+                  store={store}
                   space={space}
+                  directory={snapshot.directory}
                   headHeight={headHeight}
                   reach={bandReach}
                   onHeight={setPinsHeight}
@@ -1484,7 +1527,8 @@ function heightOf(event: LayoutChangeEvent): number {
 }
 
 /**
- * The room's head: the band of blur behind the bar, and the pinned strip under it.
+ * The room's head: the band of blur behind the bar, and under it the band saying an agent works
+ * here without asking (ADR 0281), then the pinned strip.
  *
  * Neither is in the list's way — the bar floats over the room, so the strip does too, and the
  * list is told how much of its top the two of them are covering rather than being pushed down by
@@ -1496,12 +1540,16 @@ function heightOf(event: LayoutChangeEvent): number {
  * reaches above it (`bandReach`) has it drawn from that far up.
  */
 function Head({
+  store,
   space,
+  directory,
   headHeight,
   reach,
   onHeight,
 }: {
+  readonly store: Store;
   readonly space: Parameters<typeof visibleLines>[0];
+  readonly directory: Directory;
   readonly headHeight: number;
   readonly reach: number;
   readonly onHeight: (height: number) => void;
@@ -1523,6 +1571,7 @@ function Head({
         style={[styles.pinned, { top: headHeight }]}
         onLayout={(event) => onHeight(heightOf(event))}
       >
+        <LetWorkBand store={store} space={space} directory={directory} />
         <Pins space={space} />
       </View>
     </>
@@ -1546,10 +1595,11 @@ function Head({
  * closes the list only. A row, a circle, the field and the + are still their own taps: the
  * innermost view is asked first.
  *
- * On the iPhone Duo it stops short of the column iOS keeps down the screen's edge, where the room's
- * back button stands (ADR 0256): it floats, so the safe area that keeps the lines clear of the column
- * doesn't reach it, and the field ran under the clock (the simulator, 2 November 2026). In a split
- * the room's pane already stops there.
+ * On the iPhone Duo folded it stops at the column iOS keeps down the screen's edge, where the room's
+ * back button stands (ADR 0256), because the room's page does: the page keeps the column clear
+ * (`useSides`) and the foot floats inside it. It kept the column clear a second time, and the field,
+ * and the card it opens into, stood the column's 84 points short of it (the simulator, 5 November
+ * 2026).
  */
 function Foot({
   store,
@@ -1574,7 +1624,7 @@ function Foot({
   readonly onAddressOpen: (close: (() => void) | undefined) => void;
   /** How to close the field's list, while it is open. */
   readonly closeAddress: RefObject<(() => void) | undefined>;
-  readonly onOpenRoom?: ((page?: "who" | "add") => void) | undefined;
+  readonly onOpenRoom?: ((page?: RoomPage) => void) | undefined;
   /** Where the room's bar ends, which the field's list stops under (ADR 0113). */
   readonly bar: number;
 }) {
@@ -1582,9 +1632,8 @@ function Foot({
   const closed = space.state === "closed";
   // On an iPad the foot stands in the room's column, under the lines it answers (ADR 0256).
   const column = useRoomColumn();
-  const clear = useClearOfDuo();
   return (
-    <View style={[styles.floating, styles.footRow, clear]} pointerEvents="box-none">
+    <View style={[styles.floating, styles.footRow]} pointerEvents="box-none" testID="floating-foot">
       <View
         style={column}
         testID="room-foot"
@@ -1609,7 +1658,13 @@ function Foot({
           selfId={selfId}
           onAdd={onOpenRoom === undefined ? undefined : () => onOpenRoom("add")}
         />
-        <PausedBanner store={store} space={space} snapshot={snapshot} />
+        <PausedBanner
+          store={store}
+          space={space}
+          snapshot={snapshot}
+          selfId={selfId}
+          onRaise={onOpenRoom === undefined ? undefined : () => onOpenRoom("raise")}
+        />
         <Composer
           key={space.id}
           store={store}
@@ -1630,13 +1685,12 @@ function Foot({
   );
 }
 
-/** Where the Duo's column is kept clear by what floats at the room's edge: not in a split's pane. */
-function useClearOfDuo(): ViewStyle | null {
-  const { side, column } = useDuo();
-  const split = useSplitSide();
-  if (side === undefined || column === 0 || split !== undefined) return null;
-  return side === "right" ? { right: column } : { left: column };
-}
+/** Where the lines' box stands in the room, for each place it can (`Edge`). */
+const ALIGNED: Record<Edge, { readonly alignSelf: "flex-start" | "center" | "flex-end" }> = {
+  start: { alignSelf: "flex-start" },
+  middle: { alignSelf: "center" },
+  end: { alignSelf: "flex-end" },
+};
 
 /**
  * The lines, and a tap on them putting the keyboard away (Arjun, 20 September 2026).
@@ -1658,22 +1712,55 @@ function useClearOfDuo(): ViewStyle | null {
  * takes that touch before anything in the room is offered it: the room is mostly bubbles, each
  * pressable for its hold, and each took the tap for itself, so the list wanted several taps on the
  * room to close (Arjun's phone, 28 September 2026). A drag that the list takes closes it too.
+ *
+ * On an iPad it also holds the box the lines take a change of the room's width in, once, with their
+ * words out of sight (`useHeldWidth`, `RoomWords`, ADR 0279). The width it holds is its own to
+ * know, so a change of it draws this box again and not the room: the room drawn again three or four
+ * times on its way, in a long room, kept the details from setting off for a quarter of a second
+ * (the simulator, 5 November 2026). That box stands in the middle of the room or at its edge that
+ * stays put, and the room cuts off what it holds past its edges while it is wider.
+ *
+ * The box keeps the list inside it (`collapsable={false}`), as the page does (`Screen`'s `Page`).
+ * A view with a test id and no more is drawn by React Native as an empty view with its children
+ * moved up after it, and the screen, looking down its first children for the list to hand iOS's
+ * edge settings to, stopped at the empty box: a room's list kept iOS's own edge effect, and its
+ * conversation stood under a dark veil from the bar to the field wherever the room is a page of its
+ * own — an iPhone, and an iPad's window in Split View (Arjun's iPad, 7 November 2026; lldb on the
+ * simulator: the empty box first, the list second, all four effects showing).
  */
 function TapAway({
   glass,
   closeAddress,
+  span,
+  field,
   children,
 }: {
   /** The room's own glass: the media viewer measures it to clip a flight (`media/Stage.tsx`). */
   readonly glass: RefObject<View | null>;
   /** How to close the field's list, while it is open. */
   readonly closeAddress: RefObject<(() => void) | undefined>;
+  /** Where the room stands, where the split says it (`SpaceView`'s `span`). */
+  readonly span: RoomSpan | undefined;
+  /** The room's field, whose moves a change of width makes a glide (`Field.glide`). */
+  readonly field: Field;
   readonly children: ReactNode;
 }) {
+  const column = useRoomColumnWidth();
+  const told = useMemo<Told>(
+    () => ({
+      glide: (shift, take) => glideFor(field, shift, take),
+      landed: () => {
+        field.glide.value = 0;
+        field.shift.value = 0;
+      },
+    }),
+    [field],
+  );
+  const { width: held, edge, ...words } = useHeldWidth(span, field.moves, column, told);
   return (
     <View
       ref={glass}
-      style={styles.list}
+      style={styles.tap}
       accessible={false}
       testID="room-tap"
       onStartShouldSetResponderCapture={() => closeAddress.current !== undefined}
@@ -1685,7 +1772,19 @@ function TapAway({
       }}
       onResponderTerminate={() => closeAddress.current?.()}
     >
-      {children}
+      <RoomWords on={span !== undefined && field.moves} {...words}>
+        <View
+          collapsable={false}
+          style={
+            held === undefined
+              ? styles.list
+              : [styles.list, ALIGNED[edge ?? "middle"], { width: held }]
+          }
+          testID="room-held"
+        >
+          {children}
+        </View>
+      </RoomWords>
     </View>
   );
 }
@@ -1698,7 +1797,8 @@ interface RowContext {
   /** Where each routed message went (ADR 0081), by line id. */
   readonly routes: ReadonlyMap<string, RouteDrawn>;
   readonly flash: string | undefined;
-  readonly pulse: number;
+  /** When the line flashed was lit (`Flash`). */
+  readonly since: number;
   /** The words a search looked for, in the line it opened, while they are marked (ADR 0133). */
   readonly marking: Marking | undefined;
   readonly snapshot: Snapshot;
@@ -1762,7 +1862,7 @@ interface RoomView {
   /** Not right? notes the server turned away, by line, said under it (PM-4). */
   readonly unsent: ReadonlyMap<string, UnsentNote>;
   readonly flash: string | undefined;
-  readonly pulse: number;
+  readonly since: number;
   readonly marking: Marking | undefined;
   /** The lines pinned to the top of the room, whose menus offer Unpin (ADR 0200). */
   readonly pinned: ReadonlySet<string>;
@@ -1783,7 +1883,7 @@ const RoomRows = createContext<RoomView | undefined>(undefined);
  * a row reads the room from here and draws again only when something it draws has changed.
  */
 function useRoomView(row: RowContext): RoomView | undefined {
-  const { space, lanes, runs, routes, flash, pulse, marking, snapshot } = row;
+  const { space, lanes, runs, routes, flash, since, marking, snapshot } = row;
   const { selfId, files, openSpace, openAgent, feedback, pin, edit, store, details, deleting } =
     row;
   const { quote, toReplies } = row;
@@ -1859,8 +1959,8 @@ function useRoomView(row: RowContext): RoomView | undefined {
     () =>
       space === undefined || shared === undefined
         ? undefined
-        : { space, lanes, runs, routes, busy, unsent, flash, pulse, marking, pinned, shared },
-    [space, lanes, runs, routes, busy, unsent, flash, pulse, marking, pinned, shared],
+        : { space, lanes, runs, routes, busy, unsent, flash, since, marking, pinned, shared },
+    [space, lanes, runs, routes, busy, unsent, flash, since, marking, pinned, shared],
   );
 }
 
@@ -1918,7 +2018,7 @@ function TurnRow({ drawn, room }: { readonly drawn: Drawn; readonly room: RoomVi
   const route = room.routes.get(line.id);
   const busy = room.busy.has(line.id);
   const unsent = room.unsent.get(line.id);
-  const lit = room.flash === line.id ? room.pulse : -1;
+  const lit = room.flash === line.id ? room.since : -1;
   const marked = marksOn(room, line);
   const whole = line.fork !== undefined || line.newAgent !== undefined ? room.space : undefined;
   const pinned = room.pinned.has(line.id);
@@ -1993,7 +2093,7 @@ function drawLine(room: RoomView, line: LineModel, place: Drawn["place"], inFold
   const { shared, space } = room;
   const { selfId, store } = shared;
   return (
-    <Flash on={room.flash === line.id} pulse={room.pulse} id={line.id}>
+    <Flash on={room.flash === line.id} since={room.since} id={line.id}>
       {line.fork !== undefined ? (
         <ForkLine line={line} space={space} selfId={selfId} store={store} />
       ) : line.newAgent !== undefined ? (
@@ -2166,13 +2266,20 @@ function Turn({ drawn, children }: { readonly drawn: Drawn; readonly children: R
   return (
     <Moving style={opens ? styles.turn : styles.grouped}>
       {drawn.separator ? (
-        <Text style={[styles.separator, { color: palette.ink3 }]} testID="separator">
-          {separatorLabel(drawn.line.ts, Date.now())}
-        </Text>
+        <Ink>
+          <Text style={[styles.separator, { color: palette.ink3 }]} testID="separator">
+            {separatorLabel(drawn.line.ts, Date.now())}
+          </Text>
+        </Ink>
       ) : null}
       {children}
     </Moving>
   );
+}
+
+/** The room's list: beside an iPad's panes, drawn past its own frame (`styles.unclipped`). */
+function listStyle(span: RoomSpan | undefined): StyleProp<ViewStyle> {
+  return span === undefined ? styles.list : [styles.list, styles.unclipped];
 }
 
 /**
@@ -2204,9 +2311,11 @@ function Fold({
   return (
     <View style={styles.turn}>
       {fold.separator && latest !== undefined ? (
-        <Text style={[styles.separator, { color: palette.ink3 }]} testID="separator">
-          {separatorLabel(fold.lines[0]?.ts ?? latest.ts, Date.now())}
-        </Text>
+        <Ink>
+          <Text style={[styles.separator, { color: palette.ink3 }]} testID="separator">
+            {separatorLabel(fold.lines[0]?.ts ?? latest.ts, Date.now())}
+          </Text>
+        </Ink>
       ) : null}
       <View
         // Half the grey of a bubble, as the mock has it, so the bubbles inside stand out on it.
@@ -2241,12 +2350,14 @@ function Fold({
         {open ? (
           <View style={styles.foldLines}>{children}</View>
         ) : latest === undefined ? null : (
-          <Text numberOfLines={1} style={[styles.foldLatest, { color: palette.ink3 }]}>
-            <Text style={{ color: palette.ink2, fontWeight: "600" }}>
-              {nameOf(directory, latest.authorId)}:
-            </Text>{" "}
-            {plainWords(latest.text)}
-          </Text>
+          <Ink>
+            <Text numberOfLines={1} style={[styles.foldLatest, { color: palette.ink3 }]}>
+              <Text style={{ color: palette.ink2, fontWeight: "600" }}>
+                {nameOf(directory, latest.authorId)}:
+              </Text>{" "}
+              {plainWords(latest.text)}
+            </Text>
+          </Ink>
         )}
       </View>
       {fold.guard === undefined ? null : <RefereeLine guard={fold.guard} onExchange={onExchange} />}
@@ -2409,6 +2520,12 @@ const styles = StyleSheet.create({
   // The list takes the screen's height. Without it the list is as tall as its content wants to
   // be, which inside a flex column is nothing at all: the lines render and are clipped away.
   list: { flex: 1 },
+  // Beside an iPad's panes the list draws past its own frame, and the room cuts off what is past
+  // its edges: a bubble gliding in from outside the box its lines took was cut off at the box's
+  // edge, half a bubble on its way (ADR 0279, the simulator, 6 November 2026).
+  unclipped: { overflow: "visible" },
+  // The room, where the lines' box stands while it holds a width of its own.
+  tap: { flex: 1, overflow: "hidden" },
   // What an empty room says, over its list.
   pinned: { position: "absolute", left: 0, right: 0 },
   reach: { position: "absolute", left: 0, right: 0 },

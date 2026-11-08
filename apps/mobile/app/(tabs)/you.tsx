@@ -5,12 +5,13 @@
  * Invite someone, Relay, Media and Connection open in the pane (`YouPane`), kept by the tabs as
  * Spaces keeps its room (`ui/opened.tsx`), and so do the rows' sheets, as pages (ADR 0276). A
  * person opened from People stands in a third column beside it, and so does every ask so far,
- * opened from Allowed always.
+ * opened from Allowed always, and a card picked in Connect a harness's gallery (ADR 0284's addendum).
  * One You draws the list and hands the pane those pages (`useYou`), so a row and its page are one
  * state.
  */
 
 import type { Device, Store } from "@chipschat/core";
+import { useConnectThird } from "../../src/harnesses/Connect";
 import type { FileService } from "../../src/spaces/files";
 import { useChips } from "../../src/store/provider";
 import { useLayout } from "../../src/ui/layout";
@@ -70,6 +71,7 @@ function Halves({
   readonly go: (next: Opened) => void;
 }) {
   const you = useYou({ device, store });
+  const connectThird = useConnectThird();
   return (
     <Split
       tab="you"
@@ -84,7 +86,7 @@ function Halves({
           pages={you.pages}
         />
       }
-      third={youThird({ device, store, opened, go })}
+      third={opened["page"] === "connect" ? connectThird : youThird({ device, store, opened, go })}
     />
   );
 }

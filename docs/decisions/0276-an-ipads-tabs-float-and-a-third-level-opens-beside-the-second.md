@@ -201,3 +201,41 @@ Walked on the 13-inch simulator in the Demo, upright: Birthday dinner beside the
 side) and at the edge beside its details (48), the details sliding in; Milo's Model in the third
 column and Message history then taking its place. Universe was not walked (no project in the Demo):
 tests stand its tabs under its name in the column and close it from its button.
+
+## Fourth addendum, 5 November 2026: no ☰ and no sidebar, a bigger bar on the composer's line
+
+Arjun, looking at his iPad: "the hamburger icon and floating section needs to go away. The bottom
+tab bar needs to become slightly bigger (with the new extra space)", and, picking A from the mocks
+(`chips-notes/mocks/ipad-tabbar`), "the + icon alignment is important, in your mocks they align well
+with the + in the messages screen. In the current iPad app they do not".
+
+1. **☰ and the sidebar are gone.** The capsule is a bar of the four tabs' marks alone (`PadBar.tsx`,
+   which was `Sidebar.tsx`; its motion `PadBarMotion.tsx`). What the sidebar held was already at the
+   top of Spaces: the pinned spaces first in the list (ADR 0240), the workspaces from its name (ADR
+   0197). `chrome.tsx` loses `open`.
+2. **The bar is bigger, across the list's foot.** The bar and the gold + run across the list, 16 in
+   from each side, as the iPhone's run across the phone: 56 tall (48 before), the + as tall as the
+   bar (44 before), each tab a quarter of what is left (58 on a 340 list, 48 on a 300 one; 44
+   before), marks 25 (21 before).
+3. **The bar's middle is the composer's.** The capsule stood its middle 32 over the safe area's foot
+   and the composer's field 37, so the two +s were 5 points apart, and different sizes. The field's
+   height and its foot now live in `spaces/fieldShape.ts`, which the composer and `PAD_BAR.middle`
+   both read, so they stay on one line by construction. On the 13-inch simulator both +s measure
+   1318.75 upright and 974.75 on its side.
+4. **Over a narrow room it folds to the tab in front,** not to ☰: where a detail starts at the
+   window's edge under the bar and is under 700 wide (upright with a third column open), the bar
+   shrinks to the round of the tab in front, the way iOS 26's own bar does. A press on it opens the
+   four out again over the room's foot, on the ground the bar has over the list (through the glass
+   alone the composer's + showed between the tabs); a tab, the one in front again, or a tap beside
+   them folds them back.
+
+Walked on the 13-inch simulator in the Demo with this branch's JavaScript in a Release build:
+Spaces upright and on its side with Birthday dinner open, its details upright (folded to Spaces,
+opened out, Agents chosen from it), Milo's Model in the third column upright (folded to Agents),
+light and dark; the fold and the opening out recorded frame by frame. Not walked on the 11-inch or
+the mini, where the bar is narrower (tests hold its width there).
+
+## Fifth addendum, 7 November 2026: Connect a harness is a page too
+
+Decision 7 kept Connect a harness a sheet. ADR 0284's addendum makes it the pane's page beside
+Agents' list and You's alike, its pages held by one provider for both; Workspace stays a sheet.

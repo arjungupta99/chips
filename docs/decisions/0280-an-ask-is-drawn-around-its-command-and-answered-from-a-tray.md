@@ -1,0 +1,80 @@
+# 0280. An ask is drawn around its command, and answered from a tray
+
+Date: 6 November 2026
+Status: Accepted, 6 November 2026, on Arjun's "Build B" after the mock "Ask screen redesign"
+(https://claude.ai/artifact/NTpwxYov2etqth7WRsjyjM). Builds on ADR 0239 and its addendum of the
+same day, and on ADR 0142.
+
+## Context
+
+Ike's ask in "Chips design and architecture", 6 November 2026, was the screen that started ADR
+0239's addendum, and Arjun asked for the screen itself next: "make this screen more cool and
+polished. Show mocks first". As built it said the command three times and showed it once: the
+headline was the harness's question with the command quoted after it and cut off at 160 characters,
+the preview under it was the ask's input as JSON with the command again, escaped, and Always listed
+the starts it would remember under Remembers, away from the words they were taken from. The
+answer sat under all of that, at the foot of a scroll, and the time left was a line of grey among
+the others.
+
+The mock drew Ike's ask four ways: as that build left it, tidied (A), redrawn around the command
+with the answer in a tray (B, the pick), and B on a command that writes a file. He picked B.
+
+## Decision
+
+1. **The command is drawn one part to a line, as Chips reads it** (`commandPlate`, core). A line is
+   led by how it follows the one before: `›` after `;`, `&&`, `||` or a new line, `|` after a pipe.
+   Each keeps its words as they were written, quotes and escapes too. The words a standing yes
+   would remember are bold; output thrown away (`2>/dev/null`, `2>&1`) is struck through; a write
+   into a file (`> limits.js`) and a part on the never list (`rm -rf`) are red. Under it a caption
+   says how many parts Chips read and that thrown-away output writes no file. Protocol's reader
+   (`commandParts`) still decides; this one only draws, and draws every command, read or not.
+2. **The plate takes the preview's place when the preview says the command again** — a JSON
+   preview, or one that holds the command's words (`plateTakesPreview`) — and the headline drops a
+   command quoted at its end (`plateHeadline`). A preview that says something else still shows.
+   "Just this once" is not drawn on a command, which is once by its nature and whose Approve now
+   says how far it reaches; "Until you take it back" still is.
+3. **Always lights the words it keeps, in the command.** Remembers is gone: under Always the bold
+   words turn gold one after another down the plate, and the line under the choices says "Commands
+   made only of the lit words go ahead without a card …".
+4. **For an hour draws the hour** as a strip from now to its end ("Now, 11:09 PM" … "Until 12:09
+   AM") that fills as it is picked, and its line no longer says the time.
+5. **Approve says how far it reaches** — "Approve once", "Approve for an hour", "Approve always" —
+   and once pressed turns green with a tick and what was given ("Approved", "Until 12:09 AM",
+   "Always, in every space", "Always, in Bakery"). On the phone the screen holds that for 750 ms
+   before it goes back, from a copy of the ask as it was, since the log has it answered by then.
+   On the web and the Mac the card shows it until the answer comes back and the card cools, or
+   for four seconds if it doesn't, and is as wide as either set of words from the start, so it
+   does not jump as it turns.
+6. **A command kept to once names why by its words**: "This writes to `limits.js`, so you answer it
+   each time." (`writesWords`), with a red dot that ties it to the words the plate marks. A command
+   that does more than Chips can read and writes nothing says what it said before.
+7. **On the phone the answer is a tray of glass at the foot** (`needs/Tray.tsx`), in thumb's reach:
+   the choices as a segmented control, what the one picked lets through folding in under it, and
+   Deny and Approve. Deny's reason, an edit and Hand to… take the tray's place while they are open;
+   the tray grows to them from its foot and rides up with the keys. The ask scrolls under it.
+8. **The phone's bar is who asked and how long is left.** The agent's face and name with the space
+   under it replace "Ike needs a decision"; at the bar's end a ring drains toward the moment the ask
+   lapses, with the minutes in it, and a screen reader hears the sentence the line used to say. The
+   web and Mac card draw the same ring, small, beside "expires in".
+9. **Motion**, on the phone in `needs/AskMotion.tsx` and on the web in CSS: a pass of light goes
+   down the plate once as it opens; the lit words light 70 ms apart; the strip fills over 700 ms;
+   the choice's line fades in; Approve's word rises out as the tick rises in and draws itself.
+   Reduce Motion gets each where it ends.
+
+## Consequences
+
+- No server or protocol change. Core gains `commandPlate`, `plateCaption`, `plateHeadline`,
+  `plateTakesPreview`, `writesWords`, `approveWords`, `answeredWords`, `hourEnds`; `whileWords`
+  loses its time, and `reachWords` speaks of the lit words.
+- The plate keeps a home folder as written (`/Users/<name>/…`) rather than shortening it to `~` as
+  the mock did: a shortened path could hide whose folder a command works in.
+- `askStanding` names the file a write goes to, from the plate; the door and the engine still go by
+  `commandParts`, which refuses the same commands it did.
+- The room's card on the phone draws the plate too, four parts deep and then "and 3 more parts",
+  with no caption and no light, in place of the same JSON dump; its Approve and Deny are as
+  before. An ask read after it was answered (ADR 0255) draws it whole.
+- On the phone a line is the start, as a chip that can light, then the rest of its words as one
+  run of text that wraps under itself, so a long path stays beside its `cd`; a redirection and
+  its file never part across lines. A walk on an iOS 26.5 simulator against a throwaway server
+  (Ike's command, and one that writes `limits.js`) checked the plate, the lit words, the strip,
+  the tick, the ring and the tray riding up with the keys.

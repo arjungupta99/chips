@@ -86,6 +86,7 @@ import {
   aimedAt,
   aimOf,
   aimsAtEveryone,
+  aimWordsOf,
   formatBytes,
   formatDuration,
   kindOf,
@@ -115,11 +116,13 @@ import { type Looking, lookAt, StagedViewer } from "../media/StagedViewer";
 import { measureView } from "../media/tiles";
 import { IconButton } from "../ui/Button";
 import { Aside, alpha, Capsule, useGlassy } from "../ui/Glass";
-import { GROWS, GrowingView } from "../ui/growing";
+import { ASIDE, GROWS, GrowingView, RISES } from "../ui/growing";
 import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
+import { Clearing } from "../ui/PaneMotion";
 import { useColumn } from "../ui/Screen";
 import { useFootClear } from "../ui/Split";
+import { Swap } from "../ui/Swap";
 import { usePalette, useScheme } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import {
@@ -133,6 +136,7 @@ import {
 import { AttachSheet } from "./AttachSheet";
 import { FaceColumn, type FaceSlide, FaceSlideOn, useFaceSlide } from "./FaceColumn";
 import { WIDTH as COLUMN_WIDTH } from "./faceColumnMath";
+import { FIELD, FIELD_FOOT } from "./fieldShape";
 import type { FileService } from "./files";
 import { useFirstFrame } from "./firstFrame";
 import { pick, type Source } from "./pick";
@@ -184,19 +188,9 @@ const LINE = TEXT.body * 1.35;
 const INPUT_MAX = 124;
 
 /**
- * The field's own height, and the circles inside it.
- *
- * Both went up on 22 September 2026, and for a reason worth writing down: the mocks were drawn at
- * 330 points wide standing in for a 402-point phone, so everything in them was a fifth larger
- * against the screen than the same number of points is here. Arjun liked the proportions there
- * and found the real one mean beside it — "the proportions in the mock look better… might be
- * having more height". This is that fifth, given back: a fifty-point pill rather than a
- * forty-four, and thirty-two-point circles rather than thirty. The thumb's minimum
- * (`TOUCH_TARGET`) is still cleared by both. On 23 September, in the system's glass, "slightly
- * more taller": fifty-four, and then two points back — fifty-two — with Send still centred on
- * one line and the + beside it the same. On 24 September, two more back: fifty.
+ * The circles inside the field (`FIELD`, in `fieldShape.ts`, is the field's own height). They went
+ * up with it on 22 September 2026, from thirty points to thirty-two.
  */
-const FIELD = 50;
 const SEND = 32;
 /** Send's inset from the field's edge, and the faces': a circle centred on one line. */
 const FIELD_INSET = (FIELD - SEND) / 2;
@@ -223,7 +217,7 @@ const RISE_AT = SPACE.sm + 26;
  * and the measure is what corrects it.
  */
 export function quietFoot(bottomInset: number): number {
-  return SPACE.md + FIELD + SPACE.md + bottomInset;
+  return SPACE.md + FIELD + FIELD_FOOT + bottomInset;
 }
 
 /**
@@ -372,6 +366,8 @@ export function routedNow(space: Space, directory: Directory, selfId: string, ai
 export interface RouteStart {
   readonly to: readonly string[];
   readonly view: Placed | null;
+  /** The capsule said Everyone, whose faces are one mark from two (`marked`). */
+  readonly everyone?: boolean | undefined;
 }
 
 /**
@@ -418,7 +414,7 @@ export function launchOf(
   const route =
     routed === undefined || from === undefined || from.width <= 0
       ? undefined
-      : { to: routed.to, from };
+      : { to: routed.to, from, everyone: routed.everyone };
   return { text: command.text, words, rest, pictures, ...(route === undefined ? {} : { route }) };
 }
 
@@ -738,29 +734,32 @@ function routeStart(
   selfId: string,
 ): RouteStart | undefined {
   if (aim === undefined || !routedNow(space, directory, selfId, aim)) return undefined;
-  return { to: aim.ids, view };
+  return { to: aim.ids, view, everyone: aimWordsOf(aim, space, directory) === "Everyone" };
 }
 
 /**
  * What the empty field says, on one line, ending in "…" where it is too long for it (ADR 0113).
  * The input's own placeholder wrapped, as a field of several lines wraps everything, and the one
  * line an empty field is cut "Message Everyone" down to "Message". It stays the input's, unseen,
- * for a screen reader to say.
+ * for a screen reader to say. New words crossfade over the old, as the faces before them do, so a
+ * slide up the column never swaps "Message Scout" for "Message Everyone" in a frame.
  */
 function EmptyWords({ shown, words }: { readonly shown: boolean; readonly words: string }) {
   const palette = usePalette();
   if (!shown) return null;
   return (
     <View style={styles.hintAt} pointerEvents="none">
-      <Text
-        numberOfLines={1}
-        style={[styles.input, { color: palette.ink3 }]}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        testID="composer-hint"
-      >
-        {words}
-      </Text>
+      <Swap swapKey={words}>
+        <Text
+          numberOfLines={1}
+          style={[styles.input, { color: palette.ink3 }]}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          testID="composer-hint"
+        >
+          {words}
+        </Text>
+      </Swap>
     </View>
   );
 }
@@ -834,7 +833,7 @@ export function Composer({
   const keyboard = useScheme();
   const input = useRef<TextInput>(null);
   const column = useColumn();
-  // On an iPad with the list away, the room starts under the tabs' capsule: its foot keeps clear.
+  // On an iPad with the list away, the room starts under the tabs' bar: its foot keeps clear.
   const clear = useFootClear();
   const [text, setText] = useState(() => drafts.get(space.id) ?? "");
   const [measured, setMeasured] = useState<number | undefined>(undefined);
@@ -976,7 +975,7 @@ export function Composer({
               borderColor: palette.line,
               backgroundColor: palette.bg,
             },
-        { paddingBottom: SPACE.md + insets.bottom },
+        { paddingBottom: FIELD_FOOT + insets.bottom },
       ]}
     >
       <NoticeOver said={notice ?? roomNotice} />
@@ -1003,174 +1002,186 @@ export function Composer({
           ))}
         </ScrollView>
       )}
-      <View style={[styles.row, column, clear]}>
-        {files === undefined ? null : (
-          // A drop of the same glass beside the field, the whole of it the +'s: the mark is bare
-          // because the glass is already the surface it needs, and a filled circle on it would
-          // be a button on a button.
-          <View ref={plusRef} collapsable={false}>
-            <Capsule style={styles.plus} interactive>
-              <IconButton
-                icon="plus"
-                label="Attach"
-                tone="bare"
-                size={SEND}
-                testID="composer-attach"
-                disabled={disabled}
-                // The keyboard goes down as the sheet comes up: on iOS it is a window above every
-                // other, and a sheet rising under it would arrive half hidden.
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setSheet(true);
-                }}
+      {/*
+       * The room's foot keeps clear of an iPad's bar in a box of its own round the row: the field
+       * glides to a new frame in the row (`grows`), and moved inside the row each frame as the
+       * clear went, it trailed the + over it.
+       */}
+      <Clearing left={clear} style={column}>
+        <View style={styles.row}>
+          {files === undefined ? null : (
+            // A drop of the same glass beside the field, the whole of it the +'s: the mark is bare
+            // because the glass is already the surface it needs, and a filled circle on it would
+            // be a button on a button.
+            <View ref={plusRef} collapsable={false}>
+              <Capsule style={styles.plus} interactive>
+                <IconButton
+                  icon="plus"
+                  label="Attach"
+                  tone="bare"
+                  size={SEND}
+                  testID="composer-attach"
+                  disabled={disabled}
+                  // The keyboard goes down as the sheet comes up: on iOS it is a window above every
+                  // other, and a sheet rising under it would arrive half hidden.
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setSheet(true);
+                  }}
+                />
+              </Capsule>
+            </View>
+          )}
+          {/*
+           * The box is the target, not the glyphs in it: a press on the padding, or on the empty
+           * half of a line holding one word, puts the caret in — and the ground darkens under the
+           * press, so the thumb knows it landed. Not an element of its own to a screen reader —
+           * the input it holds is the thing to announce, and announcing both says "Message"
+           * twice and offers a button that does what tapping the field already does.
+           *
+           * The capsule is the shape and the material; the press and the row are inside it. The
+           * wash a press lays down is rounded to the capsule's own corner rather than clipped to
+           * it, because the system's glass is not clipped (`Capsule`).
+           */}
+          <Capsule style={styles.capsule} interactive grows>
+            {aim === undefined || !listed ? null : (
+              <AddressList
+                aim={aim}
+                space={space}
+                directory={directory}
+                selfId={selfId}
+                onPick={address.choose}
+                onAdd={address.add}
+                whole={address.whole}
+                most={most}
               />
-            </Capsule>
-          </View>
-        )}
-        {/*
-         * The box is the target, not the glyphs in it: a press on the padding, or on the empty
-         * half of a line holding one word, puts the caret in — and the ground darkens under the
-         * press, so the thumb knows it landed. Not an element of its own to a screen reader —
-         * the input it holds is the thing to announce, and announcing both says "Message"
-         * twice and offers a button that does what tapping the field already does.
-         *
-         * The capsule is the shape and the material; the press and the row are inside it. The
-         * wash a press lays down is rounded to the capsule's own corner rather than clipped to
-         * it, because the system's glass is not clipped (`Capsule`).
-         */}
-        <Capsule style={styles.capsule} interactive grows>
-          {aim === undefined || !listed ? null : (
-            <AddressList
-              aim={aim}
+            )}
+            <ReplyStrip
               space={space}
+              lineId={reply.lineId}
               directory={directory}
               selfId={selfId}
-              onPick={address.choose}
-              onAdd={address.add}
-              whole={address.whole}
-              most={most}
+              onClose={reply.clear}
             />
-          )}
-          <ReplyStrip
-            space={space}
-            lineId={reply.lineId}
-            directory={directory}
-            selfId={selfId}
-            onClose={reply.clear}
-          />
-          {/*
-           * The words' row moves inside the glass by as much as the glass grows, on the same
-           * transition, so as the field opens upward the row stays where the thumb left it. When
-           * the row itself grows, for a line typed, its top rises with the glass's and the words
-           * with it; what stands at its foot, the faces and Send, moves on the same transition
-           * the other way, and stays where it was.
-           */}
-          <GrowingView layout={GROWS}>
-            <Pressable
-              ref={fieldRow}
-              testID="composer-field"
-              accessible={false}
-              onPress={() => input.current?.focus()}
-              style={({ pressed }) => [
-                styles.field,
-                aim === undefined ? null : styles.addressed,
-                pressed ? { backgroundColor: alpha(palette.surface2, 0.6) } : null,
-              ]}
-            >
-              {shown === undefined ? null : (
-                <>
-                  <GrowingView
-                    style={styles.tokenAt}
-                    layout={GROWS}
-                    onLayout={stack.onToken}
-                    testID="composer-token"
-                  >
-                    <FaceSlideOn slide={slide}>
-                      <AddressToken
-                        aim={shown}
-                        space={space}
-                        directory={directory}
-                        open={listed}
-                        onPress={address.toggle}
-                        routeRef={address.routeRef}
-                      />
-                    </FaceSlideOn>
-                  </GrowingView>
-                  {/* The words as they would sit beside the faces: whether they wrap there. */}
+            {/*
+             * The words' row moves inside the glass by as much as the glass grows, on the same
+             * transition, so as the field opens upward the row stays where the thumb left it. When
+             * the row itself grows, for a line typed, its top rises with the glass's and the words
+             * with it; what stands at its foot, the faces and Send, moves on the same transition
+             * the other way, and stays where it was.
+             */}
+            <GrowingView layout={RISES}>
+              <Pressable
+                ref={fieldRow}
+                testID="composer-field"
+                accessible={false}
+                onPress={() => input.current?.focus()}
+                style={({ pressed }) => [
+                  styles.field,
+                  aim === undefined ? null : styles.addressed,
+                  pressed ? { backgroundColor: alpha(palette.surface2, 0.6) } : null,
+                ]}
+              >
+                {shown === undefined ? null : (
+                  <>
+                    <GrowingView
+                      style={styles.tokenAt}
+                      layout={GROWS}
+                      onLayout={stack.onToken}
+                      testID="composer-token"
+                    >
+                      <FaceSlideOn slide={slide}>
+                        <AddressToken
+                          aim={shown}
+                          space={space}
+                          directory={directory}
+                          open={listed}
+                          onPress={address.toggle}
+                          routeRef={address.routeRef}
+                        />
+                      </FaceSlideOn>
+                    </GrowingView>
+                    {/* The words as they would sit beside the faces: whether they wrap there. */}
+                    <Text
+                      style={[styles.input, styles.twin, stack.narrow]}
+                      accessibilityElementsHidden
+                      importantForAccessibility="no-hide-descendants"
+                      onLayout={stack.onNarrow}
+                      testID="composer-narrow-twin"
+                    >
+                      {twinOf(text)}
+                    </Text>
+                  </>
+                )}
+                {/*
+                 * The words and their twin, as tall as they need and no taller: the circle beside
+                 * them is measured from this rather than from the field, so a message six lines long
+                 * leaves Send on the bottom line where the thumb left it. They slide aside as the
+                 * faces before them change (`ASIDE`), with the capsule's edge.
+                 */}
+                <GrowingView
+                  layout={ASIDE}
+                  style={[styles.words, stack.words]}
+                  testID="composer-words"
+                >
                   <Text
-                    style={[styles.input, styles.twin, stack.narrow]}
+                    style={[styles.input, styles.twin]}
                     accessibilityElementsHidden
                     importantForAccessibility="no-hide-descendants"
-                    onLayout={stack.onNarrow}
-                    testID="composer-narrow-twin"
+                    onLayout={(event) => setMeasured(event.nativeEvent.layout.height)}
+                    testID="composer-twin"
                   >
                     {twinOf(text)}
                   </Text>
-                </>
-              )}
-              {/*
-               * The words and their twin, as tall as they need and no taller: the circle beside
-               * them is measured from this rather than from the field, so a message six lines long
-               * leaves Send on the bottom line where the thumb left it.
-               */}
-              <View style={[styles.words, stack.words]} testID="composer-words">
-                <Text
-                  style={[styles.input, styles.twin]}
-                  accessibilityElementsHidden
-                  importantForAccessibility="no-hide-descendants"
-                  onLayout={(event) => setMeasured(event.nativeEvent.layout.height)}
-                  testID="composer-twin"
-                >
-                  {twinOf(text)}
-                </Text>
-                <EmptyWords
-                  shown={text === ""}
-                  words={placeholderOf(space, hushed, shown, directory)}
-                />
-                <TextInput
-                  ref={input}
-                  accessibilityLabel="Message"
-                  testID="composer"
-                  value={text}
-                  onChangeText={type}
-                  placeholder={placeholderOf(space, hushed, aim, directory)}
-                  placeholderTextColor="transparent"
-                  editable={!disabled}
-                  keyboardAppearance={keyboard}
-                  multiline
-                  // A phone on its side keeps the room in sight over the keys: Android's own
-                  // full-screen field took the whole screen above them (the emulator, 16
-                  // October 2026).
-                  disableFullscreenUI
-                  // Empty, one line, without waiting for the twin to say so.
-                  style={[
-                    styles.input,
-                    { color: palette.ink, height: text === "" ? LINE : heightFor(measured) },
-                  ]}
-                />
-              </View>
-              {/* Measured for a staged photo's viewer, which draws its own Send exactly here. */}
-              <GrowingView ref={look.sendRef} collapsable={false} layout={GROWS}>
-                <IconButton
-                  icon="up"
-                  label="Send"
-                  size={SEND}
-                  testID="composer-send"
-                  disabled={!canSend}
-                  onPress={send}
-                />
-              </GrowingView>
-            </Pressable>
-          </GrowingView>
-        </Capsule>
-        <ColumnOverField
-          slide={slide}
-          under={under}
-          directory={directory}
-          addressed={aim !== undefined}
-          plus={files !== undefined}
-        />
-      </View>
+                  <EmptyWords
+                    shown={text === ""}
+                    words={placeholderOf(space, hushed, shown, directory)}
+                  />
+                  <TextInput
+                    ref={input}
+                    accessibilityLabel="Message"
+                    testID="composer"
+                    value={text}
+                    onChangeText={type}
+                    placeholder={placeholderOf(space, hushed, aim, directory)}
+                    placeholderTextColor="transparent"
+                    editable={!disabled}
+                    keyboardAppearance={keyboard}
+                    multiline
+                    // A phone on its side keeps the room in sight over the keys: Android's own
+                    // full-screen field took the whole screen above them (the emulator, 16
+                    // October 2026).
+                    disableFullscreenUI
+                    // Empty, one line, without waiting for the twin to say so.
+                    style={[
+                      styles.input,
+                      { color: palette.ink, height: text === "" ? LINE : heightFor(measured) },
+                    ]}
+                  />
+                </GrowingView>
+                {/* Measured for a staged photo's viewer, which draws its own Send exactly here. */}
+                <GrowingView ref={look.sendRef} collapsable={false} layout={RISES}>
+                  <IconButton
+                    icon="up"
+                    label="Send"
+                    size={SEND}
+                    testID="composer-send"
+                    disabled={!canSend}
+                    onPress={send}
+                  />
+                </GrowingView>
+              </Pressable>
+            </GrowingView>
+          </Capsule>
+          <ColumnOverField
+            slide={slide}
+            under={under}
+            directory={directory}
+            addressed={aim !== undefined}
+            plus={files !== undefined}
+          />
+        </View>
+      </Clearing>
       {look.looking === undefined ? null : (
         <StagedViewer
           looking={look.looking}

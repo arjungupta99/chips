@@ -134,6 +134,26 @@ export interface SessionRule {
   readonly runId: string;
   readonly decision: "allow" | "deny";
   readonly decidedAt: string;
+  /**
+   * A yes that holds on instead (ADR 0239, addendum of 6 November 2026; ADR 0281): when it stops,
+   * or `null` for one that holds until a person stops it. It holds in the approval's space for the
+   * run's agent, past the run's end, and not as This session.
+   */
+  readonly until?: string | null | undefined;
+}
+
+/**
+ * A person stopping the yes that held on in a space for one agent (ADR 0281): each of its rows
+ * still holding ends at the stop. Separate from `patch` because it matches the rows still
+ * holding, which an equality cannot say.
+ */
+export interface HeldStopped {
+  readonly kind: "held_stopped";
+  readonly table: "session_rules";
+  readonly workspaceId: string;
+  readonly spaceId: string;
+  readonly asker: string;
+  readonly at: string;
 }
 
 /**
@@ -187,6 +207,7 @@ export type Change =
   | Spend
   | ReplacePlan
   | SessionRule
+  | HeldStopped
   | CarriedSpend
   | TakeRuns;
 
@@ -248,6 +269,16 @@ function jsonOrNull(value: unknown): string | null {
 }
 
 /** Every event lands in its space's activity, so the list sorts without a join. */
+/**
+ * How long a yes holds on past its ask (ADR 0281): until a time for a yes for a while, `null` for
+ * one until stopped, nothing for a yes given once.
+ */
+function holdsUntil(event: EventLike): string | null | undefined {
+  const minutes = field<number>(event, "for_minutes");
+  if (minutes !== undefined) return new Date(Date.parse(event.ts) + minutes * 60_000).toISOString();
+  return field<boolean>(event, "until_stopped") === true ? null : undefined;
+}
+
 function touchSpace(event: EventLike): Change[] {
   if (event["space_id"] === undefined) return [];
   return [
@@ -984,8 +1015,36 @@ const PROJECTORS: Readonly<Record<string, Projector>> = {
         decidedAt: event.ts,
       });
     }
+    // A yes that holds on (ADR 0239, addendum of 6 November 2026; ADR 0281): given once, it
+    // holds for a while, or until a person stops it.
+    const until = holdsUntil(event);
+    if (until !== undefined && (decision === "approved" || decision === "edited")) {
+      changes.push({
+        kind: "session_rule",
+        table: "session_rules",
+        key: { workspace_id: event.workspace_id, id: required<string>(event, "approval_id") },
+        runId: String(event.run_id),
+        decision: "allow",
+        decidedAt: event.ts,
+        until,
+      });
+    }
     return changes;
   },
+
+  "approval.held_stopped": (event) =>
+    event.space_id === undefined
+      ? []
+      : [
+          {
+            kind: "held_stopped",
+            table: "session_rules",
+            workspaceId: event.workspace_id,
+            spaceId: event.space_id,
+            asker: required<string>(event, "asker"),
+            at: event.ts,
+          },
+        ],
 
   "approval.executed": (event) => [
     {

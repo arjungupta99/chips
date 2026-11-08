@@ -5,6 +5,7 @@ import {
   commandStarts,
   neverStanding,
   standingOffer,
+  startOf,
   startsWith,
 } from "./commands.js";
 
@@ -42,24 +43,26 @@ describe("reading a command (ADR 0239)", () => {
 
   it("reads the shapes of the real asks, and not the two that write into a file", () => {
     const real: readonly [string, readonly string[] | undefined][] = [
-      ["pwd; ls -la /home/me/.claw; ls -la /home/me/.claw/chips", ["pwd", "ls -la", "ls -la"]],
-      [
-        'find /home/me/media/inbound -maxdepth 1 -type f -name "*4c75*"',
-        ["find /home/me/media/inbound"],
-      ],
+      ["pwd; ls -la /home/me/.claw; ls -la /home/me/.claw/chips", ["pwd", "ls -la"]],
+      ['find /home/me/media/inbound -maxdepth 1 -type f -name "*4c75*"', ["find"]],
       ["python3 validate-report.py", ["python3 validate-report.py"]],
-      [
-        "rm /Users/me/acp/claude/second.txt && ls /Users/me/acp/claude",
-        ["rm /Users/me/acp/claude/second.txt", "ls /Users/me/acp/claude"],
-      ],
-      ["curl -sI https://example.com | head -1", ["curl -sI", "head -1"]],
+      ["rm /Users/me/acp/claude/second.txt && ls /Users/me/acp/claude", ["rm", "ls"]],
+      ["curl -sI https://example.com | head -1", ["curl -sI", "head"]],
       [
         "grep -nE 'card|toolbar' game.js | grep -v data-index; node --check game.js && echo ok",
-        ["grep -nE", "grep -v", "node --check", "echo ok"],
+        ["grep -nE", "grep -v", "node --check", "echo"],
       ],
       [
         'cd /Users/me/room && git log --oneline -8 -- style.css; git status --short; grep -n "x" style.css | head -3',
-        ["cd /Users/me/room", "git log", "git status", "grep -n", "head -3"],
+        ["cd", "git log", "git status", "grep -n", "head"],
+      ],
+      [
+        "cd /Users/me/Work/Chips/chips-main; ls -la; git log --oneline | wc -l; ls ../chips-notes ../chips-acp; cat package.json 2>/dev/null | head -60",
+        ["cd", "git log", "wc -l", "ls", "cat", "head"],
+      ],
+      [
+        "cd /Users/me; ls -la Chips Work 2>&1 | head -80; ls /Applications | grep -i chip; ls ~/Library/Application\\ Support | grep -i chip",
+        ["cd", "head", "ls", "grep -i"],
       ],
       [
         "sed -i '' 's/class=\"toolbar\"/class=\"controls\"/' index.html && grep -n controls index.html",
@@ -80,9 +83,28 @@ describe("reading a command (ADR 0239)", () => {
     }
   });
 
+  it("reads output thrown away or merged, and drops it from the words", () => {
+    expect(read("ls 2>/dev/null")).toEqual(["ls"]);
+    expect(read("ls 2> /dev/null")).toEqual(["ls"]);
+    expect(read("ls -la x 2>&1 | head")).toEqual(["ls -la x", "head"]);
+    expect(read("make >/dev/null 2>&1")).toEqual(["make"]);
+    expect(read("make 1>/dev/null")).toEqual(["make"]);
+    expect(read("node a.js &>/dev/null; pwd")).toEqual(["node a.js", "pwd"]);
+    expect(read("echo oops >&2")).toEqual(["echo oops"]);
+    expect(read("echo 2 >/dev/null")).toEqual(["echo 2"]);
+    expect(read("cat 'a 2>/dev/null b'")).toEqual(["cat a 2>/dev/null b"]);
+  });
+
   it("can't read what does more than run programs in a row", () => {
     for (const command of [
       "echo hi > out.txt",
+      "echo hi 2> out.txt",
+      "echo hi >> log.txt",
+      "ls 2>/dev/nullx",
+      "ls 3>/dev/null",
+      "ls>/dev/null",
+      "ls 2>&3",
+      "ls 2>/dev/null)",
       "sort < in.txt",
       "echo $(rm -rf x)",
       "echo `rm -rf x`",
@@ -109,14 +131,30 @@ describe("reading a command (ADR 0239)", () => {
 });
 
 describe("what a standing yes remembers, and what it never covers (ADR 0239)", () => {
-  it("remembers each part's first two words, once each", () => {
+  it("remembers each part's program and the word that picks what it does, once each", () => {
     const parts = commandParts("grep -noE a x | sort | uniq -c | sort -k2 | sort");
     expect(parts === undefined ? undefined : commandStarts(parts)).toEqual([
       ["grep", "-noE"],
       ["sort"],
       ["uniq", "-c"],
-      ["sort", "-k2"],
     ]);
+    const start = (command: string) => startOf(command.split(" ")).join(" ");
+    expect(start("cat README.md")).toBe("cat");
+    expect(start("cd /Users/me/room")).toBe("cd");
+    expect(start("head -50")).toBe("head");
+    expect(start("head -c 9000")).toBe("head -c");
+    expect(start("echo ----")).toBe("echo");
+    expect(start("ls")).toBe("ls");
+    expect(start("ls -la")).toBe("ls -la");
+    expect(start("sed -n 1,5p a")).toBe("sed -n");
+    expect(start("git log --oneline")).toBe("git log");
+    expect(start("git -C dir status")).toBe("git -C");
+    expect(start("/usr/bin/git status")).toBe("/usr/bin/git status");
+    expect(start("pnpm test")).toBe("pnpm test");
+    expect(start("node --check a.js")).toBe("node --check");
+    expect(start("node game.js")).toBe("node game.js");
+    expect(start("python3 build.py")).toBe("python3 build.py");
+    expect(start("npx prettier")).toBe("npx prettier");
     expect(startsWith(["node", "--check", "a.js"], ["node", "--check"])).toBe(true);
     expect(startsWith(["node", "--check"], ["node", "--check"])).toBe(true);
     expect(startsWith(["node", "-e", "x"], ["node", "--check"])).toBe(false);
@@ -141,17 +179,25 @@ describe("what a standing yes remembers, and what it never covers (ADR 0239)", (
     expect(never("bash -c 'ls'")).toBe("bash -c");
     expect(never("bash script.sh")).toBeUndefined();
     expect(never("curl -sI https://example.com | head -1")).toBe("curl");
+    expect(never("cp a b")).toBe("cp");
+    expect(never("ls && mv a b")).toBe("mv");
+    expect(never("ls | tee out.txt")).toBe("tee");
+    expect(never("sed -i '' s/a/b/ f")).toBe("sed -i");
+    expect(never("sed -n 1p f")).toBeUndefined();
+    expect(never("pnpm publish --access public")).toBe("pnpm publish");
+    expect(never("npm test")).toBeUndefined();
   });
 
   it("says what a card's standing yes would remember, or why there is none", () => {
     expect(standingOffer({ command: "node --check game.js && echo ok" })).toEqual({
       kind: "starts",
-      starts: [
-        ["node", "--check"],
-        ["echo", "ok"],
-      ],
+      starts: [["node", "--check"], ["echo"]],
     });
     expect(standingOffer({ command: "echo hi > x" })).toEqual({ kind: "unreadable" });
+    expect(standingOffer({ command: "cat package.json 2>/dev/null | head -60" })).toEqual({
+      kind: "starts",
+      starts: [["cat"], ["head"]],
+    });
     expect(standingOffer({ command: "ls && rm x" })).toEqual({ kind: "never", command: "rm" });
     expect(standingOffer({ path: "a.md" })).toBeUndefined();
   });

@@ -23,6 +23,7 @@ import {
   isSpendCeiling,
   messageIdOf,
   resetsTheCount,
+  SERVER_TAKES,
 } from "@chipschat/protocol";
 import type { Cache } from "../cache.js";
 import type { Device, DeviceStorage } from "../device.js";
@@ -514,6 +515,7 @@ function spendCeiling(book: Book, route: string, body: Body, ts: string): unknow
 function helloOf(book: Book): ClientEvent {
   return {
     type: "hello",
+    server: { takes: [...SERVER_TAKES] },
     spaces: book.rooms(),
     workspace: { id: DEMO_WORKSPACE_ID, name: DEMO_WORKSPACE_NAME },
   } as unknown as ClientEvent;

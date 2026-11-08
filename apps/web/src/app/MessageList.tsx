@@ -44,6 +44,10 @@
  * fell to the page (`e2e/viewer.spec.ts` at a phone's height, 18 October 2026). The window keeps
  * which rows it begins and ends with, and finds them again each time it draws.
  *
+ * Beside the columns the room's width changes too (ADR 0284's second addendum): the columns tell
+ * the list as they set off, and its rows glide to their new places on the columns' curve
+ * (`room/widthGlide.ts`) while the room's own motion stands aside.
+ *
  * A container that reports no height — before layout, and under jsdom — tells us nothing about
  * what is in view, so everything is rendered. That is what keeps the component tests honest.
  */
@@ -58,7 +62,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRoomGlide } from "./Columns.tsx";
 import { type RoomMotion, roomMotion } from "./room/roomMotion.ts";
+import { type GlideNote, noteGlide, startGlide } from "./room/widthGlide.ts";
 
 /** How tall a row nobody has measured is assumed to be. */
 const ESTIMATE = 64;
@@ -133,6 +139,13 @@ export function MessageList<T>(props: MessageListProps<T>) {
   /** How the room's rows and scroll go from where they were drawn to where they are laid out. */
   const motion = useRef<RoomMotion | undefined>(undefined);
   /**
+   * The room taking a new width as the columns move (`room/widthGlide.ts`): where its rows stood,
+   * noted as the columns set off, kept to the next frame, since a list crowded out by a third column
+   * moves in the same frame as the column and the room is told twice. Its letting go, while it goes.
+   */
+  const noted = useRef<GlideNote | undefined>(undefined);
+  const gliding = useRef<(() => void) | undefined>(undefined);
+  /**
    * How many rows were on the page, to the last drawn, when the room was last laid out: a row past
    * them has just landed. Not how many it knew of: a line is drawn a pass after the list hears of
    * it, once the window has caught up, and counted then it was an old line, drawn again.
@@ -167,6 +180,8 @@ export function MessageList<T>(props: MessageListProps<T>) {
   listed.current = { items, keyOf };
 
   const recompute = useCallback(() => {
+    // The room taking a new width draws the rows it has where they land; the window waits for it.
+    if (gliding.current !== undefined) return;
     const places = windowOf(list(), heights.current, following.current);
     if (places === undefined) return;
     const next = named(places, listed.current.items, listed.current.keyOf);
@@ -182,6 +197,8 @@ export function MessageList<T>(props: MessageListProps<T>) {
   const stick = useCallback(() => {
     const el = list();
     if (el === null) return;
+    // The room taking a new width moves its rows itself, from where they stood to where they land.
+    if (gliding.current !== undefined) return;
     // Each scroll the room makes, so the scroll event it causes is not read as the reader moving.
     motion.current ??= roomMotion(el, (top) => {
       lastTop.current = top;
@@ -202,6 +219,7 @@ export function MessageList<T>(props: MessageListProps<T>) {
     () => () => {
       motion.current?.stop();
       motion.current = undefined;
+      letGlideGo(gliding);
     },
     [],
   );
@@ -235,6 +253,47 @@ export function MessageList<T>(props: MessageListProps<T>) {
     },
     [scroller],
   );
+
+  useRoomGlide({
+    note: (within) => {
+      const el = list();
+      if (el === null || (within !== null && !within.contains(el))) return;
+      const stood = noteGlide(el);
+      if (stood.length === 0) return;
+      noted.current = stood;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (noted.current === stood) noted.current = undefined;
+        });
+      });
+    },
+    start: (within, room) => {
+      const el = list();
+      const stood = noted.current;
+      if (el === null || stood === undefined || !within.contains(el)) return;
+      motion.current?.stop();
+      motion.current = undefined;
+      letGlideGo(gliding);
+      // Up the space, the line the reader is at, noted where it stands at the old width.
+      note(drawn());
+      const keep = () => {
+        if (following.current) el.scrollTop = el.scrollHeight;
+        else hold(drawn());
+      };
+      const release = startGlide(el, stood, room, keep, () => {
+        if (gliding.current !== release) return;
+        gliding.current = undefined;
+        // The window and the room's motion again, from where the rows have landed.
+        recompute();
+        stick();
+      });
+      gliding.current = release;
+      if (following.current) {
+        lastTop.current = el.scrollTop;
+        lastMax.current = Math.max(0, el.scrollHeight - el.clientHeight);
+      }
+    },
+  });
 
   // The rows and their guesses follow the space's length.
   if (heights.current.length !== items.length) growTo(heights.current, items.length);
@@ -356,6 +415,10 @@ export function MessageList<T>(props: MessageListProps<T>) {
       const el = list();
       const under = grownUnder(el, held.current, targets, indices.current, standingAt.current);
       const rowsMoved = measure(heights.current, indices.current, targets);
+      // The room taking a new width kept the reader's place as it set off (`startGlide`): every row
+      // in it changes height, noted here, and nothing is moved for it. Moved, the rows were drawn a
+      // whole move off their glides, and a line up the space ended hundreds of pixels from its place.
+      if (gliding.current !== undefined) return;
       // Under a pixel is not a row moving, but it is still the scroll's to take: noted and not
       // taken, a closing row's last frames left the lines under it a pixel or two up.
       if (!rowsMoved && !resized(targets, indices.current, sizes) && under === 0) return;
@@ -440,6 +503,13 @@ export function MessageList<T>(props: MessageListProps<T>) {
       <div className="msgs-spacer" ref={foot} style={{ height: visible.after }} />
     </Fragment>
   );
+}
+
+/** A width glide let go, landed or not, with nothing started again after it. */
+function letGlideGo(gliding: { current: (() => void) | undefined }): void {
+  const release = gliding.current;
+  gliding.current = undefined;
+  release?.();
 }
 
 /** A row held still up the space: which, and how far below the scroller's top it stood. */

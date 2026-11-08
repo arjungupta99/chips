@@ -81,7 +81,8 @@ jest.mock("../store/provider", () => ({
   useSnapshot: (store: { getSnapshot: () => unknown }) => store.getSnapshot(),
   useDeferredSnapshot: (store: { getSnapshot: () => unknown }) => store.getSnapshot(),
 }));
-// Connect a harness's sheet is the app's (`harnesses/Connect.tsx`); here, only that the row opens it.
+// Connect a harness's pages are the app's (`harnesses/Connect.tsx`); here, only that the row opens
+// them (beside the list, You's pane holds them: ADR 0284's addendum).
 const mockConnect: {
   open: jest.Mock;
   waiting: { left: string; share: number; taken: boolean } | undefined;
@@ -175,6 +176,19 @@ const ASKED_ROOM = {
   ],
 };
 
+/** A room Scout was let work in without asking, until stopped (ADR 0281). */
+const WORKING_ROOM = {
+  id: "spc_explain",
+  title: "Chips explain",
+  kind: "room",
+  members: ["per_arjun", "har_scout"],
+  roles: {},
+  state: "open",
+  lines: [],
+  runs: [],
+  letWork: [{ asker: "har_scout", by: "per_arjun", since: "2026-11-06T09:50:00.000Z" }],
+};
+
 function fake(
   over: {
     role?: string;
@@ -198,6 +212,8 @@ function fake(
     refuseDelete?: string;
     /** Scout's asks so far in a room of its own, answered yes and then no (ADR 0255). */
     asks?: boolean;
+    /** Scout let work without asking in a room (ADR 0281). */
+    working?: boolean;
   } = {},
 ) {
   const snapshot = {
@@ -238,7 +254,9 @@ function fake(
                 bySpace: {},
               },
             },
-      spaces: over.asks === true ? [ASKED_ROOM] : [],
+      spaces: [ASKED_ROOM, WORKING_ROOM].filter(
+        (room) => (room === ASKED_ROOM ? over.asks : over.working) === true,
+      ),
       people: { per_arjun: { participantId: "per_arjun", role: over.role ?? "owner" } },
       attachmentCaps: over.caps ?? { image: null, video: null, file: null },
       exchangeLimits: over.limits ?? { stop: 16, hold: 48, circles: true },
@@ -256,6 +274,7 @@ function fake(
     setAttachmentCaps: (caps: unknown) => calls.push({ name: "setAttachmentCaps", args: caps }),
     setExchangeLimits: (limits: unknown) => calls.push({ name: "setExchangeLimits", args: limits }),
     setRules: (input: unknown) => calls.push({ name: "setRules", args: input }),
+    stopLetWork: (input: unknown) => calls.push({ name: "stopLetWork", args: input }),
     rename: async (name: string) => {
       calls.push({ name: "rename", args: name });
       if (over.refuse !== undefined) throw new Error(over.refuse);
@@ -829,6 +848,22 @@ describe("the workspace's own group", () => {
     // The harnesses are one line, not a box each that says the same.
     expect(sheet.getByTestId("always-sheet-asking")).toHaveTextContent("Scout asks every time.");
     expect(sheet.queryByText("Nothing allowed always.")).toBeNull();
+  });
+
+  it("lists who works without asking, where and until when, with Stop (ADR 0281)", async () => {
+    const store = fake({ working: true });
+    await render(<You device={DEVICE} store={store} />);
+    await userEvent.press(screen.getByTestId("allowed-always-row"));
+    const sheet = within(screen.getByTestId("always-sheet-panel"));
+    const working = within(sheet.getByTestId("always-working"));
+    expect(working.getByText("Working without asking")).toBeTruthy();
+    expect(sheet.getByTestId("always-working-har_scout")).toHaveTextContent(
+      "ScoutIn Chips explain · Until you stop itStop",
+    );
+    await userEvent.press(working.getByRole("button", { name: "Stop" }));
+    expect(store.calls).toEqual([
+      { name: "stopLetWork", args: { spaceId: "spc_explain", asker: "har_scout" } },
+    ]);
   });
 
   it("opens every ask from the dots: the sheet goes down, then the list comes up (ADR 0255)", async () => {

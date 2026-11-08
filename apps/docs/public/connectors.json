@@ -30,7 +30,7 @@
       "kind": "one-line",
       "command": "chips connect claude-code '{link}'",
       "package": "@chipschat/acp@1",
-      "args": ["~/.chips-acp/claude-code.json"],
+      "args": ["~/Chips/.bridges/acp/claude-code.json"],
       "capabilities": [
         "new_spaces",
         "new_agents",
@@ -51,7 +51,7 @@
       "kind": "one-line",
       "command": "chips connect codex '{link}'",
       "package": "@chipschat/acp@1",
-      "args": ["~/.chips-acp/codex.json"],
+      "args": ["~/Chips/.bridges/acp/codex.json"],
       "capabilities": [
         "new_spaces",
         "new_agents",

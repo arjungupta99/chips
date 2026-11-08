@@ -204,6 +204,8 @@ export function Tiles({ children }: { readonly children: ReactNode }) {
 function Tile(props: {
   readonly mark: ReactNode;
   readonly value: ReactNode;
+  /** A line under the value: Spend's last job (ADR 0282). */
+  readonly under?: string | undefined;
   readonly name: string;
   /** What a screen reader says of it, where it presses. */
   readonly label: string;
@@ -223,6 +225,7 @@ function Tile(props: {
         {props.trailing ?? (props.onClick !== undefined && <Chev />)}
       </span>
       <span className="sheet-box-value">{props.value}</span>
+      {props.under !== undefined && <span className="sheet-box-under">{props.under}</span>}
       <span className="sheet-box-name">{props.name}</span>
       {props.hint !== undefined && <span className="ui-visually-hidden">{props.hint}</span>}
       {props.children}
@@ -317,12 +320,15 @@ export function SpendTile({
   ceiling,
   spend,
   words,
+  last,
   onClick,
 }: {
   readonly ceiling: number;
   readonly spend: JobSpend | undefined;
   /** The row's line, `This job so far: $0.28`, and who sets it for one who doesn't. */
   readonly words: string | undefined;
+  /** `Last job $3.10`, once a job before this one spent (ADR 0282). */
+  readonly last?: string | undefined;
   readonly onClick: (() => void) | undefined;
 }) {
   return (
@@ -342,8 +348,9 @@ export function SpendTile({
           </>
         )
       }
+      under={last}
       name="Spend per job"
-      label={`Spend per job, ${dollars(ceiling)}${words === undefined ? "" : `, ${words}`}`}
+      label={`Spend per job, ${dollars(ceiling)}${words === undefined ? "" : `, ${words}`}${last === undefined ? "" : `, ${last}`}`}
       hint={words}
       onClick={onClick}
       testId="room-sheet-spend"

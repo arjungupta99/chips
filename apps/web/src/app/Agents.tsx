@@ -43,14 +43,14 @@ import {
 } from "@chipschat/core";
 import type { SpaceIcon } from "@chipschat/protocol";
 import { Avatar, ChipMark, Icon, LIBRARY_MARKS } from "@chipschat/ui";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Fold, useArrivals } from "./Arrive.tsx";
 import { useStays } from "./agent/AgentHistory.tsx";
 import { RoomPickDialog } from "./agent/RoomPick.tsx";
 import type { AgentsService } from "./agent/service.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { ContextGroup } from "./context/ContextGroup.tsx";
-import type { ContextPage } from "./context/pages.ts";
+import { type ContextPage, OpenedPage } from "./context/pages.ts";
 import { GroupRow } from "./GroupRow.tsx";
 import { HeartbeatGroup } from "./heartbeat/HeartbeatGroup.tsx";
 import { LockRow } from "./LockRow.tsx";
@@ -81,21 +81,28 @@ export function AgentListRow({
   onOpen,
   pick,
   arriving,
+  face = "sm",
 }: {
   readonly row: AgentRow;
   readonly onOpen: (id: string) => void;
   readonly pick?: RowPick | undefined;
   /** Come into a list already drawn: it grows into its place (`useArrivals`). */
   readonly arriving?: boolean | undefined;
+  /** The face's size: the list's 48 in the first column (ADR 0284), a page's own rows smaller. */
+  readonly face?: "sm" | "md" | undefined;
 }) {
   const waiting = waitingWords(row.held);
   const ring = RING[row.doing];
+  const opened = useContext(OpenedPage);
+  const chosen = opened?.kind === "agent" && opened.agentId === row.id;
   return (
     <li {...leavingProps(pick)} data-arrive={arriving === true ? "true" : undefined}>
       <button
         type="button"
         className="agent-row"
         data-testid={`agent-${row.id}`}
+        data-chosen={chosen ? "true" : undefined}
+        aria-current={chosen ? "page" : undefined}
         {...pickProps(pick)}
         onClick={(event) => (pick?.active === true ? pick.onPick(event.shiftKey) : onOpen(row.id))}
       >
@@ -104,7 +111,7 @@ export function AgentListRow({
           <Avatar
             name={row.name}
             kind="agent"
-            size="sm"
+            size={face}
             icon={row.face}
             {...(ring === undefined ? {} : { status: ring })}
           />
@@ -321,11 +328,14 @@ export function AgentSections({
   held = [],
   harnessId,
   words = "",
+  face,
 }: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
   readonly onOpen: (agentId: string) => void;
+  /** The rows' faces: the list's 48 (ADR 0284), or a page's own. */
+  readonly face?: "sm" | "md" | undefined;
   /** One harness's agents alone: its page's See all (ADR 0254). */
   readonly harnessId?: string | undefined;
   /** What its field asks for: only the rows whose name or line has it, in any case. */
@@ -371,6 +381,7 @@ export function AgentSections({
       onOpen={onOpen}
       pick={pickOf?.(each, run)}
       arriving={arriving.has(each.id)}
+      face={face}
     />
   );
   return (

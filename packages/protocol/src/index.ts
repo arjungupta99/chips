@@ -266,6 +266,7 @@ export {
   folderOpenFrame,
   folderRunFrame,
   folderRunStateFrame,
+  HELD_YES,
   joinFrame,
   negotiateProtocol,
   pingFrame,
@@ -274,6 +275,7 @@ export {
   receiptFrame,
   restartFrame,
   SERVER_EXTENSIONS,
+  SERVER_TAKES,
   serverFrame,
   subscribeFrame,
 } from "./frames.js";
@@ -624,7 +626,7 @@ export {
   SPACE_ICON_GROUNDS,
   spaceIcon,
 } from "./space-icons.js";
-export type { JobSpend, SpendStage } from "./spend.js";
+export type { JobSpend, JobStart, RoomSpend, SpendStage, SpentJob } from "./spend.js";
 export {
   DEFAULT_SPEND_CEILING_USD,
   dollars,
@@ -634,6 +636,7 @@ export {
   SPEND_CEILING_MIN,
   SPEND_CEILING_STEP,
   SPEND_WARN_AT,
+  SPENT_JOBS_SHOWN,
   spendCeiling,
   spendStage,
   spendWords,

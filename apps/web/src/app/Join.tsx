@@ -134,8 +134,14 @@ export function Gallery(props: {
   readonly lede?: string | undefined;
   /** The harnesses here already, by name (`connectedNames`): their cards say so. */
   readonly connected?: ReadonlySet<string> | undefined;
+  /** The card whose page stands beside it, by `choiceKey` (ADR 0284's addendum): it is chosen. */
+  readonly chosen?: string | undefined;
 }) {
   const cards = props.cards ?? [];
+  const chosen = (choice: Choice) =>
+    choiceKey(choice) === props.chosen
+      ? ({ "data-chosen": "true", "aria-current": "page" } as const)
+      : undefined;
   return (
     <section className="join-gallery" data-testid="join-gallery">
       <div className="new-space-head">
@@ -154,6 +160,7 @@ export function Gallery(props: {
                 key={card.id}
                 className="join-card"
                 data-testid={`join-card-${card.id}`}
+                {...chosen(card)}
                 onClick={() => props.onPick(card)}
               >
                 <Avatar name={card.name} kind="harness" size="sm" />
@@ -179,6 +186,7 @@ export function Gallery(props: {
             key={way}
             className="join-card"
             data-testid={`join-way-${way}`}
+            {...chosen(way)}
             onClick={() => props.onPick(way)}
           >
             <Avatar
@@ -313,7 +321,8 @@ export function HereAlready(props: {
   readonly directory: Directory;
   readonly selfId: string;
   readonly onAnother: () => void;
-  readonly onBack: () => void;
+  /** Back to the gallery. Absent, there is none: beside the list the gallery stands beside it. */
+  readonly onBack?: (() => void) | undefined;
   /** Its page on the Agents tab. Absent, there is no way there from here. */
   readonly onOpenHarness?: ((harnessId: string) => void) | undefined;
   /** Its page with New agent open, for whoever may ask it for one. Absent, there is none. */
@@ -338,14 +347,16 @@ export function HereAlready(props: {
       </div>
       <p className="join-here">{words.note}</p>
       <div className="harness-add-actions">
-        <button
-          type="button"
-          className="join-link"
-          data-testid="join-here-back"
-          onClick={props.onBack}
-        >
-          Back
-        </button>
+        {props.onBack !== undefined && (
+          <button
+            type="button"
+            className="join-link"
+            data-testid="join-here-back"
+            onClick={props.onBack}
+          >
+            Back
+          </button>
+        )}
         <Button data-testid="join-here-another" onClick={props.onAnother}>
           {words.another}
         </Button>

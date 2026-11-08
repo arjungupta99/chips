@@ -115,6 +115,16 @@
           "minLength": 1,
           "maxLength": 60,
           "description": "The server's own version."
+        },
+        "takes": {
+          "description": "What this server keeps of what a person's client may send beyond the base set, by the names in `SERVER_TAKES`. `held_yes` is `for_minutes` and `until_stopped` on `approval.resolved`. A server older than the field says nothing, and drops those fields, so a client offers neither to it (ADR 0281).",
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
         }
       },
       "required": [

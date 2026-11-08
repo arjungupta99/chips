@@ -1,17 +1,19 @@
 /**
- * How the iPad's tabs move between the capsule and the sidebar (ADR 0276), on Reanimated: the glass
- * grows up out of the capsule into the sidebar and back, each tab's mark travels from its place in
- * the capsule to its row and back, a few frames after the one before it, and the names, the pinned
- * spaces and the workspaces fade in once there is room for them and out before there is not. One
- * timing for all of it, iOS's own ease out with no bounce, so it reads as one move.
+ * How an iPad's bar moves (ADR 0276), on Reanimated: folding down to the tab in front over a narrow
+ * room and opening out again, the glass shrinking round the tab in front and growing back, each
+ * tab's mark travelling to its place a few frames after the one before it, and the tabs that go
+ * fading out before the glass closes over them and in once it has grown round them. One timing for
+ * all of it, iOS's own ease out with no bounce, so it reads as one move. Until 5 November 2026 it
+ * also grew the sidebar up out of the capsule.
  *
- * Kept apart from `Sidebar.tsx` because Reanimated cannot be loaded under Jest here: `jest.setup.js`
+ * Kept apart from `PadBar.tsx` because Reanimated cannot be loaded under Jest here: `jest.setup.js`
  * stands each of these in with a plain view at its frame, which is what a test reads.
  */
 
 import { type ReactNode, useEffect, useRef } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import Animated, { Easing, useAnimatedStyle, withDelay, withTiming } from "react-native-reanimated";
+import { withSteadyTiming } from "./steadySpring";
 
 /**
  * 0.52 s on iOS's ease out, no bounce: the mock's (3 November 2026). The panes beside the list move
@@ -19,6 +21,16 @@ import Animated, { Easing, useAnimatedStyle, withDelay, withTiming } from "react
  */
 export const DURATION = 520;
 export const EASE = Easing.bezier(0.32, 0.72, 0, 1);
+/** The same curve, as a function a worklet can call: the steady clock's (`withSteadyTiming`). */
+export const EASED = Easing.bezierFn(0.32, 0.72, 0, 1);
+/** How long the tabs that go take to fade, and those that come. */
+const FADE_OUT = 120;
+const FADE_IN = 200;
+/** A fade's even pace, as a worklet can call it. */
+const LINEAR = (share: number) => {
+  "worklet";
+  return share;
+};
 
 /** Where a moving view stands: its left and top, and its size where that changes too. */
 export interface Frame {
@@ -30,19 +42,25 @@ export interface Frame {
 
 /**
  * A view that goes to its frame from wherever it stood. Its first frame it takes at once: a window
- * that opens on the capsule does not grow one.
+ * that opens on the bar does not grow one.
  */
 export function Moving({
   frame,
   delay = 0,
+  wait = 0,
   style,
   pointerEvents,
   testID,
   children,
 }: {
   readonly frame: Frame;
-  /** How long after the rest it sets off: the tabs' marks leave one after another. */
+  /** How long after the rest it sets off: the tabs' marks move one after another. */
   readonly delay?: number;
+  /**
+   * How long the whole bar waits before it moves: the panes' lead, where it folds or opens out
+   * because they move (`Foot.lead`), on the steady clock the panes wait on.
+   */
+  readonly wait?: number;
   readonly style?: StyleProp<ViewStyle>;
   readonly pointerEvents?: "auto" | "none" | "box-none" | "box-only";
   readonly testID?: string | undefined;
@@ -51,15 +69,20 @@ export function Moving({
   const still = useFirst();
   const { left, top, width, height } = frame;
   const moving = useAnimatedStyle(() => {
-    const to = (value: number) =>
-      still ? value : withDelay(delay, withTiming(value, { duration: DURATION, easing: EASE }));
+    const to = (value: number) => {
+      if (still) return value;
+      if (wait === 0) {
+        return withDelay(delay, withTiming(value, { duration: DURATION, easing: EASE }));
+      }
+      return withSteadyTiming(value, { ms: DURATION, ease: EASED, wait: wait + delay });
+    };
     return {
       left: to(left),
       top: to(top),
       ...(width === undefined ? {} : { width: to(width) }),
       ...(height === undefined ? {} : { height: to(height) }),
     };
-  }, [left, top, width, height, delay, still]);
+  }, [left, top, width, height, delay, wait, still]);
   return (
     <Animated.View
       pointerEvents={pointerEvents}
@@ -72,13 +95,13 @@ export function Moving({
 }
 
 /**
- * What fades as the sidebar opens and shuts: a tab's name, the pinned spaces, the line in the
- * capsule. It comes in late, once the glass has grown round it, and goes at once, before the glass
- * shrinks over it.
+ * What fades as the bar folds and opens out: the tabs that are not in front. It comes in late, once
+ * the glass has grown round it, and goes at once, before the glass shrinks over it.
  */
 export function Fading({
   shown,
   after = 0,
+  wait = 0,
   style,
   pointerEvents,
   children,
@@ -86,6 +109,8 @@ export function Fading({
   readonly shown: boolean;
   /** How long after the move begins it comes in. */
   readonly after?: number;
+  /** How long the bar waits before it moves (`Moving`'s `wait`). */
+  readonly wait?: number;
   readonly style?: StyleProp<ViewStyle>;
   readonly pointerEvents?: "auto" | "none" | "box-none" | "box-only";
   readonly children?: ReactNode;
@@ -93,12 +118,19 @@ export function Fading({
   const still = useFirst();
   const fading = useAnimatedStyle(() => {
     if (still) return { opacity: shown ? 1 : 0 };
+    if (wait > 0) {
+      return {
+        opacity: shown
+          ? withSteadyTiming(1, { ms: FADE_IN, ease: LINEAR, wait: wait + after })
+          : withSteadyTiming(0, { ms: FADE_OUT, ease: LINEAR, wait }),
+      };
+    }
     return {
       opacity: shown
-        ? withDelay(after, withTiming(1, { duration: 200 }))
-        : withTiming(0, { duration: 120 }),
+        ? withDelay(after, withTiming(1, { duration: FADE_IN }))
+        : withTiming(0, { duration: FADE_OUT }),
     };
-  }, [shown, after, still]);
+  }, [shown, after, wait, still]);
   return (
     <Animated.View pointerEvents={pointerEvents} style={[style, fading]}>
       {children}

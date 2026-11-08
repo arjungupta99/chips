@@ -128,7 +128,7 @@ describe("the handshake", () => {
     expect(hello).toMatchObject({
       type: "hello",
       protocol: { min: 1, max: 1 },
-      server: { name: "chipsd", version: "0.0.0-test" },
+      server: { name: "chipsd", version: "0.0.0-test", takes: ["held_yes"] },
       autonomy: 2,
       policy: { autonomy: 2, rules: [] },
       budget: { limit_usd: 25, spent_usd: 0 },

@@ -68,7 +68,7 @@ export function Shelf({
    * Connect a harness (ADR 0190), for an owner or an admin; absent for anybody else. While this
    * phone's link waits, the tile says so.
    */
-  readonly adding: Pick<Connecting, "open" | "waiting"> | undefined;
+  readonly adding: Pick<Connecting, "open" | "waiting" | "chosen"> | undefined;
   readonly onOpen: (harnessId: string) => void;
   readonly onAll: () => void;
 }) {
@@ -324,11 +324,12 @@ function Landing({ lands, children }: { readonly lands: boolean; readonly childr
 }
 
 /**
- * Connect a harness, at the shelf's end (ADR 0185's addendum), opening its sheet (ADR 0190). While
- * this phone's link waits, a ring round its + empties over the link's minutes and its words count
- * them; once the harness has its key, it says it is connecting.
+ * Connect a harness, at the shelf's end (ADR 0185's addendum), opening its sheet (ADR 0190), or
+ * beside the list its pane, where it wears the chosen ground while it stands there (ADR 0284's
+ * addendum). While this phone's link waits, a ring round its + empties over the link's minutes and
+ * its words count them; once the harness has its key, it says it is connecting.
  */
-function AddTile({ adding }: { readonly adding: Pick<Connecting, "open" | "waiting"> }) {
+function AddTile({ adding }: { readonly adding: Pick<Connecting, "open" | "waiting" | "chosen"> }) {
   const palette = usePalette();
   const flat = useContext(ShelfGrid);
   const box = useTileBox();
@@ -340,6 +341,7 @@ function AddTile({ adding }: { readonly adding: Pick<Connecting, "open" | "waiti
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={words.label}
+      aria-selected={adding.chosen === true}
       onPress={adding.open}
       testID="add-agent"
       style={({ pressed }) => [
@@ -348,7 +350,8 @@ function AddTile({ adding }: { readonly adding: Pick<Connecting, "open" | "waiti
         flat ? styles.flatAdd : null,
         {
           borderColor: waiting === undefined ? palette.line2 : palette.blue,
-          backgroundColor: pressed ? palette.surface2 : "transparent",
+          backgroundColor:
+            adding.chosen === true ? palette.surface3 : pressed ? palette.surface2 : "transparent",
         },
       ]}
     >

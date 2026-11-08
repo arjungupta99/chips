@@ -67,7 +67,7 @@ export const connector = z
       .max(4)
       .optional()
       .describe(
-        "What `chips connect <id>` passes its bridge before the link is used, a config's path for one: `~/.chips-acp/codex.json`.",
+        "What `chips connect <id>` passes its bridge before the link is used, a config's path for one: `~/Chips/.bridges/acp/codex.json` (ADR 0283).",
       ),
     capabilities: z
       .array(z.string().regex(/^[a-z][a-z_]{0,39}$/))

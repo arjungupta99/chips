@@ -8,43 +8,59 @@
  * policy rule being written, an edit is words being changed, and neither belongs behind a
  * swipe.
  *
+ * Drawn around what is being judged (ADR 0280): the question, large, and a command one part to a
+ * line as Chips reads it (`CommandPlate`), in place of the command said twice, once cut off and
+ * once as JSON. The answer is in a tray of glass at the foot, in thumb's reach (`Tray`), and the
+ * screen scrolls under it. The time left is a ring beside the agent's face in the bar, which the
+ * route draws (`timeInBar`); without it, it is a line here.
+ *
  * An ask that matters (ADR 0195) wears "Waits for you" while it is open, and offers no scope: it
  * is answered once, and a line says why where the choices were. One the harness settled itself, as
  * its own window answered it, says so under its verdict: "Answered by Kit in its own tools."
  *
- * A yes beyond once on a command remembers how each part of it starts (ADR 0239): the card shows
- * the starts under Remembers, and under Always an owner or admin picks every space (the default)
- * or this one. A command Chips can't read, or one that uses `rm` and the like, is answered once,
- * and a line says why.
+ * A yes beyond once on a command remembers how each part of it starts (ADR 0239): under Always the
+ * words it keeps light up in the command, and an owner or admin picks every space (the default) or
+ * this one. A command Chips can't read, or one that uses `rm` and the like, is answered once, and
+ * the tray says why, naming the file a write goes to.
+ *
+ * For an hour (ADR 0239, addendum of 6 November 2026) is a yes given once that holds on: for the
+ * hour, everything the agent asks in this space goes ahead without a card but what matters (ADR
+ * 0281). The switch above the choices, Let it work, holds the same way until somebody stops it.
  */
 
-import type { Approval, AskStanding, Directory, PersonModel, Reach } from "@chipschat/core";
+import type { Approval, Directory, Lasting, PersonModel, Plate, Reach } from "@chipschat/core";
 import {
   askMatters,
   askStanding,
+  commandPlate,
   isAgent,
   mayAnswer,
   nameOf,
+  offersLetWork,
   ownToolsWords,
-  reachWords,
+  WHILE_MINUTES,
   waitsWords,
 } from "@chipschat/core";
-import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { type ReactNode, useMemo, useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
-import { Card } from "../ui/Card";
-import { type Choice, Choices } from "../ui/Choices";
-import { Field } from "../ui/Field";
+import type { Choice } from "../ui/Choices";
+import { Capsule } from "../ui/Glass";
 import * as feel from "../ui/haptics";
 import { Pill } from "../ui/Pill";
 import { Risk } from "../ui/Risk";
+import { useColumn } from "../ui/Screen";
 import { usePalette } from "../ui/theme";
-import { RADIUS, SPACE, TEXT } from "../ui/tokens";
+import { SPACE, TEXT } from "../ui/tokens";
 import { timeLeft } from "../ui/when";
 import { lapseWords } from "../words";
-import { AskPreview, Effect, Headline, Lasts } from "./Asked";
-import { HandOn } from "./HandOn";
+import { Effect, Headline, Lasts } from "./Asked";
+import { AskShown, saysLasts } from "./CommandPlate";
+import { type Decided, type Mode, Tray, type TrayProps, type Where } from "./Tray";
 
+/** How far a decision reaches, as it is sent. */
 export type Scope = "once" | "session" | "always";
 
 export interface DecisionInput {
@@ -52,24 +68,13 @@ export interface DecisionInput {
   readonly scope: Scope;
   /** An Always kept for every space (ADR 0239). */
   readonly everywhere?: boolean | undefined;
+  /** A yes that holds on in the space for this long (ADR 0239 addendum): For an hour. */
+  readonly forMinutes?: number | undefined;
+  /** A yes that holds on in the space until somebody stops it (ADR 0281): Let it work. */
+  readonly untilStopped?: boolean | undefined;
   readonly reason?: string | undefined;
   readonly updatedInput?: unknown;
 }
-
-const SCOPES: readonly Choice[] = [
-  { value: "once", label: "Once" },
-  { value: "session", label: "This session" },
-  { value: "always", label: "Always" },
-];
-
-const WHERE: readonly Choice[] = [
-  { value: "everywhere", label: "In every space" },
-  { value: "space", label: "In this space" },
-];
-
-type Where = "everywhere" | "space";
-
-type Mode = "idle" | "editing" | "denying" | "handing";
 
 export interface DecideProps {
   readonly approval: Approval;
@@ -87,19 +92,40 @@ export interface DecideProps {
   readonly harnessId?: string | undefined;
   /** Whether this person may keep an Always for every space: an owner or admin (ADR 0239). */
   readonly mayEverywhere?: boolean | undefined;
+  /** False when the server wouldn't keep For an hour or Let it work (ADR 0281): neither is offered. */
+  readonly keepsHeldYes?: boolean | undefined;
   /** The space's name, for an Always kept to it: "go ahead without a card in Bakery". */
   readonly spaceName?: string | undefined;
+  /** Whether the bar shows the time left, as a ring beside the face, so no line here says it. */
+  readonly timeInBar?: boolean | undefined;
+  /** What the screen draws under the ask, at the end of what scrolls: the way to its space. */
+  readonly under?: ReactNode;
 }
 
 /**
- * How far a yes reaches (ADR 0239): an owner's or admin's Always is kept for every space unless
- * they pick this one; anybody else's, for this space; This session, for the rest of the run.
+ * How far an Always reaches (ADR 0239): an owner's or admin's is kept for every space unless they
+ * pick this one; anybody else's, for this space.
  */
-function useReach(scope: Scope, mayEverywhere: boolean) {
+function useReach(lasting: Lasting, mayEverywhere: boolean) {
   const [where, setWhere] = useState<Where>("everywhere");
-  const everywhere = scope === "always" && mayEverywhere && where === "everywhere";
-  const reach: Reach = scope === "session" ? "session" : everywhere ? "everywhere" : "space";
+  const everywhere = lasting === "always" && mayEverywhere && where === "everywhere";
+  const reach: Reach = everywhere ? "everywhere" : "space";
   return { where, setWhere, everywhere, reach };
+}
+
+/**
+ * The decision as it is sent: Always as a scope; For an hour and Let it work as a yes given once
+ * that holds on, for the hour or until stopped.
+ */
+function sent(decided: Decided, lasting: Lasting, everywhere: boolean): DecisionInput {
+  const yes = decided.decision !== "denied";
+  return {
+    ...decided,
+    scope: lasting === "always" ? "always" : "once",
+    ...(lasting === "hour" && yes ? { forMinutes: WHILE_MINUTES } : {}),
+    ...(lasting === "work" && yes ? { untilStopped: true } : {}),
+    ...(everywhere ? { everywhere } : {}),
+  };
 }
 
 /** What a decided card says, from what the log holds. */
@@ -115,20 +141,179 @@ function verdict(approval: Approval, directory: Directory): string | undefined {
   return `${word} by ${by}${why}`;
 }
 
-function Header(props: DecideProps) {
-  const palette = usePalette();
+/** What the answer is so far: how far a yes reaches, which form is open, and what was given. */
+function useAnswer(props: DecideProps) {
   const { approval } = props;
-  const left = timeLeft(approval.expiresAt, props.now);
+  const [chosen, setLasting] = useState<Lasting>("once");
+  const [letWork, setLetWork] = useState(false);
+  const [mode, setMode] = useState<Mode>("idle");
+  const [draft, setDraft] = useState(approval.preview ?? "");
+  const [reason, setReason] = useState("");
+  const [answered, setAnswered] = useState<Lasting | undefined>(undefined);
+  const plate = useMemo(() => commandPlate(approval), [approval]);
+  const standing = useMemo(() => askStanding(approval), [approval]);
+  const keeps = props.keepsHeldYes !== false;
+  const picked: Lasting = keeps || chosen !== "hour" ? chosen : "once";
+  // The switch stands over the choices and keeps the one picked under it (ADR 0281).
+  const lasting: Lasting = letWork && keeps ? "work" : picked;
+  const mayEverywhere = props.mayEverywhere === true;
+  const { where, setWhere, everywhere, reach } = useReach(lasting, mayEverywhere);
+
+  const decide = (input: Decided) => {
+    setMode("idle");
+    // The same two feelings the card in the room gives, because it is the same answer: an
+    // edit is still a yes, and it is the yes that is worth feeling, not the edit.
+    if (input.decision === "denied") feel.warning();
+    else feel.success();
+    if (input.decision === "approved") setAnswered(lasting);
+    props.onDecide(sent(input, lasting, everywhere));
+  };
+
+  const tray: TrayProps = {
+    approval,
+    standing,
+    plate,
+    harnessName: props.harnessName,
+    spaceName: props.spaceName ?? "this space",
+    now: props.now,
+    busy: props.busy,
+    lasting: picked,
+    setLasting,
+    letWork: offersLetWork(standing, keeps) ? letWork : undefined,
+    setLetWork,
+    keeps,
+    where: mayEverywhere ? where : undefined,
+    setWhere,
+    reach,
+    mode,
+    setMode,
+    draft,
+    setDraft,
+    reason,
+    setReason,
+    decide,
+    answered,
+    handTo: props.handTo,
+    onHand: props.onHand,
+  };
+  return { tray, plate, lit: lasting === "always" && standing.kind === "starts" };
+}
+
+export function Decide(props: DecideProps) {
+  const insets = useSafeAreaInsets();
+  const column = useColumn();
+  const [height, setHeight] = useState(0);
+  const { tray, plate, lit } = useAnswer(props);
+  const open = props.approval.resolved === undefined && mayAnswer(props.approval, props.selfId);
+  const foot = Math.max(insets.bottom, SPACE.lg);
+  return (
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.body,
+          column,
+          { paddingBottom: open ? height + foot + SPACE.xl : SPACE.xxl },
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Asking {...props} plate={plate} lit={lit} settled={tray.answered !== undefined} />
+        <Below {...props} open={open} tray={tray} />
+        {props.under}
+      </ScrollView>
+      {open ? (
+        // Over the foot of what scrolls, and up with the keys when Deny or Edit asks for words.
+        <KeyboardStickyView
+          pointerEvents="box-none"
+          offset={{ closed: 0, opened: foot - SPACE.sm }}
+          style={[styles.foot, { bottom: foot }]}
+          onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
+        >
+          <Capsule grows style={[styles.tray, column]} testID="answer-tray">
+            <Tray {...tray} />
+          </Capsule>
+        </KeyboardStickyView>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Under the ask: who decided it, once someone has; Hand to…, while it is this person's; and whose
+ * it is, while it is somebody else's.
+ */
+function Below(props: DecideProps & { readonly open: boolean; readonly tray: TrayProps }) {
+  const palette = usePalette();
+  const { approval, directory, tray } = props;
+  const decided = verdict(approval, directory);
+  const waitingOn = approval.approvers.map((id) => nameOf(directory, id)).join(" or ");
+  const theirs = decided === undefined && !mayAnswer(approval, props.selfId);
   return (
     <>
-      <Headline approval={approval} style={styles.title} />
+      {decided === undefined ? null : (
+        <Text style={[styles.verdict, { color: palette.ink }]} testID="verdict">
+          {decided}
+          {approval.executed === undefined ? "" : ` · ${approval.executed}`}
+        </Text>
+      )}
+      <OwnTools approval={approval} directory={directory} harnessId={props.harnessId} />
+      {props.open && props.handTo.length > 0 ? (
+        <Button
+          label="Hand to…"
+          variant="plain"
+          disabled={props.busy || tray.answered !== undefined}
+          style={styles.quiet}
+          onPress={() => tray.setMode(tray.mode === "handing" ? "idle" : "handing")}
+        />
+      ) : null}
+      {theirs ? (
+        <Text style={[styles.line, { color: palette.ink3 }]} testID="waiting-on">
+          {waitingOn === "" ? "Somebody else" : waitingOn} answers this one.
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * What is asked: the question, large; what a yes does; the command on its plate, or the preview
+ * by its format; how long a yes lasts; the risks; and who it waits on.
+ */
+function Asking(
+  props: DecideProps & {
+    readonly plate: Plate | undefined;
+    readonly lit: boolean;
+    readonly settled: boolean;
+  },
+) {
+  const { approval, plate } = props;
+  return (
+    <View style={styles.asking}>
+      <Headline approval={approval} style={styles.question} plated={plate !== undefined} />
       <Effect approval={approval} />
-      <AskPreview approval={approval} titled={approval.question !== undefined} />
-      <Lasts approval={approval} />
+      <AskShown
+        approval={approval}
+        plate={plate}
+        titled={approval.question !== undefined}
+        lit={props.lit}
+        settled={props.settled}
+      />
+      {saysLasts(approval, plate) ? <Lasts approval={approval} /> : null}
       <Risk classes={approval.risk} />
+      <Waits approval={approval} selfId={props.selfId} />
+      <Lapse approval={approval} now={props.now} hidden={props.timeInBar === true} />
+      <Notices approval={approval} directory={props.directory} />
+    </View>
+  );
+}
+
+/** "Waits for you" on an open ask that matters (ADR 0195), and where it came from. */
+function Waits({ approval, selfId }: { readonly approval: Approval; readonly selfId: string }) {
+  const palette = usePalette();
+  return (
+    <>
       {askMatters(approval) && approval.resolved === undefined ? (
-        <View style={styles.waits} testID="waits-for-you">
-          <Pill>{waitsWords(mayAnswer(approval, props.selfId))}</Pill>
+        <View style={styles.row} testID="waits-for-you">
+          <Pill>{waitsWords(mayAnswer(approval, selfId))}</Pill>
         </View>
       ) : null}
       {approval.sources.length === 0 ? null : (
@@ -136,20 +321,31 @@ function Header(props: DecideProps) {
           From {approval.sources.map((source) => source.label).join(", ")}
         </Text>
       )}
-      {left === undefined ? null : (
-        <Text style={[styles.line, { color: left === "expired" ? palette.red : palette.ink3 }]}>
-          {lapseWords(left, approval.fallback)}
-        </Text>
-      )}
     </>
   );
 }
 
-/**
- * The preview, by the format the harness sent: Markdown as the room draws a message, so a code
- * fence is a code block and not its backticks; a diff, JSON or a table as a code block, its
- * columns kept; anything else as its words. Under its heading, when it has one.
- */
+/** When it lapses, and what lapsing does, where the bar has no ring to say it. */
+function Lapse({
+  approval,
+  now,
+  hidden,
+}: {
+  readonly approval: Approval;
+  readonly now: number;
+  readonly hidden: boolean;
+}) {
+  const palette = usePalette();
+  const left = timeLeft(approval.expiresAt, now);
+  if (left === undefined || hidden) return null;
+  return (
+    <Text style={[styles.line, { color: left === "expired" ? palette.red : palette.ink3 }]}>
+      {lapseWords(left, approval.fallback)}
+    </Text>
+  );
+}
+
+/** Who it was handed to, and when policy let the lane's lead answer it. */
 function Notices({
   approval,
   directory,
@@ -178,67 +374,6 @@ function Notices({
   );
 }
 
-export function Decide(props: DecideProps) {
-  const palette = usePalette();
-  const { approval } = props;
-  const [scope, setScope] = useState<Scope>("once");
-  const [mode, setMode] = useState<Mode>("idle");
-  const [draft, setDraft] = useState(approval.preview ?? "");
-  const [reason, setReason] = useState("");
-  const decided = verdict(approval, props.directory);
-  const mine = mayAnswer(approval, props.selfId);
-  const waitingOn = approval.approvers.map((id) => nameOf(props.directory, id)).join(" or ");
-
-  const { where, setWhere, everywhere, reach } = useReach(scope, props.mayEverywhere === true);
-
-  const decide = (input: DecisionInput) => {
-    setMode("idle");
-    // The same two feelings the card in the room gives, because it is the same answer: an
-    // edit is still a yes, and it is the yes that is worth feeling, not the edit.
-    if (input.decision === "denied") feel.warning();
-    else feel.success();
-    props.onDecide(everywhere ? { ...input, everywhere } : input);
-  };
-
-  return (
-    <View style={styles.body}>
-      <Card tone={cardTone(approval)}>
-        <Header {...props} />
-        <Notices approval={approval} directory={props.directory} />
-        {decided === undefined ? null : (
-          <Text style={[styles.verdict, { color: palette.ink }]} testID="verdict">
-            {decided}
-            {approval.executed === undefined ? "" : ` · ${approval.executed}`}
-          </Text>
-        )}
-        <OwnTools approval={approval} directory={props.directory} harnessId={props.harnessId} />
-      </Card>
-
-      {decided !== undefined ? null : mine ? (
-        <Open
-          {...props}
-          scope={scope}
-          setScope={setScope}
-          mode={mode}
-          setMode={setMode}
-          draft={draft}
-          setDraft={setDraft}
-          reason={reason}
-          setReason={setReason}
-          decide={decide}
-          where={where}
-          setWhere={setWhere}
-          reach={reach}
-        />
-      ) : (
-        <Text style={[styles.line, { color: palette.ink3 }]} testID="waiting-on">
-          {waitingOn === "" ? "Somebody else" : waitingOn} answers this one.
-        </Text>
-      )}
-    </View>
-  );
-}
-
 /** "Answered by Kit in its own tools.", under the verdict of an ask the harness settled itself. */
 function OwnTools({
   approval,
@@ -259,262 +394,15 @@ function OwnTools({
   );
 }
 
-/**
- * Where the scope choices were, for an ask answered once: why there are none. It matters (ADR
- * 0195), or its command can't be read part by part or uses one never given a standing yes (ADR
- * 0239).
- */
-function OnceOnly({ why }: { readonly why: string }) {
-  const palette = usePalette();
-  return (
-    <Text style={[styles.onceOnly, { color: palette.ink3 }]} testID="once-only">
-      {why}
-    </Text>
-  );
-}
-
-/**
- * Under the choices, for a yes beyond once (ADR 0239): a command's starts under Remembers, in
- * code; under Always, for an owner or admin, every space or this one; and a line saying what goes
- * ahead without a card, where, and that anything else still comes to a person.
- */
-function Standing(props: {
-  readonly standing: AskStanding;
-  readonly reach: Reach;
-  readonly spaceName: string;
-  /** Where an Always is kept, when this person may pick; absent, it is this space. */
-  readonly where: Where | undefined;
-  readonly onWhere: (where: Where) => void;
-  readonly busy: boolean;
-}) {
-  const palette = usePalette();
-  const { standing, where } = props;
-  const commands = standing.kind === "starts";
-  return (
-    <View style={styles.standing} testID="standing">
-      {commands ? (
-        <View style={styles.remembers} testID="remembers">
-          <Text style={[styles.line, { color: palette.ink3 }]}>Remembers</Text>
-          {standing.starts.map((start) => (
-            <Text
-              key={start}
-              style={[styles.start, { color: palette.ink, backgroundColor: palette.surface2 }]}
-            >
-              {start}
-            </Text>
-          ))}
-        </View>
-      ) : null}
-      {where === undefined ? null : (
-        <Choices
-          label="Where this Always holds"
-          options={WHERE}
-          chosen={[where]}
-          onChoose={(value) => props.onWhere(value as Where)}
-          row
-          disabled={props.busy}
-        />
-      )}
-      <Text style={[styles.line, { color: palette.ink3 }]} testID="reach">
-        {reachWords(props.reach, props.spaceName, commands)}
-      </Text>
-    </View>
-  );
-}
-
-function cardTone(approval: Approval): "ask" | "approved" | "denied" {
-  const decision = approval.resolved?.decision;
-  if (decision === undefined) return "ask";
-  return decision === "denied" || decision === "expired" ? "denied" : "approved";
-}
-
-/** The controls, for an ask that is still open and is this person's to answer. */
-function Open(
-  props: DecideProps & {
-    readonly scope: Scope;
-    readonly setScope: (scope: Scope) => void;
-    readonly mode: Mode;
-    readonly setMode: (mode: Mode) => void;
-    readonly draft: string;
-    readonly setDraft: (draft: string) => void;
-    readonly reason: string;
-    readonly setReason: (reason: string) => void;
-    readonly decide: (input: DecisionInput) => void;
-    readonly where: Where;
-    readonly setWhere: (where: Where) => void;
-    readonly reach: Reach;
-  },
-) {
-  const { approval, busy, mode, scope } = props;
-  // An ask that matters, or a command that can't be remembered, is answered once (ADRs 0195,
-  // 0239): no scope to pick, and the door refuses one.
-  const standing = askStanding(approval);
-  return (
-    <>
-      {standing.kind === "once" ? null : (
-        <Choices
-          label="How far this yes reaches"
-          options={SCOPES}
-          chosen={[scope]}
-          onChoose={(value) => props.setScope(value as Scope)}
-          row
-          disabled={busy}
-        />
-      )}
-      {standing.kind === "once" || scope === "once" ? null : (
-        <Standing
-          standing={standing}
-          reach={props.reach}
-          spaceName={props.spaceName ?? "this space"}
-          where={scope === "always" && props.mayEverywhere === true ? props.where : undefined}
-          onWhere={props.setWhere}
-          busy={busy}
-        />
-      )}
-      <View style={styles.buttons}>
-        <Button
-          label="Deny"
-          variant="danger"
-          grow
-          disabled={busy}
-          onPress={() => props.setMode(mode === "denying" ? "idle" : "denying")}
-        />
-        {approval.editable ? (
-          <Button
-            label="Edit"
-            grow
-            disabled={busy}
-            onPress={() => props.setMode(mode === "editing" ? "idle" : "editing")}
-          />
-        ) : null}
-        <Button
-          label="Approve"
-          variant="primary"
-          grow
-          busy={busy}
-          onPress={() => props.decide({ decision: "approved", scope })}
-        />
-      </View>
-      <Button
-        label="Hand to…"
-        variant="plain"
-        disabled={busy}
-        onPress={() => props.setMode(mode === "handing" ? "idle" : "handing")}
-      />
-      {standing.kind === "once" ? <OnceOnly why={standing.why} /> : null}
-      {mode === "editing" ? <EditForm {...props} /> : null}
-      {mode === "denying" ? <DenyForm {...props} /> : null}
-      {mode === "handing" ? (
-        <HandOn
-          options={props.handTo}
-          busy={busy}
-          onCancel={() => props.setMode("idle")}
-          onHand={(to, reason) => {
-            props.setMode("idle");
-            props.onHand(to, reason);
-          }}
-        />
-      ) : null}
-    </>
-  );
-}
-
-function EditForm(props: {
-  readonly approval: Approval;
-  readonly busy: boolean;
-  readonly scope: Scope;
-  readonly draft: string;
-  readonly setDraft: (draft: string) => void;
-  readonly setMode: (mode: Mode) => void;
-  readonly decide: (input: DecisionInput) => void;
-}) {
-  return (
-    <View style={styles.form} testID="edit-form">
-      <Field
-        label="What should go instead"
-        value={props.draft}
-        onChange={props.setDraft}
-        lines={4}
-        disabled={props.busy}
-        testID="edit-input"
-      />
-      <View style={styles.buttons}>
-        <Button label="Cancel" grow disabled={props.busy} onPress={() => props.setMode("idle")} />
-        <Button
-          label="Approve with edits"
-          variant="primary"
-          grow
-          busy={props.busy}
-          disabled={props.draft.trim() === ""}
-          onPress={() =>
-            props.decide({
-              decision: "edited",
-              scope: props.scope,
-              updatedInput: { ...(props.approval.input as object | undefined), body: props.draft },
-            })
-          }
-        />
-      </View>
-    </View>
-  );
-}
-
-function DenyForm(props: {
-  readonly busy: boolean;
-  readonly scope: Scope;
-  readonly reason: string;
-  readonly setReason: (reason: string) => void;
-  readonly setMode: (mode: Mode) => void;
-  readonly decide: (input: DecisionInput) => void;
-}) {
-  const why = props.reason.trim();
-  return (
-    <View style={styles.form} testID="deny-form">
-      <Field
-        label="Why not? The harness gets to read this."
-        value={props.reason}
-        onChange={props.setReason}
-        lines={2}
-        disabled={props.busy}
-        testID="deny-input"
-      />
-      <View style={styles.buttons}>
-        <Button label="Cancel" grow disabled={props.busy} onPress={() => props.setMode("idle")} />
-        <Button
-          label="Deny"
-          variant="danger"
-          grow
-          busy={props.busy}
-          onPress={() =>
-            props.decide({
-              decision: "denied",
-              scope: props.scope,
-              ...(why === "" ? {} : { reason: why }),
-            })
-          }
-        />
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  body: { gap: SPACE.lg },
-  title: { fontSize: TEXT.lg, fontWeight: "700" },
+  screen: { flex: 1 },
+  body: { padding: SPACE.lg, gap: SPACE.md },
+  asking: { gap: SPACE.md },
+  question: { fontSize: 22, lineHeight: 27, fontWeight: "700", letterSpacing: -0.2 },
   line: { fontSize: TEXT.sm },
   verdict: { fontSize: TEXT.md, fontWeight: "600" },
-  buttons: { flexDirection: "row", gap: SPACE.sm },
-  form: { gap: SPACE.md },
-  waits: { flexDirection: "row" },
-  onceOnly: { fontSize: TEXT.sm, lineHeight: TEXT.sm * 1.45, textAlign: "center" },
-  standing: { gap: SPACE.sm },
-  remembers: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: SPACE.xs },
-  start: {
-    fontFamily: "Menlo",
-    fontSize: TEXT.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: RADIUS.xs,
-    overflow: "hidden",
-  },
+  row: { flexDirection: "row" },
+  quiet: { alignSelf: "flex-start", paddingHorizontal: SPACE.xs },
+  foot: { position: "absolute", left: SPACE.sm, right: SPACE.sm, alignItems: "center" },
+  tray: { width: "100%", borderRadius: 24, padding: SPACE.md, gap: SPACE.md },
 });

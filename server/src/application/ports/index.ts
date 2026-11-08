@@ -76,6 +76,7 @@ export type {
   SearchPage,
   SearchQuery,
   SpaceView,
+  SpendHistoryView,
   TimedOutQuestion,
   TurnView,
   WorkspacePolicyView,

@@ -207,12 +207,13 @@ test("a command's Always remembers how each part starts, and lets through only c
       await harness.next("policy.updated");
     }
 
-    // One that uses rm takes a yes each time: no Always, and a line that says why.
+    // One that uses rm keeps no Always, and a line says why; the hour still reaches it (ADR 0281).
     const remove = await run("ls beds && rm -rf beds/old");
     await expect(card(page).getByRole("button", { name: "Approve" })).toBeEnabled();
     await expect(card(page).getByText("Always", { exact: true })).toHaveCount(0);
+    await expect(card(page).getByText("For an hour", { exact: true })).toHaveCount(1);
     await expect(page.getByTestId("once-only").last()).toHaveText(
-      "Asks that use rm are answered each time.",
+      "There is no Always for asks that use rm.",
     );
     await card(page).getByRole("button", { name: "Deny" }).click();
     await page.getByTestId("deny-form").getByRole("button", { name: "Deny" }).click();

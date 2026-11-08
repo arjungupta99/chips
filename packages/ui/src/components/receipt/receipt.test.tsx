@@ -10,7 +10,7 @@ const STEPS: readonly ReceiptStep[] = [
 
 describe("Receipt", () => {
   it("summarises the steps, the time and the cost on one line", () => {
-    expect(receiptSummary(STEPS, 12_000, 0.04)).toBe("3 steps · 12s · ≈$0.04");
+    expect(receiptSummary(STEPS, 12_000, 0.04)).toBe("≈$0.04 · 3 steps · 12s");
     expect(receiptSummary([STEPS[0] as ReceiptStep])).toBe("1 step");
     expect(
       receiptSummary([...STEPS, { id: "send", title: "Send", status: "failed" }], 30_000),
@@ -18,16 +18,16 @@ describe("Receipt", () => {
   });
 
   it("says what a run that only answered took and cost, with nothing to open", () => {
-    expect(receiptSummary([], 3600, 0.029)).toBe("4s · ≈$0.03");
+    expect(receiptSummary([], 3600, 0.029)).toBe("≈$0.03 · 4s");
     const { container } = render(<Receipt steps={[]} durationMs={3600} costUsd={0.029} />);
     expect(container.querySelector("details")).toBeNull();
-    expect(screen.getByText("4s · ≈$0.03")).toBeTruthy();
+    expect(screen.getByText("≈$0.03 · 4s")).toBeTruthy();
   });
 
   it("is collapsed unless told to open", () => {
     const { container } = render(<Receipt steps={STEPS} durationMs={12_000} costUsd={0.04} />);
     expect(container.querySelector("details")?.hasAttribute("open")).toBe(false);
-    expect(screen.getByText("3 steps · 12s · ≈$0.04")).toBeTruthy();
+    expect(screen.getByText("≈$0.04 · 3 steps · 12s")).toBeTruthy();
   });
 
   it("lists each step with its outcome and its source", () => {

@@ -33,7 +33,7 @@ export function avatarKind(kind: string | undefined): AvatarKind {
 }
 
 /** The side of each size, in pixels, as `avatar.css` sets them. */
-const SIDES: Readonly<Record<AvatarSize, number>> = { xs: 24, sm: 32, lg: 58 };
+const SIDES: Readonly<Record<AvatarSize, number>> = { xs: 24, sm: 32, md: 48, lg: 58 };
 
 /** The pins as fractions of the body's side, since a face's size is the stylesheet's. */
 const PIN_BOXES = pinsOf(100);
@@ -48,13 +48,14 @@ const WITH_PINS: CSSProperties = {
   fontSize: `${BODY_WITH_PINS}em`,
 };
 
-export type AvatarSize = "xs" | "sm" | "lg";
+/** `md` is a list row's face beside the iPad's columns (ADR 0284). */
+export type AvatarSize = "xs" | "sm" | "md" | "lg";
 
 export interface AvatarProps {
   readonly name: string;
   /** A person, a harness or a channel; any other kind is drawn as a harness. */
   readonly kind?: AvatarKind | (string & {});
-  /** 24, 32 or 58 pixels. */
+  /** 24, 32, 48 or 58 pixels. */
   readonly size?: AvatarSize;
   /** A CSS colour for the background. Absent, one of the eight avatar hues, chosen by name. */
   readonly color?: string;

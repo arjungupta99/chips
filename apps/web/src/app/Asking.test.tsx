@@ -9,10 +9,11 @@ import type {
   Approval,
   Directory,
   SetRulesInput,
+  StopLetWorkInput,
   WorkspaceModel,
   WorkspaceRole,
 } from "@chipschat/core";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Asking } from "./Asking.tsx";
 import { Decide, type DecisionInput } from "./Decide.tsx";
@@ -55,7 +56,13 @@ const asked = (id: string, askedAt: string, resolved?: unknown) => ({
 
 /** Kit, Arjun's, its rules as given, read by Arjun at `role`; three asks answered. */
 function model(
-  over: { role?: WorkspaceRole; rules?: unknown[]; room?: unknown[]; asks?: unknown[] } = {},
+  over: {
+    role?: WorkspaceRole;
+    rules?: unknown[];
+    room?: unknown[];
+    asks?: unknown[];
+    letWork?: unknown[];
+  } = {},
 ): WorkspaceModel {
   return {
     people: {
@@ -75,7 +82,9 @@ function model(
       {
         id: "sp_1",
         title: "Bakery",
+        state: "open",
         members: [ARJUN, KIT],
+        ...(over.letWork === undefined ? {} : { letWork: over.letWork }),
         runs: [
           {
             runId: "run_1",
@@ -320,6 +329,27 @@ describe("Allowed always, on You", () => {
     expect(sent).toEqual([{ harnessId: KIT, rules: [{ ...SHELL, off: true }] }]);
   });
 
+  it("lists who works without asking, where and until when, with Stop (ADR 0281)", async () => {
+    const stopped: StopLetWorkInput[] = [];
+    render(
+      <AllowedAlwaysForm
+        from={row()}
+        model={model({ letWork: [{ asker: KIT, by: ARJUN, since: "2026-11-06T09:50:00.000Z" }] })}
+        directory={directory}
+        selfId={ARJUN}
+        onSetRules={() => undefined}
+        onStopLetWork={(input) => stopped.push(input)}
+        onGone={() => undefined}
+      />,
+    );
+    const working = await screen.findByTestId("allowed-always-working");
+    expect(working.textContent).toBe("Working without askingKitIn Bakery · Until you stop itStop");
+    fireEvent.click(
+      within(working).getByRole("button", { name: "Stop Kit working without asking" }),
+    );
+    expect(stopped).toEqual([{ spaceId: "sp_1", asker: KIT }]);
+  });
+
   it("says once that nothing is allowed, how a rule comes to be there, and every ask so far", async () => {
     render(
       <AllowedAlwaysForm
@@ -383,6 +413,7 @@ describe("the ask card (ADR 0195)", () => {
     over: Partial<Approval> = {},
     harnessId: string | undefined = KIT,
     role: WorkspaceRole | undefined = undefined,
+    keepsHeldYes: boolean | undefined = undefined,
   ) {
     const decided: DecisionInput[] = [];
     render(
@@ -409,11 +440,26 @@ describe("the ask card (ADR 0195)", () => {
         now={Date.now()}
         onDecide={(_, input) => decided.push(input)}
         workspaceRole={role}
+        keepsHeldYes={keepsHeldYes}
         spaceName="Bakery"
       />,
     );
     return decided;
   }
+
+  it("offers neither the switch nor the hour to a server that wouldn't keep them (ADR 0281)", () => {
+    const decided = card(
+      { actionKind: "acp.execute", risk: [], input: { command: "ls -la" } },
+      KIT,
+      undefined,
+      false,
+    );
+    expect(screen.queryByTestId("let-work-switch")).toBeNull();
+    expect(screen.queryByText("For an hour")).toBeNull();
+    expect(screen.getByText("Always")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Approve once" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "once" }]);
+  });
 
   it("an ask that matters waits for you, offers no scope, says why, and is answered once", () => {
     const decided = card({ matters: true });
@@ -422,7 +468,9 @@ describe("the ask card (ADR 0195)", () => {
       "You answer asks like this each time, so there is no Always.",
     );
     expect(screen.queryByText("Always")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    // Nor is the agent let work without asking on it (ADR 0281).
+    expect(screen.queryByTestId("let-work-switch")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Approve once" }));
     expect(decided).toEqual([{ decision: "approved", scope: "once" }]);
   });
 
@@ -437,60 +485,149 @@ describe("the ask card (ADR 0195)", () => {
     expect(screen.getByText("Always")).toBeTruthy();
   });
 
-  it("a command's Always remembers each part's start, in every space by default (ADR 0239)", () => {
+  it("lights the words a command's Always keeps, in every space by default (ADR 0239, 0280)", () => {
     const command = {
       actionKind: "acp.execute",
       risk: [],
       input: { command: "node --check game.js && echo ok" },
     } as Partial<Approval>;
     const decided = card(command, KIT, "owner");
-    // Nothing more under the choices while the yes is for this once.
-    expect(screen.queryByTestId("standing")).toBeNull();
-    fireEvent.click(screen.getByLabelText("Always"));
     expect(
-      [...screen.getByTestId("remembers").querySelectorAll("code")].map((c) => c.textContent),
-    ).toEqual(["node --check …", "echo ok …"]);
+      [...screen.getAllByTestId("plate-part")].map((part) => part.getAttribute("aria-label")),
+    ).toEqual(["node --check game.js", "then echo ok"]);
+    // Nothing more under the choices while the yes is for this once, and nothing lit.
+    expect(screen.queryByTestId("standing")).toBeNull();
+    expect(screen.getByTestId("command-plate").dataset["lit"]).toBeUndefined();
+    fireEvent.click(screen.getByLabelText("Always"));
+    expect(screen.getByTestId("command-plate").dataset["lit"]).toBe("true");
+    expect(
+      [...screen.getByTestId("command-plate").querySelectorAll(".plate-start")].map(
+        (start) => start.textContent,
+      ),
+    ).toEqual(["node --check", "echo"]);
+    expect(screen.queryByTestId("remembers")).toBeNull();
     expect(screen.getByTestId("reach").textContent).toBe(
-      "Commands made only of these go ahead without a card in every space. Anything else still comes to you.",
+      "Commands made only of the lit words go ahead without a card in every space. Anything else still comes to you.",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    fireEvent.click(screen.getByLabelText("In this space"));
-    expect(screen.getByTestId("reach").textContent).toContain("in Bakery.");
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    expect(decided).toEqual([
-      { decision: "approved", scope: "always", everywhere: true },
-      { decision: "approved", scope: "always" },
-    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Approve always" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "always", everywhere: true }]);
+    // Approve turns to what was given, and takes no second press.
+    const done = screen.getByRole("button", { name: "Always, in every space" });
+    expect(done.dataset["answered"]).toBe("true");
+    expect((done as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("keeps a member's Always to this space, and This session to the run (ADR 0239)", () => {
+  it("keeps an owner's Always to this space when they pick it", () => {
+    const decided = card(
+      { actionKind: "acp.execute", risk: [], input: { command: "git status" } },
+      KIT,
+      "owner",
+    );
+    fireEvent.click(screen.getByLabelText("Always"));
+    fireEvent.click(screen.getByLabelText("In this space"));
+    expect(screen.getByTestId("reach").textContent).toContain("in Bakery.");
+    fireEvent.click(screen.getByRole("button", { name: "Approve always" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "always" }]);
+    expect(screen.getByRole("button", { name: "Always, in Bakery" })).toBeTruthy();
+  });
+
+  it("keeps a member's Always to this space, and draws the hour For an hour gives", () => {
     const decided = card(
       { actionKind: "acp.execute", risk: [], input: { command: "git status" } },
       KIT,
       "member",
     );
+    expect(screen.queryByLabelText("This session")).toBeNull();
     fireEvent.click(screen.getByLabelText("Always"));
     expect(screen.queryByLabelText("In every space")).toBeNull();
     expect(screen.getByTestId("reach").textContent).toContain("in Bakery.");
-    fireEvent.click(screen.getByLabelText("This session"));
-    expect(screen.getByTestId("reach").textContent).toContain("until this session ends.");
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
-    expect(decided).toEqual([{ decision: "approved", scope: "session" }]);
+    fireEvent.click(screen.getByLabelText("For an hour"));
+    expect(screen.queryByTestId("reach")).toBeNull();
+    expect(screen.getByTestId("hour-strip").textContent).toMatch(
+      /^Now, \d{1,2}:\d\d [AP]MUntil \d{1,2}:\d\d [AP]M$/,
+    );
+    expect(screen.getByTestId("for-a-while").textContent).toBe(
+      "Everything Kit asks in this space goes ahead without a card for the hour, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Approve for an hour" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "once", forMinutes: 60 }]);
   });
 
-  it("answers once a command it can't read, or one that uses rm, and says why (ADR 0239)", () => {
-    card({ actionKind: "acp.execute", risk: [], input: { command: "echo hi > out.txt" } });
+  it("says why a command is answered once where the choices would be, above the buttons", () => {
+    card({ actionKind: "acp.execute", risk: [], input: { command: "printf x > limits.js" } });
+    const line = screen.getByTestId("once-only");
+    const approve = screen.getByRole("button", { name: "Approve once" });
+    expect(line.compareDocumentPosition(approve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("names the file a command writes to, marks it, keeps no Always, and still gives the hour (ADR 0281)", () => {
+    const decided = card({
+      actionKind: "acp.execute",
+      risk: [],
+      input: { command: "echo hi > out.txt" },
+    });
     expect(screen.queryByText("Always")).toBeNull();
-    expect(screen.getByTestId("once-only").textContent).toBe(
-      "This command does more than Chips can read, so it's answered each time.",
+    const line = screen.getByTestId("once-only");
+    expect(line.textContent).toBe("This writes to out.txt, so there is no Always for it.");
+    expect(line.querySelector("code")?.textContent).toBe("out.txt");
+    expect(line.dataset["marked"]).toBe("true");
+    expect(screen.getByTestId("writes-words").textContent).toBe("> out.txt");
+    fireEvent.click(screen.getByLabelText("For an hour"));
+    expect(screen.queryByTestId("once-only")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Approve for an hour" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "once", forMinutes: 60 }]);
+  });
+
+  it("lets the agent work without asking from the switch over the choices (ADR 0281)", () => {
+    const decided = card({
+      actionKind: "acp.execute",
+      risk: [],
+      input: { command: "for r in a b; do head -3 $r; done" },
+    });
+    const flip = screen.getByRole("switch", { name: /Let Kit work without asking/ });
+    expect(flip.closest("label")?.textContent).toBe(
+      "Let Kit work without askingIn Bakery, until you stop it",
     );
+    fireEvent.click(flip);
+    expect(screen.queryByLabelText("For an hour")).toBeNull();
+    expect(screen.queryByTestId("once-only")).toBeNull();
+    expect(screen.getByTestId("until-stopped").textContent).toBe(
+      "Everything Kit asks here goes ahead without a card until you stop it, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Approve and let it work" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "once", untilStopped: true }]);
+    expect(screen.getByRole("button", { name: "Until you stop it" })).toBeTruthy();
+  });
+
+  it("draws a command a part to a line, not again as JSON, under its question", () => {
+    const line = "cd ~/room; ls -la; cat package.json 2>/dev/null | head -60";
+    card({
+      actionKind: "acp.execute",
+      risk: [],
+      question: `Inspect the room? \`${line.slice(0, 20)}…\``,
+      input: { command: line },
+      preview: JSON.stringify({ command: line }),
+      previewFormat: "json",
+      lasts: "once",
+    });
+    expect(screen.getByRole("article").getAttribute("aria-label")).toBe(
+      "Approval: Inspect the room?",
+    );
+    expect(screen.getAllByTestId("plate-part")).toHaveLength(4);
+    expect(screen.getByTestId("dropped-words").textContent).toBe("2>/dev/null");
+    expect(screen.getByTestId("plate-caption").textContent).toBe(
+      "4 parts. Chips reads each one, and 2>/dev/null writes no file.",
+    );
+    expect(screen.queryByText(/"command"/)).toBeNull();
+    expect(screen.queryByText("Just this once")).toBeNull();
   });
 
   it("names the listed command that keeps an ask to once (ADR 0239)", () => {
     card({ actionKind: "acp.execute", risk: [], input: { command: "ls && rm -rf build" } });
     expect(screen.getByTestId("once-only").textContent).toBe(
-      "Asks that use rm are answered each time.",
+      "There is no Always for asks that use rm.",
     );
+    expect(screen.getByTestId("never-words").textContent).toBe("rm -rf");
   });
 
   it("one its harness settled itself says it was answered in its own tools", () => {
@@ -501,5 +638,32 @@ describe("the ask card (ADR 0195)", () => {
   it("one a person answered says nothing of the kind", () => {
     card({ resolved: { decision: "approved", by: DANA, at: "2026-09-07T10:05:00.000Z" } } as never);
     expect(screen.queryByTestId("own-tools")).toBeNull();
+  });
+
+  it("lights an open ask's command once, as it is first drawn, and not each time its room is opened", () => {
+    const command = { actionKind: "acp.execute", risk: [], input: { command: "git status" } };
+    const sweep = () => screen.getByTestId("command-plate").dataset["sweep"];
+    // The ask comes in: a pass of light goes down its command, and a choice made meanwhile keeps it.
+    card({ approvalId: "apr_sweep", ...command });
+    expect(sweep()).toBe("true");
+    fireEvent.click(screen.getByLabelText("Always"));
+    expect(sweep()).toBe("true");
+    // Away to another room and back: the room's cards are drawn anew, and stand still.
+    cleanup();
+    card({ approvalId: "apr_sweep", ...command });
+    expect(sweep()).toBeUndefined();
+    // A card already answered asks nothing, so it is still even the first time it is drawn.
+    cleanup();
+    card({
+      approvalId: "apr_answered",
+      ...command,
+      resolved: {
+        decision: "approved",
+        by: ARJUN,
+        at: "2026-09-07T10:05:00.000Z",
+        elsewhere: true,
+      },
+    } as never);
+    expect(sweep()).toBeUndefined();
   });
 });

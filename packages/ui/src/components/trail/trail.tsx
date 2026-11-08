@@ -44,6 +44,13 @@ export interface FaceGroupProps {
   /** The participants, drawn overlapped in this order; one is simply their face. */
   readonly faces: readonly TrailHop[];
   readonly small?: boolean;
+  /** The faces are Everyone in the room, which is the mark from two (`marked`). */
+  readonly everyone?: boolean;
+  /**
+   * A mark says how many beside it, except as a choice: there the words say who, and the number
+   * pushed the mark off the line the other choices' faces stand on (Arjun, 6 November 2026).
+   */
+  readonly counted?: boolean;
   readonly className?: string;
 }
 
@@ -68,16 +75,33 @@ export function trailLabel(trail: readonly TrailStop[]): string {
  * phone's field at fourteen agents; the phone's `Faces` draws the same
  * (`apps/mobile/src/spaces/LaneChain.tsx`).
  */
-export const FACES_UP_TO = 3;
+const FACES_UP_TO = 3;
+/**
+ * Everyone is the mark from two (Arjun, 6 November 2026: "I want to show the tile icon even for
+ * 2+"): two or three faces overlapped read as a few of them rather than the room.
+ */
+const EVERYONE_UP_TO = 1;
+
+/** Whether `count` faces are drawn as one mark: Everyone from two, any other group from four. */
+export function marked(count: number, everyone = false): boolean {
+  return count > (everyone ? EVERYONE_UP_TO : FACES_UP_TO);
+}
 
 /**
  * Faces overlapped, as one hop: a trail's group, and wherever else a place is several
  * participants at once — the composer's capsule, a fold of harnesses talking. A span, so it may
- * sit inside a button. From four, one mark: the first four's colours in a square of four, and
- * how many beside it. Seen, not read out: what holds it says who.
+ * sit inside a button. From four, or from two where they are Everyone, one mark: the first four's
+ * colours in a square, and how many beside it (`counted`). Seen, not read out: what holds it says
+ * who.
  */
-export function FaceGroup({ faces, small = false, className }: FaceGroupProps) {
-  if (faces.length > FACES_UP_TO) {
+export function FaceGroup({
+  faces,
+  small = false,
+  everyone = false,
+  counted = true,
+  className,
+}: FaceGroupProps) {
+  if (marked(faces.length, everyone)) {
     return (
       <span
         className={className === undefined ? "ui-faces" : `ui-faces ${className}`}
@@ -94,9 +118,11 @@ export function FaceGroup({ faces, small = false, className }: FaceGroupProps) {
             />
           ))}
         </span>
-        <span className="ui-faces__count" data-testid="faces-count">
-          {faces.length}
-        </span>
+        {counted && (
+          <span className="ui-faces__count" data-testid="faces-count">
+            {faces.length}
+          </span>
+        )}
       </span>
     );
   }

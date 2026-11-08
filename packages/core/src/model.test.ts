@@ -3021,7 +3021,7 @@ describe("a group space (M3.3)", () => {
       const space = spaceOf([...room(), ceiling, paused]);
       expect(space.lines.at(-1)?.seq, "no line: the banner says it").toBe(945);
       expect(pausedIn(space)).toBe(true);
-      expect(space.pausedSpend).toEqual({ spentUsd: 10.02, ceilingUsd: 10 });
+      expect(space.pausedSpend).toMatchObject({ spentUsd: 10.02, ceilingUsd: 10 });
       expect(pauseWords(space, DIRECTORY)).toBe(
         "This job has spent $10.02 of the $10.00 this space allows. The agents start nothing new until somebody lets them carry on.",
       );
@@ -3035,7 +3035,7 @@ describe("a group space (M3.3)", () => {
         kind: "system",
         exchange: "going",
         authorId: ARJUN,
-        text: "let the agents carry on. A new $10.00 starts now.",
+        text: "let the agents carry on after $10.02. A new $10.00 starts now.",
       });
       expect(pausedIn(after)).toBe(false);
       expect(pauseWords(after, DIRECTORY)).toBeUndefined();
@@ -3054,6 +3054,66 @@ describe("a group space (M3.3)", () => {
       const quiet = spaceOf([...room(), ceiling, paused, spoke, later]);
       expect(pausedIn(spaceOf([...room(), ceiling, paused, spoke]))).toBe(false);
       expect(quiet.lines.at(-1)?.text).toBe("let the agents carry on");
+    });
+
+    it("names a job that had finished as its cost came in, and says a raise and a carry on in one line (ADR 0282)", () => {
+      const started = fixture("run.started", 940, { ts: "2026-11-06T09:49:26.071Z" });
+      const paused = fixture("exchange.set", 950, {
+        actor: { kind: "system", id: "system" },
+        ts: "2026-11-06T14:58:33.315Z",
+        state: "paused",
+        why: "spend",
+        spend: { ceiling_usd: 3, spent_usd: 3.096_719, since_seq: 900, uncounted_runs: 0 },
+      });
+      const still = spaceOf([...room(), started, paused]);
+      // While the run goes on, the job is still spending.
+      expect(pauseWords(still, DIRECTORY)).toBe(
+        "This job has spent $3.10 of the $3.00 this space allows. The agents start nothing new until somebody lets them carry on.",
+      );
+      const done = fixture("run.completed", 952, { ts: "2026-11-06T14:58:33.804Z" });
+      const finished = spaceOf([...room(), started, paused, done]);
+      expect(pauseWords(finished, DIRECTORY)).toBe(
+        "Scout's job came to $3.10 when it finished, past the $3.00 this space allows a job. The agents start nothing new until somebody lets them.",
+      );
+
+      const raised = fixture("space.spend_ceiling_set", 960, {
+        actor: { kind: "person", id: ARJUN },
+        usd: 5,
+      });
+      const going = fixture("exchange.set", 961, {
+        actor: { kind: "person", id: ARJUN },
+        state: "going",
+      });
+      const after = spaceOf([...room(), started, paused, done, raised, going]);
+      expect(after.lines.at(-1)).toMatchObject({
+        id: raised.id,
+        kind: "system",
+        exchange: "going",
+        authorId: ARJUN,
+        text: "raised the limit to $5.00 and let the agents carry on after $3.10.",
+      });
+      expect(after.lines.filter((line) => line.exchange === "going")).toHaveLength(1);
+      expect(pausedIn(after)).toBe(false);
+
+      // Set back to the default, it says so; set some time before the hold, it is a line of its own.
+      const back = fixture("space.spend_ceiling_set", 960, {
+        actor: { kind: "person", id: ARJUN },
+        usd: null,
+      });
+      expect(spaceOf([...room(), started, paused, done, back, going]).lines.at(-1)?.text).toBe(
+        "set the limit back to the default, $3.00, and let the agents carry on after $3.10.",
+      );
+      const before = fixture("space.spend_ceiling_set", 945, {
+        actor: { kind: "person", id: ARJUN },
+        usd: 5,
+      });
+      const apart = spaceOf([...room(), before, started, paused, done, going]);
+      expect(apart.lines.find((line) => line.id === before.id)?.text).toBe(
+        "set the spend per job to $5.00",
+      );
+      expect(apart.lines.at(-1)?.text).toBe(
+        "let the agents carry on after $3.10. A new $5.00 starts now.",
+      );
     });
 
     it("says a person's pause in their name though Chips paused at the ceiling before it", () => {

@@ -15,6 +15,7 @@ import type {
   LaneDelivery,
   LaneHop,
   LaneState,
+  LetWork,
   Line,
   PausedSpend,
   PersonModel,
@@ -99,6 +100,17 @@ export interface MutablePolicy {
   rooms: Map<string, { autonomy: 0 | 1 | 2 | 3; rules: Rule[] }>;
 }
 
+/** A line that set what the room allows a job (ADR 0282). */
+export interface CeilingLine {
+  readonly id: string;
+  readonly seq: number;
+  readonly by: string;
+  /** The amount set, or nothing for the default. */
+  readonly usd: number | undefined;
+  /** What the room allowed before. */
+  readonly was: number;
+}
+
 export interface MutableSpace {
   id: string;
   title?: string | undefined;
@@ -137,6 +149,11 @@ export interface MutableSpace {
   pausedSeq: number;
   pausedBy?: string | undefined;
   pausedSpend?: PausedSpend | undefined;
+  /**
+   * The newest line saying what the room allows a job, and who set it from what: the carrying on
+   * that follows it at the ceiling says both in that one line (ADR 0282).
+   */
+  ceilingLine?: CeilingLine | undefined;
   lines: Line[];
   /** The checkpoint lines, kept as they are folded so the queue does not filter every line. */
   checkpoints: Line[];
@@ -148,6 +165,8 @@ export interface MutableSpace {
   pins: Pin[];
   /** The lines the reader deleted for themselves (ADR 0167). */
   hidden: Set<string>;
+  /** The agents let work here without asking (ADR 0281), by whose asks go ahead. */
+  letWork?: Map<string, LetWork> | undefined;
 }
 
 /** A lane as it is folded, from whichever of its two sides the reader can see. */

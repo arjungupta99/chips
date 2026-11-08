@@ -168,6 +168,7 @@ function noteExchange(space: MutableSpace, event: ClientEvent): void {
     space.pausedSpend = {
       spentUsd: Number(spend?.spent_usd ?? 0),
       ceilingUsd: Number(spend?.ceiling_usd ?? 0),
+      at: event.ts,
     };
     return;
   }

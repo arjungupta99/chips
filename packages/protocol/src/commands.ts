@@ -10,6 +10,10 @@
  * backticks, `$`, parentheses, braces), a part run in the background (`&`), a variable set before
  * the program (`FOO=1 node`), a comment, or an empty part. Its ask is answered each time.
  *
+ * Output thrown away or merged is read, and dropped from the words (ADR 0239, addendum of 6
+ * November 2026): `2>/dev/null`, `>/dev/null`, `&>/dev/null` and `2>&1` write nothing anywhere,
+ * and an agent looking around adds them to half its commands.
+ *
  * Chips still never sees the tool call itself; it reads the words the harness sent in its ask.
  */
 
@@ -108,9 +112,15 @@ class Reader {
     }
     const between = this.between(char);
     if (between !== undefined) return between;
-    if ("<>()&$`{}".includes(char) || (char === "#" && this.word === undefined)) return false;
+    // Of what the reader can't follow, only output thrown away is read, and skipped.
+    if (this.beyond(char)) return this.dropped();
     this.word = (this.word ?? "") + char;
     return true;
+  }
+
+  /** A character that does more than run a program, outside quotes: `>`, `$`, `(`, a comment. */
+  private beyond(char: string): boolean {
+    return "<>()&$`{}".includes(char) || (char === "#" && this.word === undefined);
   }
 
   /** Where one part ends and the next starts, if it does here: `&&`, `||`, `;`, `|`, a new line. */
@@ -121,6 +131,22 @@ class Reader {
       return this.endPart();
     }
     return char === ";" || char === "|" || char === "\n" ? this.endPart() : undefined;
+  }
+
+  /**
+   * Output thrown away or merged, which writes nothing: `2>/dev/null`, `>/dev/null`, `&>/dev/null`,
+   * `2>&1`, `>&2`. Skipped whole, the `1` or `2` before it with it; anything else that writes
+   * somewhere is not read.
+   */
+  private dropped(): boolean {
+    const descriptor = this.word;
+    if (descriptor !== undefined && descriptor !== "1" && descriptor !== "2") return false;
+    const rest = this.command.slice(this.at);
+    const away = (descriptor === undefined ? DROPPED_ANY : DROPPED_AFTER_DESCRIPTOR).exec(rest);
+    if (away === null) return false;
+    this.word = undefined;
+    this.at += away[0].length - 1;
+    return true;
   }
 
   /** A backslash outside quotes makes the next character itself; at the end it continues a line. */
@@ -147,6 +173,15 @@ class Reader {
   }
 }
 
+/** Where a dropped redirection must end: the command's end, a space, or the next part. */
+const ENDS = String.raw`(?=$|[\s;&|])`;
+
+/** After a `1` or a `2`: `>/dev/null`, `>>/dev/null`, `>&1`, `>&2`. */
+const DROPPED_AFTER_DESCRIPTOR = new RegExp(String.raw`^(?:>>?[ \t]*\/dev\/null|>&[12])${ENDS}`);
+
+/** Standing alone, the same, or both outputs at once: `&>/dev/null`. */
+const DROPPED_ANY = new RegExp(String.raw`^(?:&?>>?[ \t]*\/dev\/null|>&[12])${ENDS}`);
+
 /** The shell's own words, which run what follows them rather than being a program. */
 const KEYWORDS: ReadonlySet<string> = new Set([
   "!",
@@ -171,7 +206,9 @@ const KEYWORDS: ReadonlySet<string> = new Set([
 
 /**
  * The commands a standing yes is never given for (ADR 0239): they can't be undone, leave the
- * machine, act as somebody else, or run whatever code or command they are given. A part matches
+ * machine, act as somebody else, or run whatever code or command they are given. Since a start is
+ * mostly the program alone (addendum of 6 November 2026), the ones that write over a file are
+ * here too: `cp`, `mv`, `tee`, `sed -i`, and a package published. A part matches
  * an entry of one word when its program is that word, and an entry of two when its program is the
  * first and the second is among its words, wherever it stands (`git -C dir push`).
  */
@@ -198,6 +235,15 @@ export const NEVER_STANDING: readonly (readonly string[])[] = [
   ["git", "push"],
   ["git", "reset"],
   ["git", "clean"],
+  ["cp"],
+  ["mv"],
+  ["tee"],
+  ["truncate"],
+  ["sed", "-i"],
+  ["sed", "--in-place"],
+  ["npm", "publish"],
+  ["pnpm", "publish"],
+  ["yarn", "publish"],
   ["find", "-exec"],
   ["find", "-execdir"],
   ["find", "-ok"],
@@ -242,19 +288,79 @@ export function neverStanding(parts: CommandParts): string | undefined {
   return undefined;
 }
 
-/** How a part starts, as a standing yes remembers it: its first two words, or its one. */
+/** Programs whose second word is a command of their own: `git log`, `pnpm test`, `cargo build`. */
+const SUBCOMMANDED: ReadonlySet<string> = new Set([
+  "git",
+  "npm",
+  "pnpm",
+  "yarn",
+  "bun",
+  "deno",
+  "cargo",
+  "go",
+  "docker",
+  "kubectl",
+  "gh",
+  "brew",
+  "pip",
+  "pip3",
+  "uv",
+  "make",
+  "swift",
+  "xcrun",
+  "launchctl",
+]);
+
+/** Programs that run the file or package they are given, which is then what they do. */
+const RUNNERS: ReadonlySet<string> = new Set([
+  "node",
+  "python",
+  "python3",
+  "ruby",
+  "perl",
+  "php",
+  "bash",
+  "sh",
+  "zsh",
+  "tsx",
+  "ts-node",
+  "npx",
+  "pnpx",
+  "bunx",
+  "osascript",
+]);
+
+/** A flag that picks what a program does, `-la` or `--check`, not one carrying a count (`-50`). */
+const PICKING_FLAG = /^--?[A-Za-z][A-Za-z-]*$/;
+
+/**
+ * How a part starts, as a standing yes remembers it (ADR 0239, addendum of 6 November 2026): the
+ * program and the word that picks what it does, `git log`, `sed -n`, `node --check`, `python3
+ * build.py`; or the program alone, when its next word is only what it acts on (a path, a file, a
+ * count). So a yes for `cat README.md` reaches `cat package.json`, and one for `git log` doesn't
+ * reach `git commit`.
+ */
 export function startOf(part: readonly string[]): readonly string[] {
-  return part.slice(0, 2);
+  const second = part[1];
+  if (second === undefined) return part.slice(0, 1);
+  const program = programOf(part[0] ?? "");
+  const picks = SUBCOMMANDED.has(program) || RUNNERS.has(program) || PICKING_FLAG.test(second);
+  return part.slice(0, picks ? 2 : 1);
 }
 
-/** Each part's start, once each, in the command's order. */
+/**
+ * Each part's start, once each, in the command's order; a start another one already covers (`ls -la`
+ * beside `ls`) is left out, since the shorter one lets it through.
+ */
 export function commandStarts(parts: CommandParts): readonly (readonly string[])[] {
   const starts: (readonly string[])[] = [];
   for (const part of parts) {
     const start = startOf(part);
     if (!starts.some((kept) => sameWords(kept, start))) starts.push(start);
   }
-  return starts;
+  return starts.filter(
+    (start) => !starts.some((other) => other.length < start.length && startsWith(start, other)),
+  );
 }
 
 /** Whether the part begins with these words, each exactly. */

@@ -1015,6 +1015,8 @@ export interface Hello {
     name: string;
     /** The server's own version. */
     version: string;
+    /** What this server keeps of what a person's client may send beyond the base set, by the names in `SERVER_TAKES`. `held_yes` is `for_minutes` and `until_stopped` on `approval.resolved`. A server older than the field says nothing, and drops those fields, so a client offers neither to it (ADR 0281). */
+    takes?: string[];
   };
   /** The harness the token belongs to, and only that one. One connection speaks for all of the harness's agents (ADR 0087), which `agents` lists. A harness running inside another is a lane, not a duplicate. */
   harnesses: {
@@ -1821,6 +1823,10 @@ export interface ApprovalResolved {
   scope?: "once" | "session" | "always";
   /** With `always`: the rule is the harness's in every space, not only this one (ADR 0239). An owner or an admin only. */
   everywhere?: boolean;
+  /** With `once` and a yes: for this many minutes, everything the asking agent asks in this space goes ahead without a card (ADR 0239, addendum of 6 November 2026; ADR 0281), commands Chips can't read too. An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once. */
+  for_minutes?: number;
+  /** With `once` and a yes, instead of `for_minutes`: everything the asking agent asks in this space goes ahead without a card until a person stops it (`approval.held_stopped`, ADR 0281). An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once. */
+  until_stopped?: true;
   /** The edited action input, when the decision is `edited`. */
   updated_input?: unknown;
   /** Why. The harness gets to read this. */
@@ -3993,6 +3999,40 @@ export interface ApprovalRouted {
   routed_by?: string;
   /** When. Filled in by Chips from its clock. */
   routed_at?: string;
+}
+
+/** `approval.held_stopped` — A person stopped the yes that let an agent work without asking in a space, for an hour or until stopped. Its next ask comes to a person. */
+export interface ApprovalHeldStopped {
+  /** Protocol major version. */
+  v: 1;
+  type: "approval.held_stopped";
+  /** The event's own id. Stable across a retry of the same event. */
+  id: string;
+  /** When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced. */
+  ts: string;
+  /** A workspace identifier: `ws_` followed by a ULID. */
+  workspace_id: string;
+  /** The space, when the event belongs to one. */
+  space_id?: string;
+  /** The run, when the event belongs to one. */
+  run_id?: string;
+  /** Assigned by the server on append, monotonic per workspace. Absent on the way in. */
+  seq?: number;
+  /** Required on every client-originated write. Sending the same key twice is a no-op. */
+  idempotency_key?: string;
+  /** The participant an event is attributed to. */
+  actor: {
+    /** Whether a person, a harness, one of a harness's agents or Chips itself acted. */
+    kind: "person" | "harness" | "agent" | "system";
+    /** The participant id, or `system` for Chips. */
+    id: string;
+    /** For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips. */
+    harness_id?: string;
+  };
+  /** Whose yes stops: the agent, or a harness without agents, as the run that asked is worked by. */
+  asker: string;
+  /** Who stopped it. Filled in by Chips from the credential. */
+  stopped_by?: string;
 }
 
 /** `attachment.limits_set` — An owner or an admin capped how big a photo, a video or a file may be here (ADR 0047). Everyone's, and the server refuses an upload over it. */

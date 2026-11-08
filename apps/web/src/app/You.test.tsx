@@ -219,6 +219,19 @@ afterEach(() => {
 });
 
 /** A row of You's opened: its page, beside the list. */
+/**
+ * A window a phone's width (`useNarrow`), where You is one column and a page stands in the list's
+ * place (ADR 0284); what puts the window back.
+ */
+function phoneWidth(): () => void {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query === "(max-width: 640px)",
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  return () => vi.unstubAllGlobals();
+}
+
 function openPage(row: string): HTMLElement {
   fireEvent.click(screen.getByTestId(row));
   return screen.getByTestId("you-pane");
@@ -264,11 +277,7 @@ describe("the list and the page beside it (ADR 0265)", () => {
   });
 
   it("stands a page in the list's place where You is narrow, with the way back to You", () => {
-    const narrow = vi
-      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
-      .mockImplementation(function (this: HTMLElement) {
-        return { width: this.classList.contains("you") ? 600 : 0 } as DOMRect;
-      });
+    const narrow = phoneWidth();
     try {
       renderYou();
       expect(screen.queryByTestId("you-pane-empty")).toBeNull();
@@ -284,7 +293,7 @@ describe("the list and the page beside it (ADR 0265)", () => {
           ?.hidden,
       ).toBe(false);
     } finally {
-      narrow.mockRestore();
+      narrow();
     }
   });
 
@@ -395,11 +404,7 @@ describe("a short setting is a page too (ADR 0265's addendum)", () => {
   });
 
   it("stands in the list's place where You is narrow, and ‹ You goes back to its row", async () => {
-    const narrow = vi
-      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
-      .mockImplementation(function (this: HTMLElement) {
-        return { width: this.classList.contains("you") ? 600 : 0 } as DOMRect;
-      });
+    const narrow = phoneWidth();
     try {
       renderYou({ limits: limits() });
       expect(paneColumn()?.hidden).toBe(true);
@@ -412,7 +417,7 @@ describe("a short setting is a page too (ADR 0265's addendum)", () => {
       expect(paneColumn()?.hidden).toBe(true);
       expect(document.activeElement).toBe(screen.getByTestId("caps-row"));
     } finally {
-      narrow.mockRestore();
+      narrow();
     }
   });
 });
@@ -449,11 +454,7 @@ describe("your face (ADR 0272)", () => {
   });
 
   it("stands in the list's place where You is narrow, with the way back", () => {
-    const narrow = vi
-      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
-      .mockImplementation(function (this: HTMLElement) {
-        return { width: this.classList.contains("you") ? 600 : 0 } as DOMRect;
-      });
+    const narrow = phoneWidth();
     try {
       renderYou();
       fireEvent.click(screen.getByTestId("profile-face"));
@@ -462,7 +463,7 @@ describe("your face (ADR 0272)", () => {
       fireEvent.click(within(pane).getByRole("button", { name: "‹ You" }));
       expect(screen.queryByTestId("you-pane")).toBeNull();
     } finally {
-      narrow.mockRestore();
+      narrow();
     }
   });
 });

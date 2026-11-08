@@ -20,6 +20,7 @@ import {
   cantAnswer,
   cantAnswerIn,
   cantAnswerWords,
+  carryOnWords,
   changeOf,
   type Directory,
   type Doing,
@@ -32,6 +33,7 @@ import {
   filesChangedWords,
   formatBytes,
   formatDuration,
+  handChoices,
   harnessesIn,
   harnessUnder,
   heardWords,
@@ -42,6 +44,7 @@ import {
   type Line,
   type MessageRoute,
   mayReply,
+  maySetSpend,
   nameOf,
   namesAuthors,
   opensTurn,
@@ -52,6 +55,7 @@ import {
   pinnedLines,
   plainWords,
   type Question,
+  RAISE_LIMIT,
   type ReplyCard as ReplyCardModel,
   type Run,
   readMark,
@@ -61,6 +65,7 @@ import {
   roomLeadOf,
   roomName,
   routesIn,
+  runIsLane,
   type Session,
   type Space,
   searchTerms,
@@ -69,7 +74,6 @@ import {
   spaceDoing,
   spaceSubtitle,
   spaceTitle,
-  spaceWorking,
   THINKING_GRACE_MS,
   takesFeedback,
   turnsOf,
@@ -115,6 +119,7 @@ import { facesOf, useAddressInField, useAiming } from "./AddressInField.tsx";
 import { AgentNotice } from "./AgentNotice.tsx";
 import { Ask, type Chosen } from "./Ask.tsx";
 import { Attachments } from "./Attachments.tsx";
+import { ListButton, useThird } from "./Columns.tsx";
 import { useColourField } from "./colourField.ts";
 import { Decide, type DecisionInput } from "./Decide.tsx";
 import {
@@ -130,6 +135,7 @@ import {
 import { FeedbackGiven, NoteForm, type OnFeedback, saidName } from "./Feedback.tsx";
 import { ForkLine, NewAgentLine } from "./ForkLine.tsx";
 import type { FileService } from "./files.ts";
+import { LetWorkBand } from "./LetWorkBand.tsx";
 import {
   EditForm,
   type LineHandlers,
@@ -143,6 +149,7 @@ import { Markdown } from "./Markdown.tsx";
 import { type Focus, MessageList } from "./MessageList.tsx";
 import { type RouteMark, RouteOver } from "./RouteOver.tsx";
 import type { SpaceActions } from "./room/actions.ts";
+import { useBubbleShape } from "./room/bubbleShape.ts";
 import { type Breaking, DustProvider, returning, useCrumble, useDustRoom } from "./room/Dust.tsx";
 import { BackPill, type BackTo, RepliesMark, ReplyCard, ReplyStrip } from "./room/Reply.tsx";
 import { RoomDropOver, useRoomDrop } from "./room/RoomDrop.tsx";
@@ -150,7 +157,6 @@ import { RoomSheet } from "./room/RoomSheet.tsx";
 import { type Undoing, UndoPill } from "./room/UndoPill.tsx";
 import { UniverseMark } from "./room/UniverseMark.tsx";
 import { useUniverseCall } from "./room/universeSeen.ts";
-import { spaceAvatar } from "./Sidebar.tsx";
 import { Swap } from "./Swap.tsx";
 import { TaskBubble } from "./TaskBubble.tsx";
 import { clockTime, relativeTime } from "./time.ts";
@@ -217,6 +223,11 @@ export interface SpaceViewProps {
    * stopped, and the lead hears the lane was cancelled. Absent, the card offers no button.
    */
   readonly onStopLane?: ((lane: Lane) => void) | undefined;
+  /**
+   * Stop an agent working here without asking (ADR 0281), from the band under the room's head.
+   * Absent, the band offers no Stop.
+   */
+  readonly onStopLetWork?: ((asker: string) => void) | undefined;
   /** Take back a message still held because the socket is shut, by its idempotency key. */
   readonly onDiscard?: ((key: string) => void) | undefined;
   /**
@@ -231,6 +242,8 @@ export interface SpaceViewProps {
     replyTo?: string | undefined,
   ) => void;
   readonly onDecide: (approval: ApprovalModel, input: DecisionInput) => void;
+  /** Whether the server keeps For an hour and Let it work (ADR 0281), as its last hello said. */
+  readonly keepsHeldYes?: boolean | undefined;
   /** Hand an ask to somebody else (M5.5): a teammate, a role, the lead. */
   readonly onRoute?:
     | ((approval: ApprovalModel, to: readonly string[], reason?: string) => void)
@@ -488,7 +501,9 @@ export function SpaceView(props: SpaceViewProps) {
           onOpenAgent={props.onOpenAgent}
           sheet={sheet}
           headEnd={props.headEnd}
+          onGoTo={goToLine}
         />
+        <LetWorkBand space={space} directory={directory} now={now} onStop={props.onStopLetWork} />
         <Pins space={space} onJump={(lineId) => setFocus({ lineId, nonce: Date.now() })} />
 
         <div className="msgs" ref={scroller} data-testid="messages">
@@ -549,9 +564,15 @@ export function SpaceView(props: SpaceViewProps) {
                   now={now}
                   onDecide={props.onDecide}
                   onRoute={props.onRoute}
-                  members={space.members}
-                  people={props.people}
+                  handTo={handChoices({
+                    directory,
+                    space,
+                    people: props.people ?? {},
+                    selfId,
+                    lane: props.model !== undefined && runIsLane(props.model, approval.runId),
+                  })}
                   workspaceRole={props.standing?.inWorkspace}
+                  keepsHeldYes={props.keepsHeldYes}
                   spaceName={
                     props.model === undefined
                       ? undefined
@@ -630,7 +651,12 @@ export function SpaceView(props: SpaceViewProps) {
             onFork={props.onSpace.fork}
           />
         )}
-        <PausedBanner words={paused} onExchange={props.onExchange} />
+        <PausedBanner
+          space={space}
+          words={paused}
+          onExchange={props.onExchange}
+          onRaise={raisesHere(props, selfId) ? sheet.raise : undefined}
+        />
         <UndoPill undoing={undoing} onUndo={undo} onGone={undone} />
         <BackPill back={replying.back} onBack={replying.goBack} />
         <Composer
@@ -638,6 +664,8 @@ export function SpaceView(props: SpaceViewProps) {
           onChange={setDraft}
           onSend={send}
           canSendEmpty={!uploading && staged.staged.some((item) => item.status === "ready")}
+          // The iPad's composer (ADR 0284): the clip and the microphone in one +, Send in the field.
+          plus
           onAttach={() => picker.current?.click()}
           {...voice.composer}
           attachments={staged.staged.map((item) => chipOf(item, () => staged.remove(item.localId)))}
@@ -664,21 +692,55 @@ export function SpaceView(props: SpaceViewProps) {
 }
 
 /**
+ * Whether the reader may raise the room's ceiling from the banner (ADR 0282): the room has a sheet
+ * to set it on, and they are the workspace's owner in it (ADR 0196).
+ */
+function raisesHere(props: SpaceViewProps, selfId: string): boolean {
+  return (
+    props.onSpace !== undefined &&
+    props.model !== undefined &&
+    maySetSpend(props.space, props.model, selfId)
+  );
+}
+
+/**
  * The banner above the field while Chips holds the agents' messages to each other (ADR 0097), or
  * holds the agents at the room's spend ceiling (ADR 0118), with *Let them carry on*. It stays
- * until a person acts.
+ * until a person acts. At the ceiling it says *Carry on at $3.00*, and offers whoever may set the
+ * ceiling *Raise the limit* first: the room's Spend per job, whose Save lets them carry on too
+ * (ADR 0282).
  */
 function PausedBanner(props: {
+  readonly space: Space;
   readonly words: string | undefined;
   readonly onExchange?: ((state: "paused" | "going") => void) | undefined;
+  /** Raise the limit, for whoever may set it: the sheet's Spend per job, to carry on with. */
+  readonly onRaise?: (() => void) | undefined;
 }) {
   if (props.words === undefined) return null;
+  const { space } = props;
+  const atCeiling = space.pausedSpend !== undefined && space.pausedBy === undefined;
   return (
     <div className="paused-banner" role="status" data-testid="paused-banner">
       <span>{props.words}</span>
+      {atCeiling && props.onRaise !== undefined && (
+        <button
+          type="button"
+          className="btn paused-raise"
+          data-testid="raise-limit"
+          onClick={props.onRaise}
+        >
+          {RAISE_LIMIT}
+        </button>
+      )}
       {props.onExchange !== undefined && (
-        <button type="button" className="btn" onClick={() => props.onExchange?.("going")}>
-          Let them carry on
+        <button
+          type="button"
+          className="btn"
+          data-testid="carry-on"
+          onClick={() => props.onExchange?.("going")}
+        >
+          {atCeiling ? carryOnWords(space) : "Let them carry on"}
         </button>
       )}
     </div>
@@ -1296,6 +1358,8 @@ function Top(props: {
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
   readonly sheet: RoomSheetState;
   readonly headEnd?: ReactNode | undefined;
+  /** A line the sheet sends the room to: a job's reply on Spend per job (ADR 0282). */
+  readonly onGoTo?: ((lineId: string) => void) | undefined;
 }) {
   const { space, directory, sheet } = props;
   const title = spaceTitle(space, directory, props.selfId);
@@ -1332,6 +1396,7 @@ function Top(props: {
           opensOn={sheet.open.on}
           opensChange={sheet.open.change}
           onGone={sheet.gone}
+          onGoTo={props.onGoTo}
         />
       )}
       {space.state === "closed" && (
@@ -1383,19 +1448,24 @@ function Header(props: {
   readonly icon: SpaceIcon | undefined;
 }) {
   const { space, directory, connection, onSheet } = props;
-  const count = space.members.length;
   const name = spaceTitle(space, directory, props.selfId);
   // How many of its agents can't answer now, in amber under the name (ADR 0083).
   const warning = cantAnswerWords(cantAnswerIn(space, directory).length);
   // Universe calls while the project has a change for this reader they haven't opened it at.
   const universe = useUniverseCall(space.id, space.project, props.selfId);
+  // Beside the columns the details are the third column, which the button closes again (ADR 0284).
+  const third = useThird();
+  const details = (from: HTMLElement) => {
+    if (props.sheetOpen && third !== undefined) third.close();
+    else onSheet?.(from);
+  };
   return (
-    <header className="conv-h">
-      {spaceAvatar(space, directory, name, props.icon, spaceWorking(space))}
-      <div className="conv-h-t">
+    <header className="conv-h room-head">
+      <ListButton />
+      <div className="room-name">
         <h1>
           {onSheet === undefined ? (
-            name
+            <span className="conv-h-name">{name}</span>
           ) : (
             <button
               ref={props.titleRef}
@@ -1404,20 +1474,20 @@ function Header(props: {
               aria-haspopup="dialog"
               aria-expanded={props.sheetOpen}
               data-testid="room-title"
-              onClick={(event) => onSheet(event.currentTarget)}
+              onClick={(event) => details(event.currentTarget)}
             >
               {name}
-              <Icon name="down" size={12} />
             </button>
           )}
         </h1>
         <HeaderSub sub={spaceSubtitle(space, directory)} warning={warning} />
       </div>
       <div className="conv-h-r">
+        <Reach connection={connection} link={props.link} />
         {space.project !== undefined && props.onUniverse !== undefined && (
           <button
             type="button"
-            className="conv-members conv-universe"
+            className="round-button conv-universe"
             data-testid="room-universe-button"
             aria-label={universe.calling === undefined ? "Universe" : "Universe, updated"}
             title="Universe"
@@ -1427,23 +1497,25 @@ function Header(props: {
               props.onUniverse?.(event.currentTarget);
             }}
           >
-            <UniverseMark size={24} calling={universe.calling} />
+            <UniverseMark size={22} calling={universe.calling} />
           </button>
         )}
-        <button
-          type="button"
-          className="conv-members"
-          data-testid="members"
-          aria-haspopup="dialog"
-          aria-expanded={props.sheetOpen}
-          disabled={onSheet === undefined}
-          onClick={(event) => onSheet?.(event.currentTarget)}
-        >
-          <Icon name="people" size={14} />
-          {count} {count === 1 ? "member" : "members"}
-        </button>
-        <Reach connection={connection} link={props.link} />
-        {props.end}
+        {props.end ?? (
+          <button
+            type="button"
+            className="round-button"
+            data-testid="members"
+            aria-label="Details"
+            title="Details"
+            aria-haspopup="dialog"
+            aria-expanded={props.sheetOpen}
+            data-on={props.sheetOpen ? "true" : undefined}
+            disabled={onSheet === undefined}
+            onClick={(event) => details(event.currentTarget)}
+          >
+            <Icon name="details" size={18} />
+          </button>
+        )}
       </div>
     </header>
   );
@@ -2598,6 +2670,9 @@ function Bubble(props: {
   readonly onQuote?: ((reply: Line, quoted: string, mine: boolean) => void) | undefined;
 }) {
   const { line, actions } = props;
+  // A line whose words change where it stands (a queued turn's, an edit) takes its new shape on the
+  // room's spring (`room/bubbleShape.ts`).
+  const shape = useBubbleShape(line.text);
   if (line.deleted === true) {
     return (
       <div
@@ -2629,6 +2704,7 @@ function Bubble(props: {
   const said = saidBy(line, props.directory);
   return (
     <div
+      ref={shape}
       className="bub"
       data-summary={line.kind === "summary" ? "true" : undefined}
       data-task={task === undefined ? undefined : "true"}
@@ -2925,7 +3001,7 @@ interface RoomSheetState {
   readonly open:
     | {
         readonly from: HTMLElement | null;
-        readonly on: "who" | "add" | "universe" | "icon";
+        readonly on: "who" | "add" | "universe" | "icon" | "raise";
         readonly n: number;
         /** The change it opens on, from under the reply that made it (ADR 0222). */
         readonly change?: string | undefined;
@@ -2937,6 +3013,8 @@ interface RoomSheetState {
   readonly show: (from: HTMLElement) => void;
   /** From the four rings at the header's right: Universe (ADR 0227). */
   readonly showUniverse: (from: HTMLElement) => void;
+  /** Spend per job to carry on with, from the banner's Raise the limit (ADR 0282). */
+  readonly raise: () => void;
   /** Add, from a room waiting for agents or the + that has just made it empty (ADR 0148). */
   readonly add: () => void;
   /** Gone, its fold finished. */
@@ -2987,6 +3065,10 @@ function useRoomSheet(
     showUniverse: (from) => {
       opened.current += 1;
       setOpen({ from, on: "universe", n: opened.current });
+    },
+    raise: () => {
+      opened.current += 1;
+      setOpen({ from: titleRef.current, on: "raise", n: opened.current });
     },
     add,
     showChange,

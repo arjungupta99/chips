@@ -173,6 +173,7 @@ export interface SubmitEventDeps {
     | "harnessPolicy"
     | "workspacePolicy"
     | "sessionRules"
+    | "rulesForAWhile"
     | "participant"
     | "membersOf"
     | "laneByRun"
@@ -498,6 +499,7 @@ const ATTRIBUTION: Readonly<
   "run.cancel": { who: ["by"], when: [] },
   "policy.updated": { who: ["changed_by"], when: [] },
   "approval.routed": { who: ["routed_by"], when: ["routed_at"] },
+  "approval.held_stopped": { who: ["stopped_by"], when: [] },
 };
 
 /** The events whose `from` is a participant ref for the sender: a steer, and feedback (M3.4). */
@@ -1760,31 +1762,35 @@ async function evaluateAsk(
 ): Promise<Decision> {
   const { workspaceId } = principal;
   const space = typeof event["space_id"] === "string" ? event["space_id"] : undefined;
-  const [harnessPolicy, workspace, session] = await Promise.all([
+  const [harnessPolicy, workspace, session, held] = await Promise.all([
     deps.readModels.harnessPolicy(workspaceId, principal.participantId, space),
     deps.readModels.workspacePolicy(workspaceId),
     context.run === null
       ? Promise.resolve([])
       : deps.readModels.sessionRules(workspaceId, context.run.run_id),
+    heldInSpace(workspaceId, space, context, deps),
   ]);
   const action = event["action"] as ActionShape;
+  const asked: PolicyAction = {
+    kind: action.kind,
+    external: action.external,
+    irreversible: action.irreversible,
+    money_usd: action.money_usd,
+    risk: event["risk"] as never,
+    command: askedCommand(action.input),
+  };
   return evaluate(
-    {
-      kind: action.kind,
-      external: action.external,
-      irreversible: action.irreversible,
-      money_usd: action.money_usd,
-      risk: event["risk"] as never,
-      command: askedCommand(action.input),
-    },
+    asked,
     {
       autonomy: (harnessPolicy?.autonomy ?? DEFAULT_AUTONOMY) as 0 | 1 | 2 | 3,
       // What was decided for this session comes before the harness's standing rules: the
-      // space's own, then the harness's everywhere (ADR 0239).
+      // space's own, then the harness's everywhere (ADR 0239). A yes that holds on in this space
+      // reaches every ask, so it comes after them, where a no a person set still wins (ADR 0281).
       rules: [
         ...session,
         ...(harnessPolicy?.rules ?? []),
         ...(harnessPolicy?.everywhere_rules ?? []),
+        ...held,
       ],
     },
     {
@@ -1792,6 +1798,23 @@ async function evaluateAsk(
       rules: workspace?.rules ?? [],
     },
   );
+}
+
+/**
+ * The yeses for a while that hold in this space for the run's agent, or its harness when it has
+ * none (ADR 0239, addendum of 6 November 2026): the same asker the rule was kept for.
+ */
+async function heldInSpace(
+  workspaceId: string,
+  space: string | undefined,
+  context: AuthorizeContext,
+  deps: SubmitEventDeps,
+): Promise<PolicyRule[]> {
+  if (space === undefined || context.run === null) return [];
+  const run = await deps.readModels.run(workspaceId, context.run.run_id);
+  if (run === undefined) return [];
+  const asker = run.agent_id ?? run.harness_id;
+  return deps.readModels.rulesForAWhile(workspaceId, space, asker, deps.clock.nowIso());
 }
 
 /**

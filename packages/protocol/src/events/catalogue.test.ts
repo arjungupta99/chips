@@ -111,6 +111,7 @@ describe("the catalogue", () => {
       "message.pinned",
       "message.unpinned",
       "approval.routed",
+      "approval.held_stopped",
       "attachment.limits_set",
       "exchange.limits_set",
       "workspace.renamed",
@@ -167,6 +168,7 @@ describe("the catalogue", () => {
       "message.pinned",
       "message.unpinned",
       "approval.routed",
+      "approval.held_stopped",
       "attachment.limits_set",
       "exchange.limits_set",
     ]);

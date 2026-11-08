@@ -101,6 +101,7 @@ export type {
   LaneDelivery,
   LaneHop,
   LaneState,
+  LetWork,
   Line,
   MessageRoute,
   NeedsYouItem,

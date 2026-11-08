@@ -72,3 +72,36 @@ the agents." Then, for the list: "it's height should not go beyond 3/4 of screen
 - The mark shows four colours however many it stands for. The number says how many; the list and
   the route's sheet say who.
 - The + window's row of faces and the list share one fade (`ui/Fades.tsx`).
+
+## Addendum, 6 November 2026: Everyone is the mark from two
+
+Arjun: "I want to show the tile icon even for 2+". In a room of two or three, Everyone at the foot
+of the column a slide up from the field's faces grows (ADR 0229) was two or three faces
+overlapped side by side, wider than the column, and read as a few of them rather than the room.
+Everyone is now the mark from two, wherever it is drawn as Everyone: the column's foot, the
+list's last row, the field's faces, the send's flight and the route over the message, on the
+phone and the desktop (`marked(count, everyone)` in `LaneChain.tsx` and in the ui package's
+`trail.tsx`). Two or three named by @ or picked by their circles are still their faces; any other
+group is still the mark from four. Where the mark stands for Everyone, the field and the route say
+how many, from two ("To Everyone, 2 agents").
+
+The mark is cut for fewer than four, as a group's picture is in Messages: two are halves side by
+side, three a half and two quarters (`cellsOf`; on the desktop the first colour spans both rows).
+A square of four with two colours had left its foot empty.
+
+And the field moves when who it goes to changes (Arjun: "I am looking for super smooth motion"),
+by a pick, a slide up the column or an @: the faces and the empty field's words crossfade in
+place (`ui/Swap.tsx`), the capsule grows or shrinks to what it holds and its chevron goes with its
+edge (`GROWS`), and the words slide aside on the same clock (`ASIDE` in `ui/growing.tsx`), across
+only, so a line typed changes their height at once as before. Walked on a simulator against a
+scratch server, at 30 frames a second: the faces, the chevron and the words arrive together in
+about 190 ms. The desktop already faded new faces in where the old ones were.
+
+The same night (Arjun: "no need to show number next to everyone option, it makes the icon
+misaligned with the rest"): a mark that is a choice, in the list the field opens and at the
+column's foot, has no number beside it (`counted`), so it stands on the line its neighbours'
+faces stand on and its words start where theirs do; the row's words and the column's tag say who.
+At the column's foot it is now as big as the faces above it, where it had been a size down to fit
+the number. The field and the route over a message keep the number. Measured on the desktop
+against a scratch server: the Everyone row's mark is 20 pixels square at the same left edge as
+the agents' faces, and its words start where theirs do.

@@ -160,6 +160,21 @@ export interface Pin {
   readonly seq: number;
 }
 
+/**
+ * A yes that lets an agent work in a space without asking (ADR 0281): given on an ask for an hour,
+ * or until somebody stops it. Every ask of the agent's there goes ahead without a card, but one
+ * that matters.
+ */
+export interface LetWork {
+  /** Whose asks go ahead: the agent, or a harness without agents. */
+  readonly asker: string;
+  /** Who gave it. */
+  readonly by: string;
+  readonly since: string;
+  /** When it stops; absent for one that holds until somebody stops it. */
+  readonly until?: string | undefined;
+}
+
 export interface Correction {
   readonly by: string;
   readonly text: string;
@@ -542,6 +557,8 @@ export interface AgentLeft {
 export interface PausedSpend {
   readonly spentUsd: number;
   readonly ceilingUsd: number;
+  /** When Chips held the agents, so the banner can tell a job that had already finished. */
+  readonly at?: string | undefined;
 }
 
 export interface Space {
@@ -651,6 +668,11 @@ export interface Space {
   readonly glimpse: boolean;
   /** The room's project (ADR 0222), once it has had a change. */
   readonly project?: RoomProject | undefined;
+  /**
+   * The agents let work here without asking (ADR 0281), one yes each, as given; one for an hour
+   * stays after its hour, so whether it still holds is `lettingWork`'s to say against a clock.
+   */
+  readonly letWork?: readonly LetWork[] | undefined;
 }
 
 /**

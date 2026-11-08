@@ -101,7 +101,9 @@ test("a message reaches the harness it is for, the capsule picks, and the refere
   scout.space = room;
 
   // Before Arjun's first message here, the capsule says every harness.
-  await expect(page.getByRole("button", { name: "To Everyone", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "To Everyone, 2 agents", exact: true }),
+  ).toBeVisible();
 
   // "@Pilot …" is Pilot's: Pilot takes it, and Scout overhears it.
   await say(page, "@Pilot are the quotes in line?");

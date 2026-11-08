@@ -1090,6 +1090,35 @@ export const approvalRouted = defineEvent({
   }),
 });
 
+/**
+ * A yes that held on in a space stopped (ADR 0281): one given for an hour, or until stopped, that
+ * let an agent's asks there go ahead without a card. Anybody in the space may stop it, since a
+ * stop only brings the asks back to a person; the agent's next ask comes to one as usual.
+ */
+export const approvalHeldStopped = defineEvent({
+  type: "approval.held_stopped",
+  direction: "workspace",
+  sender: "person",
+  summary:
+    "A person stopped the yes that let an agent work without asking in a space, for an hour or until stopped. Its next ask comes to a person.",
+  requiresRun: false,
+  payload: z.object({
+    asker: z
+      .string()
+      .min(1)
+      .max(120)
+      .describe(
+        "Whose yes stops: the agent, or a harness without agents, as the run that asked is worked by.",
+      ),
+    stopped_by: z
+      .string()
+      .min(1)
+      .max(120)
+      .optional()
+      .describe("Who stopped it. Filled in by Chips from the credential."),
+  }),
+});
+
 /** A cap in bytes, or `null` for the server's own ceiling (`CHIPS_MAX_ATTACHMENT_BYTES`). */
 const cap = z.number().int().min(1).nullable();
 
@@ -1225,6 +1254,7 @@ export const WORKSPACE_EVENTS = [
   messagePinned,
   messageUnpinned,
   approvalRouted,
+  approvalHeldStopped,
   attachmentLimitsSet,
   exchangeLimitsSet,
   workspaceRenamed,

@@ -50,8 +50,9 @@
   border-radius: 9px;
 }
 
-/* Four or more as one mark (ADR 0113): the first four's colours in a square of four, in a face's
-   corner, and how many beside it. */
+/* Four or more as one mark (ADR 0113), and Everyone from two: the first four's colours in a
+   square, in a face's corner, and how many beside it. Two are halves side by side (one row,
+   stretched to the square), three a half and two quarters, four quarters. */
 .ui-faces__mark {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -71,6 +72,10 @@
 
 .ui-faces__mark i {
   display: block;
+}
+
+.ui-faces__mark i:first-child:nth-last-child(3) {
+  grid-row: span 2;
 }
 
 .ui-faces__count {

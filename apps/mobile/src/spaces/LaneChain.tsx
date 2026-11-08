@@ -203,29 +203,50 @@ const RING = 2;
  * field at fourteen agents, over the words and Send, and three faces and a count left the words
  * short of "Message Everyone". The desktop's `FaceGroup` draws the same.
  */
-export const FACES_UP_TO = 3;
-/** Between the four colours of a mark. */
+const FACES_UP_TO = 3;
+/**
+ * Everyone is the mark from two (Arjun, 6 November 2026: "I want to show the tile icon even for
+ * 2+"). Two or three faces overlapped ran wider than the column's foot, and Everyone looked like
+ * a few of them rather than the room.
+ */
+const EVERYONE_UP_TO = 1;
+/** Between the colours of a mark. */
 const SEAM = 1.5;
+
+/** Whether `count` faces are drawn as one `Mark`: Everyone from two, any other step from four. */
+export function marked(count: number, everyone = false): boolean {
+  return count > (everyone ? EVERYONE_UP_TO : FACES_UP_TO);
+}
 
 /**
  * One step's faces: a single face, or several overlapped by `OVERLAP` points, each after the first
  * ringed in `ground` so the edge between two reads as two faces rather than one blot — the mock's
- * pair (`docs/proposals/who-a-message-is-for-mocks.html`). From four, they are one `Mark`.
+ * pair (`docs/proposals/who-a-message-is-for-mocks.html`). From four, or from two where they are
+ * Everyone, they are one `Mark`.
  */
 export function Faces({
   step,
   size = "sm",
   ground,
+  everyone = false,
+  counted = true,
 }: {
   readonly step: Step;
   readonly size?: AvatarSize;
   /** What the faces stand on: the room's page, unless said. */
   readonly ground?: string | undefined;
+  /** The faces are Everyone in the room, which is the mark from two (`marked`). */
+  readonly everyone?: boolean | undefined;
+  /**
+   * A mark says how many beside it, except as a choice: there the words say who, and the number
+   * pushed the mark off the line the other choices' faces stand on (Arjun, 6 November 2026).
+   */
+  readonly counted?: boolean | undefined;
 }) {
   const palette = usePalette();
   const hops: readonly Hop[] = isGroup(step) ? step : [step];
   const ring = ground ?? palette.bg;
-  if (hops.length > FACES_UP_TO) return <Mark hops={hops} size={size} />;
+  if (marked(hops.length, everyone)) return <Mark hops={hops} size={size} counted={counted} />;
   return (
     <View style={styles.faces}>
       {hops.map((hop, index) => (
@@ -262,15 +283,52 @@ export function Faces({
 }
 
 /**
- * Four or more as one face (ADR 0113, Arjun's pick of the mocks' B with a number): the first
- * four's colours in a square of four, in a face's own corner, and how many beside it. The faces
- * are in the list the field opens, and on the sheet a route opens.
+ * Where each colour of a mark sits in its square: two halves side by side, a half and two quarters
+ * beside it, or four quarters, as a group's picture is cut in Messages. A square of four with two
+ * colours left its foot empty.
  */
-function Mark({ hops, size }: { readonly hops: readonly Hop[]; readonly size: AvatarSize }) {
+function cellsOf(count: number, side: number) {
+  const cell = (side - SEAM) / 2;
+  const far = cell + SEAM;
+  const half = { width: cell, height: side };
+  const quarter = { width: cell, height: cell };
+  if (count === 2) {
+    return [
+      { left: 0, top: 0, ...half },
+      { left: far, top: 0, ...half },
+    ];
+  }
+  if (count === 3) {
+    return [
+      { left: 0, top: 0, ...half },
+      { left: far, top: 0, ...quarter },
+      { left: far, top: far, ...quarter },
+    ];
+  }
+  return [0, 1, 2, 3].map((index) => ({
+    left: index % 2 === 0 ? 0 : far,
+    top: index < 2 ? 0 : far,
+    ...quarter,
+  }));
+}
+
+/**
+ * Several as one face (ADR 0113, Arjun's pick of the mocks' B with a number): the first four's
+ * colours in a square (`cellsOf`), in a face's own corner, and how many beside it where `counted`.
+ * The faces are in the list the field opens, and on the sheet a route opens.
+ */
+function Mark({
+  hops,
+  size,
+  counted,
+}: {
+  readonly hops: readonly Hop[];
+  readonly size: AvatarSize;
+  readonly counted: boolean;
+}) {
   const palette = usePalette();
   const side = avatarSide(size);
-  const cell = (side - SEAM) / 2;
-  const at = [0, cell + SEAM];
+  const cells = cellsOf(hops.length, side);
   return (
     <View
       style={styles.mark}
@@ -292,21 +350,24 @@ function Mark({ hops, size }: { readonly hops: readonly Hop[]; readonly size: Av
             key={index}
             style={{
               position: "absolute",
-              left: at[index % 2],
-              top: at[Math.floor(index / 2)],
-              width: cell,
-              height: cell,
+              ...cells[index],
               backgroundColor: faceGround(hop.name, hop.icon),
             }}
+            testID="faces-mark-cell"
           />
         ))}
       </View>
-      <Text
-        style={[styles.count, { color: palette.ink2, fontSize: size === "xs" ? TEXT.md : TEXT.lg }]}
-        testID="faces-count"
-      >
-        {hops.length}
-      </Text>
+      {counted ? (
+        <Text
+          style={[
+            styles.count,
+            { color: palette.ink2, fontSize: size === "xs" ? TEXT.md : TEXT.lg },
+          ]}
+          testID="faces-count"
+        >
+          {hops.length}
+        </Text>
+      ) : null}
     </View>
   );
 }

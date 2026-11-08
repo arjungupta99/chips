@@ -85,7 +85,6 @@ export function Found({
         onOpen={(id) => go({ space: id })}
         onOpenAgent={(id) => go({ ...room, agent: id })}
         onClose={() => go({})}
-        onGoTo={(lineId) => go({ space, at: `line:${lineId}` })}
         onDetails={(item) => router.push(`/needs/${item.id}`)}
         preview={() => router.push(spaceHref(space, at, words))}
       />

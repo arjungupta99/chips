@@ -25,7 +25,7 @@ import { StyleSheet, View } from "react-native";
 import { RoomDrop } from "../../src/spaces/RoomDrop";
 import { RoomName, UniverseButton, useRoom } from "../../src/spaces/RoomHead";
 import { RoomSheet } from "../../src/spaces/RoomSheet";
-import { SpaceView } from "../../src/spaces/SpaceView";
+import { type GoTo, SpaceView } from "../../src/spaces/SpaceView";
 import { UniverseSheet } from "../../src/spaces/Universe";
 import { useUniverseCall } from "../../src/spaces/universeSeen";
 import { useChips } from "../../src/store/provider";
@@ -111,6 +111,8 @@ function Open({
   // is larger than mine, which is the whole reason it is measured.
   const glassy = useGlassy();
   const [headHeight, setHeadHeight] = useState(0);
+  // A line the room's sheet sends the reader to, which the room goes to and lights.
+  const [goTo, setGoTo] = useState<GoTo | undefined>(undefined);
   // Whether the room's list has laid out, when UIKit's edge settings are handed to it again.
   const [listed, setListed] = useState(false);
   // Universe, from the bar's right (ADR 0227), calling while the project has a change for this
@@ -228,6 +230,7 @@ function Open({
           onOpenAgent={(id) => router.push(`/agents/${id}`)}
           at={at}
           words={words}
+          goTo={goTo}
           onDetails={(item) => router.push(`/needs/${item.id}`)}
           onTakenSeen={() => (router.canGoBack() ? router.back() : router.replace("/"))}
           headHeight={glassy ? headHeight : 0}
@@ -255,9 +258,9 @@ function Open({
           from={room.sheet.from}
           files={paired?.files}
           workspace={paired?.device.workspaceName ?? "the workspace"}
-          // A file's viewer's *Go to message*: the room lands on the line, as a link does, with
-          // nothing a search marked in another line carried to it.
-          onGoTo={(lineId) => router.setParams({ at: `line:${lineId}`, words: undefined })}
+          // A file's viewer's *Go to message*, a job's reply: the room goes to the line and lights
+          // it, each time, the same line too.
+          onGoTo={(lineId) => setGoTo({ lineId, nonce: Date.now() })}
           // An agent's row opens its card, the Agents tab's, over the room (ADR 0111's addendum).
           onOpenAgent={(agentId) => router.push(`/agents/${agentId}`)}
           // The Media row: the space's own Media, Media on this phone's page for one space (ADR 0165).

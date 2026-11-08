@@ -32,7 +32,9 @@ const directory = { [ARJUN]: { id: ARJUN, kind: "person", displayName: "Arjun" }
 function rail(acts: RowActs, extra: { pinned?: string[]; tab?: "spaces" | "you" } = {}) {
   const onSelectTab = vi.fn();
   render(
+    // The rail's top and, under it, Spaces' list, as the phone's menu draws them (ADR 0284).
     <Sidebar
+      rooms
       model={model}
       directory={directory}
       readState={{}}

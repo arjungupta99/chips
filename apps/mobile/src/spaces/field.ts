@@ -49,6 +49,18 @@ export interface Field {
    */
   readonly home: SharedValue<number>;
   /**
+   * Until when (`Date.now()`) the room's moves are a change of its width, not of what it holds: the
+   * one layout an iPad's room takes as its column moves (`useHeldWidth`, ADR 0279), whose rows and
+   * bubbles glide on the panes' curve (`roomGlide`, in `RoomMotion.tsx`). Nought when none is coming.
+   */
+  readonly glide: SharedValue<number>;
+  /**
+   * How far that change of width moves the start of the lines' column on the glass, in which the
+   * rows stand, at once (`useHeldWidth`): each row sets off from where it was drawn, not where it
+   * stood in the column (`roomGlide`). Taken by the one layout it is told for, and nought after.
+   */
+  readonly shift: SharedValue<number>;
+  /**
    * A change the reader is making in the room themselves — a line deleted, or brought back by
    * Undo — which moves on the room's spring even up the history (`RoomMotion.tsx`, `madeHere`).
    */
