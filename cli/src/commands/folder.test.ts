@@ -341,6 +341,9 @@ describe("Run (ADR 0226)", () => {
     expect(opened).toEqual([["http://localhost:8000"]]);
     expect(await ran("status")).toMatchObject({ run: { state: "running" } });
 
+    // A login shell can take its time on a busy machine, and the run counts as started before it prints.
+    const log = join(scratch, "Library", "Caches", "chat.chips", "runs", ws.spaceId, "log");
+    await until(async () => readFileSync(log, "utf8").includes("up"));
     const stopped = await ran("stop");
     expect(stopped).toMatchObject({ run: { state: "stopped", lines: ["up"] } });
     expect(await ran("status")).toMatchObject({ run: { state: "stopped" } });
