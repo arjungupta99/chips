@@ -98,6 +98,25 @@ async function longRoom(
 }
 
 /**
+ * Until a row has stood still for twenty painted frames. The thinking row that has just come glides
+ * the room's end up by its own height, and a late frame on a loaded machine can carry all of that
+ * glide at once (56 px in one frame on the CI runner, 9 November 2026). Frames, not milliseconds:
+ * a stalled page paints none, so it can't pass for a still one.
+ */
+async function atRest(row: Locator): Promise<void> {
+  await row.evaluate(async (element) => {
+    let still = 0;
+    let last = element.getBoundingClientRect().top;
+    while (still < 20) {
+      await new Promise((done) => requestAnimationFrame(done));
+      const top = element.getBoundingClientRect().top;
+      still = top === last ? still + 1 : 0;
+      last = top;
+    }
+  });
+}
+
+/**
  * Delete line `n` for me, Undo it, and read the rows two either side of it all the while: those
  * over it glide, with no step of a row's height, and those under it stand still.
  */
@@ -109,6 +128,7 @@ async function deleteAndUndo(
 ): Promise<void> {
   const target = row(n);
   await expect(target).toBeInViewport();
+  await atRest(target);
   const around = [n - 2, n - 1, n, n + 1, n + 2];
   const ids = await Promise.all(around.map((at) => row(at).getAttribute("data-line")));
   await target.click({ button: "right" });
