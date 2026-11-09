@@ -78,6 +78,7 @@ export const ROUND: Turns = {
   high: 1,
   rise: Easing.out(Easing.quad),
   fall: Easing.in(Easing.quad),
+  ring: true,
 };
 
 export function ChipPulse({

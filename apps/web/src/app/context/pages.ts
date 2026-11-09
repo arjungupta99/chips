@@ -30,6 +30,11 @@ export type ContextPage =
       readonly own: boolean;
     }
   | {
+      /** An agent's Permissions (ADR 0286), which its card's row and its band in a room open. */
+      readonly kind: "agent_permissions";
+      readonly agentId: string;
+    }
+  | {
       /** An agent's face, chosen on a page over its card (ADR 0272), its Icon row's. */
       readonly kind: "agent_face";
       readonly agentId: string;
@@ -72,6 +77,7 @@ export function pageName(page: ContextPage): string {
   switch (page.kind) {
     case "agent":
     case "agent_history":
+    case "agent_permissions":
     case "agent_face":
       return `${page.kind} ${page.agentId}`;
     case "file":

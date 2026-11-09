@@ -71,10 +71,8 @@ import {
   searchTerms,
   routeWords as sentToWords,
   separatorLabel,
-  spaceDoing,
   spaceSubtitle,
   spaceTitle,
-  THINKING_GRACE_MS,
   takesFeedback,
   turnsOf,
   type UnsentNote,
@@ -104,13 +102,11 @@ import {
 } from "@chipschat/ui";
 import {
   type ClipboardEvent,
-  Fragment,
   memo,
   type ReactNode,
   type RefObject,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -119,6 +115,7 @@ import { facesOf, useAddressInField, useAiming } from "./AddressInField.tsx";
 import { AgentNotice } from "./AgentNotice.tsx";
 import { Ask, type Chosen } from "./Ask.tsx";
 import { Attachments } from "./Attachments.tsx";
+import type { BannerService } from "./agent/bannerService.ts";
 import { ListButton, useThird } from "./Columns.tsx";
 import { useColourField } from "./colourField.ts";
 import { Decide, type DecisionInput } from "./Decide.tsx";
@@ -147,6 +144,7 @@ import {
 import { hasMenu, LineMenu, More, type Point } from "./LineMenu.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { type Focus, MessageList } from "./MessageList.tsx";
+import { RoomAsks } from "./RoomAsks.tsx";
 import { type RouteMark, RouteOver } from "./RouteOver.tsx";
 import type { SpaceActions } from "./room/actions.ts";
 import { useBubbleShape } from "./room/bubbleShape.ts";
@@ -228,6 +226,9 @@ export interface SpaceViewProps {
    * Absent, the band offers no Stop.
    */
   readonly onStopLetWork?: ((asker: string) => void) | undefined;
+  /** The person's say over the band, and where its words lead (ADR 0286). */
+  readonly banners?: BannerService | undefined;
+  readonly onOpenPermissions?: ((asker: string) => void) | undefined;
   /** Take back a message still held because the socket is shut, by its idempotency key. */
   readonly onDiscard?: ((key: string) => void) | undefined;
   /**
@@ -378,9 +379,6 @@ export function SpaceView(props: SpaceViewProps) {
   // Out of touch with the server, or a beat after it is back while it catches up: the bubbles say
   // what was known, and stand still.
   const inTouch = useInTouch(props.connection);
-  // A thinking bubble waits a beat from its run's start, and for the reader's own line to be the
-  // server's, so a quick answer comes without one (ADR 0050 rule 6, ADR 0268).
-  const thinking = useBeat(spaceDoing(space), space.lines.at(-1)?.pending !== true);
   const limits = props.model?.exchangeLimits;
   const rows = useMemo(
     () =>
@@ -503,7 +501,14 @@ export function SpaceView(props: SpaceViewProps) {
           headEnd={props.headEnd}
           onGoTo={goToLine}
         />
-        <LetWorkBand space={space} directory={directory} now={now} onStop={props.onStopLetWork} />
+        <LetWorkBand
+          space={space}
+          directory={directory}
+          now={now}
+          onStop={props.onStopLetWork}
+          service={props.banners}
+          onOpenPermissions={props.onOpenPermissions}
+        />
         <Pins space={space} onJump={(lineId) => setFocus({ lineId, nonce: Date.now() })} />
 
         <div className="msgs" ref={scroller} data-testid="messages">
@@ -550,17 +555,28 @@ export function SpaceView(props: SpaceViewProps) {
             />
           </DustProvider>
 
-          {withCards(space).map((each) => (
-            <Fragment key={each.runId}>
-              {each.approvals.map((approval) => (
+          <RoomAsks
+            key={space.id}
+            space={space}
+            confirmed={space.lines.at(-1)?.pending !== true}
+            working={(doing) => (
+              <Thinking
+                key={doing.harnessId}
+                doing={doing}
+                directory={directory}
+                resting={!inTouch}
+              />
+            )}
+          >
+            {(ask) =>
+              ask.kind === "approval" ? (
                 <Decide
-                  key={approval.approvalId}
-                  approval={approval}
-                  harnessName={name(each.harnessId)}
-                  harnessId={each.harnessId}
+                  approval={ask.approval}
+                  harnessName={name(ask.harnessId)}
+                  harnessId={ask.harnessId}
                   directory={directory}
                   selfId={selfId}
-                  busy={props.busy.has(approval.approvalId)}
+                  busy={props.busy.has(ask.id)}
                   now={now}
                   onDecide={props.onDecide}
                   onRoute={props.onRoute}
@@ -569,7 +585,7 @@ export function SpaceView(props: SpaceViewProps) {
                     space,
                     people: props.people ?? {},
                     selfId,
-                    lane: props.model !== undefined && runIsLane(props.model, approval.runId),
+                    lane: props.model !== undefined && runIsLane(props.model, ask.approval.runId),
                   })}
                   workspaceRole={props.standing?.inWorkspace}
                   keepsHeldYes={props.keepsHeldYes}
@@ -579,28 +595,18 @@ export function SpaceView(props: SpaceViewProps) {
                       : roomName(props.model, space.id, directory)
                   }
                 />
-              ))}
-              {each.questions.map((question) => (
+              ) : (
                 <Ask
-                  key={question.askId}
-                  question={question}
-                  harnessName={name(each.harnessId)}
+                  question={ask.question}
+                  harnessName={name(ask.harnessId)}
                   personName={name}
-                  busy={props.busy.has(question.askId)}
+                  busy={props.busy.has(ask.id)}
                   now={now}
                   onAnswer={props.onAnswer}
                 />
-              ))}
-            </Fragment>
-          ))}
-          {thinking.map((doing) => (
-            <Thinking
-              key={doing.harnessId}
-              doing={doing}
-              directory={directory}
-              resting={!inTouch}
-            />
-          ))}
+              )
+            }
+          </RoomAsks>
         </div>
 
         {props.notice !== undefined && (
@@ -2062,55 +2068,6 @@ function LaneTask({
       />
     </div>
   );
-}
-
-/**
- * The runs whose cards the room draws under its lines: the newest, whose decided cards stay under
- * it until another run starts, as they always have; and any other still waiting on somebody. The
- * newest alone was drawn until 27 September 2026, so an ask one harness was waiting on went from
- * the desktop the moment another harness in the room started a run. The phone already drew every
- * run's open asks (`openAsks`).
- */
-function withCards(space: Space): readonly Run[] {
-  return space.runs.filter(
-    (run) =>
-      run.runId === space.run?.runId ||
-      run.approvals.some((approval) => approval.resolved === undefined) ||
-      run.questions.some((question) => question.answered === undefined),
-  );
-}
-
-/**
- * The harnesses at work whose bubbles stand: each once its run has been going `THINKING_GRACE_MS`
- * and the room's newest line is the server's, and each from then until it stops, whatever is sent
- * meanwhile — taken down at each send, it folded shut and opened again under every message typed
- * while the harness worked (the phone, 23 September 2026). The beat is counted from the run's own
- * start, so a room opened on a run long going shows its bubble at once; a clock ahead of the
- * server's waits no more than the beat.
- */
-function useBeat(doing: readonly Doing[], confirmed: boolean): readonly Doing[] {
-  const standing = useRef<ReadonlySet<string>>(new Set());
-  const [, again] = useState(0);
-  const now = Date.now();
-  const left = (each: Doing) => {
-    const started = each.startedAt === undefined ? Number.NaN : new Date(each.startedAt).getTime();
-    if (Number.isNaN(started)) return 0;
-    return Math.min(THINKING_GRACE_MS, Math.max(0, started + THINKING_GRACE_MS - now));
-  };
-  const shown = doing.filter(
-    (each) => standing.current.has(each.harnessId) || (confirmed && left(each) === 0),
-  );
-  const waits = confirmed ? doing.filter((each) => !shown.includes(each)).map(left) : [];
-  const next = waits.length === 0 ? undefined : Math.max(1, Math.min(...waits));
-  useLayoutEffect(() => {
-    standing.current = new Set(shown.map((each) => each.harnessId));
-  });
-  useEffect(() => {
-    if (next === undefined) return;
-    const timer = setTimeout(() => again((n) => n + 1), next);
-    return () => clearTimeout(timer);
-  }, [next]);
-  return shown;
 }
 
 /**

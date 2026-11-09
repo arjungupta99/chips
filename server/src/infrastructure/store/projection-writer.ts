@@ -19,6 +19,7 @@ import {
   applyRunTransition,
   type CarriedSpend,
   type Change,
+  type HeldStarted,
   type HeldStopped,
   type ProjectionTable,
   type Row,
@@ -81,6 +82,9 @@ export async function applyChanges(
         break;
       case "session_rule":
         await sessionRule(trx, change);
+        break;
+      case "held_started":
+        await heldStarted(trx, change);
         break;
       case "held_stopped":
         await heldStopped(trx, change);
@@ -387,6 +391,31 @@ async function heldWhere(
     .executeTakeFirst();
   if (run === undefined) return undefined;
   return { space_id: spaceId, participant_id: run.agent_id ?? run.harness_id, until: change.until };
+}
+
+/**
+ * A yes until stopped with no ask behind it (ADR 0286): the row one given on a card makes, whose
+ * run and approval columns hold the event that said it, so it is one row however often it replays.
+ */
+async function heldStarted(trx: Transaction<Database>, change: HeldStarted): Promise<void> {
+  await trx
+    .insertInto("session_rules")
+    .values({
+      workspace_id: change.workspaceId,
+      run_id: change.eventId,
+      approval_id: change.eventId,
+      match: "*",
+      external: 0,
+      irreversible: 0,
+      starts_with: null,
+      decision: "allow",
+      decided_at: change.at,
+      space_id: change.spaceId,
+      participant_id: change.asker,
+      until: null,
+    })
+    .onConflict((oc) => oc.columns(["run_id", "approval_id"]).doNothing())
+    .execute();
 }
 
 /** A person's stop (ADR 0281): the agent's yeses still holding in the space end now. */

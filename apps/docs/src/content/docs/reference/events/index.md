@@ -100,6 +100,7 @@ get approval cards. Send context usage and you get the context ring.
 | [`message.unpinned`](/reference/events/message-unpinned/) | A pinned message was let go. |
 | [`approval.routed`](/reference/events/approval-routed/) | A pending approval handed to somebody else to answer (M5.5): a teammate, a role, or the lane's lead. Chips resolves `to` to ids, as it does on the request. |
 | [`approval.held_stopped`](/reference/events/approval-held_stopped/) | A person stopped the yes that let an agent work without asking in a space, for an hour or until stopped. Its next ask comes to a person. |
+| [`approval.held_started`](/reference/events/approval-held_started/) | A person let an agent work without asking in a space until it is stopped, from the agent's page rather than an ask's card. |
 | [`attachment.limits_set`](/reference/events/attachment-limits_set/) | An owner or an admin capped how big a photo, a video or a file may be here (ADR 0047). Everyone's, and the server refuses an upload over it. |
 | [`exchange.limits_set`](/reference/events/exchange-limits_set/) | An owner or an admin set when Chips tells the agents in any room to stop, when it holds their messages to each other, and whether agents going in circles are told to stop then (ADR 0187). Everyone's, in every room. |
 | [`workspace.renamed`](/reference/events/workspace-renamed/) | An owner named the workspace again. Every device connected changes its name at once; one that connects later is told by the hello. |

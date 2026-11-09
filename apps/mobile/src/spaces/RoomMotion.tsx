@@ -67,6 +67,7 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef }
 import {
   type FlatList,
   type LayoutChangeEvent,
+  Platform,
   type StyleProp,
   View,
   type ViewStyle,
@@ -999,9 +1000,12 @@ export function MovingBubble({
 }) {
   const transition = useContext(RoomTransition);
   const less = useReduceMotion();
+  // On the bubble from its first draw, and not from when the room is built as the layout move is:
+  // a transition that arrives on a drawn view takes every corner it names as changing from
+  // nothing, and each opened square.
   const rounding = useMemo(
     () =>
-      less || transition === undefined
+      less || Platform.OS === "web"
         ? corners
         : {
             ...corners,
@@ -1009,7 +1013,7 @@ export function MovingBubble({
             transitionDuration: CORNER_MS,
             transitionTimingFunction: "ease-out" as const,
           },
-    [corners, less, transition],
+    [corners, less],
   );
   return (
     <LayoutAnimationConfig skipExiting>

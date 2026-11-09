@@ -36,13 +36,14 @@
  *
  * The words say when they have gone and when they are back, and nothing here guesses either: their
  * fades are on the steady clock, which a stall holds back, so on the wall's clock the lines would
- * set off before the words had gone, and be let go with the words still coming back.
+ * set off before the words had gone, and be let go with the words still coming back. The panes go
+ * by the lines in turn: they set off once the lines are drawn at the new width (`Told.waiting`).
  *
  * Kept apart from the words' motion, which is Reanimated, so that when each part happens can be
  * proved under Jest.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Platform, useWindowDimensions } from "react-native";
 import { useReduceMotion } from "../ui/useReduceMotion";
 
@@ -70,8 +71,11 @@ export const GLIDE = 480;
  */
 export const WORDS_BACK = 520;
 export const WORDS_IN = 200;
-/** A frame or two past the glide, before the lines let go of their width. */
-const SETTLED = 40;
+/**
+ * When the lines let go of their width, once they have taken it: past the glide and past the panes,
+ * which set off a frame after them (`panesWait`) and which a stall holds back on the steady clock.
+ */
+export const LET_GO = GLIDE + 120;
 
 /** The lines' words: going or gone, coming back, or simply there. */
 export type Words = "going" | "coming" | undefined;
@@ -100,6 +104,8 @@ export interface Told {
   readonly glide: (shift: number, take: () => void) => void;
   /** They have landed. */
   readonly landed: () => void;
+  /** Whether the panes beside the room are to wait for them: until they have taken the new width. */
+  readonly waiting: (waiting: boolean) => void;
 }
 
 /** The width the lines' box holds, and the room's edge it keeps to. */
@@ -113,6 +119,8 @@ export interface HeldWidth {
   readonly width: number | undefined;
   readonly edge: Edge | undefined;
   readonly words: Words;
+  /** Each change of width the words are going for, counted: they say they have gone for each. */
+  readonly change: number;
   /** The words have gone: the lines take the new width. */
   readonly gone: () => void;
   /** The words are back. */
@@ -166,6 +174,12 @@ export function useHeldWidth(
   const now = useRef(change);
   now.current = change;
   const { gliding } = change;
+  // The panes wait from the commit that holds the lines to the one that draws them at the new width.
+  const waiting = held !== undefined && !gliding;
+  useLayoutEffect(() => {
+    tell.current.waiting(waiting);
+  }, [waiting]);
+  useEffect(() => () => tell.current.waiting(false), []);
   // Gone, said once for the change the words went for: the lines take the newest width, once the
   // moves have been told; and the newest then, should it have changed again meanwhile.
   const gone = useCallback(() => {
@@ -194,13 +208,13 @@ export function useHeldWidth(
     const rest = setTimeout(() => {
       tell.current.landed();
       setHeld(undefined);
-    }, GLIDE + SETTLED);
+    }, LET_GO);
     return () => {
       clearTimeout(coming);
       clearTimeout(rest);
     };
   }, [gliding]);
-  return { width: held?.width, edge: held?.edge, words, gone, back };
+  return { width: held?.width, edge: held?.edge, words, change: change.count, gone, back };
 }
 
 /**

@@ -34,7 +34,12 @@ export function useTurns(
  * the connection's board, which leave their pins as the pins light (`Circuit.tsx`). Started in the
  * same commit as the lights' own, it runs in step with them.
  */
-export function useRound(duration: number, running: boolean, delayMs = 0): Animated.Value {
+export function useRound(
+  duration: number,
+  running: boolean,
+  delayMs = 0,
+  easing: (value: number) => number = Easing.linear,
+): Animated.Value {
   const clock = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     // Every round starts where this one does, so it must start at the top: a clock stopped half
@@ -47,7 +52,7 @@ export function useRound(duration: number, running: boolean, delayMs = 0): Anima
       Animated.timing(clock, {
         toValue: 1,
         duration,
-        easing: Easing.linear,
+        easing,
         useNativeDriver: NATIVE,
       }),
     );
@@ -60,6 +65,6 @@ export function useRound(duration: number, running: boolean, delayMs = 0): Anima
       clearTimeout(held);
       round.stop();
     };
-  }, [clock, duration, running, delayMs]);
+  }, [clock, duration, running, delayMs, easing]);
   return clock;
 }

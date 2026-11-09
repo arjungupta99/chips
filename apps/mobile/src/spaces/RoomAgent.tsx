@@ -71,6 +71,7 @@ export function AgentPage({
             agentId={agentId}
             selfId={selfId}
             onHistory={onHistory}
+            onPermissions={() => router.push(`/agents/${agentId}/permissions`)}
             context={{
               focus: 0,
               onOpenFile: (name, mode) =>

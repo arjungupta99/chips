@@ -1119,6 +1119,34 @@ export const approvalHeldStopped = defineEvent({
   }),
 });
 
+/**
+ * A yes that holds on, given with no ask to answer (ADR 0286): a person let an agent work in a space
+ * without asking from the agent's own page, until it is stopped. The same yes as `until_stopped` on
+ * `approval.resolved`, so what matters still comes to a person. Only the person whose agent it is,
+ * or an owner or an admin, gives it.
+ */
+export const approvalHeldStarted = defineEvent({
+  type: "approval.held_started",
+  direction: "workspace",
+  sender: "person",
+  summary:
+    "A person let an agent work without asking in a space until it is stopped, from the agent's page rather than an ask's card.",
+  requiresRun: false,
+  payload: z.object({
+    asker: z
+      .string()
+      .min(1)
+      .max(120)
+      .describe("Whose asks go ahead: the agent, or a harness without agents, in the space."),
+    started_by: z
+      .string()
+      .min(1)
+      .max(120)
+      .optional()
+      .describe("Who gave it. Filled in by Chips from the credential."),
+  }),
+});
+
 /** A cap in bytes, or `null` for the server's own ceiling (`CHIPS_MAX_ATTACHMENT_BYTES`). */
 const cap = z.number().int().min(1).nullable();
 
@@ -1255,6 +1283,7 @@ export const WORKSPACE_EVENTS = [
   messageUnpinned,
   approvalRouted,
   approvalHeldStopped,
+  approvalHeldStarted,
   attachmentLimitsSet,
   exchangeLimitsSet,
   workspaceRenamed,

@@ -9,6 +9,8 @@
  * choices would be names the same words. A pass of light goes down it as it opens, when the card
  * says so (`sweep`): an open ask drawn for the first time, not a room opened again. The phone's
  * plate is the same (`apps/mobile/src/needs/CommandPlate.tsx`).
+ *
+ * A long command scrolls inside its plate, so the card's answer stays in reach (`.plate-lines`).
  */
 
 import type { Plate, PlateBit, PlateJoint } from "@chipschat/core";
@@ -33,34 +35,36 @@ export function CommandPlate({
   const caption = plateCaption(plate);
   return (
     <div className="plate-wrap">
-      <ol
+      <div
         className="plate"
-        aria-label="The command, a part to a line"
         data-lit={lit ? "true" : undefined}
         data-sweep={sweep ? "true" : undefined}
         data-testid="command-plate"
       >
-        {plate.parts.map((part, index) => (
-          <li
-            // A command's parts have no ids, and their order is the command's.
-            // biome-ignore lint/suspicious/noArrayIndexKey: a part is only ever itself.
-            key={index}
-            className="plate-part"
-            data-testid="plate-part"
-            aria-label={`${said(part.joint)}${part.bits.map((bit) => bit.text).join(" ")}`}
-          >
-            <span className="plate-rail" aria-hidden="true">
-              {part.joint === "pipe" ? "|" : "›"}
-            </span>
-            <code>
-              {runsOf(part.bits).map((run, at, runs) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: a run is only ever itself.
-                <Bit key={at} bit={run} last={at === runs.length - 1} />
-              ))}
-            </code>
-          </li>
-        ))}
-      </ol>
+        {/* biome-ignore lint/a11y/noNoninteractiveTabindex: it scrolls, so the keyboard has to reach it. */}
+        <ol className="plate-lines" aria-label="The command, a part to a line" tabIndex={0}>
+          {plate.parts.map((part, index) => (
+            <li
+              // A command's parts have no ids, and their order is the command's.
+              // biome-ignore lint/suspicious/noArrayIndexKey: a part is only ever itself.
+              key={index}
+              className="plate-part"
+              data-testid="plate-part"
+              aria-label={`${said(part.joint)}${part.bits.map((bit) => bit.text).join(" ")}`}
+            >
+              <span className="plate-rail" aria-hidden="true">
+                {part.joint === "pipe" ? "|" : "›"}
+              </span>
+              <code>
+                {runsOf(part.bits).map((run, at, runs) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: a run is only ever itself.
+                  <Bit key={at} bit={run} last={at === runs.length - 1} />
+                ))}
+              </code>
+            </li>
+          ))}
+        </ol>
+      </div>
       {caption !== undefined && (
         <p className="plate-caption" data-testid="plate-caption">
           <Words text={caption} />

@@ -234,6 +234,21 @@ describe("what an event means", () => {
     ]);
   });
 
+  it("keeps a yes from an agent's page as a row with no end, by the event that said it (ADR 0286)", () => {
+    const start = fixture("approval.held_started");
+    expect(project(start)).toEqual([
+      {
+        kind: "held_started",
+        table: "session_rules",
+        workspaceId: start.workspace_id,
+        spaceId: start.space_id,
+        asker: "agt_01K4ZQPX000000000000000001",
+        eventId: start.id,
+        at: start.ts,
+      },
+    ]);
+  });
+
   it("files an attachment under the space and the message that carried it", () => {
     const post = fixture("message.post");
     const withFile = {

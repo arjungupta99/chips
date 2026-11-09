@@ -5,13 +5,14 @@
  * thumb found it.
  */
 
-import { nameOf, type Snapshot, type Store } from "@chipschat/core";
+import { nameOf, PERMISSIONS_TITLE, type Snapshot, type Store } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { fileHref } from "../context/owner";
 import { Pane } from "../ui/Pane";
 import { useThirdHost } from "../ui/Split";
 import { AgentCard } from "./AgentCard";
 import { History } from "./History";
+import { Permissions } from "./Permissions";
 
 export function AgentPane({
   store,
@@ -19,10 +20,13 @@ export function AgentPane({
   agentId,
   selfId,
   history,
+  permissions = false,
   lockGlow = false,
   onBack,
   onClose,
   onHistory,
+  onPermissions,
+  onOpenAsks,
   onOpenRoom,
   onOpenAgent,
   onOpenHarness,
@@ -34,6 +38,8 @@ export function AgentPane({
   readonly selfId: string;
   /** Its message history rather than its card. */
   readonly history: boolean;
+  /** Its Permissions page rather than its card (ADR 0286). */
+  readonly permissions?: boolean;
   /** Opened from its Locked (ADR 0199): the card's lock row glows once. */
   readonly lockGlow?: boolean;
   /** Where the pane's back goes, when it has one: the card from its history, the room from its card. */
@@ -41,6 +47,10 @@ export function AgentPane({
   /** In a third column, its × (ADR 0276): its history beside its card. */
   readonly onClose?: (() => void) | undefined;
   readonly onHistory: () => void;
+  /** Its Permissions page. Absent, the page is pushed, which on a wide screen is the Agents tab. */
+  readonly onPermissions?: (() => void) | undefined;
+  /** Every ask so far, on its harness's page. Absent, the page is pushed. */
+  readonly onOpenAsks?: ((harnessId: string) => void) | undefined;
   readonly onOpenRoom: (spaceId: string) => void;
   /** Another agent's card: the one a copy was forked from, or one its history names. */
   readonly onOpenAgent: (agentId: string) => void;
@@ -50,6 +60,14 @@ export function AgentPane({
   readonly onDeleted: () => void;
 }) {
   const router = useRouter();
+  const openPermissions = onPermissions ?? (() => router.push(`/agents/${agentId}/permissions`));
+  const openAsks =
+    onOpenAsks ??
+    ((harnessId: string) =>
+      router.push({
+        pathname: "/harnesses/[id]/[part]",
+        params: { id: harnessId, part: "asked" },
+      }));
   // Its history and its harness's pages open in the third column on the Agents tab (ADR 0276): a
   // choice of the card's standing there closes for them, rather than stand over them.
   const host = useThirdHost();
@@ -61,11 +79,26 @@ export function AgentPane({
     };
   return (
     <Pane
-      title={history ? "Message history" : nameOf(snapshot.directory, agentId)}
+      title={
+        permissions
+          ? PERMISSIONS_TITLE
+          : history
+            ? "Message history"
+            : nameOf(snapshot.directory, agentId)
+      }
       onBack={onBack}
       onClose={onClose}
     >
-      {history ? (
+      {permissions ? (
+        <Permissions
+          store={store}
+          snapshot={snapshot}
+          agentId={agentId}
+          selfId={selfId}
+          onOpenHarness={onOpenHarness}
+          onOpenAsks={openAsks}
+        />
+      ) : history ? (
         <History
           store={store}
           snapshot={snapshot}
@@ -82,6 +115,7 @@ export function AgentPane({
           selfId={selfId}
           lockGlow={lockGlow}
           onHistory={beside(onHistory)}
+          onPermissions={beside(openPermissions)}
           context={{
             focus: 0,
             onOpenFile: (name, mode) =>

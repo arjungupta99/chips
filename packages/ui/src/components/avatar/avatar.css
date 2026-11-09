@@ -80,62 +80,56 @@
 }
 
 /*
- * The light that runs round a face while there is work going in the room it stands for (ADR
- * 0090). The ring is state, and it was a still border on harness-named rooms alone, so a list of
- * fifty rooms said nothing about which of them was busy. The band follows the face's own shape:
- * a ring of the corner it inherits, painted by a turning conic gradient and masked to its own
- * padding, so one rule rings a circle, a squircle and a square alike. The phone turns an arc
- * inside a clip of the same shape for the same reason (`BusyRing.tsx`).
+ * A room at work wears the pins an agent wears (ADR 0285, in place of ADR 0090's light): the face
+ * draws in and they come out from behind it one after another, and they go back in the same way
+ * when the work ends. They are placed by `WorkingPins`, pointing up and then turned, so one
+ * translation along a pin's own length takes it under the face from any side. Only transform and
+ * opacity move. The phone runs the same journey on the native clock (`pinTravel.ts`), and these
+ * are its numbers. With Reduce Motion on, `base.css` takes every animation and transition away and
+ * what is left is the pins out, dim and still.
  *
- * With Reduce Motion on, `base.css` takes the turn away, and what is left would be an arc stopped
- * at twelve o'clock, which reads as a measure of something. It is a quiet whole ring instead: the
- * same ring, saying the same thing.
+ * The face's ground moves to `::before` while it has pins, above them in the stacking order, so
+ * that they really are behind it: an element's own background is always under its children.
  */
-@property --busy-at {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
+.ui-avatar[data-worn] {
+  --ease-pop: cubic-bezier(0.3, 1.45, 0.5, 1);
+  background: none;
+  isolation: isolate;
+  transition: transform 372ms var(--ease);
 }
 
-.ui-avatar[data-busy="true"]::after {
+.ui-avatar[data-worn]::before {
   content: "";
   position: absolute;
-  inset: -2px;
-  border: 0;
+  inset: 0;
   border-radius: inherit;
-  padding: 2px;
-  --busy-dim: color-mix(in oklab, var(--blue) 20%, transparent);
-  background: conic-gradient(
-    from var(--busy-at),
-    var(--busy-dim) 0 70%,
-    color-mix(in oklab, var(--blue) 45%, transparent) 86%,
-    var(--blue) 99%,
-    var(--busy-dim) 100%
-  );
-  /* The band is the padding: the box less its own content box, which is any opaque paint in one
-     and not the other (`ring.css` cuts its hole with the same token). */
-  -webkit-mask:
-    linear-gradient(var(--ink) 0 0) content-box,
-    linear-gradient(var(--ink) 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(var(--ink) 0 0) content-box,
-    linear-gradient(var(--ink) 0 0);
-  mask-composite: exclude;
-  animation: ui-avatar-sweep 2600ms linear infinite;
-  pointer-events: none;
+  background: var(--avatar-color);
+  z-index: -1;
 }
 
-/* The gradient turns, not the box: a rotated ring takes a squircle's corners round with it. */
-@keyframes ui-avatar-sweep {
-  to {
-    --busy-at: 360deg;
-  }
+.ui-avatar[data-worn] .ui-avatar-pins {
+  z-index: -2;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .ui-avatar[data-busy="true"]::after {
-    background: color-mix(in oklab, var(--blue) 40%, transparent);
+.ui-avatar[data-busy="true"] {
+  transform: scale(var(--avatar-drawn));
+}
+
+/* Going back in: the last one out goes first, a little quicker than they came. */
+.ui-avatar[data-worn] .ui-avatar-pins i {
+  transform: rotate(var(--pin-turn)) translateY(100%);
+  transition: transform 212ms var(--ease) calc((11 - var(--pin-at)) * 23ms);
+}
+
+.ui-avatar[data-busy="true"] .ui-avatar-pins i {
+  transform: rotate(var(--pin-turn));
+  transition: transform 285ms var(--ease-pop) calc(var(--pin-at) * 30ms);
+}
+
+/* A face that starts working on the screen brings its pins out; one drawn working has them out. */
+@starting-style {
+  .ui-avatar[data-worn="since"][data-busy="true"] .ui-avatar-pins i {
+    transform: rotate(var(--pin-turn)) translateY(100%);
   }
 }
 
@@ -325,7 +319,8 @@
   opacity: calc(var(--pin-rest, 0.3) * var(--pin-dim, 1));
 }
 
-.ui-avatar[data-working="true"] .ui-avatar-pins i::after {
+.ui-avatar[data-working="true"] .ui-avatar-pins i::after,
+.ui-avatar[data-busy="true"] .ui-avatar-pins i::after {
   animation: ui-avatar-pin 1500ms linear infinite;
   animation-delay: inherit;
 }

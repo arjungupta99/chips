@@ -491,6 +491,12 @@ function accepted(type: string, kind: "harness" | "person"): boolean {
   return sender === kind || sender === "either";
 }
 
+/** The event as the scenario sends it: a yes from an agent's page names somebody here (ADR 0286). */
+function sentBy(type: string): Record<string, unknown> {
+  const event = fixture(type);
+  return type === "approval.held_started" ? { ...event, asker: SCOUT.participantId } : event;
+}
+
 describe("who may send what", () => {
   const cases = EVENTS.flatMap((event) => [
     [event.type, "harness"] as const,
@@ -511,7 +517,7 @@ describe("who may send what", () => {
       messages: { [MESSAGE]: said },
     });
     const result = await submit({
-      event: fixture(type),
+      event: sentBy(type),
       principal,
       idempotencyKey: "once",
     });

@@ -30,6 +30,7 @@ const PARTICIPANTS = "participants";
 const SPACE_ICONS = "space-icons";
 const HIDDEN_SPACES = "hidden-spaces";
 const PINNED_SPACES = "pinned-spaces";
+const BANNERS = "banners";
 
 /** A plain object of values by key, as a JSON document keeps one: not an array, not null. */
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -206,6 +207,8 @@ export function openSqliteCache(key: string): Cache {
       return Array.isArray(kept) ? kept.filter((id) => typeof id === "string") : undefined;
     },
     saveHiddenSpaces: (spaceIds) => putMeta(HIDDEN_SPACES, [...spaceIds]),
+    loadBanners: () => meta<unknown>(BANNERS, undefined),
+    saveBanners: (banners) => putMeta(BANNERS, banners),
     loadPinnedSpaces: async () => {
       const kept = await meta<unknown>(PINNED_SPACES, undefined);
       return Array.isArray(kept) ? kept.filter((id) => typeof id === "string") : undefined;

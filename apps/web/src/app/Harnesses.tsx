@@ -50,6 +50,7 @@ import {
   mayRemoveHarness,
   myRole,
   nameOf,
+  PERMISSIONS_TITLE,
   pageAgentHint,
   pageAgentName,
   RUN_IN_TERMINAL,
@@ -73,6 +74,8 @@ import {
 } from "./Agents.tsx";
 import { AgentFace } from "./agent/AgentFace.tsx";
 import { AgentHistory } from "./agent/AgentHistory.tsx";
+import { AgentPermissions } from "./agent/AgentPermissions.tsx";
+import type { BannerService } from "./agent/bannerService.ts";
 import { Columns, ListButton, useThird } from "./Columns.tsx";
 import { ContextFile } from "./context/ContextFile.tsx";
 import { type ContextPage, OpenedPage, pageName } from "./context/pages.ts";
@@ -82,6 +85,7 @@ import type { FileService } from "./files.ts";
 import { GrowingDialog } from "./GrowingDialog.tsx";
 import { ConnectShown, HarnessShelf } from "./HarnessShelf.tsx";
 import { Checklist, DeskGroup, type TokenService } from "./harness/Desk.tsx";
+import { useHarnessBanners } from "./harness/HarnessBanners.tsx";
 import { HarnessCards } from "./harness/HarnessCards.tsx";
 import { HarnessPage } from "./harness/HarnessPage.tsx";
 import { Part } from "./harness/Parts.tsx";
@@ -154,6 +158,10 @@ export interface HarnessesProps {
   readonly agents?: AgentsService | undefined;
   /** An agent to open on, rather than the list: one a search result opened (ADR 0132). */
   readonly initialAgent?: string | undefined;
+  /** That agent's Permissions beside its card, as its band in a room opened (ADR 0286). */
+  readonly initialPermissions?: boolean | undefined;
+  /** What the person chose for the banner, and what changes it (ADR 0286). */
+  readonly banners?: BannerService | undefined;
   /** Open with Connect a harness's dialog up: You's card opened the page for it (ADR 0185). */
   readonly initialAdding?: boolean | undefined;
   /** How a file a history's line carries is fetched. */
@@ -219,7 +227,20 @@ export function Harnesses(props: HarnessesProps) {
   // The pages opened over the list, each going back to the one under it: an agent's page (one a
   // search result opened, ADR 0132, is the first), a harness's and the pages it opens, files, jobs.
   const [over, setOver] = useState<readonly ContextPage[]>(() =>
-    props.initialAgent === undefined ? [] : [{ kind: "agent", agentId: props.initialAgent }],
+    props.initialAgent === undefined
+      ? []
+      : // A harness without agents has no Permissions of its own: its band opens its asks.
+        props.initialPermissions === true && props.directory[props.initialAgent]?.kind === "harness"
+        ? [
+            { kind: "harness_page", harnessId: props.initialAgent },
+            { kind: "harness_part", harnessId: props.initialAgent, part: "asks" },
+          ]
+        : [
+            { kind: "agent", agentId: props.initialAgent },
+            ...(props.initialPermissions === true
+              ? [{ kind: "agent_permissions", agentId: props.initialAgent } as const]
+              : []),
+          ],
   );
   // In the demo, connecting a harness needs a server: the page says so in its place.
   const setUp = useNotInDemo();
@@ -339,6 +360,26 @@ export function Harnesses(props: HarnessesProps) {
           onOpenAgent={openAgent}
         />
       ),
+    permissionsPage: (agentId, backLabel) =>
+      props.banners === undefined ? undefined : (
+        <OverPage
+          title={PERMISSIONS_TITLE}
+          backLabel={backLabel}
+          onBack={pop}
+          label={`${nameOf(directory, agentId)}: ${PERMISSIONS_TITLE}`}
+        >
+          <AgentPermissions
+            agentId={agentId}
+            model={model}
+            directory={directory}
+            selfId={props.selfId}
+            service={props.banners}
+            onSetRules={props.onSetRules}
+            onOpenSpace={props.onOpen}
+            onOpenHarness={(harnessId) => push({ kind: "harness_page", harnessId })}
+          />
+        </OverPage>
+      ),
     facePage: (agentId, backLabel) =>
       agents === undefined ? undefined : (
         <OverPage
@@ -378,6 +419,7 @@ export function Harnesses(props: HarnessesProps) {
         onTransfer={mayOn(props, top.harnessId).transfer}
         onDeclare={mayOn(props, top.harnessId).declare}
         tokens={props.tokens}
+        banners={props.banners?.banners}
       />
     ),
     // Connect a harness at the foot of every harness's card, for whoever may (ADR 0185).
@@ -531,6 +573,7 @@ function detailName(
 /** The pages a page opens one level deeper, which stand in the third column (ADR 0284). */
 const DEEPER: ReadonlySet<ContextPage["kind"]> = new Set([
   "agent_history",
+  "agent_permissions",
   "agent_face",
   "harness_part",
   "file",
@@ -589,6 +632,12 @@ function AgentOf(
       onOpenRoom={props.onOpen}
       onOpenAgent={props.onOpenAgent}
       onOpenHistory={() => props.onPush({ kind: "agent_history", agentId: props.agentId })}
+      onOpenPermissions={
+        props.banners === undefined
+          ? undefined
+          : () => props.onPush({ kind: "agent_permissions", agentId: props.agentId })
+      }
+      banners={props.banners}
       onOpenFace={() => props.onPush({ kind: "agent_face", agentId: props.agentId })}
       context={props.context}
       heartbeats={props.heartbeats}
@@ -624,6 +673,7 @@ function HarnessOf(
   });
   const set = useHarnessContext(props.context, model, directory, harnessId, selfId);
   const may = mayOn(props, harnessId);
+  const bannersRow = useHarnessBanners(props.banners, directory, harnessId);
   const name = nameOf(directory, harnessId);
   return (
     <HarnessPage
@@ -649,6 +699,8 @@ function HarnessOf(
       }
       run={props.onRun}
       modelRow={main === undefined ? undefined : modelRow}
+      bannersRow={bannersRow}
+      banners={props.banners?.banners}
       contextValue={
         may.context ? contextValue(set === undefined ? undefined : harnessGroups(set)) : null
       }
@@ -946,7 +998,10 @@ function homeName(props: HarnessesProps, connects: boolean): string {
 /** Whether a page's harness, or its agent, is still in the workspace. */
 function standing(page: ContextPage, directory: Directory): boolean {
   const id =
-    page.kind === "agent" || page.kind === "agent_history" || page.kind === "agent_face"
+    page.kind === "agent" ||
+    page.kind === "agent_history" ||
+    page.kind === "agent_permissions" ||
+    page.kind === "agent_face"
       ? page.agentId
       : page.kind === "file"
         ? page.owner.id
@@ -998,6 +1053,7 @@ function overPage(
     readonly jobs: JobsReads | undefined;
     readonly agentPage: (agentId: string, backLabel: string) => ReactNode;
     readonly historyPage: (agentId: string, backLabel: string) => ReactNode;
+    readonly permissionsPage: (agentId: string, backLabel: string) => ReactNode;
     /** An agent's face, chosen on a page over its card (ADR 0272). */
     readonly facePage: (agentId: string, backLabel: string) => ReactNode;
     /** A harness's page; with its New agent dialog open, when Connect's card asked for one. */
@@ -1106,6 +1162,7 @@ function agentTop(
   on: {
     readonly agentPage: (agentId: string, backLabel: string) => ReactNode;
     readonly historyPage: (agentId: string, backLabel: string) => ReactNode;
+    readonly permissionsPage: (agentId: string, backLabel: string) => ReactNode;
     readonly facePage: (agentId: string, backLabel: string) => ReactNode;
   },
 ): ReactNode | undefined {
@@ -1114,6 +1171,8 @@ function agentTop(
       return on.agentPage(top.agentId, backLabel);
     case "agent_history":
       return on.historyPage(top.agentId, backLabel);
+    case "agent_permissions":
+      return on.permissionsPage(top.agentId, backLabel);
     case "agent_face":
       return on.facePage(top.agentId, backLabel);
     default:
@@ -1130,6 +1189,8 @@ function backLabelOf(under: ContextPage | undefined, directory: Directory): stri
       return nameOf(directory, under.agentId);
     case "agent_history":
       return "Message history";
+    case "agent_permissions":
+      return PERMISSIONS_TITLE;
     case "agent_face":
       return "Icon";
     case "harness_page":

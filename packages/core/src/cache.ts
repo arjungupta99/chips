@@ -46,6 +46,7 @@ const PARTICIPANTS_KEY = "participants";
 const SPACE_ICONS_KEY = "space-icons";
 const HIDDEN_SPACES_KEY = "hidden-spaces";
 const PINNED_SPACES_KEY = "pinned-spaces";
+const BANNERS_KEY = "banners";
 
 function open(key: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -140,6 +141,13 @@ export interface Cache {
    */
   readonly loadPinnedSpaces: () => Promise<readonly string[] | undefined>;
   readonly savePinnedSpaces: (spaceIds: readonly string[]) => Promise<void>;
+  /**
+   * What this person wants of the banner (ADR 0286), as `GET /v1/me/banners` last answered or a
+   * change since left it, so a banner put away doesn't show for a moment at launch. `undefined`
+   * when this device has never had an answer.
+   */
+  readonly loadBanners: () => Promise<unknown>;
+  readonly saveBanners: (banners: unknown) => Promise<void>;
 }
 
 /** A plain object of values by key, as a JSON document keeps one: not an array, not null. */
@@ -281,5 +289,9 @@ export function openCache(key: string): Cache {
 
     savePinnedSpaces: (spaceIds) =>
       withDb((db) => putMeta(db, PINNED_SPACES_KEY, [...spaceIds]), undefined),
+
+    loadBanners: () => withDb((db) => getMeta<unknown>(db, BANNERS_KEY, undefined), undefined),
+
+    saveBanners: (banners) => withDb((db) => putMeta(db, BANNERS_KEY, banners), undefined),
   };
 }

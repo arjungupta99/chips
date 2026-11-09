@@ -173,6 +173,7 @@ jest.mock("./src/spaces/LetWorkMotion", () => {
     BandIn: ({ children, style, testID }) => react.createElement(View, { style, testID }, children),
     BandWords: ({ children }) => react.createElement(View, null, children),
     Pulse: () => null,
+    Hair: () => null,
   };
 });
 
@@ -231,6 +232,7 @@ jest.mock("./src/ui/PaneMotion", () => {
     useKept: (value) => value,
     useGone: (hidden) => hidden,
     PaneLead: react.createContext(0),
+    panesWait: () => undefined,
   };
 });
 
@@ -242,13 +244,13 @@ jest.mock("./src/spaces/RoomWords", () => {
   const react = require("react");
   const { View } = require("react-native");
   const { WORDS_IN, WORDS_OUT, WORDS_WAIT } = require("./src/spaces/heldWidth");
-  function RoomWords({ words, gone, back, children }) {
+  function RoomWords({ words, change, gone, back, children }) {
     react.useEffect(() => {
       if (words === undefined) return undefined;
       const timer =
         words === "going" ? setTimeout(gone, WORDS_WAIT + WORDS_OUT) : setTimeout(back, WORDS_IN);
       return () => clearTimeout(timer);
-    }, [words, gone, back]);
+    }, [words, change, gone, back]);
     return react.createElement(
       react.Fragment,
       null,

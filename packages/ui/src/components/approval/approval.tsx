@@ -460,7 +460,7 @@ function Foot(props: ApprovalCardProps & { readonly scopeName: string }) {
             <LetWork letWork={letWork} disabled={props.busy === true || props.answered === true} />
           )}
           {letWork?.on !== true && <Choices {...props} />}
-          {/* What the choice lets through, between it and the answer (ADR 0280). */}
+          {/* What the choice lets through, drawn under the answer (ADR 0280, addendum). */}
           {props.standing !== undefined && (
             <div className="ui-approval__standing" key={letWork?.on === true ? "work" : "choice"}>
               {props.standing}

@@ -68,9 +68,9 @@ test("a room's spend per job is set from the sheet, handed to the agent's turn, 
     spend: { ceiling_usd: 10, spent_usd: 0, uncounted_runs: 0 },
   });
   const notes = Object.values((turn["room"] as { notes: Record<string, string> }).notes);
-  // The space's rules end the note (ADR 0250), so the spend sentence comes just before them.
+  // The spend sentence comes just before what the note says of files and people (ADR 0287).
   expect(notes[0]).toMatch(
-    /This job has spent \$0\.00 of the \$10\.00 this space allows a job; at \$10\.00 Chips holds the agents until a person acts\. Everyone here reads what you write\.$/,
+    /This job has spent \$0\.00 of the \$10\.00 this space allows a job; at \$10\.00 Chips holds the agents until a person acts\. Everyone here reads what you write\. To get a file /,
   );
 
   // Reader's run reports $0.40, and says so in the room; the sheet counts it.

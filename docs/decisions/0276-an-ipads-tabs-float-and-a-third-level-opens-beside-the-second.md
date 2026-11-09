@@ -239,3 +239,17 @@ the mini, where the bar is narrower (tests hold its width there).
 
 Decision 7 kept Connect a harness a sheet. ADR 0284's addendum makes it the pane's page beside
 Agents' list and You's alike, its pages held by one provider for both; Workspace stays a sheet.
+
+## Sixth addendum, 8 November 2026: a pane moves when its length changes, and the row lights first
+
+`Widening` and `Clearing` took their first length at once and then, a render later, set off from
+there to there for 0.72 s, because the style that started a move ran again for anything it depended
+on. A width is a layout, so each frame of that was a commit of the whole tree. A room opened beside
+the list has two or three of these boxes. A length is now held in a shared value that moves only
+when the length changes (`usePaneLength`). Changing rooms, on the 13-inch simulator with a copy of a
+real workspace, went from 53–76 Reanimated commits to 3–4.
+
+The room beside the list is drawn a step behind the one picked (`useDrawnRoom`, on React's deferred
+value): the row lights about 70 ms after the tap, where it used to wait for the whole room, and a
+room still being drawn is let go for the next one tapped. What a link asks of a room (where to land,
+its Add, its sheet) goes only to that room, not to the one still standing while it is drawn.

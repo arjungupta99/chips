@@ -157,6 +157,21 @@ export interface HeldStopped {
 }
 
 /**
+ * A person letting an agent work without asking from its page (ADR 0286): the same row a yes until
+ * stopped makes, with no run or ask behind it. Separate from `session_rule` because that one is
+ * read off the ask it answers.
+ */
+export interface HeldStarted {
+  readonly kind: "held_started";
+  readonly table: "session_rules";
+  readonly workspaceId: string;
+  readonly spaceId: string;
+  readonly asker: string;
+  readonly eventId: string;
+  readonly at: string;
+}
+
+/**
  * Replace the steps of a run that are still to do. The ones already done or failed keep their
  * place; the new ones follow them. Separate from `upsert` because which steps stay depends on
  * their state, which only the store can see.
@@ -207,6 +222,7 @@ export type Change =
   | Spend
   | ReplacePlan
   | SessionRule
+  | HeldStarted
   | HeldStopped
   | CarriedSpend
   | TakeRuns;
@@ -1031,6 +1047,21 @@ const PROJECTORS: Readonly<Record<string, Projector>> = {
     }
     return changes;
   },
+
+  "approval.held_started": (event) =>
+    event.space_id === undefined
+      ? []
+      : [
+          {
+            kind: "held_started",
+            table: "session_rules",
+            workspaceId: event.workspace_id,
+            spaceId: event.space_id,
+            asker: required<string>(event, "asker"),
+            eventId: event.id,
+            at: event.ts,
+          },
+        ],
 
   "approval.held_stopped": (event) =>
     event.space_id === undefined

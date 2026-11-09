@@ -67,6 +67,7 @@ function harness(
     hiddenSpaces?: readonly string[];
     /** What the cache kept of the rooms pinned (ADR 0240); absent, it never had them. */
     pinnedSpaces?: readonly string[];
+    banners?: unknown;
     /** Stands in for the cache's event write, to fail it or to hold it. */
     saveEvents?: (events: readonly ClientEvent[]) => Promise<void>;
     /** Answers signed GETs: the directory, and a room's history. */
@@ -97,6 +98,7 @@ function harness(
   const savedSpaceIcons: Readonly<Record<string, unknown>>[] = [];
   const savedHiddenSpaces: (readonly string[])[] = [];
   const savedPinnedSpaces: (readonly string[])[] = [];
+  const savedBanners: unknown[] = [];
   const cache: Cache = {
     loadEvents: options.loadEvents ?? (async () => options.cached ?? []),
     // `saved` is every batch the store asked for, in order, landed or not.
@@ -136,6 +138,10 @@ function harness(
       savedHiddenSpaces.push([...spaceIds]);
     },
     loadPinnedSpaces: async () => options.pinnedSpaces,
+    loadBanners: async () => options.banners,
+    saveBanners: async (banners) => {
+      savedBanners.push(banners);
+    },
     savePinnedSpaces: async (spaceIds) => {
       savedPinnedSpaces.push([...spaceIds]);
     },
@@ -211,6 +217,7 @@ function harness(
     savedSpaceIcons,
     savedHiddenSpaces,
     savedPinnedSpaces,
+    savedBanners,
     forgotten,
     sent,
     withdrawn,
@@ -4049,6 +4056,195 @@ describe("the rooms hidden from the list (ADR 0205)", () => {
       h.flush();
       expect(hidden(h)).toEqual(["spc_1"]);
     });
+  });
+});
+
+describe("what a person wants of the banner (ADR 0286)", () => {
+  const PATH = "/v1/me/banners";
+  const TAKES = ["held_yes", "held_start", "banners"];
+  const hello = (takes?: readonly string[]) =>
+    ({
+      type: "hello",
+      spaces: [],
+      server: takes === undefined ? { name: "chipsd" } : { takes },
+    }) as unknown as ClientEvent;
+  const AGENTS = [
+    { id: "har", kind: "harness", display_name: "Claude Code" },
+    { id: "jiro", kind: "agent", display_name: "Jiro", harness_id: "har" },
+    { id: "kit", kind: "agent", display_name: "Kit", harness_id: "har" },
+  ];
+  const banners = (h: ReturnType<typeof harness>) => h.store.getSnapshot().banners;
+  const CLOSED = { spaceId: "spc_1", asker: "jiro", since: "2026-11-08T10:00:00.000Z" };
+  const answers = (view: unknown) => async (path: string) =>
+    path === PATH ? view : path === "/v1/participants" ? { participants: AGENTS } : {};
+
+  function writing(
+    asked: [string, string, unknown?][],
+    view: unknown = { choices: {}, closed: [] },
+  ) {
+    return {
+      get: answers(view),
+      put: async (path: string, body: unknown) => {
+        asked.push(["PUT", path, body]);
+        return undefined;
+      },
+      remove: async (path: string) => {
+        asked.push(["DELETE", path]);
+        return undefined;
+      },
+    };
+  }
+
+  async function open(h: ReturnType<typeof harness>, takes: readonly string[] | null = TAKES) {
+    await started();
+    h.wire().onState("open");
+    h.wire().onEvent(hello(takes ?? undefined));
+    await started();
+    h.flush();
+  }
+
+  it("draws what the cache kept, then what the server says", async () => {
+    const h = harness({
+      banners: { choices: { jiro: false }, closed: [] },
+      get: answers(new Promise(() => undefined)),
+    });
+    await started();
+    h.flush();
+    expect(banners(h)).toEqual({ choices: { jiro: false }, closed: [] });
+  });
+
+  it("takes the server's word over the cache's, and keeps it", async () => {
+    const h = harness({
+      banners: { choices: { jiro: false }, closed: [] },
+      get: answers({ choices: { kit: false }, closed: [] }),
+    });
+    await started();
+    h.flush();
+    expect(banners(h)).toEqual({ choices: { kit: false }, closed: [] });
+    expect(h.savedBanners.at(-1)).toEqual({ choices: { kit: false }, closed: [] });
+  });
+
+  it("hears a change made on another device, and reads again at a reconnect", async () => {
+    let reads = 0;
+    const h = harness({
+      get: async (path) => {
+        if (path === PATH) reads += 1;
+        return path === PATH ? { choices: {}, closed: [] } : {};
+      },
+    });
+    await open(h);
+    h.wire().onBanners?.({
+      choices: { jiro: false },
+      closed: [{ space_id: "spc_1", asker: "kit", since: CLOSED.since }],
+    });
+    h.flush();
+    expect(banners(h)).toEqual({
+      choices: { jiro: false },
+      closed: [{ spaceId: "spc_1", asker: "kit", since: CLOSED.since }],
+    });
+    const before = reads;
+    h.wire().onEvent(hello(TAKES));
+    await started();
+    expect(reads).toBe(before + 1);
+  });
+
+  it("says what the server keeps from its hello", async () => {
+    const h = harness({ get: answers({ choices: {}, closed: [] }) });
+    await open(h);
+    expect(h.snapshots.at(-1)?.keepsBanners).toBe(true);
+    expect(h.snapshots.at(-1)?.keepsHeldStart).toBe(true);
+    h.wire().onEvent(hello());
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsBanners).toBe(false);
+    expect(h.snapshots.at(-1)?.keepsHeldStart).toBe(false);
+  });
+
+  it("closes a banner at once, tells the server, and shows it again", async () => {
+    const asked: [string, string, unknown?][] = [];
+    const h = harness(writing(asked));
+    await open(h);
+    const closing = h.store.closeBanner(CLOSED);
+    h.flush();
+    expect(banners(h)?.closed).toEqual([CLOSED]);
+    await closing;
+    await h.store.reopenBanner({ spaceId: "spc_1", asker: "jiro" });
+    h.flush();
+    expect(banners(h)?.closed).toEqual([]);
+    expect(asked).toEqual([
+      ["PUT", `${PATH}/closed/spc_1/jiro`, { since: CLOSED.since }],
+      ["DELETE", `${PATH}/closed/spc_1/jiro`],
+    ]);
+  });
+
+  it("takes a change back when the server refuses it, and says so", async () => {
+    const h = harness({
+      get: answers({ choices: {}, closed: [] }),
+      put: async () => {
+        throw new Error("no");
+      },
+    });
+    await open(h);
+    await expect(h.store.closeBanner(CLOSED)).rejects.toThrow("no");
+    h.flush();
+    expect(banners(h)?.closed).toEqual([]);
+  });
+
+  it("lets an agent's choice go when it comes to match its harness", async () => {
+    const asked: [string, string, unknown?][] = [];
+    const h = harness(writing(asked));
+    await open(h);
+    await h.store.setAgentBanner("jiro", false);
+    h.flush();
+    expect(banners(h)?.choices).toEqual({ jiro: false });
+    await h.store.setAgentBanner("jiro", true);
+    h.flush();
+    expect(asked).toEqual([
+      ["PUT", `${PATH}/choices/jiro`, { shown: false }],
+      ["DELETE", `${PATH}/choices/jiro`],
+    ]);
+  });
+
+  it("switches a harness and brings its agents in line, and Undo puts them back", async () => {
+    const asked: [string, string, unknown?][] = [];
+    const h = harness(writing(asked, { choices: { jiro: false }, closed: [] }));
+    await open(h);
+    const before = h.store.setHarnessBanner("har", false);
+    h.flush();
+    expect(before).toEqual({ harnessId: "har", shown: undefined, apart: { jiro: false } });
+    expect(banners(h)?.choices["har"]).toBe(false);
+    expect(banners(h)?.choices["jiro"]).toBeUndefined();
+    await started();
+    await h.store.undoHarnessBanner(before);
+    h.flush();
+    expect(asked).toEqual([
+      ["PUT", `${PATH}/choices/har`, { shown: false }],
+      ["PUT", `${PATH}/choices/har`, { shown: true }],
+      ["PUT", `${PATH}/choices/jiro`, { shown: false }],
+    ]);
+    expect(banners(h)?.choices["jiro"]).toBe(false);
+  });
+
+  it("keeps a change on this device when the server is older than it", async () => {
+    const asked: [string, string, unknown?][] = [];
+    const h = harness(writing(asked));
+    await open(h, null);
+    await h.store.closeBanner(CLOSED);
+    h.flush();
+    expect(banners(h)?.closed).toEqual([CLOSED]);
+    expect(asked).toEqual([]);
+    expect(h.savedBanners.at(-1)).toEqual({
+      choices: {},
+      closed: [{ space_id: "spc_1", asker: "jiro", since: CLOSED.since }],
+    });
+  });
+
+  it("lets an agent work from its page with one event", async () => {
+    const h = harness({ get: answers({ choices: {}, closed: [] }) });
+    await open(h);
+    h.store.letAgentWork({ spaceId: "spc_1", asker: "jiro" });
+    const sent = h.sent.find((each) => each["type"] === "approval.held_started");
+    expect(sent).toMatchObject({ space_id: "spc_1", asker: "jiro" });
+    expect(String(sent?.["idempotency_key"])).toMatch(/^held-started-/);
   });
 });
 

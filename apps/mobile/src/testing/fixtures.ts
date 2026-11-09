@@ -32,6 +32,23 @@ export function fakeStore(snapshot: Snapshot): Store & {
     resolveApproval: record("resolveApproval"),
     routeApproval: record("routeApproval"),
     stopLetWork: record("stopLetWork"),
+    letAgentWork: record("letAgentWork"),
+    closeBanner: async (input: unknown) => {
+      calls.push({ name: "closeBanner", args: input });
+    },
+    reopenBanner: async (input: unknown) => {
+      calls.push({ name: "reopenBanner", args: input });
+    },
+    setAgentBanner: async (agentId: string, shown: boolean) => {
+      calls.push({ name: "setAgentBanner", args: { agentId, shown } });
+    },
+    setHarnessBanner: (harnessId: string, shown: boolean) => {
+      calls.push({ name: "setHarnessBanner", args: { harnessId, shown } });
+      return { harnessId, shown: undefined, apart: {} };
+    },
+    undoHarnessBanner: async (before: unknown) => {
+      calls.push({ name: "undoHarnessBanner", args: before });
+    },
     answerQuestion: record("answerQuestion"),
     setAutonomy: record("setAutonomy"),
     setRules: record("setRules"),

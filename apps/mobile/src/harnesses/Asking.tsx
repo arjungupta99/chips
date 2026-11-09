@@ -253,7 +253,7 @@ function Hairline() {
 }
 
 /** `2 on` in green while every rule is on, `1 of 2 on` in grey while one is off. */
-function Count({ rules }: { readonly rules: readonly { readonly on: boolean }[] }) {
+export function Count({ rules }: { readonly rules: readonly { readonly on: boolean }[] }) {
   const palette = usePalette();
   const words = alwaysCount(rules);
   if (words === undefined) return null;

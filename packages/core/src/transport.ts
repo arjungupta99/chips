@@ -17,6 +17,8 @@
 
 import {
   type AgentState,
+  type BannersView,
+  bannersFrame,
   type FolderOpenFrame,
   type FolderRunFrame,
   folderOpenFrame,
@@ -237,6 +239,8 @@ export interface TransportOptions {
    * the hello says `reads`, so the server sends these to this person's sockets alone.
    */
   readonly onReads?: ((marks: Readonly<Record<string, number>>) => void) | undefined;
+  /** What the person wants of the banner, changed on another of their devices (ADR 0286). */
+  readonly onBanners?: ((view: BannersView) => void) | undefined;
   /** Which way this socket reached the server: the door on its network, the relay, or plain (M4.1, ADR 0191). */
   readonly onLink?: ((kind: LinkKind) => void) | undefined;
   /**
@@ -539,6 +543,10 @@ export function connect(options: TransportOptions): Transport {
     const parsed = folderRunStateFrame.safeParse(received);
     if (parsed.success) options.onRunState?.(parsed.data.space_id, parsed.data.run);
   };
+  const onBannersFrame = (received: Frame) => {
+    const parsed = bannersFrame.safeParse(received);
+    if (parsed.success) options.onBanners?.(parsed.data);
+  };
   const onReadFrame = (received: Frame) => {
     const parsed = readFrame.safeParse(received);
     if (parsed.success) options.onReads?.(parsed.data.spaces);
@@ -576,6 +584,9 @@ export function connect(options: TransportOptions): Transport {
         break;
       case "read":
         onReadFrame(received);
+        break;
+      case "banners":
+        onBannersFrame(received);
         break;
       default:
         break;
@@ -622,6 +633,7 @@ export function connect(options: TransportOptions): Transport {
           ...(options.onFolderAsk === undefined ? [] : ["folders"]),
           ...(options.onRunState === undefined ? [] : ["folder_runs"]),
           ...(options.onReads === undefined ? [] : ["reads"]),
+          ...(options.onBanners === undefined ? [] : ["banners"]),
         ],
       }),
     );

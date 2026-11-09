@@ -97,6 +97,17 @@ export type { AgentPlacement, PlaceRefusal, PlaceRoom } from "./agent-place.js";
 export { ONE_ROOM_REFUSALS, refuseAgentInto, STOPPED_BECAUSE } from "./agent-place.js";
 export type { LegacyView } from "./agents.js";
 export { AGENT_EVENTS, inLegacyView } from "./agents.js";
+export type { BannerChoices, BannersFrame, BannersView, ClosedBanner } from "./banners.js";
+export {
+  bannerChoiceBody,
+  bannerChoices,
+  bannersFrame,
+  bannersView,
+  CLOSED_BANNERS_MAX,
+  closedBanner,
+  closedBannerBody,
+  closedBanners,
+} from "./banners.js";
 export type { HarnessCapability } from "./capabilities.js";
 export {
   FORK_WAIT_MS,
@@ -256,6 +267,7 @@ export type {
 export {
   ackFrame,
   agentState,
+  BANNERS,
   clientFrame,
   clientHelloFrame,
   errorCode,
@@ -266,6 +278,7 @@ export {
   folderOpenFrame,
   folderRunFrame,
   folderRunStateFrame,
+  HELD_START,
   HELD_YES,
   joinFrame,
   negotiateProtocol,
@@ -602,8 +615,11 @@ export type {
   TakerNews,
 } from "./room-note.js";
 export {
+  FILE_WORDS,
   noteHandle,
   noteWithoutRules,
+  REACH_A_PERSON_WORDS,
+  RUNNING_WORDS,
   renderRoomNote,
   roomIdle,
   roomMember,
@@ -612,6 +628,7 @@ export {
   roomNoteFor,
   roomRules,
   roomWork,
+  severalAsked,
   toEveryAgent,
   UNIVERSE_WORDS,
   yoursWithoutAt,

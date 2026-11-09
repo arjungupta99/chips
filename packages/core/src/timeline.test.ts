@@ -269,6 +269,20 @@ describe("what the harnesses in a room are doing", () => {
     expect(doing.map((each) => each.harnessId)).toEqual([SCOUT, TREE]);
   });
 
+  it("counts a run waiting on an ask nobody can see yet, and only for the harness named", () => {
+    const built = buildModel([
+      fixture("space.created", 1),
+      begun(2, "run_s", SCOUT, 0),
+      begun(3, "run_t", TREE, 1),
+    ]).spaces[0] as Space;
+    const space = {
+      ...built,
+      runs: built.runs.map((run) => ({ ...run, state: "waiting" as const })),
+    };
+    expect(spaceDoing(space)).toEqual([]);
+    expect(spaceDoing(space, new Set([SCOUT])).map((each) => each.harnessId)).toEqual([SCOUT]);
+  });
+
   it("keeps the one still working when the other answers (the OpenClaw test, finding 22)", () => {
     // Jacobian began, OpenClaw began 1.7 s later and answered four seconds after that, and the
     // bubble went with it while Jacobian worked on.

@@ -91,3 +91,11 @@ By what it says it keeps and not by its version, because a server run from sourc
 An Always on such a server stays offered. It keeps the older, narrower words (`cat README.md` where
 the card lights `cat`), so a later command may ask again. It lets nothing through that the card
 didn't say.
+
+## Addendum, 8 November 2026: the band's ring runs on the native driver
+
+The ring going out from the band's dot was a Reanimated loop, so every frame the band stood was a
+commit of the whole tree. A room with the band in it took 141–164 commits in the three seconds after
+it was opened, and went on at that rate for as long as it stayed open. The ring now runs on the
+native driver, as the room's other lights that never stop do (`useRound`), and the same room takes
+8–10 commits and then none. It looks the same: 2 s, the same ease out, the same opacity and scale.

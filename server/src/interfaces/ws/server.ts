@@ -48,6 +48,7 @@ export interface WebSocketGateway {
   readonly whenMac: SessionHub["whenMac"];
   readonly runState: SessionHub["runState"];
   readonly reads: SessionHub["reads"];
+  readonly banners: SessionHub["banners"];
   readonly waysIn: SessionHub["waysIn"];
   readonly contextEdit: SessionHub["contextEdit"];
   readonly hearingContext: SessionHub["hearingContext"];
@@ -152,6 +153,7 @@ export function attachWebSocketGateway(options: WebSocketGatewayOptions): WebSoc
     runState: (workspaceId, participantId, frame) =>
       hub.runState(workspaceId, participantId, frame),
     reads: (workspaceId, participantId, frame) => hub.reads(workspaceId, participantId, frame),
+    banners: (workspaceId, participantId, frame) => hub.banners(workspaceId, participantId, frame),
     waysIn: (workspaceId) => hub.waysIn(workspaceId),
     contextEdit: (workspaceId, harnessId, frame) => hub.contextEdit(workspaceId, harnessId, frame),
     hearingContext: (workspaceId, harnessId) => hub.hearingContext(workspaceId, harnessId),

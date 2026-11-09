@@ -14,7 +14,8 @@
 import { standingOffer } from "@chipschat/protocol";
 import { commandPlate, writesWords } from "./commandPlate.js";
 import { type Directory, harnessOf, nameOf, workspaceHarnesses } from "./events.js";
-import type { Approval, LetWork, Rule, Space, WorkspaceModel } from "./model/types.js";
+import { lettingWork } from "./model/readers.js";
+import type { Approval, LetWork, Rule, WorkspaceModel } from "./model/types.js";
 import { namesWords } from "./people.js";
 import { roomName } from "./rooms.js";
 
@@ -512,6 +513,22 @@ export function askHistory(
   return historyOf(harnessAsks(model, directory, harnessId), directory, selfId, now);
 }
 
+/** One agent's asks so far, for its Permissions page (ADR 0286). */
+export function agentAskHistory(
+  model: WorkspaceModel,
+  directory: Directory,
+  agentId: string,
+  selfId: string | undefined,
+  now: number = Date.now(),
+): AskHistory | undefined {
+  const asks = model.spaces
+    .flatMap((space) => space.runs)
+    .filter((run) => run.harnessId === agentId)
+    .flatMap((run) => run.approvals)
+    .sort((a, b) => a.askedAt.localeCompare(b.askedAt));
+  return historyOf(asks, directory, selfId, now);
+}
+
 /** Every ask the reader can see, from every harness, as You's Allowed always draws them. */
 export function workspaceAskHistory(
   model: WorkspaceModel,
@@ -761,7 +778,7 @@ export function hourEnds(now: number): { readonly from: string; readonly until: 
 }
 
 /** What still comes to a person while an agent works without asking (ADR 0281). */
-const STILL_ASKS =
+export const STILL_ASKS =
   "Anything that moves money, messages someone outside, or can't be undone still comes to you.";
 
 /**
@@ -785,23 +802,15 @@ export function untilStoppedWords(name: string): string {
   return `Everything ${name} asks here goes ahead without a card until you stop it, commands Chips can't read too. ${STILL_ASKS}`;
 }
 
-/** The agents let work in a space without asking that still are (ADR 0281), against the clock. */
-export function lettingWork(
-  space: Space | undefined,
-  now: number = Date.now(),
-): readonly LetWork[] {
-  return (space?.letWork ?? []).filter(
-    (held) => held.until === undefined || Date.parse(held.until) > now,
-  );
-}
-
 /**
  * The band at the top of a room while an agent works there without asking (ADR 0281): `Jiro is
  * working without asking`, and for an hour, until when.
  */
 export function workingWords(name: string, held: LetWork): string {
-  const until = held.until === undefined ? "" : ` until ${clockTime(new Date(held.until))}`;
-  return `${name} is working without asking${until}`;
+  // For an hour says it shorter, so Stop and × both fit beside it on a phone (ADR 0286).
+  if (held.until !== undefined)
+    return `${name} isn't asking until ${clockTime(new Date(held.until))}`;
+  return `${name} is working without asking`;
 }
 
 /** The band, for a moment, once Stop is pressed (ADR 0281). */

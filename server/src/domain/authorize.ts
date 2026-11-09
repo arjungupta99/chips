@@ -139,6 +139,8 @@ export interface ParticipantFacts {
   readonly room?: string | null | undefined;
   /** For an agent being added: how many agents the room named holds already, less itself. */
   readonly others?: number | undefined;
+  /** For an agent or harness let work without asking: whether it is in the space named. */
+  readonly inSpace?: boolean | undefined;
   /** For an agent or a harness: the person who owns it, its harness's owner (rule 16). */
   readonly owner?: string | null | undefined;
   /** For a person: their standing in the workspace (ADR 0034), for an owner in a room (rule 11). */
@@ -889,6 +891,41 @@ export function refuseYesForAWhile(
 }
 
 /**
+ * Letting an agent work without asking from its page (ADR 0286). With no ask to answer, the sender
+ * is not an approver of anything, so it is the door that says who: the person whose agent it is, or
+ * an owner or an admin of the workspace, standing in the space, for an agent there and still going.
+ */
+export function refuseHeldStart(
+  event: Readonly<Record<string, unknown>>,
+  sender: Sender,
+  role: AuthorizeContext["role"],
+  participant: AuthorizeContext["participant"],
+): Refusal | undefined {
+  if (event["type"] !== "approval.held_started") return undefined;
+  if (typeof event["space_id"] !== "string") {
+    return refusal("wrong_space", "an agent is let work without asking in a space");
+  }
+  if (participant === null || participant.kind === "person") {
+    return refusal("unknown_participant", "no agent in this workspace has that id");
+  }
+  if (participant.removed === true || participant.archived === true) {
+    return refusal("invalid", "that agent is not going any more");
+  }
+  if (participant.inSpace !== true)
+    return refusal("wrong_space", "that agent is not in this space");
+  if (
+    role === "guest" ||
+    (participant.owner !== sender.participantId && !administers(sender.role))
+  ) {
+    return refusal(
+      "wrong_role",
+      "only the person whose agent it is, or an owner or an admin, lets it work without asking",
+    );
+  }
+  return undefined;
+}
+
+/**
  * A standing yes on a command is remembered part by part (ADR 0239), so a command that can't be
  * read that way, or that uses one never given a standing yes, is answered once.
  */
@@ -1255,6 +1292,7 @@ export function authorize(
     refuseOwnerOut(event, sender, context.participant) ??
     refuseOnLeadRemoval(event, context.participant, context.space) ??
     refuseOnAsking(event, context.participant) ??
+    refuseHeldStart(event, sender, context.role, context.participant) ??
     refuseOnWorkspaceRole(event, sender, context.target, context.guestSpaces) ??
     refuseOnFeedback(event, context.message) ??
     refuseOnReply(event, context.message) ??

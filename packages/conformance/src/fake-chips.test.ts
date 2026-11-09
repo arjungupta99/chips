@@ -1047,7 +1047,7 @@ describe("agents (ADR 0087)", () => {
     });
     const all = toAll["event"] as { room: { notes: Record<string, string> } };
     expect(all.room.notes[treeId]).toMatch(
-      /^Arjun sent this message to every agent here, so each of you has it: answer it yourself, and don't pass it on with an @\. In this space:/,
+      /^Arjun sent this to you and Scout too, so each of you already has it: don't pass it on with an @\. Give your own answer to a question without waiting for the others\. /,
     );
     socket.close();
   });

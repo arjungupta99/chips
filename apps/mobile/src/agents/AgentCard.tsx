@@ -53,24 +53,27 @@ import {
   type AgentStay,
   agentCard,
   belongsTo,
+  PERMISSIONS_TITLE,
+  permissionsRow,
   type Snapshot,
   type Store,
   stayFact,
 } from "@chipschat/core";
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ContextGroup, type ContextOpeners } from "../context/ContextGroup";
 import { faceWords } from "../spaces/faceWords";
 import type { RowAct } from "../spaces/SwipeRow";
 import { Avatar } from "../ui/Avatar";
 import type { SheetFrom } from "../ui/beside";
-import { Group, GroupFoot, GroupHeading, GroupRow } from "../ui/Group";
+import { Group, GroupFoot, GroupHeading, GroupRow, MARKED_INSET, RowMark } from "../ui/Group";
 import { GROWS, GroupPlace, GrowingView } from "../ui/growing";
 import * as feel from "../ui/haptics";
 import { LockRow } from "../ui/LockRow";
 import { NameInPlace } from "../ui/NameInPlace";
 import { useColumn } from "../ui/Screen";
-import { SPACE } from "../ui/tokens";
+import { usePalette } from "../ui/theme";
+import { AVATAR_HUES, SPACE, TEXT } from "../ui/tokens";
 import { NotFound } from "./Arriving";
 import { FaceSheet } from "./FaceSheet";
 import { HeartbeatGroup } from "./heartbeat/HeartbeatGroup";
@@ -87,6 +90,7 @@ export function AgentCard({
   agentId,
   selfId,
   onHistory,
+  onPermissions,
   onOpenRoom,
   onOpenAgent,
   onDeleted,
@@ -105,6 +109,8 @@ export function AgentCard({
    */
   readonly context?: (ContextOpeners & { readonly focus: number }) | undefined;
   readonly onHistory: () => void;
+  /** Opens its Permissions page (ADR 0286). */
+  readonly onPermissions: () => void;
   readonly onOpenRoom: (spaceId: string) => void;
   /** Opens another agent's card: the one a copy was forked from. */
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
@@ -202,6 +208,7 @@ export function AgentCard({
             onOpenRoom={onOpenRoom}
             onOpenAgent={onOpenAgent}
           />
+          <PermissionsGroup snapshot={snapshot} agentId={agentId} onPress={onPermissions} />
           <LockGroup
             card={card}
             glow={lockGlow}
@@ -291,6 +298,46 @@ export function AgentCard({
  * the directory says the server has it; one turned away goes back, with a warning's buzz, and the
  * foot's note is the server's next word on it.
  */
+/** Whether it asks, and the way to everything about that (ADR 0286). */
+function PermissionsGroup({
+  snapshot,
+  agentId,
+  onPress,
+}: {
+  readonly snapshot: Snapshot;
+  readonly agentId: string;
+  readonly onPress: () => void;
+}) {
+  const palette = usePalette();
+  const row = permissionsRow(snapshot, agentId);
+  return (
+    <>
+      <GroupHeading>{PERMISSIONS_TITLE}</GroupHeading>
+      <Group inset={MARKED_INSET}>
+        <GroupRow
+          label={PERMISSIONS_TITLE}
+          sub={row.sub}
+          mark={<RowMark icon="unlock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
+          accessibilityLabel={`${PERMISSIONS_TITLE}, ${row.value}${row.sub === undefined ? "" : `, ${row.sub}`}`}
+          {...(row.working ? {} : { value: row.value })}
+          trailing={
+            row.working ? (
+              <View style={styles.notAsking}>
+                <View style={[styles.notAskingDot, { backgroundColor: palette.gold }]} />
+                <Text style={[styles.notAskingWords, { color: palette.goldDeep }]}>
+                  {row.value}
+                </Text>
+              </View>
+            ) : undefined
+          }
+          onPress={onPress}
+          testID="agent-permissions"
+        />
+      </Group>
+    </>
+  );
+}
+
 function LockGroup({
   card,
   glow,
@@ -557,6 +604,9 @@ const styles = StyleSheet.create({
   apart: { paddingTop: SPACE.xl },
   // A card of its own under the facts, a group's gap below them (ADR 0199).
   lock: { paddingTop: SPACE.xl },
+  notAsking: { flexDirection: "row", alignItems: "center", gap: 7 },
+  notAskingDot: { width: 7, height: 7, borderRadius: 4 },
+  notAskingWords: { fontSize: TEXT.md, fontWeight: "600" },
   // In from the card's edge as the rows of the groups round it are.
   lockRow: { paddingHorizontal: SPACE.lg },
 });

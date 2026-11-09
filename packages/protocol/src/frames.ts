@@ -12,6 +12,7 @@ import { z } from "zod";
 import { windowChangeFrame, windowCompactFrame } from "./agent-context-windows.js";
 import { heartbeatChangeFrame } from "./agent-heartbeats.js";
 import { modelChangeFrame } from "./agent-models.js";
+import { bannersFrame } from "./banners.js";
 import { contextBudget } from "./context.js";
 import { contextEditFrame } from "./context-files.js";
 import { PROTOCOL_VERSION } from "./envelope.js";
@@ -42,6 +43,7 @@ export const SERVER_EXTENSIONS = [
   "folders",
   "folder_runs",
   "reads",
+  "banners",
 ] as const;
 export type ServerExtension = (typeof SERVER_EXTENSIONS)[number];
 
@@ -49,10 +51,14 @@ export type ServerExtension = (typeof SERVER_EXTENSIONS)[number];
  * What a server keeps of what a person's client may send beyond the base set, as its `hello` says
  * in `server.takes` (ADR 0281, addendum of 8 November 2026). A field a server doesn't know is
  * dropped in silence, so a client offers a person only what the server says it keeps. `held_yes`
- * is a yes that holds on: `for_minutes` and `until_stopped` on `approval.resolved`.
+ * is a yes that holds on: `for_minutes` and `until_stopped` on `approval.resolved`. `held_start` is
+ * that yes given from an agent's page, with no ask to answer: `approval.held_started`. `banners` is
+ * what a person wants of the gold banner, at `/v1/me/banners` (ADR 0286).
  */
 export const HELD_YES = "held_yes";
-export const SERVER_TAKES = [HELD_YES] as const;
+export const HELD_START = "held_start";
+export const BANNERS = "banners";
+export const SERVER_TAKES = [HELD_YES, HELD_START, BANNERS] as const;
 export type ServerTake = (typeof SERVER_TAKES)[number];
 
 export const clientHelloFrame = z
@@ -381,6 +387,7 @@ export const serverFrame = z
     folderRunFrame,
     folderRunStateFrame,
     readFrame,
+    bannersFrame,
     contextEditFrame,
     modelChangeFrame,
     heartbeatChangeFrame,
@@ -408,6 +415,7 @@ export const FRAME_NAMES = [
   "folder.run",
   "folder.run_state",
   "read",
+  "banners",
   "context.edit",
   "model.change",
   "heartbeat.change",

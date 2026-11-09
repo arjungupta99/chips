@@ -37,7 +37,7 @@ import type { Desktop, FolderAsked } from "../native.ts";
 export interface FolderState {
   /** The folder as the last look, open or send found it. */
   readonly answer?: FolderAnswer | undefined;
-  /** What is under way. */
+  /** What somebody pressed that is under way. */
   readonly busy?: FolderOp | undefined;
   /** What went wrong the last time, in the shell's or the server's words. */
   readonly failed?: string | undefined;
@@ -86,6 +86,11 @@ export interface Folders {
 const NOTHING: FolderState = {};
 /** What fetches the project from this Mac's own server, and happens for no other (ADR 0231). */
 const HERE_OPS: ReadonlySet<FolderOp> = new Set(["run", "view"]);
+/**
+ * Asks nobody pressed, which keep the card current. They show nothing under way, or a running
+ * program's look every few seconds would grey the card's buttons each time.
+ */
+const UNPRESSED: ReadonlySet<FolderOp> = new Set(["look", "status"]);
 /** A token is asked for again this long before it lapses, so git never meets a stale one. */
 const SPARE_MS = 60_000;
 /** How often a run is looked at while it runs. */
@@ -174,16 +179,21 @@ export function createFolders(input: {
     settle(room.id, op, { ok: false, why: NOT_THIS_MAC }, states.get(room.id)?.run);
   }
 
-  async function once(room: Room, op: FolderOp, extra: FolderExtra, server: string) {
-    const ask = (await input.shell)?.projectFolder;
-    if (ask === undefined) return;
-    const before = states.get(room.id) ?? NOTHING;
+  /** An ask setting out: under way on the card if somebody pressed it, and the run as it stands. */
+  function begin(spaceId: string, op: FolderOp, extra: FolderExtra, before: FolderState) {
     const starting: ProjectRun | undefined =
       op === "run"
         ? { state: "starting", command: extra.command, since: new Date(now()).toISOString() }
         : before.run;
-    set(room.id, { ...before, busy: op, run: starting });
-    tell(room.id, starting);
+    if (!UNPRESSED.has(op)) set(spaceId, { ...before, busy: op, run: starting });
+    tell(spaceId, starting);
+  }
+
+  async function once(room: Room, op: FolderOp, extra: FolderExtra, server: string) {
+    const ask = (await input.shell)?.projectFolder;
+    if (ask === undefined) return;
+    const before = states.get(room.id) ?? NOTHING;
+    begin(room.id, op, extra, before);
     try {
       const asked: FolderAsked = {
         spaceId: room.id,

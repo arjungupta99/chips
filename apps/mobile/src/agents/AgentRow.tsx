@@ -12,7 +12,12 @@
  * and line move; its time stays. A locked agent wears Locked's padlock in its circle's place.
  */
 
-import { type AgentRow as Row, waitingWords } from "@chipschat/core";
+import {
+  BANNER_OFF_WORDS,
+  NOT_ASKING_WORDS,
+  type AgentRow as Row,
+  waitingWords,
+} from "@chipschat/core";
 import { type ReactNode, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { type PickMark, PickRow, Shifted, ShiftedText } from "../spaces/SelectMotion";
@@ -20,6 +25,7 @@ import type { SpaceAct } from "../spaces/SwipeRow";
 import { relativeTime } from "../spaces/when";
 import { Avatar, faceGround, ROW_AVATAR } from "../ui/Avatar";
 import type { SheetFrom } from "../ui/beside";
+import { Icon } from "../ui/Icon";
 import { mixHex } from "../ui/lit";
 import { MainTag } from "../ui/MainTag";
 import { Pill } from "../ui/Pill";
@@ -79,6 +85,7 @@ export function AgentRow({
   cover,
   gone = false,
   ground,
+  permission,
 }: {
   readonly row: Row;
   readonly selected?: boolean;
@@ -98,6 +105,8 @@ export function AgentRow({
   readonly gone?: boolean;
   /** What it stands on: the page's own colour, or a group's card on a harness's page (ADR 0254). */
   readonly ground?: string | undefined;
+  /** On a harness's page (ADR 0286): that it isn't asking, and that its banner is off. */
+  readonly permission?: { readonly working: boolean; readonly sub: string | undefined } | undefined;
 }) {
   const palette = usePalette();
   const { active } = pick;
@@ -153,7 +162,7 @@ export function AgentRow({
             {...(RING[row.doing] === undefined ? {} : { status: RING[row.doing] })}
           />
         </Shifted>
-        <Words row={row} />
+        <Words row={row} permission={permission} />
       </PickRow>
       {cover}
     </Pressable>
@@ -180,7 +189,13 @@ function rowActions(changesFace: boolean, acts: readonly SpaceAct[]) {
 }
 
 /** The row's words: its name, the Main tag and when it last spoke; under them, where it is. */
-function Words({ row }: { readonly row: Row }) {
+function Words({
+  row,
+  permission,
+}: {
+  readonly row: Row;
+  readonly permission?: { readonly working: boolean; readonly sub: string | undefined } | undefined;
+}) {
   const palette = usePalette();
   const waiting = waitingWords(row.held);
   const working = row.doing === "working";
@@ -195,7 +210,12 @@ function Words({ row }: { readonly row: Row }) {
             <MainTag hue={faceGround(row.name, row.face)} />
           </Shifted>
         ) : null}
-        {row.at === undefined ? null : (
+        {permission?.sub === BANNER_OFF_WORDS ? (
+          <Icon name="eyeOff" size={14} color={palette.ink3} />
+        ) : null}
+        {permission?.working === true ? (
+          <Text style={[styles.notAsking, { color: palette.goldDeep }]}>{NOT_ASKING_WORDS}</Text>
+        ) : row.at === undefined ? null : (
           <Text style={[styles.when, { color: palette.ink3 }]}>{relativeTime(row.at)}</Text>
         )}
       </View>
@@ -250,6 +270,7 @@ const styles = StyleSheet.create({
   top: { flexDirection: "row", alignItems: "baseline", gap: SPACE.sm },
   name: { fontSize: TEXT.body, fontWeight: "600", flexShrink: 1 },
   when: { fontSize: TEXT.sm, marginLeft: "auto" },
+  notAsking: { fontSize: TEXT.sm, fontWeight: "600", marginLeft: "auto" },
   sub: { flexDirection: "row", alignItems: "center", gap: 6 },
   doing: { fontSize: TEXT.sm, fontWeight: "600" },
   line: { fontSize: TEXT.sm, flexShrink: 1 },

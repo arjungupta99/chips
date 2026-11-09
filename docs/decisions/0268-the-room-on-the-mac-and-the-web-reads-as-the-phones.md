@@ -161,3 +161,27 @@ motion had no precedent and was mocked (`room-panel-motion.html` in the session'
 
 Measured in WebKit on a room of 300 lines: wheel scrolling up and down, no frame over 18 ms; a hard
 fling, one of 53; a send and its reply with the panel coming and going, none over 34.
+
+## Addendum, 8 November 2026: only open asks stand under the lines
+
+Arjun, of a room on the Mac: "why are there so many giant permission boxes in mac app? iphone / ipad
+dont have them (which is good)". This ADR kept the decided approval card under the newest run as
+the web's own. For an hour and Let it work (ADR 0281) made that every command an agent ran. In that
+room, 96 of the day's 100 asks had been answered by a standing yes, one run left 29 cards, and none
+was waiting on anybody.
+
+1. **The room draws the asks still waiting on somebody, every run's, as the phone does**
+   (`RoomAsks.tsx`, the phone's `openAsks`). That ends the web's own decided card. Who answered what
+   stays on When it asks you and in the workspace's log. The run panel lists an ask tied to a step
+   as that step, without who answered it, and names who answered only the asks tied to no step.
+2. **A card that closes while it is drawn says how for 750 ms and folds on `--motion-slow`**, so the
+   lines over it glide down. Approve keeps its tick for that time rather than turning into a line,
+   as the phone's ask screen holds its ask.
+3. **A new ask waits 300 ms to be drawn.** Of those 96, 87 were answered within a frame and 95
+   within 300 ms, and the store draws once a frame: drawn at once, a room under Let it work would
+   flash a card for most commands. An ask answered inside its beat is never drawn. One already
+   waiting as the room opens is drawn at once.
+
+Tests: `Shell.test.tsx` for what a closing card says, the fold, the tick and the beat; the browser
+specs now read that an answered card has gone. The card's own words stay covered by the unit tests,
+since a browser spec reading them inside a moment of 750 ms would be a race.

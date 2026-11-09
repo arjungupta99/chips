@@ -10,7 +10,7 @@
 
 import { act, render, screen } from "@testing-library/react-native";
 import { Dimensions, Text, useWindowDimensions } from "react-native";
-import { GLIDE, type HeldWidth, useHeldWidth, WORDS_BACK } from "./heldWidth";
+import { GLIDE, type HeldWidth, LET_GO, useHeldWidth, WORDS_BACK } from "./heldWidth";
 
 jest.useFakeTimers();
 
@@ -25,9 +25,12 @@ const column = (width: number) => Math.min(width, 900);
 let glides: string[] = [];
 const glided = (shift: number) => `by ${shift}`;
 /** What the words would say, as the lines last drew them. */
-let wordsSay: Pick<HeldWidth, "gone" | "back"> | undefined;
+let wordsSay: Pick<HeldWidth, "change" | "gone" | "back"> | undefined;
+/** What the panes beside the room were told, in order, and what the lines drew as they were. */
+let waits: string[] = [];
 beforeEach(() => {
   glides = [];
+  waits = [];
   wordsSay = undefined;
 });
 
@@ -52,6 +55,7 @@ function Lines({
       take();
     },
     landed: () => glides.push("landed"),
+    waiting: (waiting) => waits.push(`${waiting} at ${held ?? "the room's"}`),
   });
   wordsSay = says;
   return (
@@ -111,10 +115,12 @@ it("holds the width it had while its words go, takes the new one once they have 
   expect(lines()).toHaveTextContent("616");
   expect(words()).toHaveTextContent("going");
 
-  // Landed, the columns with them, which set off as the words had gone: the room's own width
-  // again, and only then do the words come back.
+  // Landed, the columns with them, which set off as the lines took the width: the words come back,
+  // and the lines let go of it once the columns have stopped whatever a stall made of them.
   await wait(WORDS_BACK - GLIDE);
   expect(words()).toHaveTextContent("coming");
+  expect(lines()).toHaveTextContent("616");
+  await wait(LET_GO - WORDS_BACK);
   expect(lines()).toHaveTextContent("the room's");
   expect(edge()).toHaveTextContent("none");
   expect(glides).toEqual([glided(-68), "landed"]);
@@ -146,7 +152,7 @@ it("holds where a glide has its lines when the width changes again on the way, a
   expect(lines()).toHaveTextContent("1036");
   expect(edge()).toHaveTextContent("start");
   expect(glides.at(-1)).toBe(glided(68));
-  await wait(WORDS_BACK);
+  await wait(LET_GO);
   expect(words()).toHaveTextContent("coming");
   await back();
   expect(glides.at(-1)).toBe("landed");
@@ -154,11 +160,42 @@ it("holds where a glide has its lines when the width changes again on the way, a
   expect(words()).toHaveTextContent("there");
 });
 
+it("keeps the panes waiting from the commit that holds the lines to the one that draws them at the new width", async () => {
+  const { rerender, unmount } = await render(<Lines width={1036} />);
+  expect(waits).toEqual(["false at the room's"]);
+
+  await rerender(<Lines width={616} end={420} />);
+  expect(waits).toEqual(["false at the room's", "true at 1036"]);
+
+  // However long the words and JavaScript take, until the lines are drawn at 616.
+  await wait(1000);
+  expect(waits).toHaveLength(2);
+  await gone();
+  expect(waits.at(-1)).toBe("false at 616");
+
+  // Once more for a change on the way, and let go for a room that has closed meanwhile.
+  await rerender(<Lines width={1036} />);
+  expect(waits.at(-1)).toBe("true at 616");
+  await unmount();
+  expect(waits.at(-1)).toMatch(/^false/);
+});
+
+it("counts each change the words go for, so a change once they have gone is said for too", async () => {
+  const { rerender } = await render(<Lines width={1036} />);
+  await rerender(<Lines width={616} end={420} />);
+  const first = wordsSay?.change;
+  await gone();
+  await wait(GLIDE / 2);
+  await rerender(<Lines width={1036} />);
+  expect(words()).toHaveTextContent("going");
+  expect(wordsSay?.change).toBe((first ?? 0) + 1);
+});
+
 it("sends the words going again when the width changes as they come back, and their coming back is not taken for its end", async () => {
   const { rerender } = await render(<Lines width={1036} />);
   await rerender(<Lines width={616} end={420} />);
   await gone();
-  await wait(WORDS_BACK);
+  await wait(LET_GO);
   expect(words()).toHaveTextContent("coming");
   expect(lines()).toHaveTextContent("the room's");
 
@@ -172,7 +209,7 @@ it("sends the words going again when the width changes as they come back, and th
   await gone();
   expect(lines()).toHaveTextContent("1036");
   expect(glides.at(-1)).toBe(glided(68));
-  await wait(WORDS_BACK);
+  await wait(LET_GO);
   await back();
   expect(glides.at(-1)).toBe("landed");
   expect(lines()).toHaveTextContent("the room's");

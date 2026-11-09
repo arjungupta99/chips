@@ -16,6 +16,7 @@ import {
   isId,
   type JobSpend,
   messageIdOf,
+  type NoteMember,
   negotiateProtocol,
   ONE_ROOM_REFUSALS,
   PROTOCOL_VERSION,
@@ -23,6 +24,7 @@ import {
   roomNoteFor,
   SERVER_TAKES,
   type ServerFrame,
+  severalAsked,
   type TakerNews,
   takersOf,
   toEveryAgent,
@@ -197,20 +199,24 @@ function deliveredEnvelope(event: StoredEvent, type: "message.new" | "message.ov
 
 /**
  * What one turn adds to a taker's news: why what was nobody's turn is the lead's (ADR 0104); that
- * a message with no @ for the taker is its (ADR 0104 addendum), or that one for every agent is in
- * every agent's hands (ADR 0249), each said by `sender`; and that older lines were left out
- * (ADR 0105).
+ * a message with no @ for the taker is its (ADR 0104 addendum), that one for every agent is in
+ * every agent's hands (ADR 0249), or that a person's for several is, and who organises it (ADR
+ * 0287), each said by `sender`; and that older lines were left out (ADR 0105).
  */
 function turnNews(
   payload: Readonly<Record<string, unknown>>,
   taker: string,
   turn: { readonly nobodys?: TakerNews["nobodys"]; readonly cut?: TakerNews["cut"] },
   sender: { readonly saidBy: string } | undefined,
+  several: ReturnType<typeof severalAsked>,
 ): TakerNews {
   return {
     ...(turn.nobodys === undefined ? {} : { nobodys: turn.nobodys }),
     ...(sender === undefined || !yoursWithoutAt(payload, taker) ? {} : { yours: sender }),
     ...(sender === undefined || !toEveryAgent(payload) ? {} : { toAll: sender }),
+    ...(sender === undefined || several === undefined
+      ? {}
+      : { several: { saidBy: sender.saidBy, ...several } }),
     ...(turn.cut === undefined ? {} : { cut: turn.cut }),
   };
 }
@@ -952,7 +958,19 @@ export class Session {
       files: turn.files,
       lookup: (id) => this.who(id),
     });
-    await this.withTurnNews(news, event, who, here, turn);
+    // A harness asked in a room its agent has since claimed is that agent now (ADR 0087).
+    const claimed = new Map(
+      members.flatMap((member) =>
+        member.kind === "agent" && typeof member.harness_id === "string"
+          ? [[member.harness_id, member.participant_id] as const]
+          : [],
+      ),
+    );
+    const several =
+      event.actor.kind === "person" && turn.nobodys === undefined
+        ? severalAsked(event.payload, here, (id) => claimed.get(id) ?? id)
+        : undefined;
+    await this.withTurnNews(news, event, who, here, turn, several);
     const project = (await this.options.hasProject?.(spaceId)) === true;
     return roomNoteFor(here, who, now, news, turn.spend, new Date(nowMs).toISOString(), project);
   }
@@ -960,35 +978,41 @@ export class Session {
   /**
    * What this turn adds to each taker's news: on what was nobody's turn, why it is the lead's
    * (ADR 0104); otherwise, on a message for a taker with no @ for it, that it is theirs (ADR 0104
-   * addendum), and on one for every agent, that each has it (ADR 0249); and that older lines were
-   * left out (ADR 0105).
+   * addendum), on one for every agent, that each has it (ADR 0249), and on a person's for several,
+   * that each has it and who organises it (ADR 0287); and that older lines were left out (ADR 0105).
    */
   private async withTurnNews(
     news: Record<string, TakerNews>,
     event: StoredEvent,
     who: readonly string[],
-    here: readonly { readonly id: string; readonly name: string }[],
+    here: readonly NoteMember[],
     turn: { readonly nobodys?: TakerNews["nobodys"]; readonly cut?: TakerNews["cut"] },
+    several: ReturnType<typeof severalAsked>,
   ): Promise<void> {
     const sender =
-      turn.nobodys === undefined ? await this.namedSender(event, who, here) : undefined;
+      turn.nobodys === undefined
+        ? await this.namedSender(event, who, here, several !== undefined)
+        : undefined;
     for (const taker of who) {
-      news[taker] = { ...news[taker], ...turnNews(event.payload, taker, turn, sender) };
+      news[taker] = { ...news[taker], ...turnNews(event.payload, taker, turn, sender, several) };
     }
   }
 
   /**
    * Who sent a message, by the name the room knows them by, when the note names them: one for a
-   * taker with no @ for it (ADR 0104 addendum), or one for every agent (ADR 0249). Nothing for one
-   * that @-mentions each taker it is for.
+   * taker with no @ for it (ADR 0104 addendum), one for every agent (ADR 0249), or a person's for
+   * several (ADR 0287). Nothing for one that @-mentions the one taker it is for.
    */
   private async namedSender(
     event: StoredEvent,
     takers: readonly string[],
     here: readonly { readonly id: string; readonly name: string }[],
+    several: boolean,
   ): Promise<{ readonly saidBy: string } | undefined> {
     const named =
-      toEveryAgent(event.payload) || takers.some((taker) => yoursWithoutAt(event.payload, taker));
+      several ||
+      toEveryAgent(event.payload) ||
+      takers.some((taker) => yoursWithoutAt(event.payload, taker));
     if (!named) return undefined;
     const name =
       here.find((member) => member.id === event.actor.id)?.name ??

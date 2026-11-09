@@ -943,7 +943,7 @@ export function spaceAvatar(
   directory: Directory,
   title: string,
   icon: SpaceIcon | undefined,
-  /** There is work going in the room: the light runs round its face (ADR 0090). */
+  /** There is work going in the room: its face wears the pins (ADR 0285). */
   busy = false,
   /** A row's, or the room sheet's head's (ADR 0202). */
   size: AvatarSize = "sm",
@@ -1070,7 +1070,7 @@ function SpaceRow(props: {
   // The phone's rule, from core: "Needs a yes", or the last line as plain words, not Markdown.
   const snippet = lastWords(space, directory);
   // Work going in the room, whether a run of its own or a turn out of the harness's queue
-  // (ADR 0090): the light runs round the face, and the gear stands where the harness's own
+  // (ADR 0090, ADR 0285): the face wears the pins, and the gear stands where the harness's own
   // thought-bubble emoji used to be read out.
   const working = spaceWorking(space);
   // Chips holds the agents' messages to each other here until a person acts (ADR 0097).

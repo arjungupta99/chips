@@ -3,8 +3,8 @@
  * right corner and its ten pins (ADR 0096, ADR 0102), wearing the mark a person chose for it on
  * its lit ground, or its initials.
  *
- * The bite and the pins are what say *agent*, where a circle says a person, a squircle a harness
- * and a plain rounded square a space. The bite also holds the agent's state, so nothing has to be
+ * The bite and pins at rest are what say *agent*, where a circle says a person, a squircle a harness
+ * and a plain rounded square a space, which wears pins only while it works (`WorkingFace`, ADR 0285). The bite also holds the agent's state, so nothing has to be
  * drawn over the face: an amber dot in the bite when it can't answer (ADR 0083).
  *
  * The pins are always out (1 October 2026: the body alone read as a space's face), and rest dim
@@ -51,7 +51,7 @@ import { useTurns } from "./useTurns";
 const NATIVE = Platform.OS !== "web";
 
 /** One turn of the circuit, as the working mark runs it: lit quickly, let go slowly, back to dim. */
-const ROUND: Turns = {
+export const AGENT_ROUND: Turns = {
   count: PINS.at.length,
   stepMs: PIN_STEP_MS,
   riseMs: 130,
@@ -60,10 +60,11 @@ const ROUND: Turns = {
   high: 1,
   rise: Easing.out(Easing.quad),
   fall: Easing.in(Easing.quad),
+  ring: true,
 };
 
 /** The same circuit over metal pins, where the colour is only where the light is (ADR 0192). */
-const ROUND_ON_METAL: Turns = { ...ROUND, low: 0 };
+const ROUND_ON_METAL: Turns = { ...AGENT_ROUND, low: 0 };
 
 /** The pins, behind the body, dim and still, with a light running round them while it works. */
 function Pins({
@@ -83,7 +84,7 @@ function Pins({
   // Light stands the pins on metal and keeps the colour for the light; dark has no metal.
   const metal = usePalette().pinMetal;
   const onMetal = metal !== "transparent";
-  const lights = useTurns(onMetal ? ROUND_ON_METAL : ROUND, running && !less);
+  const lights = useTurns(onMetal ? ROUND_ON_METAL : AGENT_ROUND, running && !less);
   const resting = onMetal ? 0 : rest;
   // In the face theme, as the body they stand behind is.
   const lit = litGround(useFacePaint().ground(ground));

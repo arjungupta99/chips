@@ -145,6 +145,7 @@ describe("the price table column (0002)", () => {
     await migrateToLatest(db, () => "2026-09-02T00:00:00.000Z");
     expect(await workspaceColumns()).toContain("price_table");
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -282,6 +283,7 @@ describe("uploads (0004)", () => {
     );
     expect(await indexNames()).toContain("attachments_workspace_id_space_id");
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -371,6 +373,7 @@ describe("sessions (0005)", () => {
     }>`select name from pragma_table_info('spaces')`.execute(db);
     expect(spaces.rows.map((row) => row.name)).toContain("external_key");
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -461,6 +464,7 @@ describe("a key is the sender's (0006)", () => {
     await migrateToLatest(db, () => "2026-09-02T00:00:00.000Z");
     expect(await keyIndexColumns()).toEqual(["workspace_id", "actor_id", "idempotency_key"]);
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -559,6 +563,7 @@ describe("a lane knows its run and its lead's (0007)", () => {
     expect(await indexNames()).toContain("lanes_workspace_id_run_id");
     expect(await indexNames()).toContain("lanes_workspace_id_lead_run_id");
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -666,6 +671,7 @@ describe("a space can be closed, and knows who opened it (0008)", () => {
       select state, opened_by from spaces where id = 'spc_1'`.execute(db);
     expect(room.rows[0]).toEqual({ state: "open", opened_by: "usr_1" });
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -742,6 +748,7 @@ describe("people join, hold a role, and come back by passkey (0009)", () => {
   it("adds the three tables, gives everyone already here a role, and takes it all away again", async () => {
     // A workspace from before roles: two people, the older of whom ran the server.
     await migrateToLatest(db, () => "2026-09-02T00:00:00.000Z");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -842,6 +849,7 @@ describe("people join, hold a role, and come back by passkey (0009)", () => {
       actor: { kind: "person", id: "usr_1" },
     });
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -985,6 +993,7 @@ describe("messaging depth (0010)", () => {
       expect.arrayContaining(["pins", "messages_fts", "steps_fts"]),
     );
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -1080,6 +1089,7 @@ describe("notifications per person (0011)", () => {
     expect(await tableNames()).toEqual(
       expect.arrayContaining(["notification_settings", "notification_claims"]),
     );
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1154,6 +1164,7 @@ describe("search off the request path (0012)", () => {
 
     // A message written the old way — into the index by 0010's trigger — keeps its rowid in
     // the map, and a message written now is a queue row, not an index row.
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1229,6 +1240,7 @@ describe("search off the request path (0012)", () => {
     const indexed = await sql<{ n: number }>`select count(*) as n from messages_fts`.execute(db);
     expect(indexed.rows[0]?.n).toBe(1);
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -1322,6 +1334,7 @@ describe("the server's keys (0013)", () => {
         })
         .execute(),
     ).rejects.toThrow();
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1397,6 +1410,7 @@ describe("which visit a person's messages go to (0014)", () => {
     // One pin per person per space: a second for the same space is the table's to refuse, so
     // that replacing a pin is a write that cannot leave two behind.
     await expect(pin("scout:two")).rejects.toThrow();
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1459,6 +1473,7 @@ describe("what a visit is called (0015)", () => {
   it("adds the title column, and takes it away again", async () => {
     await migrateToLatest(db, () => "2026-09-07T00:00:00.000Z");
     expect(await columnsIn("sessions")).toContain("title");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1515,6 +1530,7 @@ describe("where a push may reach a phone (0016)", () => {
     expect(await tableNames()).toContain("push_tokens");
     expect(await indexNames()).toContain("push_tokens_person");
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -1635,6 +1651,7 @@ describe("upload pieces (0018)", () => {
   it("adds the size a slot said it would be, and takes it away again", async () => {
     await migrateToLatest(db, () => "2026-09-13T00:00:00.000Z");
     expect(await uploadColumns()).toContain("declared_bytes");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1699,6 +1716,7 @@ describe("playable videos (0019)", () => {
         "playable_note",
       ]),
     );
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1760,6 +1778,7 @@ describe("voice notes are searchable (0021)", () => {
 
   it("adds what was heard beside what was typed, keeps what was indexed, queues the voice notes, and takes it away again", async () => {
     await migrateToLatest(db, () => "2026-09-13T00:00:00.000Z");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1842,6 +1861,7 @@ describe("voice notes are searchable (0021)", () => {
     );
     expect(triggers.rows).toHaveLength(3);
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -1911,6 +1931,7 @@ describe("voice transcripts (0020)", () => {
   it("adds what was said in a voice note, and takes it away again", async () => {
     await migrateToLatest(db, () => "2026-09-13T00:00:00.000Z");
     expect(await uploadColumns()).toContain("transcript");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -1968,6 +1989,7 @@ describe("view copies (0022)", () => {
     expect(await uploadColumns()).toEqual(
       expect.arrayContaining(["view_sha256", "view_mime_type"]),
     );
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2017,6 +2039,7 @@ describe("the Activity card, withdrawn (0024)", () => {
   it("takes the table 0023 made away again, and puts it back on the way down", async () => {
     await migrateToLatest(db, () => "2026-09-18T00:00:00.000Z");
     expect(await tableNames()).not.toContain("activities");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2103,6 +2126,7 @@ describe("a space knows who archived it (0026)", () => {
       { id: "spc_never", state_by: null },
     ]);
 
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
 
@@ -2165,6 +2189,7 @@ describe("a room knows which harness it was asked of (0027)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('spaces')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toContain("asked_of");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2218,6 +2243,7 @@ describe("a room knows whether it is a harness's home (0028)", () => {
     );
     const row = await sql<{ home: number }>`select home from spaces where id = 'spc_j'`.execute(db);
     expect(row.rows).toEqual([{ home: 0 }]);
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2273,6 +2299,7 @@ describe("a harness can be removed (0029)", () => {
       removed_at: string | null;
     }>`select removed_at from participants where id = 'hrn_1'`.execute(db);
     expect(row.rows).toEqual([{ removed_at: null }]);
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2317,6 +2344,7 @@ describe("who a message is for (0030)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('messages')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toEqual(expect.arrayContaining(["addressed_to", "held"]));
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2361,6 +2389,7 @@ describe("a message for everyone (0031)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('messages')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toContain("addressed_to_all");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2414,6 +2443,7 @@ describe("agents (0032)", () => {
       "to_id",
       "seq",
     ]);
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2469,6 +2499,7 @@ describe("one room per agent (0033)", () => {
       expect.arrayContaining(["released_from", "last_space_id"]),
     );
     expect(await columns("spaces")).toContain("also_asked_of");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2511,6 +2542,7 @@ describe("an agent's face (0034)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('participants')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toContain("face");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2550,6 +2582,7 @@ describe("who named an agent (0035)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('participants')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toContain("name_by");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2588,6 +2621,7 @@ describe("what a room allows a job (0037)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('spaces')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toContain("spend_ceiling_usd");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2632,6 +2666,7 @@ describe("join requests (0038)", () => {
       values (${id}, 'ws_1', 'harness', 'digest', 'waiting', 'requester', 'http://127.0.0.1:4431', '2026-10-05', '2026-10-05')`;
     await row("jrq_1").execute(db);
     await expect(row("jrq_2").execute(db)).rejects.toThrow(/UNIQUE/);
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2680,6 +2715,7 @@ describe("context files (0039)", () => {
       values ('edt_1', 'ws_1', 'agent', 'agt_1', 'hrn_1', 'PERSONA.md', 'words', 'usr_1', '2026-10-07', 'waiting')`.execute(
       db,
     );
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2715,6 +2751,7 @@ describe("a face of letters (0040)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('space_icons')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toContain("letters");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2755,6 +2792,7 @@ describe("a room's changes can be locked (0045)", () => {
       locked: number;
     }>`select locked from spaces where id = 'spc_1'`.execute(db);
     expect(row.rows).toEqual([{ locked: 0 }]);
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2786,6 +2824,7 @@ describe("the rooms a person hid (0049)", () => {
     await hide.execute(db);
     // The same room hidden twice by one person is one row.
     await expect(hide.execute(db)).rejects.toThrow();
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2810,6 +2849,7 @@ describe("whom a device that asked is paired as (0050)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('join_requests')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toContain("pair_as");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2833,6 +2873,7 @@ describe("how each part of a command starts, for This session (0056)", () => {
         await sql<{ name: string }>`select name from pragma_table_info('session_rules')`.execute(db)
       ).rows.map((row) => row.name);
     expect(await columns()).toContain("starts_with");
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2854,6 +2895,7 @@ describe("the rooms a person pinned (0057)", () => {
     await pin.execute(db);
     // The same room pinned twice by one person is one row.
     await expect(pin.execute(db)).rejects.toThrow();
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2878,6 +2920,7 @@ describe("a harness's own jobs and their runs (0058)", () => {
     const run = sql`insert into harness_job_runs (workspace_id, harness_id, job_id, run_id, started_at, cost_usd, said) values ('ws_1', 'hrn_1', 'dreaming', 'r1', '2026-10-31T10:00:00.000Z', 0.1, '{}')`;
     await run.execute(db);
     await expect(run.execute(db)).rejects.toThrow();
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
@@ -2895,6 +2938,7 @@ describe("a Wi-Fi device's check (0059, ADR 0278)", () => {
     }>`select name from pragma_table_info('join_requests')`.execute(db);
     const named = columns.rows.map((row) => row.name);
     expect(named).toEqual(expect.arrayContaining(["check_commit", "check_nonce"]));
+    expect(await migrateDown(db)).toBe("0061-banners");
     expect(await migrateDown(db)).toBe("0060-rules-for-a-while");
     expect(await migrateDown(db)).toBe("0059-join-check");
     const after = await sql<{
@@ -2903,5 +2947,20 @@ describe("a Wi-Fi device's check (0059, ADR 0278)", () => {
     expect(after.rows.map((row) => row.name)).not.toContain("check_commit");
     expect(after.rows.map((row) => row.name)).not.toContain("check_nonce");
     expect(await migrateDown(db)).toBe("0058-harness-jobs");
+  });
+});
+
+describe("what a person wants of the banner (0061)", () => {
+  it("adds the two registries, and takes them away again", async () => {
+    await migrateToLatest(db, () => "2026-11-08T00:00:00.000Z");
+    const tables = async () =>
+      (
+        await sql<{ name: string }>`select name from sqlite_master where type = 'table'`.execute(db)
+      ).rows.map((row) => row.name);
+    expect(await tables()).toEqual(expect.arrayContaining(["banner_choices", "closed_banners"]));
+    expect(await migrateDown(db)).toBe("0061-banners");
+    const left = await tables();
+    expect(left).not.toContain("banner_choices");
+    expect(left).not.toContain("closed_banners");
   });
 });

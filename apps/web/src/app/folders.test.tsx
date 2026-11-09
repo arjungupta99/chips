@@ -545,6 +545,55 @@ describe("Your folder's card", () => {
     fireEvent.click(screen.getByTestId("your-folder-file"));
     expect(runs.at(-1)).toEqual({ op: "file", extra: { file: "style.css" } });
   });
+
+  it("keeps its buttons through a look nobody pressed, and holds them for what somebody did", async () => {
+    // Each answer waits for the test, so the card can be read while the ask is out.
+    const ops: FolderOp[] = [];
+    const answers: (() => void)[] = [];
+    const shell = {
+      canRunHere: async () => true,
+      serverHere: async () => ({ url: HERE, key: KEY }),
+      projectFolder: (op: FolderOp) =>
+        new Promise<FolderAnswer>((resolve) => {
+          ops.push(op);
+          answers.push(() => resolve({ ...at, made: true, changed: [], editor: "Cursor" }));
+        }),
+    } as unknown as Desktop;
+    const folders = createFolders({
+      store: storeWith("a".repeat(40)),
+      device,
+      server: "http://x",
+      shell: Promise.resolve(shell),
+    });
+    const out = (op: FolderOp, start?: () => void) =>
+      act(async () => {
+        start?.();
+        await vi.waitFor(() => expect(ops.at(-1)).toBe(op));
+      });
+    const answer = () => act(async () => answers.shift()?.());
+    const offered = () =>
+      ["your-folder-open", "your-folder-editor"].map(
+        (id) => !(screen.getByTestId(id) as HTMLButtonElement).disabled,
+      );
+
+    render(<YourFolder room={room} folders={folders} program={undefined} />);
+    await out("look");
+    await answer();
+    expect(offered()).toEqual([true, true]);
+
+    // The look every few seconds at a running program, and the one when the project moves on.
+    for (const op of ["status", "look"] as const) {
+      await out(op, () => void folders.run(room, op));
+      expect(offered()).toEqual([true, true]);
+      await answer();
+    }
+
+    await out("open", () => fireEvent.click(screen.getByTestId("your-folder-open")));
+    expect(offered()).toEqual([false, false]);
+    await answer();
+    expect(offered()).toEqual([true, true]);
+    folders.stop();
+  });
 });
 
 describe("Run on the Mac's card (ADR 0226)", () => {

@@ -3,6 +3,7 @@
 Date: 1 October 2026
 Status: Accepted. Extends "the ring is state" (blueprint, Look) past harness-named rooms, and
 ends the reading-out of a harness's own task-bubble markup in a list row.
+Decisions 2 and 3 replaced by ADR 0285: a room at work now wears the pins, 8 November 2026.
 
 ## Context
 

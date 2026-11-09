@@ -149,3 +149,67 @@ export function pinsOf(side: number): readonly Pin[] {
     }
   });
 }
+
+/**
+ * A room's face wears the agent's pins while there is work going in it, and only then (ADR 0285).
+ * They are the same pins, as thick and as long, but a room has no bite to take any, so there are
+ * twelve: three to each side of a square, or one to every thirty degrees of a circle. The whole
+ * face draws in a little (`drawn`) so they stand in about the room the ring they replaced took.
+ */
+export const WORKING_PINS = { count: 12, drawn: 0.9 } as const;
+
+/** The gap between one pin lighting and the next round twelve: the turn still takes 1.5 s. */
+export const WORKING_PIN_STEP_MS = 1500 / WORKING_PINS.count;
+
+/** A pin round a working face: its centre against the face's box, its size, which way it points. */
+export interface WorkingPin {
+  readonly key: string;
+  readonly cx: number;
+  readonly cy: number;
+  readonly w: number;
+  readonly h: number;
+  /** Degrees clockwise from pointing straight up. Its length is always `h`, before the turn. */
+  readonly turn: number;
+}
+
+/**
+ * The pins round a working face of this side, in the order the light goes round: clockwise from
+ * the top. Each is described pointing up and then turned, so that sliding one along its own length
+ * takes it straight under the face and out again, on any side and at any angle.
+ */
+export function workingPinsOf(side: number, round: boolean): readonly WorkingPin[] {
+  const w = PINS.width * side;
+  const h = (PINS.over + PINS.tuck) * side;
+  // How far a pin's centre stands past the edge it comes out of.
+  const stand = ((PINS.over - PINS.tuck) / 2) * side;
+  const pin = (index: number, cx: number, cy: number, turn: number): WorkingPin => ({
+    key: `pin-${index}`,
+    cx,
+    cy,
+    w,
+    h,
+    turn,
+  });
+  if (round) {
+    const reach = side / 2 + stand;
+    return Array.from({ length: WORKING_PINS.count }, (_, index) => {
+      const turn = (index * 360) / WORKING_PINS.count;
+      const angle = (turn * Math.PI) / 180;
+      return pin(
+        index,
+        side / 2 + reach * Math.sin(angle),
+        side / 2 - reach * Math.cos(angle),
+        turn,
+      );
+    });
+  }
+  const along = [0.25, 0.5, 0.75].map((at) => at * side);
+  const back = [...along].reverse();
+  const far = side + stand;
+  return [
+    ...along.map((at) => [at, -stand, 0] as const),
+    ...along.map((at) => [far, at, 90] as const),
+    ...back.map((at) => [at, far, 180] as const),
+    ...back.map((at) => [-stand, at, 270] as const),
+  ].map(([cx, cy, turn], index) => pin(index, cx, cy, turn));
+}

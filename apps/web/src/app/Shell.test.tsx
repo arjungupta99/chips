@@ -47,6 +47,7 @@ import { type FakeFiles, fakeFiles as sharedFakeFiles } from "../testing/files.t
 import { installMicrophone } from "../testing/microphone.ts";
 import { chooseInWorkspaces, menuRows, openWorkspaces } from "../testing/workspaces.ts";
 import { forgetFirstRunFlags } from "./firstRun.ts";
+import { ASK_BEAT_MS, ASK_GOING_MS, ASK_TICK_MS } from "./RoomAsks.tsx";
 import { passkeysWorkHere, Shell } from "./Shell.tsx";
 import { seedField } from "./SpaceView.tsx";
 
@@ -132,6 +133,12 @@ function opened(): ClientEvent[] {
 /** PO-4471 up to the point where Scout is waiting on a person. */
 function asking(): ClientEvent[] {
   return [...opened(), fixture("run.started", 4), fixture("approval.request", 5)];
+}
+
+/** Scout's ask on the screen, then answered as `resolved` says: its card stands a moment. */
+function closedAs(resolved: Record<string, unknown>): void {
+  const store = renderShell(asking());
+  store.update(snapshotOf([...asking(), fixture("approval.resolved", 6, resolved)]));
 }
 
 interface Extra {
@@ -399,6 +406,12 @@ function fakeStore(initial: Snapshot): FakeStore {
     routeApproval(input) {
       store.routed.push(input);
     },
+    letAgentWork() {},
+    closeBanner: async () => undefined,
+    reopenBanner: async () => undefined,
+    setAgentBanner: async () => undefined,
+    setHarnessBanner: (harnessId) => ({ harnessId, shown: undefined, apart: {} }),
+    undoHarnessBanner: async () => undefined,
     stopLetWork(input) {
       store.stoppedWork.push(input);
     },
@@ -1590,45 +1603,22 @@ describe("the approval card", () => {
     // The fixture asks at 14:22 on 2 September 2026 with an hour to answer; today is later.
     expect(card.textContent).toContain("expired");
 
-    const store = renderShell([
-      ...asking(),
-      fixture("approval.resolved", 6, {
-        decision: "expired",
-        resolved_by: "system",
-        scope: "once",
-      }),
-    ]);
-    store.update(
-      snapshotOf([
-        ...asking(),
-        fixture("approval.resolved", 6, { decision: "expired", resolved_by: "system" }),
-      ]),
-    );
+    closedAs({ decision: "expired", resolved_by: "system", scope: "once" });
     const decided = screen.getAllByRole("article", { name: /Approval/ }).at(-1) as HTMLElement;
     expect(decided.textContent).toContain("nobody answered, so policy denied it");
   });
 
   it("says when a decision was made on another device, and when policy made it", () => {
-    renderShell([
-      ...asking(),
-      fixture("approval.resolved", 6, {
-        decision: "approved",
-        resolved_by: ARJUN,
-        resolved_elsewhere: true,
-      }),
-    ]);
+    closedAs({ decision: "approved", resolved_by: ARJUN, resolved_elsewhere: true });
     expect(screen.getByRole("article", { name: /Approval/ }).textContent).toContain(
       "Approved by Arjun on another device",
     );
 
-    renderShell([
-      ...asking(),
-      fixture("approval.resolved", 6, {
-        decision: "approved",
-        resolved_by: "system",
-        reason: "L3 · Autonomous, report back: runs end to end and reports back",
-      }),
-    ]);
+    closedAs({
+      decision: "approved",
+      resolved_by: "system",
+      reason: "L3 · Autonomous, report back: runs end to end and reports back",
+    });
     const cards = screen.getAllByRole("article", { name: /Approval/ });
     expect(cards.at(-1)?.textContent).toContain("Approved by policy");
   });
@@ -1637,14 +1627,7 @@ describe("the approval card", () => {
     // Every decision this device did not send arrives as made elsewhere; only a person's was
     // made on a device (the OpenClaw test: "Approved by OpenClaw on another device").
     for (const by of [SCOUT, "system"]) {
-      renderShell([
-        ...asking(),
-        fixture("approval.resolved", 6, {
-          decision: "approved",
-          resolved_by: by,
-          resolved_elsewhere: true,
-        }),
-      ]);
+      closedAs({ decision: "approved", resolved_by: by, resolved_elsewhere: true });
       const card = screen.getAllByRole("article", { name: /Approval/ }).at(-1);
       expect(card?.textContent).toContain(by === "system" ? "Approved by policy" : "Approved by");
       expect(card?.textContent).not.toContain("another device");
@@ -1664,6 +1647,131 @@ describe("the approval card", () => {
     expect(card.textContent).toContain("Approved by Arjun");
     expect(card.textContent).toContain("sent");
     expect(within(card).queryByRole("button", { name: /^Approve/ })).toBeNull();
+  });
+
+  const anyAsk = () => screen.queryByRole("article", { name: /Approval/ });
+  const byPolicy = { decision: "approved", resolved_by: "system" };
+
+  it("draws none that was answered before the room opened", () => {
+    renderShell([...asking(), fixture("approval.resolved", 6, byPolicy)]);
+    expect(anyAsk()).toBeNull();
+  });
+
+  it("folds away a moment after it is answered, as the phone's goes", () => {
+    vi.useFakeTimers();
+    try {
+      closedAs({ decision: "approved", resolved_by: ARJUN });
+      act(() => vi.advanceTimersByTime(ASK_GOING_MS - 1));
+      expect(anyAsk()).not.toBeNull();
+      act(() => vi.advanceTimersByTime(1));
+      expect(anyAsk()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps Approve's tick until it has gone, rather than a line about the answer", () => {
+    const store = renderShell(asking());
+    const card = screen.getByRole("article", { name: /Approval/ });
+    fireEvent.click(within(card).getByTestId("approval-approve"));
+    store.update(
+      snapshotOf([
+        ...asking(),
+        fixture("approval.resolved", 6, { decision: "approved", resolved_by: ARJUN }),
+      ]),
+    );
+    const going = screen.getByRole("article", { name: /Approval/ });
+    expect(within(going).getByTestId("approval-approve").dataset["answered"]).toBe("true");
+    expect(going.textContent).not.toContain("Approved by");
+  });
+
+  /** A second ask of the same run, after the first has been answered. */
+  const nextAsk = (seq: number) =>
+    fixture("approval.request", seq, { approval_id: "apr_01K4ZQPX0000000000000NEXT" });
+  const answered = () => [
+    ...asking(),
+    fixture("approval.resolved", 6, { decision: "approved", resolved_by: ARJUN }),
+  ];
+  const working = () => screen.queryByTestId("doing");
+
+  it("gives the next ask the place of the one just answered, without folding first", () => {
+    vi.useFakeTimers();
+    try {
+      const store = renderShell(asking());
+      store.update(snapshotOf(answered()));
+      act(() => vi.advanceTimersByTime(200));
+      store.update(snapshotOf([...answered(), nextAsk(7)]));
+      expect(screen.getAllByRole("article", { name: /Approval/ })).toHaveLength(1);
+      expect(document.querySelector(".room-ask")?.getAttribute("data-waits")).toBe("true");
+      act(() => vi.advanceTimersByTime(ASK_BEAT_MS));
+      const card = screen.getAllByRole("article", { name: /Approval/ });
+      expect(card).toHaveLength(1);
+      expect(card[0]?.closest(".room-ask")?.getAttribute("data-going")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the working row through an ask's beat, and swaps it for the card", () => {
+    vi.useFakeTimers();
+    try {
+      const store = renderShell([...opened(), fixture("run.started", 4)]);
+      act(() => vi.advanceTimersByTime(10_000));
+      expect(working()).not.toBeNull();
+      store.update(snapshotOf(asking()));
+      act(() => vi.advanceTimersByTime(ASK_BEAT_MS - 1));
+      expect(working()).not.toBeNull();
+      expect(anyAsk()).toBeNull();
+      act(() => vi.advanceTimersByTime(1));
+      expect(working()).toBeNull();
+      expect(anyAsk()).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("brings the working row back as an answered card starts to fold", () => {
+    vi.useFakeTimers();
+    try {
+      const store = renderShell(asking());
+      store.update(snapshotOf(answered()));
+      act(() => vi.advanceTimersByTime(ASK_TICK_MS - 1));
+      expect(working()).toBeNull();
+      act(() => vi.advanceTimersByTime(1));
+      expect(working()).not.toBeNull();
+      expect(anyAsk()).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("waits a beat when it is new, then stands", () => {
+    vi.useFakeTimers();
+    try {
+      const store = renderShell([...opened(), fixture("run.started", 4)]);
+      store.update(snapshotOf(asking()));
+      act(() => vi.advanceTimersByTime(ASK_BEAT_MS - 1));
+      expect(anyAsk()).toBeNull();
+      act(() => vi.advanceTimersByTime(1));
+      expect(anyAsk()).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("is never drawn when a standing yes answers it inside its beat", () => {
+    vi.useFakeTimers();
+    try {
+      const store = renderShell([...opened(), fixture("run.started", 4)]);
+      store.update(snapshotOf(asking()));
+      act(() => vi.advanceTimersByTime(ASK_BEAT_MS - 1));
+      store.update(snapshotOf([...asking(), fixture("approval.resolved", 6, byPolicy)]));
+      expect(anyAsk()).toBeNull();
+      act(() => vi.advanceTimersByTime(ASK_GOING_MS));
+      expect(anyAsk()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -2389,11 +2497,17 @@ describe("a question from the harness", () => {
   });
 
   it("shows the answer once it is in, and who gave it", () => {
-    renderShell([...askedQuestion(), fixture("question.answered", 6)]);
+    const store = renderShell(askedQuestion());
+    store.update(snapshotOf([...askedQuestion(), fixture("question.answered", 6)]));
     const card = screen.getByRole("article", { name: /Question from Scout/ });
     expect(card.textContent).toContain("Answered by Arjun");
     expect(card.textContent).toContain("19 September");
     expect(within(card).queryByRole("button", { name: "Send the answer" })).toBeNull();
+  });
+
+  it("draws none that was answered before the room opened", () => {
+    renderShell([...askedQuestion(), fixture("question.answered", 6)]);
+    expect(screen.queryByRole("article", { name: /Question from Scout/ })).toBeNull();
   });
 });
 
@@ -2477,7 +2591,7 @@ describe("the workspace's log", () => {
     expect(rows[2]?.textContent).toContain("Arjun");
     expect(rows[2]?.textContent).toContain("approved email.send, always");
     fireEvent.click(within(rows[2] as HTMLElement).getByRole("button", { name: "PO-4471" }));
-    expect(screen.getByRole("article", { name: /Approval/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "PO-4471", level: 1 })).toBeTruthy();
   });
 
   it("says when there is nothing yet", async () => {

@@ -303,13 +303,20 @@ describe("a turn in a room with a lead (ADR 0104)", () => {
     await send("Say hello, both", "all");
     await settled();
     expect(noteOf(ledgerSide.of("message.new"), other.agent)).toMatch(
-      /^Arjun sent this message to every agent here, so each of you has it: answer it yourself, and don't pass it on with an @\. In this space:/,
+      /^Arjun sent this to you and Scout too, so each of you already has it: don't pass it on with an @\. Give your own answer to a question without waiting for the others\. If it says who does what, do your part\. If one thing is to be made and it doesn't say who does what, Scout says who does what: answer NO_REPLY and wait for that\. In this space:/,
     );
+    // Named by @, the first named organises where the lead wasn't asked (ADR 0287); here it was.
+    await send("@Ledger @Scout build the page together", [
+      other.agent,
+      await agentOf(ws.scout.participantId),
+    ]);
+    await settled();
+    expect(noteOf(ledgerSide.of("message.new"), other.agent)).toContain("Scout says who does what");
     // The rules it ends with come apart too, for a session that holds them (ADR 0250).
     const room = ledgerSide.of("message.new").at(-1)?.["room"] as { rules: Record<string, string> };
     expect(room.rules[other.agent]).toMatch(/^Everyone here reads what you write; only those/);
     expect(noteOf(ledgerSide.of("message.new"), other.agent)).toMatch(
-      / answer NO_REPLY .*waiting\.$/,
+      / answer NO_REPLY .*waiting\. To get a file .*the read can hang\.$/,
     );
   });
 
@@ -322,10 +329,10 @@ describe("a turn in a room with a lead (ADR 0104)", () => {
     await say(arjun(), "@Ledger @Scout welcome Ledger in");
     await settled();
     expect(noteOf(ledgerSide.of("message.new"), other.agent)).toMatch(
-      /^You joined this space just now, added by Arjun\. In this space:/,
+      /^Arjun sent this to you and Scout too.* You joined this space just now, added by Arjun\. In this space:/,
     );
     expect(noteOf(scoutSide.of("message.new"), scoutAgent)).toMatch(
-      /^New since your last turn: Ledger \(agent, @Ledger\), added by Arjun\. In this space:/,
+      /^Arjun sent this to you and Ledger too.* New since your last turn: Ledger \(agent, @Ledger\), added by Arjun\. In this space:/,
     );
   });
 });

@@ -660,6 +660,31 @@ export interface HiddenSpacesTable {
 }
 
 /**
+ * What a person wants of the gold banner for one agent or harness (ADR 0286), theirs alone: a
+ * registry, not a projection. An agent with no row follows its harness; a harness with none shows.
+ */
+export interface BannerChoicesTable {
+  workspace_id: string;
+  participant_id: string;
+  target_id: string;
+  shown: number;
+  chosen_at: string;
+}
+
+/**
+ * A banner a person closed for now (ADR 0286): one per agent in a space, for the yes given at
+ * `since`. A later yes is a new one, and shows.
+ */
+export interface ClosedBannersTable {
+  workspace_id: string;
+  participant_id: string;
+  space_id: string;
+  asker: string;
+  since: string;
+  closed_at: string;
+}
+
+/**
  * A room a person pinned to the top of their own list (ADR 0240), theirs alone: a registry, not a
  * projection, as the rooms they hid are. A row is the room pinned; when it was pinned orders it.
  */
@@ -957,6 +982,8 @@ export interface Database {
   space_icons: SpaceIconsTable;
   hidden_spaces: HiddenSpacesTable;
   pinned_spaces: PinnedSpacesTable;
+  banner_choices: BannerChoicesTable;
+  closed_banners: ClosedBannersTable;
   join_requests: JoinRequestsTable;
   direct_asks: DirectAsksTable;
   direct_links: DirectLinksTable;

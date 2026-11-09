@@ -21,26 +21,19 @@ import { lettersScale, type SpaceIcon } from "@chipschat/protocol";
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { AgentFace } from "./AgentFace";
-import { BusyRing } from "./BusyRing";
 import { useFacePaint } from "./faceTheme";
 import { useGround } from "./ground";
 import { MarkFace } from "./MarkFace";
 import { LIBRARY_MARKS, type MarkName } from "./marks";
-import { BITE } from "./outline";
+import { BITE, PINS_FROM } from "./outline";
 import { avatarHue } from "./sourceColours";
 import { usePalette } from "./theme";
 import { ICON_GROUNDS, type Palette } from "./tokens";
+import { WorkingFace } from "./WorkingFace";
 
 export { avatarHue } from "./sourceColours";
 
-import {
-  type HarnessStatus,
-  initials,
-  ringTone,
-  STATUS,
-  statusLabel,
-  type Tone,
-} from "./vocabulary";
+import { type HarnessStatus, initials, ringTone, statusLabel, type Tone } from "./vocabulary";
 
 export type AvatarKind = "person" | "harness" | "agent" | "channel";
 export type AvatarSize = "xs" | "sm" | "md" | "result" | "pick" | "row" | "lg" | "profile";
@@ -173,10 +166,10 @@ function Inside({
 }
 
 /**
- * What a face's edge says: whether the light runs round it, and the still ring under it where it
- * does not. One or the other, never both — the light is the state, and an outline beneath it
- * would be the same thing said twice. An agent says its own work in its pins (ADR 0089), so no
- * light runs round one.
+ * What a face's edge says: whether it wears the pins of a room at work (ADR 0285), and the still
+ * ring where it does not. One or the other, never both: the pins are the state, and an outline
+ * with them would be the same thing said twice. An agent always wears its own pins (ADR 0089), so
+ * this says nothing of one.
  */
 function edgeOf(
   kind: AvatarKind,
@@ -203,7 +196,7 @@ export function Avatar({
   kind = "person",
   size = "md",
   status,
-  busy = false,
+  busy,
   label,
   decorative = false,
   icon,
@@ -223,10 +216,12 @@ export function Avatar({
    */
   readonly status?: HarnessStatus | undefined;
   /**
-   * The room this face stands for has work going in it (`spaceWorking`, ADR 0090): the light
-   * runs round the face in the working tone, in place of the still ring. An agent says its own
-   * work in its pins (ADR 0089) and is left alone. The face must be opaque, which every face
-   * drawn here is: the band is what the face leaves of the arc turning behind it.
+   * The room this face stands for has work going in it (`spaceWorking`, ADR 0285): the face
+   * draws in and wears an agent's pins, lit in turn, in place of the still ring. They come out
+   * when this turns true and go back in when it turns false, so a face that can change is given
+   * it either way; left out, the face never wears them. An agent says its own work in its own
+   * pins (ADR 0089) and is left alone. The face must be opaque, which every face drawn here is:
+   * the pins come out from behind it.
    */
   readonly busy?: boolean | undefined;
   /** Replaces the name as the accessible name, for example `Scout, the lead`. */
@@ -266,7 +261,7 @@ export function Avatar({
   const stands = useGround().ground;
   const faces = useFacePaint();
   const side = SIZES[size];
-  const { lit, ring } = edgeOf(kind, status, busy);
+  const { lit, ring } = edgeOf(kind, status, busy === true);
   const face = chosenFace(icon);
   const accessible = accessibleName(name, kind, status, label, cantAnswer);
   const corner = side * CORNER[kind];
@@ -317,15 +312,19 @@ export function Avatar({
       />
     </View>
   );
-  const working = lit ? (
-    <View>
-      {/* Behind the face, which is what cuts the band's inner edge. */}
-      <BusyRing side={side} corner={corner} tone={ringColour(palette, STATUS.working.tone)} />
-      {avatar}
-    </View>
-  ) : (
-    avatar
-  );
+  const working =
+    busy !== undefined && side >= PINS_FROM ? (
+      <WorkingFace
+        side={side}
+        round={kind === "person"}
+        ground={face?.ground ?? avatarHue(name)}
+        working={lit}
+      >
+        {avatar}
+      </WorkingFace>
+    ) : (
+      avatar
+    );
   return cantAnswer ? (
     <Marked side={side} ground={ground ?? stands} amber={palette.amber} left={markSide === "left"}>
       {working}

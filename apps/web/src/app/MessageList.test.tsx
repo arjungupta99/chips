@@ -163,6 +163,59 @@ describe("the windowed message list", () => {
     }
   });
 
+  it("leaves a jump's glide alone until its scrolls have stopped", async () => {
+    stubHeights();
+    const landed = vi.fn();
+    const had = Element.prototype.scrollIntoView;
+    const rect = Element.prototype.getBoundingClientRect;
+    const media = window.matchMedia;
+    Element.prototype.scrollIntoView = landed;
+    window.matchMedia = (() => ({ matches: false })) as unknown as typeof window.matchMedia;
+    try {
+      const { rerender } = render(<Harness count={40} />);
+      // Two frames: a jump before then is the room opening at a line, and is not a glide.
+      await act(async () => {
+        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      });
+      rerender(<Harness count={40} focus={{ index: 38, nonce: 1 }} />);
+      expect(landed.mock.calls.at(-1)?.[0]).toMatchObject({ behavior: "smooth" });
+      const scroller = screen.getByTestId("messages");
+      const writes: number[] = [];
+      let now = scroller.scrollTop;
+      Object.defineProperty(scroller, "scrollTop", {
+        configurable: true,
+        get: () => now,
+        set: (value: number) => {
+          writes.push(value);
+          now = value;
+        },
+      });
+      // Rows stand where the scroll puts them, so a row held from before the glide has "moved".
+      Element.prototype.getBoundingClientRect = function (this: Element) {
+        const at = this.classList.contains("msg")
+          ? [...(this.parentElement?.children ?? [])].indexOf(this)
+          : 0;
+        return { top: at * ROW - now, bottom: (at + 1) * ROW - now } as DOMRect;
+      };
+      // The glide's scrolls: nothing the list does in answer writes to the scroll.
+      for (const step of [60, 40, 20]) {
+        now = Math.max(0, now - step);
+        await act(async () => scroller.dispatchEvent(new Event("scroll")));
+      }
+      rerender(<Harness count={41} focus={{ index: 38, nonce: 1 }} />);
+      expect(writes).toEqual([]);
+      delete (scroller as unknown as { scrollTop?: number }).scrollTop;
+      // Quiet for long enough, the glide is over.
+      await act(async () => {
+        await new Promise((done) => setTimeout(done, 300));
+      });
+    } finally {
+      Element.prototype.getBoundingClientRect = rect;
+      Element.prototype.scrollIntoView = had;
+      window.matchMedia = media;
+    }
+  });
+
   it("keeps the newest line on the page as the space grows", () => {
     stubHeights();
     const { rerender } = render(<Harness count={1000} />);
@@ -289,6 +342,34 @@ describe("staying at the end", () => {
       it_.max,
     );
     expect(it_.following.current).toBe(false);
+  });
+
+  it("is not taken back to the end by a jump gliding up from it", () => {
+    const it_ = state();
+    const jumping = { current: false };
+    const at = (scrollTop: number) =>
+      follow(
+        { scrollTop, scrollHeight: 1200, clientHeight: 770 },
+        it_.following,
+        it_.top,
+        it_.max,
+        jumping,
+      );
+    at(430);
+    expect(it_.following.current).toBe(true);
+    // A quote is tapped: the jump lets go of the end and glides up from it.
+    it_.following.current = false;
+    jumping.current = true;
+    // Its first frames are still within reach of the end, and are not the reader coming back.
+    at(428);
+    at(410);
+    expect(it_.following.current).toBe(false);
+    // The glide over, the list is the reader's again, and the end is theirs to come back to.
+    jumping.current = false;
+    at(300);
+    expect(it_.following.current).toBe(false);
+    at(430);
+    expect(it_.following.current).toBe(true);
   });
 
   it("stops following when the reader actually scrolls back", () => {

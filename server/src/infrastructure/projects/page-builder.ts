@@ -12,8 +12,9 @@
  *
  * A link to another file of the project becomes `chips-file:` and its path (ADR 0227), so it opens
  * in Chips: the phone's page view catches the tap, and in a frame a few lines of script the builder
- * adds hand the path to the window. Links to the page itself, to a place in it, or to an address
- * stay as they are.
+ * adds hand the path to the window. A link to a web or mail address asks for a window of its own,
+ * the one way out of a frame, so it opens in the person's browser. Links to the page itself or to a
+ * place in it stay as they are.
  */
 
 import { posix } from "node:path";
@@ -390,10 +391,21 @@ async function foldStyle(build: Build, element: Element, page: string): Promise<
 const FILE_LINK_SCRIPT =
   'document.addEventListener("click",function(e){var a=e.target instanceof Element?e.target.closest("a[data-chips-file]"):null;if(!a||window.parent===window)return;e.preventDefault();window.parent.postMessage({chipsFile:a.getAttribute("data-chips-file")},"*")},true);';
 
-/** A link to another file of the project, as a `chips-file:` link (ADR 0227). */
+/** What a person's browser or mail opens, and a page's frame may not go to. */
+const ADDRESS = /^\s*(https?|mailto):/i;
+
+/**
+ * A link to another file of the project, as a `chips-file:` link (ADR 0227); a link to an address,
+ * as one that opens a window. Left to load in the frame, the app's policy stops it and the tap does
+ * nothing.
+ */
 function foldLink(build: Build, element: Element, page: string): void {
   const href = attr(element, "href");
   if (href === undefined || href.trim().startsWith("#")) return;
+  if (ADDRESS.test(href)) {
+    setAttr(element, "target", "_blank");
+    return;
+  }
   const path = inProject(href, page);
   if (path === undefined || path === page) return;
   setAttr(element, "href", `${FILE_LINK}${encodeURIComponent(path)}`);

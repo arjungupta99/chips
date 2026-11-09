@@ -31,19 +31,46 @@ export interface Turns {
   /** The shape of the way up and the way down, over nought to one. */
   readonly rise: (t: number) => number;
   readonly fall: (t: number) => number;
+  /**
+   * The lights stand in a ring and the light goes on round it: the first comes up one step after
+   * the last, as any comes up after the one before, while the last is still going down. Left out,
+   * they stand in a row, and the last has gone down before the first comes up again.
+   */
+  readonly ring?: boolean;
 }
 
 /** Straight pieces per curve: at eight, a quad in-out is never more than a percent off. */
 const SAMPLES = 8;
 
-/** One round: the last light's start, then its whole way up and down. */
+/** One round: a step for each light of a ring; along a row, the last's start and its whole breath. */
 export function roundMs(turns: Turns): number {
+  if (turns.ring === true) return turns.count * turns.stepMs;
   return (turns.count - 1) * turns.stepMs + turns.riseMs + turns.fallMs;
+}
+
+/** How lit a light is, `ms` after it started to come up. */
+function levelAt(turns: Turns, ms: number): number {
+  const span = turns.high - turns.low;
+  if (ms <= 0 || ms >= turns.riseMs + turns.fallMs) return turns.low;
+  if (ms <= turns.riseMs) return turns.low + span * turns.rise(ms / turns.riseMs);
+  return turns.high - span * turns.fall((ms - turns.riseMs) / turns.fallMs);
+}
+
+/** The moments of a light's breath the interpolation is given, from its start. */
+function breathOf(turns: Turns): number[] {
+  const steps = Array.from({ length: SAMPLES }, (_, k) => (k + 1) / SAMPLES);
+  return [
+    0,
+    ...steps.map((part) => turns.riseMs * part),
+    ...steps.map((part) => turns.riseMs + turns.fallMs * part),
+  ];
 }
 
 /**
  * Where on the round's clock the light at `index` is lit, and how brightly: an interpolation that
- * holds `low` until its turn, rises, falls, and holds `low` again to the round's end.
+ * holds `low` until its turn, rises, falls, and holds `low` again to the round's end. Round a ring,
+ * what is left of a late light's breath at the round's end is at the start of the clock, so the
+ * clock's two ends read the same and going back to nought shows nothing.
  */
 export function turnOf(
   turns: Turns,
@@ -63,16 +90,15 @@ export function turnOf(
     outputRange.push(value);
   };
   const start = index * turns.stepMs;
-  const peak = start + turns.riseMs;
-  const span = turns.high - turns.low;
-  at(0, turns.low);
-  at(start, turns.low);
-  for (let k = 1; k <= SAMPLES; k++) {
-    at(start + (turns.riseMs * k) / SAMPLES, turns.low + span * turns.rise(k / SAMPLES));
+  const moments = breathOf(turns);
+  const atTheEnd = levelAt(turns, round - start);
+  at(0, atTheEnd);
+  for (const ms of moments) {
+    if (start + ms > round) at(start + ms - round, levelAt(turns, ms));
   }
-  for (let k = 1; k <= SAMPLES; k++) {
-    at(peak + (turns.fallMs * k) / SAMPLES, turns.high - span * turns.fall(k / SAMPLES));
+  for (const ms of moments) {
+    if (start + ms <= round) at(start + ms, levelAt(turns, ms));
   }
-  at(round, turns.low);
+  at(round, atTheEnd);
   return { inputRange, outputRange };
 }

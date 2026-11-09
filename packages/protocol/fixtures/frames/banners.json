@@ -1,0 +1,14 @@
+{
+  "frame": "banners",
+  "choices": {
+    "agt_01K4ZQPX000000000000000001": false,
+    "hrn_01K4ZQPX000000000000000004": true
+  },
+  "closed": [
+    {
+      "space_id": "spc_01K4ZQPX000000000000000002",
+      "asker": "agt_01K4ZQPX000000000000000001",
+      "since": "2026-09-06T12:04:00.004Z"
+    }
+  ]
+}

@@ -6,11 +6,12 @@
  */
 
 import { act, render, screen } from "@testing-library/react-native";
-import { AgentFace } from "./AgentFace";
+import { AGENT_ROUND, AgentFace } from "./AgentFace";
 import { Avatar } from "./Avatar";
 import { chooseAppearance } from "./appearance";
 import { PIN_REST, PINS } from "./outline";
 import { dark, light } from "./tokens";
+import { roundMs } from "./turns";
 
 const PAINT = { amber: "#d76c00", green: "#009b5c" } as const;
 
@@ -21,6 +22,10 @@ function colourOf(pin: unknown) {
 }
 
 describe("an agent's face", () => {
+  it("goes round in the web's 1500 ms, with no pause before the first pin comes up again", () => {
+    expect(roundMs(AGENT_ROUND)).toBe(1500);
+  });
+
   it("wears its initials until a mark is chosen, and then the mark", async () => {
     const { rerender } = await render(
       <AgentFace ground="#1c6aa8" letters="S" side={44} {...PAINT} />,

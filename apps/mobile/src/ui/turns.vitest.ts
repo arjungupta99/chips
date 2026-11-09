@@ -71,6 +71,43 @@ describe("lights that take turns on one clock", () => {
     }
   });
 
+  it("goes on round a ring: every light is the one before it, a step later, past the round's end", () => {
+    const ring: Turns = {
+      ...BREATHS,
+      count: 12,
+      stepMs: 125,
+      riseMs: 130,
+      fallMs: 260,
+      ring: true,
+    };
+    expect(roundMs(ring)).toBe(1500);
+    const step = 125 / 1500;
+    for (let index = 0; index < ring.count; index++) {
+      const light = turnOf(ring, index);
+      const next = turnOf(ring, (index + 1) % ring.count);
+      expect(read(light, 0)).toBeCloseTo(read(light, 1), 10);
+      expect([...light.inputRange].sort((a, b) => a - b)).toEqual(light.inputRange);
+      for (let at = 0; at < 1; at += 0.013) {
+        expect(read(next, (at + step) % 1)).toBeCloseTo(read(light, at), 1);
+      }
+    }
+  });
+
+  it("has a light up somewhere round a ring at every moment of the round", () => {
+    const ring: Turns = {
+      ...BREATHS,
+      count: 12,
+      stepMs: 125,
+      riseMs: 130,
+      fallMs: 260,
+      ring: true,
+    };
+    const lights = Array.from({ length: 12 }, (_, index) => turnOf(ring, index));
+    for (let at = 0; at < 1; at += 0.005) {
+      expect(Math.max(...lights.map((light) => read(light, at)))).toBeGreaterThan(0.55);
+    }
+  });
+
   it("starts and ends every light at rest, so one round runs into the next without a jump", () => {
     for (let index = 0; index < BREATHS.count; index++) {
       const { outputRange } = turnOf(BREATHS, index);

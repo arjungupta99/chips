@@ -80,8 +80,6 @@ test("the golden scenario's events produce the expected UI states, step by step"
       expires_in: 3600,
       editable: true,
     });
-    // Scout's approval from the demo-script test is in this space too, decided; this
-    // card is the one still asking.
     const card = page.getByRole("article", { name: /Approval/ }).last();
     await expect(card).toBeVisible();
     // It asks no question, so the card is headed by the preview's title (ADR 0142).
@@ -91,8 +89,8 @@ test("the golden scenario's events produce the expected UI states, step by step"
     await expect(steps(page, "now")).toHaveCount(1);
     await expect(runPanel(page).getByText("needs your approval")).toBeVisible();
 
-    // 5. The person approves, scope once: approval.resolved reaches the harness; the card says who
-    //    approved; Pause is offered again.
+    // 5. The person approves, scope once: approval.resolved reaches the harness; the card goes;
+    //    Pause is offered again.
     await card.getByRole("button", { name: "Approve" }).click();
     const resolved = await harness.event("approval.resolved");
     expect(resolved).toMatchObject({
@@ -101,12 +99,11 @@ test("the golden scenario's events produce the expected UI states, step by step"
       scope: "once",
       resolved_by: demo().person.id,
     });
-    await expect(card).toContainText(`Approved by ${demo().person.displayName}`);
+    await expect(page.locator(`[data-approval="${approvalId}"]`)).toHaveCount(0);
     await expect(runPanel(page).getByRole("button", { name: "Pause" })).toBeEnabled();
 
-    // 6. approval.executed: the card says "sent".
+    // 6. approval.executed.
     await harness.send("approval.executed", { approval_id: approvalId, outcome: "executed" });
-    await expect(card).toContainText("sent");
 
     // 7. Steps three and four done; usage with tokens and cost; context at 41 percent: the cost
     //    meter and the context ring update.

@@ -16,7 +16,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { BUILD, demo, Harness, newRunId, pair, SERVER } from "./support.ts";
+import { BUILD, demo, Harness, newApprovalId, newRunId, pair, SERVER } from "./support.ts";
 
 const MESSAGES = 10_000;
 /** One frame at 60 fps. A browser locked to vsync hits this exactly when nothing is wrong. */
@@ -218,4 +218,74 @@ test("a reply taller than the window, last in the room, scrolls all the way to i
   const end = await last.boundingBox();
   if (end === null) throw new Error("the reply's last paragraph is not on the page");
   expect(end.y + end.height).toBeLessThanOrEqual(window.y + window.height);
+});
+
+/**
+ * An ask taller than half the window, under the room's last line, and a reader coming back down it
+ * from up the space. An ask stands beside the rows, not among them, so once the last row has gone
+ * above the middle of the window no row is across it. The list went on holding the row it had
+ * noted last, at the place it stood then, read every notch down as the ground moving, and took it
+ * back: the ask's buttons stayed under the fold (Arjun, 8 November 2026, a long command of
+ * Builder's in the Health room).
+ */
+test("an ask taller than half the window, under the last line, scrolls all the way to its end", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const details = demo();
+  // Enough short lines above the ask for the list's window to move as the reader comes down.
+  const filled = await page.request.post(`${SERVER}/v1/dev/messages`, {
+    data: { count: 80, space_id: details.space_id, harness_id: details.harness.id },
+  });
+  expect(filled.status()).toBe(201);
+  const command = Array.from({ length: 60 }, (_, n) => `echo "line ${n + 1}"`).join("\n");
+  const approvalId = newApprovalId();
+  const harness = await Harness.connect(newRunId());
+  try {
+    await harness.send("run.started", { goal: "Ask about a long command." });
+    await harness.send("approval.request", {
+      approval_id: approvalId,
+      action: { kind: "shell.exec", input: { command }, external: true },
+      risk: [],
+      expires_in: 3600,
+    });
+
+    await pair(page);
+    // A long command scrolls inside its card now, so it takes a short window to be taller than it.
+    await page.setViewportSize({ width: 1440, height: 420 });
+    const messages = page.getByTestId("messages");
+    const ask = messages.locator(`[data-approval="${approvalId}"]`);
+    await expect(ask).toBeVisible({ timeout: 120_000 });
+    const window = await messages.boundingBox();
+    if (window === null) throw new Error("the messages are not on the page");
+    await expect
+      .poll(async () => (await ask.boundingBox())?.height ?? 0, { timeout: 30_000 })
+      .toBeGreaterThan(window.height);
+    const drawn = await ask.boundingBox();
+
+    // Up past the ask and two windows into the rows above it, with the wheel, as a person.
+    await page.mouse.move(window.x + window.width / 2, window.y + window.height / 2);
+    for (let up = 0; up < (drawn?.height ?? 0) + window.height * 2; up += 400) {
+      await page.mouse.wheel(0, -400);
+      await page.waitForTimeout(30);
+    }
+    await expect(ask).not.toBeInViewport();
+
+    // And back down a notch at a time, until the list will not go further.
+    const place = () =>
+      messages.evaluate((el) => ({ top: el.scrollTop, end: el.scrollHeight - el.clientHeight }));
+    let at = await place();
+    for (let notch = 0; notch < 200 && at.end - at.top > 1; notch += 1) {
+      await page.mouse.wheel(0, 200);
+      await page.waitForTimeout(30);
+      at = await place();
+    }
+    expect(at.end - at.top).toBeLessThanOrEqual(1);
+    // And none of the ask is left under the window, its buttons with it.
+    const end = await ask.boundingBox();
+    if (end === null) throw new Error("the ask is not on the page");
+    expect(end.y + end.height).toBeLessThanOrEqual(window.y + window.height);
+  } finally {
+    harness.close();
+  }
 });

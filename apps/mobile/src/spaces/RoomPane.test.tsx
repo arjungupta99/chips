@@ -17,7 +17,7 @@ import { fakeStore } from "../testing/fixtures";
 import { ChromeProvider, useChrome } from "../ui/chrome";
 import { commandsNow, runCommand } from "../ui/menuBar";
 import { Split, THIRD } from "../ui/Split";
-import { GLIDE, WORDS_IN, WORDS_OUT, WORDS_WAIT } from "./heldWidth";
+import { LET_GO, WORDS_IN, WORDS_OUT, WORDS_WAIT } from "./heldWidth";
 import { RoomPane } from "./RoomPane";
 
 /** What the pane asked of the route, which a router as stable as the real one records. */
@@ -253,7 +253,7 @@ describe("the room pane on an iPad (ADR 0256)", () => {
       expect(lines()).toHaveStyle({ width: room - THIRD });
 
       // Landed: the room's own width again. Then the words are back.
-      await act(() => jest.advanceTimersByTime(GLIDE + 100));
+      await act(() => jest.advanceTimersByTime(LET_GO));
       expect(lines()).not.toHaveStyle({ width: room - THIRD });
       await act(() => jest.advanceTimersByTime(WORDS_IN));
       expect(screen.queryByTestId("room-words")).toBeNull();

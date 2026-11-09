@@ -117,8 +117,7 @@ async function approveAndFinish(page: Page): Promise<void> {
   // 4. The harness hears the decision and finishes.
   // The run is over and its panel goes: the room has the width (ADR 0268).
   await expect(runPanel).toHaveCount(0, { timeout: 20_000 });
-  await expect(card).toContainText("Approved by");
-  await expect(card).toContainText("sent");
+  await expect(card).toHaveCount(0);
   await expect(page.getByText(SUMMARY).first()).toBeVisible();
   // What it did is asked of the line that closed it, as on the phone.
   await page

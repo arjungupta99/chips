@@ -18,7 +18,9 @@
  */
 
 import {
+  BANNERS,
   DEFAULT_SPEND_CEILING_USD,
+  HELD_START,
   isAgentKind,
   isSpendCeiling,
   messageIdOf,
@@ -515,7 +517,8 @@ function spendCeiling(book: Book, route: string, body: Body, ts: string): unknow
 function helloOf(book: Book): ClientEvent {
   return {
     type: "hello",
-    server: { takes: [...SERVER_TAKES] },
+    // A film keeps no choices and takes no yes from an agent's page, so those stay on the device.
+    server: { takes: SERVER_TAKES.filter((each) => each !== BANNERS && each !== HELD_START) },
     spaces: book.rooms(),
     workspace: { id: DEMO_WORKSPACE_ID, name: DEMO_WORKSPACE_NAME },
   } as unknown as ClientEvent;
@@ -556,6 +559,7 @@ function readsOf(
     }),
     "/v1/me/space-icons": () => ({ icons: roomFaces() }),
     "/v1/me/hidden-spaces": () => ({ spaces: [] }),
+    "/v1/me/banners": () => ({ choices: {}, closed: [] }),
     "/v1/me/pinned-spaces": () => ({ spaces: [] }),
     "/v1/me/pins": () => ({ pins: [] }),
     "/v1/me/notifications": () => ({ settings: null }),
@@ -797,6 +801,7 @@ function memoryCache(readTo: ReadState): Cache {
   let icons: Readonly<Record<string, unknown>> | undefined;
   let hidden: readonly string[] | undefined;
   let pinned: readonly string[] | undefined;
+  let banners: unknown;
   return {
     loadEvents: async () => [...events.values()].sort((a, b) => a.seq - b.seq),
     saveEvents: async (batch) => {
@@ -834,6 +839,10 @@ function memoryCache(readTo: ReadState): Cache {
     loadHiddenSpaces: async () => hidden,
     saveHiddenSpaces: async (spaceIds) => {
       hidden = spaceIds;
+    },
+    loadBanners: async () => banners,
+    saveBanners: async (next) => {
+      banners = next;
     },
     loadPinnedSpaces: async () => pinned,
     savePinnedSpaces: async (spaceIds) => {

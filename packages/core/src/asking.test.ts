@@ -25,7 +25,6 @@ import {
   dayMonth,
   holdsWords,
   hourEnds,
-  lettingWork,
   letWorkWords,
   ONCE_ONLY_WORDS,
   offersLetWork,
@@ -49,7 +48,7 @@ import {
   workspaceAskHistory,
 } from "./asking.js";
 import type { ClientEvent, Directory } from "./events.js";
-import { buildModel } from "./model/index.js";
+import { buildModel, lettingWork } from "./model/index.js";
 
 const FIXTURES = fileURLToPath(new URL("../../protocol/fixtures/", import.meta.url));
 
@@ -521,9 +520,7 @@ describe("the ask card's words (ADR 0195)", () => {
     expect(lettingWork(room, at + 59 * 60_000)).toHaveLength(1);
     expect(lettingWork(room, at + 61 * 60_000)).toEqual([]);
     expect(holdsWords(held)).toMatch(/^Until \d+:\d\d [AP]M$/);
-    expect(workingWords("Jiro", held)).toMatch(
-      /^Jiro is working without asking until \d+:\d\d [AP]M$/,
-    );
+    expect(workingWords("Jiro", held)).toMatch(/^Jiro isn't asking until \d+:\d\d [AP]M$/);
 
     // Until stopped outlasts the hour, a shorter yes doesn't cut it, and a stop ends it.
     const stopped = [

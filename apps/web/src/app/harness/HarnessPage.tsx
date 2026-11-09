@@ -29,6 +29,7 @@ import {
   alwaysRules,
   asksGoTo,
   asksValue,
+  type Banners,
   backFromRestart,
   backWords,
   budgetWords,
@@ -39,6 +40,7 @@ import {
   harnessRollup,
   harnessRuns,
   nameOf,
+  permissionsRow,
   REMOVED_HARNESS_NOTE,
   type RestartOffer,
   type RunState,
@@ -81,6 +83,11 @@ export interface HarnessPageProps {
       }
     | undefined;
   /** Its Main agent's Model row, its foot and what stands over it (`useModelRow`). */
+  /** Show banners, and what the person chose (ADR 0286). */
+  readonly bannersRow?:
+    | { readonly row: ReactNode; readonly foot: ReactNode; readonly overlay: ReactNode }
+    | undefined;
+  readonly banners?: Banners | undefined;
   readonly modelRow?:
     | { readonly row: ReactNode; readonly foot: string | undefined; readonly overlays: ReactNode }
     | undefined;
@@ -309,7 +316,12 @@ function ItsAgents(props: HarnessPageProps) {
       </div>
       <ul className="ctx-group hp-agent-list">
         {rows.slice(0, AGENTS_SHOWN).map((row) => (
-          <AgentListRow key={row.id} row={row} onOpen={props.onOpenAgent} />
+          <AgentListRow
+            key={row.id}
+            row={row}
+            onOpen={props.onOpenAgent}
+            permission={permissionsRow({ model, directory, banners: props.banners }, row.id)}
+          />
         ))}
         {rows.length > AGENTS_SHOWN ? (
           <GroupRow
@@ -363,13 +375,16 @@ function SetUp(props: HarnessPageProps) {
           onClick={() => props.onOpenPart("asks")}
           testId="harness-asks-row"
         />
+        {props.bannersRow?.row}
       </ul>
       {props.modelRow?.foot !== undefined && (
         <p className="ctx-foot" data-testid="model-foot">
           {props.modelRow.foot}
         </p>
       )}
+      {props.bannersRow?.foot}
       {props.modelRow?.overlays}
+      {props.bannersRow?.overlay}
     </section>
   );
 }

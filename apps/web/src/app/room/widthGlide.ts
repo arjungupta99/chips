@@ -30,6 +30,12 @@ const PANE_EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
  */
 const GLIDES = ".msg > .ui-avatar, .msg-body > :not(.msg-route), .chatter-toggle";
 
+/**
+ * A card under a bubble, "2 files changed": a frame all the way round, which a clip would cut
+ * through, and one line of words, so its box takes each width on the way.
+ */
+const CARDS = ".msg-receipt";
+
 /** The room's lines: a column of 928 at most, 89.6% of the room, and 18 clear of either side. */
 const LINES_MOST = 928;
 const LINES_SHARE = 0.896;
@@ -101,6 +107,7 @@ export function startGlide(
   const moving = [
     ...landing.flatMap((each) => glideTo(each, each.el.getBoundingClientRect())),
     ...boxes.map(clipBetween),
+    ...landing.filter(widens).map(widthBetween),
   ];
 
   let released = false;
@@ -163,6 +170,16 @@ function reshapes({ el, at, now }: Landing): boolean {
   return (
     el.classList.contains("bub") && (moves(at.width - now.width) || moves(at.height - now.height))
   );
+}
+
+/** A card whose width changes. */
+function widens({ el, at, now }: Landing): boolean {
+  return el.matches(CARDS) && moves(at.width - now.width);
+}
+
+/** A card's box from its old width to its new one, from the side of the row it stands at. */
+function widthBetween({ el, at, now }: Landing): Animation {
+  return el.animate([{ width: `${at.width}px` }, { width: `${now.width}px` }], TIMING);
 }
 
 /** From where it was drawn to where it is laid out (`from`), by its side of the row. */

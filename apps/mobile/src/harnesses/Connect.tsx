@@ -1382,7 +1382,7 @@ function MayDo({
 
 // ---- The arrival ----------------------------------------------------------------------------
 
-/** How long the light runs round the face once it has landed. */
+/** How long the face wears its working pins once it has landed. */
 const SWEEP_MS = 1600;
 /**
  * When the words and the Main agent's face come in: as the face first reaches its place, on its

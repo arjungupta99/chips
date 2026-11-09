@@ -37,7 +37,7 @@ import {
   type WorkspaceModel,
 } from "@chipschat/core";
 import { Avatar, Icon } from "@chipschat/ui";
-import { type CSSProperties, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useRef, useState } from "react";
 import { AlwaysList } from "./AlwaysList.tsx";
 import { AsksDialog } from "./AsksDialog.tsx";
 import { UndoPill } from "./room/UndoPill.tsx";
@@ -124,11 +124,22 @@ export function Hero(props: {
   readonly person: string;
   readonly personName: string;
   readonly face: Parameters<typeof Avatar>[0]["icon"];
+  /** The face at the left end, when it is an agent's rather than the harness's (ADR 0286). */
+  readonly own?: ReactNode;
+  /** It is working without asking: no ask flies, the path runs gold, and the person steps back. */
+  readonly working?: boolean | undefined;
 }) {
   return (
-    <div className="asking-hero" aria-hidden="true" data-testid="asking-hero">
+    <div
+      className="asking-hero"
+      aria-hidden="true"
+      data-testid="asking-hero"
+      data-working={props.working === true ? "true" : undefined}
+    >
       <span className="asking-end" data-wide={props.also?.length ? "true" : undefined}>
-        {props.also?.length ? (
+        {props.own !== undefined ? (
+          props.own
+        ) : props.also?.length ? (
           <span className="asking-stack">
             {[props.harness, ...props.also].map((name) => (
               <Avatar key={name} name={name} kind="harness" size="sm" />
@@ -231,7 +242,7 @@ function AsksSoFar(props: {
 }
 
 /** `2 on` in green while every rule is on, `1 of 2 on` in grey while one is off. */
-function Count(props: { readonly rules: readonly { readonly on: boolean }[] }) {
+export function Count(props: { readonly rules: readonly { readonly on: boolean }[] }) {
   const words = alwaysCount(props.rules);
   if (words === undefined) return null;
   const all = props.rules.every((rule) => rule.on);

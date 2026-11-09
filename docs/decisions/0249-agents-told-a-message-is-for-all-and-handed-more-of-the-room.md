@@ -6,6 +6,8 @@ Amends [ADR 0081](0081-chips-says-who-a-message-is-for-and-only-they-take-a-turn
 for every agent now says so in each taker's note),
 [ADR 0092](0092-an-agent-is-told-who-is-in-the-room.md) (the note's news) and
 [ADR 0088](0088-an-agent-is-handed-what-was-said-since-it-last-spoke.md) (the default budget).
+[ADR 0287](0287-agents-are-told-how-run-files-and-several-agents-work.md) replaces its line for a
+person's message to every agent.
 
 ## Context
 

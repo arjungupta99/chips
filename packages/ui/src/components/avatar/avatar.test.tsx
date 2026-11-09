@@ -223,4 +223,54 @@ describe("an agent's face (ADR 0089)", () => {
     expect(screen.queryByTestId("working-dot")).toBeNull();
     expect(screen.queryByTestId("cant-answer-mark")).toBeNull();
   });
+
+  describe("a room at work (ADR 0285)", () => {
+    const pinsOf = (face: HTMLElement) => face.querySelectorAll('[data-testid="working-pins"] i');
+
+    it("wears twelve pins that point outward, and no still ring", () => {
+      render(<Avatar name="Scout" kind="harness" size="md" status="waiting" busy />);
+      const face = screen.getByRole("img");
+      expect(face.getAttribute("data-busy")).toBe("true");
+      expect(face.hasAttribute("data-ring")).toBe(false);
+      const pins = pinsOf(face);
+      expect(pins).toHaveLength(12);
+      expect((pins[3] as HTMLElement).style.getPropertyValue("--pin-turn")).toBe("90deg");
+    });
+
+    it("has them round a circle where the face is one", () => {
+      render(<Avatar name="Priya" size="md" busy />);
+      const pins = pinsOf(screen.getByRole("img"));
+      expect((pins[1] as HTMLElement).style.getPropertyValue("--pin-turn")).toBe("30deg");
+    });
+
+    it("carries none until it has worked, and brings them out when it starts on the screen", () => {
+      const { rerender } = render(<Avatar name="Priya" size="md" busy={false} />);
+      const face = screen.getByRole("img");
+      expect(pinsOf(face)).toHaveLength(0);
+      expect(face.hasAttribute("data-worn")).toBe(false);
+      rerender(<Avatar name="Priya" size="md" busy />);
+      expect(face.getAttribute("data-worn")).toBe("since");
+      expect(pinsOf(face)).toHaveLength(12);
+    });
+
+    it("has them simply out when it is drawn working", () => {
+      render(<Avatar name="Priya" size="md" busy />);
+      expect(screen.getByRole("img").getAttribute("data-worn")).toBe("at-start");
+    });
+
+    it("keeps them when the work ends, so they can go back in", () => {
+      const { rerender } = render(<Avatar name="Priya" size="md" busy />);
+      rerender(<Avatar name="Priya" size="md" busy={false} />);
+      const face = screen.getByRole("img");
+      expect(face.hasAttribute("data-busy")).toBe(false);
+      expect(pinsOf(face)).toHaveLength(12);
+    });
+
+    it("leaves an agent's own pins alone, and a face too small for any", () => {
+      render(<Avatar name="Scout" kind="agent" size="md" busy />);
+      expect(screen.queryByTestId("working-pins")).toBeNull();
+      render(<Avatar name="Priya" size="xs" busy />);
+      expect(screen.queryByTestId("working-pins")).toBeNull();
+    });
+  });
 });

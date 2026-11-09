@@ -131,6 +131,9 @@ export function MessageList<T>(props: MessageListProps<T>) {
   const shown = useRef(visible);
   /** True while the reader is at the end of the space, so new lines carry them along. */
   const following = useRef(true);
+  // A jump's glide is under way: its scrolls are the jump's, not the reader's (`goingOn`).
+  const jumping = useRef(false);
+  const jumpEnds = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastTop = useRef(0);
   /** The furthest down the reader could be last time, so a list that shrank is told from a scroll. */
   const lastMax = useRef(0);
@@ -220,6 +223,7 @@ export function MessageList<T>(props: MessageListProps<T>) {
       motion.current?.stop();
       motion.current = undefined;
       letGlideGo(gliding);
+      clearTimeout(jumpEnds.current);
     },
     [],
   );
@@ -229,7 +233,7 @@ export function MessageList<T>(props: MessageListProps<T>) {
     (rows: readonly Element[]) => {
       const el = scroller.current;
       const at = held.current;
-      if (el === null || at === undefined || following.current) return;
+      if (el === null || at === undefined || following.current || jumping.current) return;
       // Gone from the page — the line deleted, or windowed out — there is nothing to hold by.
       if (!rows.includes(at.row)) return;
       const moved = topIn(el, at.row) - at.top;
@@ -245,7 +249,7 @@ export function MessageList<T>(props: MessageListProps<T>) {
   const note = useCallback(
     (rows: readonly Element[]) => {
       const el = scroller.current;
-      if (el === null || following.current) {
+      if (el === null || following.current || jumping.current) {
         held.current = undefined;
         return;
       }
@@ -253,6 +257,26 @@ export function MessageList<T>(props: MessageListProps<T>) {
     },
     [scroller],
   );
+
+  /**
+   * A jump's glide has started or gone on. Any write to the scroll stops a smooth scroll where it
+   * is, and the list had two reasons to write one: its first frames, still near the end, were read
+   * as the reader coming back to it, and the next layout held the scroll there; and the row held
+   * for the reader was put back on every window of rows the glide drew. Either left the line that
+   * was asked for focused and off the screen (8 November 2026, a tapped quote, in Chromium and in
+   * the Mac app's WebKit). So until the scrolls have stopped they are the jump's, and nothing is
+   * held; then the reader is wherever it took them.
+   */
+  const goingOn = useCallback(() => {
+    jumping.current = true;
+    clearTimeout(jumpEnds.current);
+    jumpEnds.current = setTimeout(() => {
+      jumping.current = false;
+      const el = scroller.current;
+      if (el !== null) follow(el, following, lastTop, lastMax);
+      note(drawn());
+    }, JUMP_QUIET_MS);
+  }, [scroller, note, drawn]);
 
   useRoomGlide({
     note: (within) => {
@@ -339,12 +363,14 @@ export function MessageList<T>(props: MessageListProps<T>) {
     const index = focus.current?.index;
     if (jump === undefined || index === undefined || el === null) return;
     following.current = false;
+    jumping.current = false;
     aims.current = 0;
     // Where the reader was is not to be kept: they are going to the line.
     held.current = undefined;
     const there = drawn().find((row) => indices.current.get(row) === index);
     if (there !== undefined && opened.current && glides()) {
       landing.current = undefined;
+      goingOn();
       there.scrollIntoView?.({ block: "center", behavior: "smooth" });
       return;
     }
@@ -352,7 +378,7 @@ export function MessageList<T>(props: MessageListProps<T>) {
     el.scrollTop = offsetOf(heights.current, index);
     lastTop.current = el.scrollTop;
     recompute();
-  }, [jump, recompute, scroller, drawn]);
+  }, [jump, recompute, scroller, drawn, goingOn]);
 
   /**
    * A line of yours sent from up the space: the room follows it to the end, as the phone's follows
@@ -367,6 +393,7 @@ export function MessageList<T>(props: MessageListProps<T>) {
     const el = scroller.current;
     if (sent === 0 || el === null || following.current) return;
     following.current = true;
+    jumping.current = false;
     held.current = undefined;
     landing.current = undefined;
     const gap = el.scrollHeight - el.clientHeight - el.scrollTop;
@@ -387,9 +414,10 @@ export function MessageList<T>(props: MessageListProps<T>) {
       // was noted where the hold put it. Noted again here, it was noted where a row closing over
       // it had taken it since, and the next hold put back only half of each frame's closing.
       const ours = Math.abs(el.scrollTop - lastTop.current) < 0.5;
-      follow(el, following, lastTop, lastMax);
+      follow(el, following, lastTop, lastMax, jumping);
       recompute();
-      if (!ours) note(drawn());
+      if (jumping.current) goingOn();
+      else if (!ours) note(drawn());
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", recompute);
@@ -397,7 +425,7 @@ export function MessageList<T>(props: MessageListProps<T>) {
       el.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", recompute);
     };
-  }, [recompute, scroller, note, drawn]);
+  }, [recompute, scroller, note, drawn, goingOn]);
 
   // Made before the rows are first measured, so that it watches them from the room's first frame.
   useLayoutEffect(() => {
@@ -523,7 +551,14 @@ function topIn(el: Element, row: Element): number {
   return row.getBoundingClientRect().top - el.getBoundingClientRect().top;
 }
 
-/** The row across the middle of the window. Nothing for a scroller that has no height yet. */
+/**
+ * The row across the middle of the window, or the last row over it where none is: what stands
+ * under the rows (an ask, a thinking row) can be across the middle itself, and is not a row to
+ * hold by. Always as it stands now. With nothing found here the list went on holding a row at the
+ * place it had stood before, read the reader's scroll down an ask as the ground moving, and took
+ * it back (Arjun, 8 November 2026: a long command's ask in the Health room, its buttons out of
+ * reach). Nothing for a scroller that has no height yet, or no rows on the page.
+ */
 function middleOf(
   el: Element,
   rows: readonly Element[],
@@ -532,11 +567,15 @@ function middleOf(
   const box = el.getBoundingClientRect();
   if (box.height === 0) return undefined;
   const middle = box.top + box.height / 2;
+  let over: Held | undefined;
   for (const row of rows) {
+    if (!indices.has(row)) continue;
     const edge = row.getBoundingClientRect();
-    if (edge.bottom >= middle && indices.has(row)) return { row, top: edge.top - box.top };
+    const here = { row, top: edge.top - box.top };
+    if (edge.bottom >= middle) return here;
+    over = here;
   }
-  return undefined;
+  return over;
 }
 
 /** The place in the space of the last of `rows` that is a row of it; less than nought for none. */
@@ -689,6 +728,9 @@ function marginUnder(element: Element): number {
   return place === "first" || place === "middle" ? TURN_GAP : GAP;
 }
 
+/** How long after a jump's last scroll its glide is over: not every browser says when it ends. */
+const JUMP_QUIET_MS = 250;
+
 /**
  * Whether the reader is still at the end. They stop following by scrolling back up the
  * space, and start again by returning to the last row. Measuring rows moves the
@@ -699,6 +741,7 @@ export function follow(
   following: RefObject<boolean>,
   lastTop: RefObject<number>,
   lastMax: RefObject<number>,
+  jumping: RefObject<boolean> = { current: false },
 ): void {
   const max = Math.max(0, el.scrollHeight - el.clientHeight);
   const gap = max - el.scrollTop;
@@ -716,6 +759,9 @@ export function follow(
   const wentBack = el.scrollTop < lastTop.current - moved - 4;
   lastTop.current = el.scrollTop;
   lastMax.current = max;
+  // A jump up the space glides from where the reader was, and its first frames are still within
+  // reach of the end. They are not the reader coming back to it (`goingOn`).
+  if (jumping.current) return;
   following.current = gap < 48 || (following.current && !wentBack);
 }
 

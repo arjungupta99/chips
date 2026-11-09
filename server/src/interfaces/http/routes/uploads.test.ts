@@ -151,6 +151,63 @@ describe("uploading", () => {
     });
   });
 
+  it.each([
+    ["a Mac screen recording's U+202F", "Screen Recording 2026-11-08 at 7.23.58 PM.pdf"],
+    ["an emoji", "party \u{1f389}.pdf"],
+    ["Japanese", "日本語.pdf"],
+  ])("serves a file whose name has %s, bytes intact", async (_what, filename) => {
+    const bytes = new TextEncoder().encode("%PDF-1.4 a small file");
+    const attachment = await uploadAs(ws.arjun, filename, bytes);
+    expect(attachment).toMatchObject({ filename, mime_type: "application/pdf" });
+    const target = `/v1/attachments/${attachment["attachment_id"]}`;
+
+    const file = await fetchAs(ws.arjun, target);
+    expect(file.status).toBe(200);
+    const disposition = file.headers.get("content-disposition") ?? "";
+    expect(disposition).toMatch(/^inline; filename="[\x20-\x7e]+"; filename\*=UTF-8''/);
+    expect(decodeURIComponent(disposition.split("''")[1] ?? "")).toBe(filename);
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(bytes);
+
+    const head = await ws.gateway.app.fetch(
+      new Request(`${BASE}${target}`, {
+        method: "HEAD",
+        headers: ws.arjun.sign("HEAD", target, ""),
+      }),
+    );
+    expect(head.status).toBe(200);
+    expect(head.headers.get("content-disposition")).toBe(disposition);
+  });
+
+  it("serves a download whose name has a character a header cannot carry, and a piece of it", async () => {
+    const html = new TextEncoder().encode("<!doctype html><p>日本</p>");
+    const attachment = await uploadAs(ws.arjun, "報告 .html", html);
+    const target = `/v1/attachments/${attachment["attachment_id"]}`;
+
+    const file = await fetchAs(ws.arjun, target);
+    expect(file.status).toBe(200);
+    expect(file.headers.get("content-type")).toBe("application/octet-stream");
+    expect(file.headers.get("content-disposition")).toBe(
+      `attachment; filename="__ .html"; filename*=UTF-8''%E5%A0%B1%E5%91%8A%E2%80%AF.html`,
+    );
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(html);
+
+    const part = await ws.gateway.app.fetch(
+      new Request(`${BASE}${target}`, {
+        headers: { ...ws.arjun.sign("GET", target, ""), range: "bytes=0-4" },
+      }),
+    );
+    expect(part.status).toBe(206);
+    expect(new Uint8Array(await part.arrayBuffer())).toEqual(html.subarray(0, 5));
+  });
+
+  it("serves a file whose name the 255-character cut left half an emoji on", async () => {
+    const bytes = new TextEncoder().encode("%PDF-1.4 a small file");
+    const attachment = await uploadAs(ws.arjun, `${"a".repeat(254)}\u{1f389}.pdf`, bytes);
+    const file = await fetchAs(ws.arjun, `/v1/attachments/${attachment["attachment_id"]}`);
+    expect(file.status).toBe(200);
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(bytes);
+  });
+
   it("binds the signature to the bytes: other bytes under the same signature are refused", async () => {
     const slotBody = JSON.stringify({ filename: "a.bin" });
     const slot = await ws.gateway.app.fetch(

@@ -286,9 +286,10 @@ export function hasTimeline(run: Run): boolean {
  * A run that is going, and what it is going at. Nothing for a run that has ended, one a person
  * paused, or one waiting on somebody: what to look at then is the card, not a spinner.
  */
-export function runDoing(run: Run | undefined): Doing | undefined {
+export function runDoing(run: Run | undefined, asking = false): Doing | undefined {
   if (run === undefined || run.paused) return undefined;
-  if (run.state !== "queued" && run.state !== "running") return undefined;
+  const going = run.state === "queued" || run.state === "running";
+  if (!going && !(asking && run.state === "waiting")) return undefined;
   const current = underway(run.steps);
   const made = run.steps.filter(
     (step) => step.kind !== "tick" && step.planned !== true && step.status !== "planned",
@@ -321,13 +322,19 @@ export function runDoing(run: Run | undefined): Doing | undefined {
  * later stands nearer the composer, and a bubble keeps its place while it stands. Ordered by the
  * start of each newest run instead, a harness that starts another turn while it works — Jacobian
  * starts one for every message — would jump past the other's bubble.
+ *
+ * `asking` names the harnesses whose run waits on an ask that nobody can see yet (a room's card
+ * waits a beat before it is drawn): their bubble stands until the card takes its place.
  */
-export function spaceDoing(space: Space): readonly Doing[] {
+export function spaceDoing(
+  space: Space,
+  asking: ReadonlySet<string> = new Set(),
+): readonly Doing[] {
   // A key set again keeps the place it was first given: the harness's first run here.
   const newest = new Map<string, Run>();
   for (const run of space.runs) newest.set(run.harnessId, run);
   return [...newest.values()].flatMap((run) => {
-    const doing = runDoing(run);
+    const doing = runDoing(run, asking.has(run.harnessId));
     return doing === undefined ? [] : [doing];
   });
 }

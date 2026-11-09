@@ -78,3 +78,33 @@ with the answer in a tray (B, the pick), and B on a command that writes a file. 
   its file never part across lines. A walk on an iOS 26.5 simulator against a throwaway server
   (Ike's command, and one that writes `limits.js`) checked the plate, the lit words, the strip,
   the tick, the ring and the tray riding up with the keys.
+
+## Addendum, 8 November 2026: a shorter card on the web and the Mac, and a foot that changes once
+
+Arjun, of the Mac: "these permission screens are extremely large, they need to be bit shorter in
+height. also tapping them, makes the whole scrolling window go bouncing", and "bouncy can also
+happen when the permission screen appears".
+
+A command of ten lines made a card of 629 pixels, and the answer was below the fold. Now:
+
+- A long command scrolls inside its plate, seven lines and part of an eighth, and a long preview
+  inside its box. A shadow at either end says there is more that way. What a write or a never-list
+  part would do is still said under the buttons, so it is never only below the cut.
+- The choice and the buttons share a line, which wraps where there isn't room; this replaces "on a
+  line of its own". Why a yes goes no further, and what the choice lets through, stand under them.
+  The switch that lets the agent work is one line, not two. The same ten-line command is now 370
+  pixels.
+
+The bounce was the room being told two things at once. Frame by frame in a real room: an ask took
+the working row away at once and its card 300 ms later, so the room dropped 56 pixels and rose 548;
+and a yes to one of a run of commands went -68, +101, -45, +12 as the card folded with the next one
+landing under it. Now the foot of a room (`RoomAsks`) changes once for each thing that happens:
+
+- The working row stands through the ask's beat and goes in the frame its card is drawn.
+- It comes back as an answered card starts to fold, not while the card still shows its tick.
+- A new ask takes the place of the card answered before it. That card waits for it rather than
+  folding first, so a run of asks answered one by one does not move the room at all.
+
+Choosing For an hour or the switch still adds the words saying what it lets through, and the room
+glides once, by 34 to 57 pixels, to keep the card in view. The phone's ask is its own screen and is
+unchanged.

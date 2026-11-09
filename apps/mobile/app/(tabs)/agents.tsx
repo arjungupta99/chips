@@ -120,7 +120,7 @@ function beside({
   readonly go: (next: Opened) => void;
   readonly openRoom: (spaceId: string) => void;
 }): { readonly detail: ReactNode; readonly third: ReactNode } {
-  const { agent, harness, history, harnesses, lock, job, part } = opened;
+  const { agent, harness, history, permissions, harnesses, lock, job, part } = opened;
   if (agent === undefined) {
     if (harness === undefined && harnesses === undefined) {
       return {
@@ -134,18 +134,22 @@ function beside({
     }
     return harnessesBeside({ store, snapshot, selfId, harness, harnesses, job, part, go });
   }
-  const pane = (inHistory: boolean) => (
+  const pane = (inHistory: boolean, inPermissions = false) => (
     <AgentPane
       store={store}
       snapshot={snapshot}
       agentId={agent}
       selfId={selfId}
       history={inHistory}
+      permissions={inPermissions}
       // Opened from a locked agent's Locked (ADR 0199): the lock's row glows once.
       lockGlow={lock === "1" && !inHistory}
-      // Its history stands beside its card, and its × goes back to the card alone (ADR 0276).
-      onClose={inHistory ? () => go({ agent }) : undefined}
+      // Its history and its Permissions stand beside its card, and × goes back to the card alone
+      // (ADR 0276, ADR 0286).
+      onClose={inHistory || inPermissions ? () => go({ agent }) : undefined}
       onHistory={() => go({ agent, history: "1" })}
+      onPermissions={() => go({ agent, permissions: "1" })}
+      onOpenAsks={(harnessId) => go({ agent, harness: harnessId, part: "asked" })}
       onOpenRoom={openRoom}
       onOpenAgent={(other) => go({ agent: other })}
       // A shared file is on the harness's Context files page (ADR 0254), beside the card.
@@ -160,23 +164,25 @@ function beside({
       onDeleted={() => go({})}
     />
   );
-  const from = isHarnessPart(part) ? PART_FROM[part] : undefined;
-  const third =
-    history !== undefined
-      ? pane(true)
-      : harness !== undefined && isHarnessPart(part)
-        ? partPane({
-            store,
-            snapshot,
-            selfId,
-            harness,
-            part,
-            onClose: () => go({ agent }),
-            onBack: from === undefined ? undefined : () => go({ agent, harness, part: from }),
-            onOpenPart: (next) => go({ agent, harness, part: next }),
-          })
-        : undefined;
-  return { detail: pane(false), third };
+  if (history !== undefined) return { detail: pane(false), third: pane(true) };
+  if (permissions !== undefined) return { detail: pane(false), third: pane(false, true) };
+  if (harness === undefined || !isHarnessPart(part)) {
+    return { detail: pane(false), third: undefined };
+  }
+  const from = PART_FROM[part];
+  return {
+    detail: pane(false),
+    third: partPane({
+      store,
+      snapshot,
+      selfId,
+      harness,
+      part,
+      onClose: () => go({ agent }),
+      onBack: from === undefined ? undefined : () => go({ agent, harness, part: from }),
+      onOpenPart: (next) => go({ agent, harness, part: next }),
+    }),
+  };
 }
 
 /**
@@ -311,6 +317,7 @@ const AGENTS_OPEN = [
   "agent",
   "harness",
   "history",
+  "permissions",
   "harnesses",
   "lock",
   "job",

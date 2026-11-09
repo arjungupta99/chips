@@ -93,6 +93,7 @@ import type {
   UploadsRegistry,
   WaitForApproval,
 } from "../../application/index.js";
+import type { BannerRegistry } from "../../application/ports/banners.js";
 import type { HiddenSpaceRegistry } from "../../application/ports/hidden-spaces.js";
 import type { PinnedSpaceRegistry } from "../../application/ports/pinned-spaces.js";
 import type { PageBuilder } from "../../application/ports/projects.js";
@@ -279,6 +280,7 @@ export interface GatewayDeps {
   readonly hiddenSpaces: HiddenSpaceRegistry;
   /** The rooms a person pinned to the top of their own list (ADR 0240). */
   readonly pinnedSpaces: PinnedSpaceRegistry;
+  readonly banners: BannerRegistry;
   /** How far each person has read each room, followed between their devices (ADR 0262). */
   readonly readMarks: ReadMarkRegistry;
   /** Where a push may reach a phone (M4.3, ADR 0045). */

@@ -11,13 +11,23 @@
  */
 
 import { lettersScale } from "@chipschat/protocol";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useState } from "react";
 import { initials } from "../../format.js";
 import { type HarnessStatus, ringTone, statusLabel } from "../../vocabulary/status.js";
 import "./avatar.css";
 import { SpaceMark } from "../face/face.js";
 import { LIBRARY_MARKS, type MarkName } from "../face/library.js";
-import { BODY_WITH_PINS, PIN_REST, PIN_STEP_MS, PINS, PINS_FROM, pinsOf } from "../face/outline.js";
+import {
+  BODY_WITH_PINS,
+  PIN_REST,
+  PIN_STEP_MS,
+  PINS,
+  PINS_FROM,
+  pinsOf,
+  WORKING_PIN_STEP_MS,
+  WORKING_PINS,
+  workingPinsOf,
+} from "../face/outline.js";
 
 export type AvatarKind = "person" | "harness" | "agent" | "channel";
 
@@ -37,6 +47,10 @@ const SIDES: Readonly<Record<AvatarSize, number>> = { xs: 24, sm: 32, md: 48, lg
 
 /** The pins as fractions of the body's side, since a face's size is the stylesheet's. */
 const PIN_BOXES = pinsOf(100);
+
+/** A working room's pins (ADR 0285), the same way: round a circle, or three to a side. */
+const WORKING_ROUND = workingPinsOf(100, true);
+const WORKING_SQUARE = workingPinsOf(100, false);
 
 /**
  * Where an agent wears its pins they stand inside its box, so it is the size any other face is in
@@ -65,9 +79,10 @@ export interface AvatarProps {
    */
   readonly status?: HarnessStatus;
   /**
-   * The room this face stands for has work going in it (core's `spaceWorking`, ADR 0090): the
-   * light runs round the face in the working tone, in place of the still ring. An agent says its
-   * own work in its pins (ADR 0089) and is left alone.
+   * The room this face stands for has work going in it (core's `spaceWorking`, ADR 0285): the
+   * face draws in and wears an agent's pins, lit in turn, in place of the still ring. They come
+   * out when this turns true and go back in when it turns false. An agent says its own work in
+   * its own pins (ADR 0089) and is left alone.
    */
   readonly busy?: boolean;
   /** Replaces the name as the accessible name, for example `Scout, the lead`. */
@@ -163,10 +178,10 @@ function Letters(props: { readonly letters: string | undefined; readonly fallbac
 }
 
 /**
- * What a face's edge says: whether the light runs round it, and the still ring under it where it
- * does not. One or the other, never both — the light is the state, and an outline beneath it
- * would be the same thing said twice. An agent says its own work in its pins (ADR 0089), so no
- * light runs round one.
+ * What a face's edge says: whether it wears the pins of a room at work (ADR 0285), and the still
+ * ring where it does not. One or the other, never both: the pins are the state, and an outline
+ * with them would be the same thing said twice. An agent always wears its own pins (ADR 0089), so
+ * this says nothing of one.
  */
 function edgeOf(
   kind: AvatarKind,
@@ -214,8 +229,10 @@ export function Avatar({
   const { lit, ring } = edgeOf(kind, status, busy);
   const accessibleName = spokenName(name, kind, status, label, cantAnswer);
   const face = chosenFace(icon);
+  const worn = useWorn(lit && SIDES[size] >= PINS_FROM);
   const style = {
-    "--avatar-color": color ?? face?.ground ?? `var(--avatar-${avatarHue(name)})`,
+    "--avatar-color": faceGround(name, icon, color),
+    ...(worn === undefined ? null : { "--avatar-drawn": WORKING_PINS.drawn }),
   } as CSSProperties;
   if (kind === "agent") {
     return (
@@ -243,8 +260,10 @@ export function Avatar({
       data-size={size}
       data-ring={ring}
       data-busy={lit ? "true" : undefined}
+      data-worn={worn}
       style={style}
     >
+      {worn === undefined ? null : <WorkingPins round={kind === "person"} />}
       {face === undefined ? null : (
         // A chosen face is paper on a lit ground (22 September 2026), filling the face's shape.
         <span className="ui-avatar-face">
@@ -257,6 +276,49 @@ export function Avatar({
       {cantAnswer ? (
         <span className="ui-avatar-mark" data-testid="cant-answer-mark" aria-hidden="true" />
       ) : null}
+    </span>
+  );
+}
+
+/**
+ * Whether a room's face has pins to show, and since when. They stay once it has worn them, so that
+ * they can go back in; a face that has never worked carries none. `at-start` is a face drawn
+ * already working, whose pins are simply out; `since` is one that started while it was on the
+ * screen, whose pins come out.
+ */
+function useWorn(working: boolean): "at-start" | "since" | undefined {
+  const [worn, setWorn] = useState<"at-start" | "since" | undefined>(
+    working ? "at-start" : undefined,
+  );
+  if (working && worn === undefined) setWorn("since");
+  return worn;
+}
+
+/**
+ * A working room's pins, behind its face, each placed by its centre and turned to point outward,
+ * so that one move along its own length takes it under the face from any side (`avatar.css`).
+ */
+function WorkingPins({ round }: { readonly round: boolean }) {
+  const rest = { "--pin-rest": PIN_REST.inside } as CSSProperties;
+  return (
+    <span className="ui-avatar-pins" data-testid="working-pins" aria-hidden="true" style={rest}>
+      {(round ? WORKING_ROUND : WORKING_SQUARE).map((pin, at) => (
+        <i
+          key={pin.key}
+          style={
+            {
+              left: `${pin.cx - pin.w / 2}%`,
+              top: `${pin.cy - pin.h / 2}%`,
+              width: `${pin.w}%`,
+              height: `${pin.h}%`,
+              "--pin-turn": `${pin.turn}deg`,
+              "--pin-at": at,
+              "--pin-down": `${Math.round(Math.min(100, Math.max(0, pin.cy)))}%`,
+              animationDelay: `${at * WORKING_PIN_STEP_MS}ms`,
+            } as CSSProperties
+          }
+        />
+      ))}
     </span>
   );
 }

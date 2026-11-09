@@ -180,7 +180,7 @@ test("a room with two harnesses and two people, and the right person answers", a
     await danaCard.getByRole("button", { name: "Approve" }).click();
     const resolved = await ledgerHarness.event("approval.resolved");
     expect(resolved).toMatchObject({ approval_id: approvalId, resolved_by: dana.id });
-    await expect(card).toContainText("Approved by Dana");
+    await expect(card).toHaveCount(0);
 
     // Renamed where its name stands and archived by Arjun; Dana's screen follows, and the room
     // says who did it.

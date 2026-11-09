@@ -44,15 +44,19 @@ const RoomInk = createContext<SharedValue<number> | undefined>(undefined);
 export function RoomWords({
   on,
   words,
+  change,
   gone,
   back,
   children,
-}: Pick<HeldWidth, "words" | "gone" | "back"> & {
+}: Pick<HeldWidth, "words" | "change" | "gone" | "back"> & {
   /** Whether the room's width changes this way: beside an iPad's panes, and moving. */
   readonly on: boolean;
   readonly children: ReactNode;
 }) {
   const ink = useSharedValue(1);
+  // Told again for each change: a width that changes once the words have gone finds them "going"
+  // still, and with nothing to say they had gone for it the lines waited for ever.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `change` is what says it again.
   useEffect(() => {
     if (words === undefined) {
       ink.value = 1;
@@ -68,7 +72,7 @@ export function RoomWords({
         if (finished === true) scheduleOnRN(said);
       },
     );
-  }, [words, gone, back, ink]);
+  }, [words, change, gone, back, ink]);
   return <RoomInk.Provider value={on ? ink : undefined}>{children}</RoomInk.Provider>;
 }
 

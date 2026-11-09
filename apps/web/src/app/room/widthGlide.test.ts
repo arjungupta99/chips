@@ -158,6 +158,35 @@ describe("a room taking a new width", () => {
     ]);
   });
 
+  it("takes a card under a bubble from its old width to its new one, drawn whole, where a bubble is clipped", () => {
+    const { list, theirs } = room();
+    const card = document.createElement("div");
+    card.className = "msg-receipt";
+    theirs.parentElement?.append(card);
+    standAt(list, () => rect(0, 0, 800, 600));
+    standAt(theirs, () => rect(10, 10, 300, 40));
+    let box = rect(10, 56, 500, 34);
+    standAt(card, () => box);
+
+    const noted = noteGlide(list);
+    box = rect(10, 56, 360, 34);
+    const release = startGlide(list, noted, 500, () => undefined);
+
+    const widths = played.filter(
+      (each) => each.target === card && "width" in (each.keyframes[0] ?? {}),
+    );
+    expect(widths.map((each) => each.keyframes)).toEqual([
+      [{ width: "500px" }, { width: "360px" }],
+    ]);
+    expect(
+      played.some((each) => each.target === card && "clipPath" in (each.keyframes[0] ?? {})),
+    ).toBe(false);
+    expect(card.style.width).toBe("");
+
+    release();
+    expect(widths[0]?.cancel).toHaveBeenCalled();
+  });
+
   it("lays a bubble whose shape changes out at both shapes, the space under it its new one, and clips it from the old to the new", () => {
     const { list, theirs } = room();
     for (const corner of ["TopLeft", "TopRight", "BottomRight", "BottomLeft"] as const) {

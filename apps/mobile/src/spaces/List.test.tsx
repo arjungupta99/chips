@@ -295,14 +295,14 @@ describe("the space list", () => {
     ).toBeTruthy();
     expect(screen.queryByText(/💭/)).toBeNull();
     expect(within(row).getByTestId("working-gear")).toBeTruthy();
-    expect(within(row).getByTestId("busy-ring")).toBeTruthy();
+    expect(within(row).getByTestId("working-pins")).toBeTruthy();
   });
 
   it("leaves a quiet room its own face and no gear", async () => {
     const snapshot = state();
     await render(<List store={fakeStore(snapshot)} snapshot={snapshot} />);
     expect(screen.queryByTestId("working-gear")).toBeNull();
-    expect(screen.queryByTestId("busy-ring")).toBeNull();
+    expect(screen.queryByTestId("working-pins")).toBeNull();
   });
 
   it("puts the title's initials on a titled space, and the harness's face on one called after it", async () => {

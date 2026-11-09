@@ -250,3 +250,38 @@ with them open: the words gone by about 250 ms with nothing moved; the list, the
 and the composer moving together from about 300 ms, the + and the field a constant 8 points apart
 and Send inside the field; the list's rows still; the words back by about 1 s. On its side, the
 list going and coming: the composer goes with the list, where it jumped 110 points before.
+
+## Addendum, 8 November 2026: the panes go when the lines go
+
+Arjun, on his iPad: "when I open close the 3rd column, the column sometimes overlaps the bubbles,
+and then bubbles resize later, which looks off". Decision 10 has the panes wait as long as the words
+take to go, and wait there on the UI thread, by the clock. The lines take the new width some way
+behind that: the words say they have gone, JavaScript hears, the UI thread is told of the glide,
+JavaScript takes the width, React draws it and Fabric lays every row out again. Whenever JavaScript
+was busy or the layout long, the column had gone most of its way before a bubble moved: the panes'
+curve covers half the distance in its first tenth of a second.
+
+Held up for 300 ms at the moment the words had gone, on the 13-inch simulator upright, the column's
+edge came onto a bubble of yours and stood on it (741 and 741, 709 and 709, 688 and 688), and the
+bubble only began to narrow under it after that.
+
+18. **The panes set off when the lines are drawn at the new width.** Past their lead the panes, the
+    room's foot and the bar go on waiting, on the same clock, until the commit that draws the lines
+    at the new width says so (`Told.waiting`, `panesWait`, `SteadyHold`). The hold starts in the
+    commit that holds the lines, and it is what the room's state says rather than something told
+    once: nothing waits for a room that has closed, a window that has turned, or a room with no
+    glide. Nothing waits for more than eight tenths of a second (`PANES_HOLD.most`), so what a
+    column shows is kept that much longer, drawn in a box already shut (`useKept`, `useGone`).
+19. **The hold is asked for by a worklet, not read as a shared value.** A shared value in a style's
+    closure is an input of that style: opening the hold ran the style again, and the panes' timing
+    started over, lead and all, 200 ms after the lines had set off.
+20. **The words say they have gone for each change.** A width that changes once the words have gone
+    found them "going" still, so their fade was not run again, nothing said they had gone, and the
+    lines waited for ever with their words away (`HeldWidth.change`).
+21. **The lines let go a little later,** 120 ms past the glide rather than 40 (`LET_GO`): the panes
+    set off a frame after them now, where they used to be a round trip ahead.
+
+Measured on the 13-inch simulator, a bubble of yours and the column's edge read off every frame of a
+recording. The lines and the column set off in the same frame, opening and closing, upright and on
+its side, with the bubble's edge a steady 50 points clear of the column's all the way; and the same
+held up for 300 ms as above. Every edge went one way.

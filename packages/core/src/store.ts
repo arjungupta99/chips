@@ -39,6 +39,7 @@ import {
   type AgentModelView,
   type AgentState,
   type AttachmentCaps,
+  BANNERS,
   type CompactionView,
   type Connector,
   type ContextEditView,
@@ -50,6 +51,7 @@ import {
   HARNESS_CAPABILITIES,
   type HarnessContextView,
   type HarnessJobsView,
+  HELD_START,
   HELD_YES,
   type HeartbeatChangeAsk,
   type HeartbeatChangeView,
@@ -85,6 +87,16 @@ import {
 import type { AgentStay } from "./agentsTab.js";
 import { handleIn } from "./asks.js";
 import { type Attachment, attachmentFromWire, projectPageUrl } from "./attachments.js";
+import {
+  type BannerChange,
+  type Banners,
+  bannersOf,
+  bannersToKeep,
+  type HarnessBannersBefore,
+  harnessAgentIds,
+  NO_BANNERS,
+  withBannerChanges,
+} from "./banners.js";
 import { type Cache, cacheKey, openCache } from "./cache.js";
 import {
   type Device,
@@ -101,6 +113,7 @@ import {
   actorKind,
   type ClientEvent,
   type Directory,
+  harnessOf,
   neverConnected,
   type Participant,
 } from "./events.js";
@@ -286,6 +299,16 @@ export interface Snapshot {
    * choices stand, so a card opened from the cache doesn't lose them for a moment.
    */
   readonly keepsHeldYes?: boolean | undefined;
+  /**
+   * What this person wants of the banner (ADR 0286), as the server or the cache last said, with the
+   * changes on their way drawn over it. Absent from a snapshot made without the store, which is
+   * nothing said.
+   */
+  readonly banners?: Banners | undefined;
+  /** Whether the server keeps those, as its last hello said. False from an older one. */
+  readonly keepsBanners?: boolean | undefined;
+  /** Whether the server takes a yes from an agent's page, as its last hello said. */
+  readonly keepsHeldStart?: boolean | undefined;
 }
 
 /** What the server takes at most (ADR 0047), as `GET /v1/limits` says it. */
@@ -403,6 +426,19 @@ function holdsOn(input: ResolveApprovalInput): Record<string, unknown> {
   return input.untilStopped === true ? { until_stopped: true } : {};
 }
 
+/** Who to let work without asking, and where, from their own page (ADR 0286). */
+export interface LetAgentWorkInput {
+  readonly spaceId: string;
+  readonly asker: string;
+}
+
+/** One banner closed for now, for the yes given at `since` (ADR 0286). */
+export interface CloseBannerInput {
+  readonly spaceId: string;
+  readonly asker: string;
+  readonly since: string;
+}
+
 /** Whose working without asking to stop, and where (ADR 0281). */
 export interface StopLetWorkInput {
   readonly spaceId: string;
@@ -428,6 +464,27 @@ export interface Store {
    * `approval.held_stopped`. Its next ask comes to a person.
    */
   readonly stopLetWork: (input: StopLetWorkInput) => void;
+  /**
+   * Let an agent work without asking in its space from its page, with no ask to answer (ADR 0286):
+   * an `approval.held_started`.
+   */
+  readonly letAgentWork: (input: LetAgentWorkInput) => void;
+  /** Close one banner for now, on all this person's devices (ADR 0286). */
+  readonly closeBanner: (input: CloseBannerInput) => Promise<void>;
+  /** Show a banner closed for now again. */
+  readonly reopenBanner: (input: Omit<CloseBannerInput, "since">) => Promise<void>;
+  /**
+   * Show the banner or not for one agent. A choice that matches its harness is no choice, and is
+   * let go, so the agent follows its harness again.
+   */
+  readonly setAgentBanner: (agentId: string, shown: boolean) => Promise<void>;
+  /**
+   * Show the banner or not for a harness and every one of its agents; those set apart come back in
+   * line. Answers what was there before, for Undo.
+   */
+  readonly setHarnessBanner: (harnessId: string, shown: boolean) => HarnessBannersBefore;
+  /** Undo the harness's switch: what it said, and who was set apart. */
+  readonly undoHarnessBanner: (before: HarnessBannersBefore) => Promise<void>;
   readonly answerQuestion: (input: AnswerQuestionInput) => void;
   /** Turn the dial: a `policy.updated`, the cap and who changed it filled in by Chips (M1.4). */
   readonly setAutonomy: (input: SetAutonomyInput) => void;
@@ -1547,6 +1604,18 @@ export function createStore(options: StoreOptions): Store {
   let workspaceName: string | undefined;
   /** The snapshot's `keepsHeldYes`. */
   let keepsHeldYes: boolean | undefined;
+  let keepsBanners: boolean | undefined;
+  let keepsHeldStart: boolean | undefined;
+  /** The snapshot's `banners`: the cache's or the server's, with the changes on their way. */
+  let banners: Banners = NO_BANNERS;
+  let bannersFrom: "cache" | "server" | undefined;
+  /** A read of them that failed: owed at the next hello, the cache's standing meanwhile. */
+  let bannersOwed = false;
+  const bannersHeld = onTheirWay<Banners, BannerChange>(withBannerChanges, NO_BANNERS, (now) => {
+    banners = now;
+  });
+  /** Writes go one at a time, so a choice and its Undo reach the server in the order made. */
+  let bannerWrites: Promise<unknown> = Promise.resolve();
   /** The name kept with the device: as it paired, then as each change was remembered. */
   let keptName = device.workspaceName;
   /** The snapshot's `directoryFrom` and `directoryFailed`. */
@@ -1629,6 +1698,9 @@ export function createStore(options: StoreOptions): Store {
       ...(myDirectAsk === undefined ? {} : { myDirectAsk }),
       ...(workspaceName === undefined ? {} : { workspaceName }),
       keepsHeldYes,
+      banners,
+      keepsBanners,
+      keepsHeldStart,
       ...gone(),
       ...onItsWay(),
     };
@@ -2017,9 +2089,16 @@ export function createStore(options: StoreOptions): Store {
   /** What the hello says the server keeps: nothing, from one older than saying so. */
   const heardTakes = (server: unknown): void => {
     const takes = (server as { takes?: unknown } | undefined)?.takes;
-    const keeps = Array.isArray(takes) && takes.includes(HELD_YES);
-    if (keeps === keepsHeldYes) return;
+    const said = Array.isArray(takes) ? takes : [];
+    const keeps = said.includes(HELD_YES);
+    const keepsChoices = said.includes(BANNERS);
+    const keepsStart = said.includes(HELD_START);
+    if (keeps === keepsHeldYes && keepsChoices === keepsBanners && keepsStart === keepsHeldStart) {
+      return;
+    }
     keepsHeldYes = keeps;
+    keepsBanners = keepsChoices;
+    keepsHeldStart = keepsStart;
     notify();
   };
 
@@ -2361,6 +2440,8 @@ export function createStore(options: StoreOptions): Store {
       },
       // How far the person read on another of their devices (ADR 0262).
       onReads: heardMarks,
+      // What the person wants of the banner, changed on another of their devices (ADR 0286).
+      onBanners: heardBanners,
     });
     for (const event of early.splice(0)) transport.send(event);
     try {
@@ -2384,7 +2465,12 @@ export function createStore(options: StoreOptions): Store {
     const keptIcons = await cache.loadSpaceIcons();
     const keptHidden = await cache.loadHiddenSpaces();
     const keptPinned = await cache.loadPinnedSpaces();
+    const keptBanners = bannersOf(await cache.loadBanners());
     if (closed) return;
+    if (keptBanners !== undefined && bannersFrom === undefined) {
+      bannersHeld.heard(keptBanners);
+      bannersFrom = "cache";
+    }
     // Who is who, as the server last said, before the history that names them is folded: the
     // agents are listed and everybody named before the server answers, and without it. An answer
     // that landed while the cache was read (a tab asked for one) is newer, and stays.
@@ -2406,6 +2492,7 @@ export function createStore(options: StoreOptions): Store {
     void loadIcons();
     void loadHidden();
     void loadPinned();
+    void loadBanners();
     if (cursor !== 0) void loadMarks();
   };
 
@@ -2577,10 +2664,89 @@ export function createStore(options: StoreOptions): Store {
    * device's list. A launch whose read failed reads again here.
    */
   function readThePersonAgain(): void {
-    if (hellos > 1 || iconsOwed) void loadIcons();
-    if (hellos > 1 || hiddenOwed) void loadHidden();
-    if (hellos > 1 || pinnedOwed) void loadPinned();
-    if (hellos > 1 || marksReadOwed) void loadMarks();
+    const reads = [
+      [iconsOwed, loadIcons],
+      [hiddenOwed, loadHidden],
+      [pinnedOwed, loadPinned],
+      [bannersOwed, loadBanners],
+      [marksReadOwed, loadMarks],
+    ] as const;
+    for (const [owed, load] of reads) if (hellos > 1 || owed) void load();
+  }
+
+  /** What the person wants of the banner, from the server or their other device (ADR 0286). */
+  function heardBanners(view: unknown): void {
+    const said = bannersOf(view);
+    if (said === undefined) return;
+    bannersHeld.heard(said);
+    bannersFrom = "server";
+    bannersOwed = false;
+    notify();
+    keepBanners();
+  }
+
+  /**
+   * What the person wants of the banner, read again. A read that fails, or a server older than
+   * them, leaves the cache's word standing.
+   */
+  async function loadBanners(): Promise<void> {
+    if (keepsBanners === false) return;
+    try {
+      heardBanners(await read<unknown>(device, "/v1/me/banners"));
+    } catch {
+      bannersOwed = true;
+    }
+  }
+
+  function keepBanners(): void {
+    void cache.saveBanners(bannersToKeep(bannersHeld.held())).catch(() => undefined);
+  }
+
+  /**
+   * One change to what the person wants of the banner: shown at once, the server told after, one
+   * write at a time. A server older than them keeps none of it, so the change stays on this device.
+   */
+  function changeBanners(
+    key: string,
+    change: BannerChange,
+    write: () => Promise<unknown>,
+  ): Promise<void> {
+    const asked = bannersHeld.ask(key, change);
+    notify();
+    if (keepsBanners === false) {
+      if (asked.taken()) notify();
+      keepBanners();
+      return Promise.resolve();
+    }
+    const written = bannerWrites.catch(() => undefined).then(write);
+    bannerWrites = written;
+    return written.then(
+      () => {
+        if (asked.taken()) notify();
+        keepBanners();
+      },
+      (error: unknown) => {
+        if (asked.refused()) notify();
+        throw error;
+      },
+    );
+  }
+
+  /** A choice for one agent or harness, said to the server or let go. */
+  function changeChoice(target: string, shown: boolean | undefined): Promise<void> {
+    const path = `/v1/me/banners/choices/${encodeURIComponent(target)}`;
+    return changeBanners(`choice:${target}`, { kind: "choice", target, shown }, () =>
+      shown === undefined ? remove(device, path) : put(device, path, { shown }),
+    );
+  }
+
+  /** A harness's choice, which takes its agents with it. */
+  function changeHarness(harnessId: string, shown: boolean): Promise<void> {
+    const agentIds = harnessAgentIds(directory, harnessId);
+    const path = `/v1/me/banners/choices/${encodeURIComponent(harnessId)}`;
+    return changeBanners(`choice:${harnessId}`, { kind: "all", harnessId, agentIds, shown }, () =>
+      put(device, path, { shown }),
+    );
   }
 
   /**
@@ -2911,6 +3077,63 @@ export function createStore(options: StoreOptions): Store {
         idempotency_key: key,
       });
       notify();
+    },
+
+    letAgentWork(input) {
+      dispatch({
+        type: "approval.held_started",
+        space_id: input.spaceId,
+        asker: input.asker,
+        idempotency_key: `held-started-${randomKey()}`,
+      });
+      notify();
+    },
+
+    closeBanner({ spaceId, asker, since }) {
+      const path = `/v1/me/banners/closed/${encodeURIComponent(spaceId)}/${encodeURIComponent(asker)}`;
+      return changeBanners(
+        `closed:${spaceId}:${asker}`,
+        { kind: "closed", spaceId, asker, since },
+        () => put(device, path, { since }),
+      );
+    },
+
+    reopenBanner({ spaceId, asker }) {
+      const path = `/v1/me/banners/closed/${encodeURIComponent(spaceId)}/${encodeURIComponent(asker)}`;
+      return changeBanners(
+        `closed:${spaceId}:${asker}`,
+        { kind: "closed", spaceId, asker, since: undefined },
+        () => remove(device, path),
+      );
+    },
+
+    setAgentBanner(agentId, shown) {
+      const harnessId = harnessOf(directory, agentId);
+      if (harnessId === agentId) return changeHarness(agentId, shown).then(() => undefined);
+      const harnessSays = banners.choices[harnessId] ?? true;
+      return changeChoice(agentId, shown === harnessSays ? undefined : shown);
+    },
+
+    setHarnessBanner(harnessId, shown) {
+      const before: HarnessBannersBefore = {
+        harnessId,
+        shown: banners.choices[harnessId],
+        apart: Object.fromEntries(
+          harnessAgentIds(directory, harnessId).flatMap((id) => {
+            const said = banners.choices[id];
+            return said === undefined ? [] : [[id, said]];
+          }),
+        ),
+      };
+      void changeHarness(harnessId, shown).catch(() => undefined);
+      return before;
+    },
+
+    async undoHarnessBanner(before) {
+      await changeHarness(before.harnessId, before.shown ?? true);
+      await Promise.all(
+        Object.entries(before.apart).map(([agentId, shown]) => changeChoice(agentId, shown)),
+      );
     },
 
     stopLetWork(input) {

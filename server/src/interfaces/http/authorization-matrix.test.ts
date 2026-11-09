@@ -780,6 +780,34 @@ const ROWS: readonly Row[] = [
     path: "/v1/devices/dev_01K4ZQPX00000000000000000Z",
     expect: people,
   },
+  // What a person wants of the gold banner (ADR 0286): theirs, and no route touches another's.
+  { method: "GET", route: "/v1/me/banners", expect: people },
+  {
+    method: "PUT",
+    route: "/v1/me/banners/choices/:target",
+    path: "/v1/me/banners/choices/agt_01K4ZQPX000000000000000001",
+    body: { shown: false },
+    expect: people,
+  },
+  {
+    method: "DELETE",
+    route: "/v1/me/banners/choices/:target",
+    path: "/v1/me/banners/choices/agt_01K4ZQPX000000000000000001",
+    expect: people,
+  },
+  {
+    method: "PUT",
+    route: "/v1/me/banners/closed/:spaceId/:asker",
+    path: "/v1/me/banners/closed/spc_01K4ZQPX000000000000000001/agt_01K4ZQPX000000000000000001",
+    body: { since: "2026-11-08T00:00:00.000Z" },
+    expect: people,
+  },
+  {
+    method: "DELETE",
+    route: "/v1/me/banners/closed/:spaceId/:asker",
+    path: "/v1/me/banners/closed/spc_01K4ZQPX000000000000000001/agt_01K4ZQPX000000000000000001",
+    expect: people,
+  },
   // The face a person chose for a space: their own, like their pins and their notifications.
   { method: "GET", route: "/v1/me/space-icons", expect: people },
   {

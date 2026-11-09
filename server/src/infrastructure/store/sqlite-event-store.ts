@@ -501,6 +501,7 @@ async function forgetRegistryRows(
     "hidden_spaces",
     "pinned_spaces",
     "read_state",
+    "closed_banners",
     "session_pins",
   ] as const) {
     await trx

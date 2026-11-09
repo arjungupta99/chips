@@ -43,6 +43,7 @@ import {
   mayAskFromPage,
   mayRemoveHarness,
   nameOf,
+  permissionsRow,
   removeAsking,
   restartAsking,
   restartOffer,
@@ -72,6 +73,7 @@ import { usePalette } from "../ui/theme";
 import { AVATAR_HUES, ICON_GROUNDS, SPACE, TEXT } from "../ui/tokens";
 import { type DotKind, type HarnessStatus, STATUS, statusLabel, type Tone } from "../ui/vocabulary";
 import { useConnect } from "./Connect";
+import { type HarnessBanners, useHarnessBanners } from "./HarnessBanners";
 import { JobsGroup } from "./jobs/JobsGroup";
 import type { HarnessPart } from "./parts";
 import {
@@ -116,6 +118,8 @@ export function Profile({
   const model = useHarnessModel(store, snapshot, harnessId, selfId, focus);
   const context = useHarnessContext(store, snapshot, harnessId, selfId, focus);
 
+  const banners = useHarnessBanners(store, snapshot, harnessId);
+
   if (snapshot.directory[harnessId] === undefined) {
     return <NotFound snapshot={snapshot} what="harness" />;
   }
@@ -155,6 +159,7 @@ export function Profile({
             selfId={selfId}
             model={model}
             context={context.may ? contextValue(set(context.set)) : null}
+            banners={banners}
             onOpen={open}
           />
           <History snapshot={snapshot} harnessId={harnessId} onOpen={open} />
@@ -171,6 +176,7 @@ export function Profile({
       </ScrollView>
       {/* The Model row's sheet and its hint stand beside the scroll, as on the agent's page. */}
       {model.overlays}
+      {banners.overlay}
     </>
   );
 }
@@ -585,7 +591,14 @@ function ItsAgents({
       <GroupHeading>{`Agents · ${rows.length}`}</GroupHeading>
       <Group inset={AGENT_INSET}>
         {rows.slice(0, AGENTS_SHOWN).map((row) => (
-          <AgentRow key={row.id} row={row} first onPress={open} ground={palette.surface} />
+          <AgentRow
+            key={row.id}
+            row={row}
+            first
+            onPress={open}
+            ground={palette.surface}
+            permission={permissionsRow(snapshot, row.id)}
+          />
         ))}
         {rows.length > AGENTS_SHOWN ? (
           <GroupRow
@@ -618,6 +631,7 @@ function SetUp({
   selfId,
   model,
   context,
+  banners,
   onOpen,
 }: {
   readonly snapshot: Snapshot;
@@ -626,6 +640,7 @@ function SetUp({
   readonly model: { readonly row?: ReactNode; readonly foot?: string | undefined };
   /** The Context files row's value; `null` for a reader who may not see them. */
   readonly context: string | undefined | null;
+  readonly banners: HarnessBanners;
   readonly onOpen: (part: HarnessPart) => void;
 }) {
   const { directory } = snapshot;
@@ -656,8 +671,10 @@ function SetUp({
           accessibilityHint="Shows who decides its asks and what is allowed always"
           testID="harness-asks-row"
         />
+        {banners.row}
       </Group>
       {model.foot === undefined ? null : <GroupFoot testID="model-foot">{model.foot}</GroupFoot>}
+      {banners.foot}
     </View>
   );
 }

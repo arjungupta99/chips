@@ -4,7 +4,7 @@
  * Once the project has had a push, the room shows Universe, and the note's rules say so.
  */
 
-import { UNIVERSE_WORDS } from "@chipschat/protocol";
+import { RUNNING_WORDS, UNIVERSE_WORDS } from "@chipschat/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Principal } from "../../application/index.js";
 import { createTestWorkspace, type TestWorkspace } from "../../testing/workspace.js";
@@ -93,10 +93,11 @@ describe("where the space's project opens (ADR 0227)", () => {
     const room = await connect(async (spaceId) => spaceId === ws.spaceId);
     await ask("@Scout where is the report?");
     const note = Object.values(room()?.notes ?? {}).join(" ");
-    expect(note.endsWith(UNIVERSE_WORDS)).toBe(true);
-    expect(
-      Object.values(room()?.rules ?? {}).every((rules) => rules.endsWith(UNIVERSE_WORDS)),
-    ).toBe(true);
+    const universe = `${UNIVERSE_WORDS} ${RUNNING_WORDS}`;
+    expect(note.endsWith(universe)).toBe(true);
+    expect(Object.values(room()?.rules ?? {}).every((rules) => rules.endsWith(universe))).toBe(
+      true,
+    );
   });
 
   it("is not said of a space with no project", async () => {

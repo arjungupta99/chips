@@ -208,3 +208,18 @@ content full screen when possible".
   It opens the page over everything in the page sheet a link already opens (`PageSheet`), from the
   words already read, so it is there at once and nothing is asked of the server again. Done closes
   it, and so does Esc on an iPad's keys.
+
+## Addendum, 8 November 2026: a link to an address leaves the page
+
+Arjun, on the Health space's start page on the Mac: "basically none of the links work". The page
+linked to its running app at `http://localhost:4173/…`. In a frame such a link loads in the frame,
+and the app's own policy stops that (`frame-src chips-page:` on the Mac, `frame-src 'self'` on the
+web), so the tap did nothing and nothing said why. Links to the project's own files did work. The
+phone was right all along: it hands a tapped address to the platform's browser.
+
+- **chipsd marks every link to a web or mail address `target="_blank"` as it builds the page.** A
+  window of its own is the one way out of a sandboxed frame (ADR 0100): on the Mac it goes to
+  `/usr/bin/open` (ADR 0123), in a browser to a new tab, on an iPhone to Safari as before. One rule
+  in the builder, so an agent's page needs no such attribute of its own.
+- **What a frame may reach is unchanged.** A page still has no network and cannot leave by itself
+  (decision 7); only a person's tap on a link goes out.

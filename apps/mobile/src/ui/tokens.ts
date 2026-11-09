@@ -68,6 +68,9 @@ export interface Palette {
   readonly sunk: string;
 }
 
+/** Ink on solid gold, the same in both themes. */
+export const ON_GOLD = "#3a2a00";
+
 export const light: Palette = {
   bg: "#fbfbf8",
   surface: "#ffffff",

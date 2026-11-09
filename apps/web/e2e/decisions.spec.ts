@@ -11,6 +11,9 @@ import { demo, Harness, newApprovalId, newRunId, openLog, pair, runPanel } from 
 /** The newest approval card in the space: the demo space is shared with every test. */
 const card = (page: Page) => page.getByRole("article", { name: /Approval/ }).last();
 
+/** One ask's card by its id. Once answered, it says how for a moment and goes (`RoomAsks`). */
+const cardOf = (page: Page, approvalId: string) => page.locator(`[data-approval="${approvalId}"]`);
+
 async function askToEmail(harness: Harness, extra: Record<string, unknown> = {}) {
   const approvalId = newApprovalId();
   expect(
@@ -39,10 +42,10 @@ async function start(page: Page): Promise<Harness> {
   return harness;
 }
 
-test("edit: the person's words reach the harness, and the card says so", async ({ page }) => {
+test("edit: the person's words reach the harness, and the card goes", async ({ page }) => {
   const harness = await start(page);
   try {
-    await askToEmail(harness);
+    const approvalId = await askToEmail(harness);
     await card(page).getByRole("button", { name: "Edit" }).click();
     const form = page.getByTestId("edit-form");
     await form
@@ -60,7 +63,7 @@ test("edit: the person's words reach the harness, and the card says so", async (
         body: "Hi Dana, confirming PO #4471: 120 units, 4 pallets.",
       },
     });
-    await expect(card(page)).toContainText(`Approved with edits by ${demo().person.displayName}`);
+    await expect(cardOf(page, approvalId)).toHaveCount(0);
   } finally {
     harness.close();
   }
@@ -69,7 +72,7 @@ test("edit: the person's words reach the harness, and the card says so", async (
 test("deny: the reason reaches the harness, and the run carries on", async ({ page }) => {
   const harness = await start(page);
   try {
-    await askToEmail(harness);
+    const approvalId = await askToEmail(harness);
     await expect(runPanel(page).getByRole("button", { name: "Pause" })).toBeDisabled();
     await card(page).getByRole("button", { name: "Deny" }).click();
     const form = page.getByTestId("deny-form");
@@ -81,8 +84,7 @@ test("deny: the reason reaches the harness, and the run carries on", async ({ pa
       decision: "denied",
       reason: "Wrong address. Use the procurement alias.",
     });
-    await expect(card(page)).toContainText("Denied by");
-    await expect(card(page)).toContainText("Wrong address");
+    await expect(cardOf(page, approvalId)).toHaveCount(0);
     await expect(runPanel(page).getByRole("button", { name: "Pause" })).toBeEnabled();
   } finally {
     harness.close();
@@ -103,16 +105,13 @@ test("expire: an approval nobody answers is resolved by its fallback, as an even
       resolved_by: "system",
     });
     expect(String(resolved["reason"])).toContain("deny");
-    await expect(card(page)).toContainText("nobody answered, so policy denied it", {
-      timeout: 10_000,
-    });
-    await expect(card(page).getByRole("button", { name: "Approve" })).toHaveCount(0);
+    await expect(cardOf(page, approvalId)).toHaveCount(0, { timeout: 10_000 });
   } finally {
     harness.close();
   }
 });
 
-test("resolved elsewhere: a decision made on one surface says so on the other", async ({
+test("resolved elsewhere: a decision made on one surface takes the card from the other", async ({
   page,
   context,
 }) => {
@@ -123,16 +122,14 @@ test("resolved elsewhere: a decision made on one surface says so on the other", 
     await expect(
       other.getByTestId("space-list").getByRole("button", { name: /PO-4471/ }),
     ).toBeVisible({ timeout: 20_000 });
-    await askToEmail(harness);
+    const approvalId = await askToEmail(harness);
     await expect(card(other).getByRole("button", { name: "Approve" })).toBeEnabled();
 
     await card(page).getByRole("button", { name: "Approve" }).click();
     await harness.next("approval.resolved");
 
-    await expect(card(page)).toContainText(`Approved by ${demo().person.displayName} · `);
-    await expect(card(page)).not.toContainText("another device");
-    await expect(card(other)).toContainText("on another device");
-    await expect(card(other).getByRole("button", { name: "Approve" })).toHaveCount(0);
+    await expect(cardOf(page, approvalId)).toHaveCount(0);
+    await expect(cardOf(other, approvalId)).toHaveCount(0);
   } finally {
     await other.close();
     harness.close();
@@ -173,8 +170,7 @@ test("a question with a default is answered from its card in the room, and the h
       timed_out: false,
       answers: [{ question_id: "date", values: ["26"] }],
     });
-    await expect(question).toContainText("Answered by");
-    await expect(question).toContainText("26 September");
+    await expect(page.locator(`[data-ask="${askId}"]`)).toHaveCount(0);
   } finally {
     harness.close();
   }
@@ -219,7 +215,7 @@ test("the dial: at L1 a write asks; turned to L2, policy approves it on the spot
       resolved_by: "system",
     });
     expect(String(byPolicy["reason"])).toContain("L2");
-    await expect(card(page)).toContainText("Approved by policy");
+    await expect(cardOf(page, second)).toHaveCount(0);
 
     // The workspace's log says so, in words.
     await openLog(page);
@@ -274,7 +270,7 @@ test("always at L1: the next ask of its kind is approved by policy (ADR 0080)", 
       resolved_by: "system",
     });
     expect(String(byPolicy["reason"])).toContain("said always");
-    await expect(card(page)).toContainText("Approved by policy");
+    await expect(cardOf(page, second)).toHaveCount(0);
   } finally {
     // Leave the shared room at L2, where the dial test left it.
     await dial.getByLabel("L2 · Ask when it matters").click();
@@ -314,11 +310,7 @@ test("settled in the harness's own tools: the card cools, in its name (ADR 0079)
         reason: "Answered in Scout's own tools.",
       }),
     ).toMatchObject({ frame: "ack" });
-    await expect(card(page)).toContainText("Approved by Scout");
-    await expect(card(page).getByRole("button", { name: "Approve" })).toHaveCount(0);
-    await expect(page.getByTestId("own-tools").last()).toHaveText(
-      "Answered by Scout in its own tools.",
-    );
+    await expect(cardOf(page, approvalId)).toHaveCount(0);
 
     // This session and Always are a person's to give.
     const again = await write();
@@ -330,7 +322,7 @@ test("settled in the harness's own tools: the card cools, in its name (ADR 0079)
       }),
     ).toMatchObject({ frame: "error" });
     await card(page).getByRole("button", { name: "Approve" }).click();
-    await expect(card(page)).toContainText(`Approved by ${demo().person.displayName}`);
+    await expect(cardOf(page, again)).toHaveCount(0);
 
     // An ask that matters waits for a person, answered once: the harness may not settle it, and
     // the card offers no Always.
@@ -346,7 +338,7 @@ test("settled in the harness's own tools: the card cools, in its name (ADR 0079)
       }),
     ).toMatchObject({ frame: "error" });
     await card(page).getByRole("button", { name: "Approve" }).click();
-    await expect(card(page)).toContainText(`Approved by ${demo().person.displayName}`);
+    await expect(cardOf(page, matters)).toHaveCount(0);
   } finally {
     // Leave the shared room at L2, where the dial test left it.
     await dial.getByLabel("L2 · Ask when it matters").click();
@@ -364,7 +356,7 @@ test("a tall card low in a long room leaves the page where it is", async ({ page
     for (let line = 1; line <= 24; line += 1) {
       await harness.send("message.post", { text: `Line ${line} of a long room.\n\n`.repeat(3) });
     }
-    await askToEmail(harness, {
+    const approvalId = await askToEmail(harness, {
       preview: { format: "markdown", body: "A long letter.\n\n".repeat(40) },
     });
     await expect(card(page)).toBeVisible();
@@ -375,7 +367,7 @@ test("a tall card low in a long room leaves the page where it is", async ({ page
     expect(measured.scrolls).toBeLessThanOrEqual(measured.window);
     // Answered before it goes, so the room the next spec opens has nothing of this one waiting.
     await card(page).getByRole("button", { name: "Approve" }).click();
-    await expect(card(page)).toContainText("Approved by");
+    await expect(cardOf(page, approvalId)).toHaveCount(0);
   } finally {
     harness.close();
   }

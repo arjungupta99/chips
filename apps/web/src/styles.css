@@ -3106,6 +3106,40 @@
 
 /* ---------- decisions and questions ---------- */
 
+/* An ask under the room's lines. Once answered it says how for a moment and folds away, and the
+   lines over it glide down (`RoomAsks.tsx`, whose `ASK_GOING_MS` covers the pause and the fold). */
+.room-ask {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.room-ask-in {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.room-ask[data-going="true"] {
+  animation: room-ask-out var(--motion-slow) var(--ease) 750ms both;
+}
+/* The next ask is on its way and will take this card's place: it does not fold first. */
+.room-ask[data-waits="true"] {
+  animation-play-state: paused;
+}
+.room-ask[data-going="true"] .room-ask-in {
+  overflow: hidden;
+}
+@keyframes room-ask-out {
+  to {
+    grid-template-rows: 0fr;
+    margin-bottom: 0;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .room-ask[data-going="true"] {
+    animation: none;
+  }
+}
+
 .decide,
 .ask {
   align-self: flex-start;
@@ -5535,6 +5569,7 @@ button.reply-card:focus-visible {
    dot breathing, Stop at its end. It folds in as the yes is given, and once stopped says so for
    a moment and folds away, so the lines under it glide rather than jump. */
 .letwork {
+  position: relative;
   display: grid;
   grid-template-rows: 1fr;
   flex: none;
@@ -5542,8 +5577,40 @@ button.reply-card:focus-visible {
   border-bottom: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
   animation: letwork-in var(--motion-slow) var(--ease) both;
 }
+/* Its arrival plays once, so Undo doesn't fold it in again from nothing (ADR 0286). */
+.letwork[data-settled="true"] {
+  animation: none;
+}
 .letwork[data-stopped="true"] {
   animation: letwork-out 2400ms var(--ease) both;
+}
+.letwork[data-state="hidden"] {
+  animation: letwork-out-hidden 5000ms var(--ease) both;
+}
+.letwork[data-state="off"] {
+  animation: letwork-out-off 3200ms var(--ease) both;
+}
+@keyframes letwork-out-hidden {
+  0%,
+  95% {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  100% {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+@keyframes letwork-out-off {
+  0%,
+  92% {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  100% {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
 }
 @keyframes letwork-in {
   from {
@@ -5622,6 +5689,91 @@ button.reply-card:focus-visible {
 .letwork-stop:hover {
   background: color-mix(in srgb, var(--gold) 25%, transparent);
 }
+.letwork-stop[data-solid="true"] {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #3a2a00;
+}
+.letwork-stop[data-solid="true"]:hover {
+  background: color-mix(in srgb, var(--gold) 85%, black);
+}
+.letwork-said {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+button.letwork-said {
+  cursor: pointer;
+}
+button.letwork-said:hover .letwork-words {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+button.letwork-said:focus-visible,
+.letwork-close:focus-visible,
+.letwork-text:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.letwork-close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--gold-deep);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+.letwork-close:hover {
+  background: color-mix(in srgb, var(--gold) 25%, transparent);
+}
+.letwork-text {
+  flex: none;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--gold-deep);
+  cursor: pointer;
+}
+.letwork-text:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.letwork-hair {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--gold);
+  transform-origin: left center;
+  animation: letwork-hair 5000ms linear both;
+}
+.letwork[data-state="off"] .letwork-hair {
+  animation-duration: 3200ms;
+}
+@keyframes letwork-hair {
+  to {
+    transform: scaleX(0);
+  }
+}
 .letwork-stop:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -5632,8 +5784,259 @@ button.reply-card:focus-visible {
   .letwork-words {
     animation: none;
   }
-  .letwork[data-stopped="true"] {
+  .letwork[data-stopped="true"],
+  .letwork[data-state="hidden"],
+  .letwork[data-state="off"],
+  .letwork-hair {
     animation: none;
+  }
+}
+
+/* An agent's Permissions (ADR 0286), a page one level deeper than its card. */
+.perm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  --asking-flight: 5200ms;
+  --asking-marks: 6000ms;
+}
+.perm-top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.perm-act {
+  align-self: flex-start;
+  flex: none;
+  padding: 7px 18px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease),
+    opacity var(--motion-fast) var(--ease);
+}
+.perm-act:hover {
+  background: var(--surface-3);
+}
+.perm-act:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.perm-act:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.perm-act[data-small="true"] {
+  padding: 5px 12px;
+  font-size: var(--text-xs);
+}
+.perm-act[data-quiet="true"] {
+  background: transparent;
+  color: var(--ink-2);
+}
+.perm-act[data-quiet="true"]:hover {
+  background: var(--surface-2);
+}
+.perm-act[data-gold="true"] {
+  background: var(--gold);
+  color: #3a2a00;
+}
+.perm-act[data-gold="true"]:hover {
+  background: color-mix(in srgb, var(--gold) 85%, black);
+}
+.perm-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  list-style: none;
+  transition:
+    grid-template-rows var(--motion-base) var(--ease),
+    opacity var(--motion-base) var(--ease);
+}
+.perm-fold[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.perm-fold > div {
+  min-height: 0;
+  overflow: hidden;
+}
+.perm-confirm {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--gold-soft);
+  color: var(--gold-deep);
+}
+.perm-confirm p {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.perm-confirm-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.perm-owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.perm-preview {
+  display: grid;
+  justify-items: center;
+  padding: 12px 12px 10px;
+  background: var(--surface-2);
+}
+.perm-preview > .perm-fold {
+  width: 100%;
+}
+.perm-capsule {
+  display: grid;
+  justify-items: center;
+  max-width: 80%;
+  margin-bottom: 8px;
+  padding: 3px 16px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  line-height: 1.15;
+}
+.perm-capsule b {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.perm-capsule small {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.perm-little {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
+  border-radius: 10px;
+  background: var(--gold-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--gold-deep);
+}
+.perm-little i {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+.perm-little span {
+  flex: 1;
+  min-width: 0;
+}
+.perm-little em {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--gold-deep) 35%, transparent);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+.perm-nothing {
+  margin: 0;
+  padding: 5px 0 6px;
+  font-size: 12.5px;
+  text-align: center;
+  color: var(--ink-3);
+}
+.perm-mark {
+  background: #c79a12;
+}
+.perm-asks .ctx-row-words {
+  display: grid;
+  gap: 7px;
+}
+.perm-always {
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 2px 14px;
+}
+.asking-hero[data-working="true"] .asking-path {
+  background: none;
+  overflow: hidden;
+}
+.asking-hero[data-working="true"] .asking-path::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 1.5px);
+  left: -24px;
+  right: 0;
+  height: 3px;
+  background: repeating-linear-gradient(90deg, var(--gold) 0 12px, transparent 12px 24px);
+  animation: asking-stream 800ms linear infinite;
+}
+@keyframes asking-stream {
+  to {
+    transform: translateX(24px);
+  }
+}
+.asking-hero[data-working="true"] :is(.asking-ask, .asking-ring, .asking-yes) {
+  opacity: 0;
+  animation: none;
+}
+.asking-end:last-child {
+  transition: opacity var(--motion-slow) var(--ease);
+}
+.asking-hero[data-working="true"] .asking-end:last-child {
+  opacity: 0.42;
+}
+.hp-value[data-gold="true"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: var(--gold-deep);
+}
+.hp-value[data-gold="true"]::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+.agent-banner-off {
+  display: inline-grid;
+  margin-left: 6px;
+  vertical-align: -2px;
+  color: var(--ink-3);
+}
+.agent-when.agent-not-asking,
+.hp-agent-list .agent-when.agent-not-asking {
+  font-weight: 600;
+  color: var(--gold-deep);
+}
+@media (prefers-reduced-motion: reduce) {
+  .asking-hero[data-working="true"] .asking-path::after {
+    animation: none;
+  }
+  .perm-fold {
+    transition: none;
   }
 }
 
@@ -6537,12 +6940,30 @@ button.reply-card:focus-visible {
 .plate {
   position: relative;
   overflow: hidden;
-  margin: 0;
-  padding: 8px 0;
-  list-style: none;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface-2);
+}
+/* Seven lines and part of an eighth, so what is cut says there is more. The two shadows only show
+   where there is more that way: the sheets over them are drawn with the words, and scroll off. */
+.plate-lines {
+  max-height: 172px;
+  margin: 0;
+  padding: 8px 0;
+  overflow-y: auto;
+  list-style: none;
+  background:
+    linear-gradient(var(--surface-2) 40%, transparent) top / 100% 24px no-repeat local,
+    linear-gradient(transparent, var(--surface-2) 60%) bottom / 100% 24px no-repeat local,
+    linear-gradient(color-mix(in srgb, var(--ink) 14%, transparent), transparent) top / 100% 9px
+    no-repeat scroll,
+    linear-gradient(transparent, color-mix(in srgb, var(--ink) 14%, transparent)) bottom / 100% 9px
+    no-repeat scroll;
+}
+.plate-lines:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: var(--radius-md);
 }
 .plate::after {
   content: "";
@@ -6648,11 +7069,13 @@ button.reply-card:focus-visible {
    picked. */
 .decide-strip {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 10px;
   width: 100%;
 }
 .decide-strip-bar {
+  flex: 1;
   height: 6px;
   overflow: hidden;
   border-radius: var(--radius-pill);
@@ -6673,7 +7096,7 @@ button.reply-card:focus-visible {
 }
 .decide-strip-ends {
   display: flex;
-  justify-content: space-between;
+  gap: 6px;
   font-size: var(--text-2xs);
   font-variant-numeric: tabular-nums;
   color: var(--ink-3);
@@ -10862,8 +11285,8 @@ button.agent-divider-pill {
     animation: none;
   }
 }
-/* The harness is here (ADR 0190): its face lands, the light runs round it (the Avatar's own busy
-   ring), and its Main agent's face comes in at its corner. Flat; what moves is the arrival. */
+/* The harness is here (ADR 0190): its face lands, it wears the working pins (the Avatar's own
+   busy), and its Main agent's face comes in at its corner. Flat; what moves is the arrival. */
 .join-arrived {
   position: relative;
   display: flex;
@@ -16964,7 +17387,16 @@ button.ctx-row:active,
    (ADR 0279's third addendum): the bubbles stay, their words go. */
 .col-detail
   .msgs
-  :is(.bub > *, .msg-time, .msg-tags, .msg-receipt, .msg-day, .msg-route, .sys, .chatter-latest) {
+  :is(
+    .bub > *,
+    .msg-time,
+    .msg-tags,
+    .ui-receipt__summary,
+    .msg-day,
+    .msg-route,
+    .sys,
+    .chatter-latest
+  ) {
   transition: opacity 200ms var(--ease);
 }
 /* Under the words' going the lines hold the width the room is going to (room/widthGlide.ts), and
@@ -16980,7 +17412,16 @@ button.ctx-row:active,
 }
 .col-detail[data-words="out"]
   .msgs
-  :is(.bub > *, .msg-time, .msg-tags, .msg-receipt, .msg-day, .msg-route, .sys, .chatter-latest) {
+  :is(
+    .bub > *,
+    .msg-time,
+    .msg-tags,
+    .ui-receipt__summary,
+    .msg-day,
+    .msg-route,
+    .sys,
+    .chatter-latest
+  ) {
   opacity: 0;
   transition: opacity 150ms var(--ease) 50ms;
 }

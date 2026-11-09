@@ -171,6 +171,24 @@ describe("a person reading the room's project", () => {
     expect(change.files[0]?.patch).toContain("-export const a = 1;\n+export const a = 2;");
   });
 
+  it("names a file it hands over the way an attachment is named", async () => {
+    await push({ "日本語.txt": "words\n", "plain.txt": "plain\n" }, "Two files");
+
+    const named = await signed(
+      ws.arjun,
+      "GET",
+      `${room()}/file?path=${encodeURIComponent("日本語.txt")}`,
+    );
+    expect(named.status).toBe(200);
+    expect(named.headers.get("content-disposition")).toBe(
+      `attachment; filename="___.txt"; filename*=UTF-8''%E6%97%A5%E6%9C%AC%E8%AA%9E.txt`,
+    );
+    expect(await named.text()).toBe("words\n");
+
+    const plain = await signed(ws.arjun, "GET", `${room()}/file?path=plain.txt`);
+    expect(plain.headers.get("content-disposition")).toBe('attachment; filename="plain.txt"');
+  });
+
   it("hands the files over as one zip, at main or at a change, and none before anything is pushed", async () => {
     const none = await signed(ws.arjun, "GET", `${room()}/archive`);
     expect(none.status).toBe(404);

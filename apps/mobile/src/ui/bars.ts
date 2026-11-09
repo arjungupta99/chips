@@ -21,6 +21,7 @@
 export const UNDER_A_BAR: ReadonlySet<string> = new Set([
   "agents/[id]/index",
   "agents/[id]/history",
+  "agents/[id]/permissions",
   "agents/archived",
   "asks",
   "connection",

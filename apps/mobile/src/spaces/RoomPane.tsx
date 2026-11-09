@@ -76,6 +76,7 @@ export function RoomPane({
   selfId,
   onOpen,
   onOpenAgent,
+  onOpenPermissions,
   onClose,
   at,
   words,
@@ -91,6 +92,8 @@ export function RoomPane({
   readonly onOpen: (spaceId: string) => void;
   /** Open an agent's card over the room, in this same pane, with the way back to the room. */
   readonly onOpenAgent: (agentId: string) => void;
+  /** An agent's Permissions, from its band (ADR 0286). */
+  readonly onOpenPermissions?: ((agentId: string) => void) | undefined;
   /** The room is gone from under the reader: left, or taken out and seen. The pane empties. */
   readonly onClose: () => void;
   /** Where to land in it, as a link or a push says it. */
@@ -187,6 +190,7 @@ export function RoomPane({
         selfId={selfId}
         onOpenSpace={onOpen}
         onOpenAgent={onOpenAgent}
+        onOpenPermissions={onOpenPermissions}
         at={at}
         words={words}
         goTo={goTo}

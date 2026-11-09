@@ -12,8 +12,14 @@
 
 import { type ReactNode, useEffect, useRef } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import Animated, { Easing, useAnimatedStyle, withDelay, withTiming } from "react-native-reanimated";
-import { withSteadyTiming } from "./steadySpring";
+import Animated, {
+  Easing,
+  makeMutable,
+  useAnimatedStyle,
+  withDelay,
+  withTiming,
+} from "react-native-reanimated";
+import { type SteadyHold, withSteadyTiming } from "./steadySpring";
 
 /**
  * 0.52 s on iOS's ease out, no bounce: the mock's (3 November 2026). The panes beside the list move
@@ -23,6 +29,26 @@ export const DURATION = 520;
 export const EASE = Easing.bezier(0.32, 0.72, 0, 1);
 /** The same curve, as a function a worklet can call: the steady clock's (`withSteadyTiming`). */
 export const EASED = Easing.bezierFn(0.32, 0.72, 0, 1);
+/**
+ * What the panes and the bar go on waiting for once their lead is past: a room's lines to take their
+ * new width (`useHeldWidth`, ADR 0279), which takes JavaScript and a layout where the lead takes
+ * neither. Read on the UI thread, so one for the app rather than a value handed down a tree that
+ * would be drawn again for it. Eight tenths of a second is well past any layout a room asks for:
+ * nothing waits on the lines for ever.
+ */
+const linesWaiting = makeMutable(false);
+export const PANES_HOLD: SteadyHold = {
+  held: () => {
+    "worklet";
+    return linesWaiting.value;
+  },
+  most: 800,
+};
+
+/** Says whether a room's lines have yet to take their new width (`PANES_HOLD`). */
+export function setLinesWaiting(waiting: boolean): void {
+  linesWaiting.value = waiting;
+}
 /** How long the tabs that go take to fade, and those that come. */
 const FADE_OUT = 120;
 const FADE_IN = 200;
@@ -68,13 +94,15 @@ export function Moving({
 }) {
   const still = useFirst();
   const { left, top, width, height } = frame;
+  // Held before its own delay, so the marks still set off one after another.
+  const hold = { ...PANES_HOLD, at: wait };
   const moving = useAnimatedStyle(() => {
     const to = (value: number) => {
       if (still) return value;
       if (wait === 0) {
         return withDelay(delay, withTiming(value, { duration: DURATION, easing: EASE }));
       }
-      return withSteadyTiming(value, { ms: DURATION, ease: EASED, wait: wait + delay });
+      return withSteadyTiming(value, { ms: DURATION, ease: EASED, wait: wait + delay, hold });
     };
     return {
       left: to(left),
@@ -116,13 +144,14 @@ export function Fading({
   readonly children?: ReactNode;
 }) {
   const still = useFirst();
+  const hold = { ...PANES_HOLD, at: wait };
   const fading = useAnimatedStyle(() => {
     if (still) return { opacity: shown ? 1 : 0 };
     if (wait > 0) {
       return {
         opacity: shown
-          ? withSteadyTiming(1, { ms: FADE_IN, ease: LINEAR, wait: wait + after })
-          : withSteadyTiming(0, { ms: FADE_OUT, ease: LINEAR, wait }),
+          ? withSteadyTiming(1, { ms: FADE_IN, ease: LINEAR, wait: wait + after, hold })
+          : withSteadyTiming(0, { ms: FADE_OUT, ease: LINEAR, wait, hold }),
       };
     }
     return {

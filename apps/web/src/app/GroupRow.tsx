@@ -24,6 +24,8 @@ export function GroupRow(props: {
   readonly lines?: 1 | 2 | undefined;
   /** The value's own test id, for a value that arrives after the row. */
   readonly valueTestId?: string | undefined;
+  /** The value in gold with a dot: an agent working without asking (ADR 0286). */
+  readonly goldValue?: boolean | undefined;
 }) {
   const inner = (
     <>
@@ -44,7 +46,11 @@ export function GroupRow(props: {
         {props.sub !== undefined && <span className="ctx-row-line">{props.sub}</span>}
       </span>
       {props.value !== undefined && (
-        <span className="hp-value" data-testid={props.valueTestId}>
+        <span
+          className="hp-value"
+          data-gold={props.goldValue === true ? "true" : undefined}
+          data-testid={props.valueTestId}
+        >
           {/* A value that changes crossfades where it stands ("3 of 9 · heard now"). */}
           <Swap id={props.value} className="hp-value-words">
             {props.value}

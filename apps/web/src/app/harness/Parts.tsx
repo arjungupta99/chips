@@ -8,11 +8,13 @@
 
 import {
   agentsTab,
+  type Banners,
   type ContextReads,
   type Directory,
   harnessRuns,
   mayTurnDial,
   nameOf,
+  permissionsRow,
   RUN_STATE_WORDS,
   type SetAutonomyInput,
   type SetRulesInput,
@@ -55,6 +57,8 @@ export interface PartProps {
     | undefined;
   /** Its tokens (ADR 0023). Absent, no page. */
   readonly tokens?: TokenService | undefined;
+  /** What the reader wants of the banner (ADR 0286), for what the rows say beside the agent. */
+  readonly banners?: Banners | undefined;
 }
 
 export function Part(props: PartProps) {
@@ -145,6 +149,12 @@ function AllAgents(props: PartProps) {
         harnessId={props.harnessId}
         words={typed}
         onOpen={props.onOpenAgent}
+        permissionOf={(agentId) =>
+          permissionsRow(
+            { model: props.model, directory: props.directory, banners: props.banners },
+            agentId,
+          )
+        }
       />
     </div>
   );

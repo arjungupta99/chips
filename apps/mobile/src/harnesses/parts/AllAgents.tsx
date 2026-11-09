@@ -4,7 +4,7 @@
  * order, and its archived ones behind a row at the foot.
  */
 
-import { agentsTab, nameOf, type Snapshot } from "@chipschat/core";
+import { agentsTab, nameOf, permissionsRow, type Snapshot } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -47,7 +47,14 @@ export function AllAgents({
   const open = (id: string) => router.push(`/agents/${id}`);
   const rows = (list: readonly Row[]) =>
     list.map((row) => (
-      <AgentRow key={row.id} row={row} first onPress={open} ground={palette.surface} />
+      <AgentRow
+        key={row.id}
+        row={row}
+        first
+        permission={permissionsRow(snapshot, row.id)}
+        onPress={open}
+        ground={palette.surface}
+      />
     ));
   return (
     <ScrollView

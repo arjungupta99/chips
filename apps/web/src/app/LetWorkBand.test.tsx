@@ -4,9 +4,10 @@
  * a word that it did.
  */
 
-import { type Directory, type Space, STOPPED_MS } from "@chipschat/core";
+import { BANNER_HIDDEN_MS, type Directory, type Space, STOPPED_MS } from "@chipschat/core";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { BannerService } from "./agent/bannerService.ts";
 import { LetWorkBand } from "./LetWorkBand.tsx";
 
 const KIT = "hrn_kit";
@@ -66,9 +67,130 @@ describe("the band of an agent working without asking (ADR 0281)", () => {
       <LetWorkBand space={room([hour])} directory={directory} now={NOW} />,
     );
     expect(screen.getByTestId("let-work-band").textContent).toMatch(
-      /^Kit is working without asking until \d{1,2}:50 [AP]M$/,
+      /^Kit isn't asking until \d{1,2}:50 [AP]M$/,
     );
     rerender(<LetWorkBand space={room([hour])} directory={directory} now={NOW + 51 * 60_000} />);
     expect(screen.queryByTestId("let-work-band")).toBeNull();
+  });
+
+  describe("putting it away (ADR 0286)", () => {
+    const HELD = { asker: KIT, by: "usr_a", since: SINCE };
+    function service(over: Partial<BannerService> = {}) {
+      const calls: [string, unknown][] = [];
+      const note =
+        (name: string) =>
+        async (...args: unknown[]) => {
+          calls.push([name, args]);
+        };
+      const made: BannerService = {
+        banners: undefined,
+        keepsBanners: true,
+        keepsHeldStart: true,
+        letAgentWork: () => undefined,
+        stopLetWork: () => undefined,
+        closeBanner: note("close"),
+        reopenBanner: note("reopen"),
+        setAgentBanner: note("set"),
+        setHarnessBanner: (harnessId) => ({ harnessId, shown: undefined, apart: {} }),
+        undoHarnessBanner: note("undo"),
+        ...over,
+      };
+      return { made, calls };
+    }
+    const band = (made: BannerService, onOpen?: (asker: string) => void) => (
+      <LetWorkBand
+        space={room([HELD])}
+        directory={directory}
+        now={NOW}
+        onStop={() => undefined}
+        service={made}
+        onOpenPermissions={onOpen}
+      />
+    );
+
+    it("leaves out a banner that is off, or closed for this yes", () => {
+      const off = service({ banners: { choices: { [KIT]: false }, closed: [] } });
+      const { rerender } = render(band(off.made));
+      expect(screen.queryByTestId("let-work-band")).toBeNull();
+      const closed = service({
+        banners: { choices: {}, closed: [{ spaceId: "sp_1", asker: KIT, since: SINCE }] },
+      });
+      rerender(band(closed.made));
+      expect(screen.queryByTestId("let-work-band")).toBeNull();
+      const older = service({
+        banners: {
+          choices: {},
+          closed: [{ spaceId: "sp_1", asker: KIT, since: "2026-11-05T09:50:00.000Z" }],
+        },
+      });
+      rerender(band(older.made));
+      expect(screen.getByTestId("let-work-band")).toBeTruthy();
+    });
+
+    it("× says Hidden for now, with Disable banner and Undo", () => {
+      const { made, calls } = service();
+      render(band(made));
+      fireEvent.click(screen.getByRole("button", { name: "Close this banner" }));
+      expect(calls).toEqual([["close", [{ spaceId: "sp_1", asker: KIT, since: SINCE }]]]);
+      expect(screen.getByTestId("let-work-band").textContent).toBe(
+        "Hidden for nowDisable bannerUndo",
+      );
+      expect(screen.getByTestId("let-work-band").dataset["state"]).toBe("hidden");
+    });
+
+    it("folds once its time is up", () => {
+      const { made } = service();
+      const closed = service({
+        banners: { choices: {}, closed: [{ spaceId: "sp_1", asker: KIT, since: SINCE }] },
+      });
+      const { rerender } = render(band(made));
+      fireEvent.click(screen.getByTestId("let-work-close"));
+      rerender(band(closed.made));
+      expect(screen.getByTestId("let-work-band").textContent).toMatch(/^Hidden for now/);
+      act(() => {
+        vi.advanceTimersByTime(BANNER_HIDDEN_MS + 10);
+      });
+      expect(screen.queryByTestId("let-work-band")).toBeNull();
+    });
+
+    it("Undo brings the band back and opens it again", () => {
+      const { made, calls } = service();
+      render(band(made));
+      fireEvent.click(screen.getByTestId("let-work-close"));
+      fireEvent.click(screen.getByTestId("let-work-undo-close"));
+      expect(calls.at(-1)).toEqual(["reopen", [{ spaceId: "sp_1", asker: KIT }]]);
+      expect(screen.getByTestId("let-work-band").textContent).toBe(
+        "Kit is working without askingStop",
+      );
+    });
+
+    it("Disable banner turns it off for the agent, says so, and Undo turns it on", () => {
+      const { made, calls } = service();
+      render(band(made));
+      fireEvent.click(screen.getByTestId("let-work-close"));
+      fireEvent.click(screen.getByRole("button", { name: "Disable the banner for Kit" }));
+      expect(calls).toContainEqual(["set", [KIT, false]]);
+      expect(calls).toContainEqual(["reopen", [{ spaceId: "sp_1", asker: KIT }]]);
+      expect(screen.getByTestId("let-work-band").textContent).toBe("Banner off for KitUndo");
+      fireEvent.click(screen.getByTestId("let-work-undo-off"));
+      expect(calls.at(-1)).toEqual(["set", [KIT, true]]);
+    });
+
+    it("doesn't offer Disable banner on a server that keeps no choices", () => {
+      render(band(service({ keepsBanners: false }).made));
+      fireEvent.click(screen.getByTestId("let-work-close"));
+      expect(screen.getByTestId("let-work-band").textContent).toBe("Hidden for nowUndo");
+    });
+
+    it("opens the agent's Permissions from its words", () => {
+      const opened: string[] = [];
+      render(band(service().made, (asker) => opened.push(asker)));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Kit is working without asking. Opens Kit's permissions",
+        }),
+      );
+      expect(opened).toEqual([KIT]);
+    });
   });
 });

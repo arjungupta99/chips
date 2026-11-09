@@ -292,10 +292,10 @@ harness tells its model the same thing; `renderRoomNote` in `@chipschat/protocol
     { "participant_id": "agt_…", "kind": "agent", "name": "OpenClaw 2", "harness": "OpenClaw", "handle": "@OpenClaw2" }
   ],
   "notes": {
-    "agt_…": "In this space: Arjun (person, @Arjun), ASCII Art (Jacobian agent, @ASCIIArt), OpenClaw (agent, @OpenClaw), and you, OpenClaw 2 (OpenClaw agent, @OpenClaw2). Everyone here reads what you write; only those you @-mention act on it. To hand work to an agent or ask it something, @-mention it. If a message asks nothing of you now, as when it names a step that is yours later, answer NO_REPLY and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting."
+    "agt_…": "In this space: Arjun (person, @Arjun), ASCII Art (Jacobian agent, @ASCIIArt), OpenClaw (agent, @OpenClaw), and you, OpenClaw 2 (OpenClaw agent, @OpenClaw2). Everyone here reads what you write; only those you @-mention act on it. To hand work to an agent or ask it something, @-mention it. When you need a person to do or decide something, @-mention them. That is what reaches their phone. Don't @ them for updates. If a message asks nothing of you now, as when it names a step that is yours later, answer NO_REPLY and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting. To get a file from the person's computer, ask them to attach it to a message here. Don't try to read their Desktop, Documents or Downloads: macOS can block that, and the read can hang."
   },
   "rules": {
-    "agt_…": "Everyone here reads what you write; only those you @-mention act on it. To hand work to an agent or ask it something, @-mention it. If a message asks nothing of you now, as when it names a step that is yours later, answer NO_REPLY and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting."
+    "agt_…": "Everyone here reads what you write; only those you @-mention act on it. To hand work to an agent or ask it something, @-mention it. When you need a person to do or decide something, @-mention them. That is what reaches their phone. Don't @ them for updates. If a message asks nothing of you now, as when it names a step that is yours later, answer NO_REPLY and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting. To get a file from the person's computer, ask them to attach it to a message here. Don't try to read their Desktop, Documents or Downloads: macOS can block that, and the read can hang."
   }
 }
 ```
@@ -310,10 +310,10 @@ People come first, then agents, each by name. An agent says the name of the harn
 as `harness`, so a brief that says "Jacobian leads" can be followed in a room where Jacobian's
 agent is called ASCII Art; an agent named as its harness is, like `OpenClaw`, has none
 ([ADR 0101](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0101-an-agent-hands-work-to-another-of-its-harness.md)).
-A member no handle reaches, such as a one-letter name, has no `handle`. With no other agent in the room, the rules are only "Everyone here reads
-what you write." Once the space's project has had a push, the rules end with where people open it:
+A member no handle reaches, such as a one-letter name, has no `handle`. With no other agent in the room, the rules are "Everyone here reads
+what you write" and how to get a file from a person. Once the space's project has had a push, the rules end with where people open it,
 "People open the space's project with the Universe button at the top right of the space, so when
-someone asks where a file is, point them there." A `message.overheard` carries no `room`: it gives
+someone asks where a file is, point them there", and what a page and a running program can do. A `message.overheard` carries no `room`: it gives
 no turn.
 
 A person whose phone Chips knows also carries `time_zone`, the IANA zone of the phone they
@@ -348,9 +348,13 @@ ago, added by Arjun", when it joined a room already talking and has had no turn 
 since your last turn: J2 (Jacobian agent, @J2), added by Arjun". Beside other agents, a message for
 it that does not @-mention it (a person chose it in the composer, answered its words, or wrote on
 to it) opens "Arjun sent this message to you without an @: it is yours to answer", since the note
-otherwise says only those @-mentioned act. A message for every agent (a person chose All) opens
-"Arjun sent this message to every agent here, so each of you has it: answer it yourself, and don't
-pass it on with an @" instead, so the lead doesn't hand it on to agents that already have it.
+otherwise says only those @-mentioned act. A person's message for more than one agent, named or
+sent to All, opens "Arjun sent this to you, Sanjay and Ivan too, so each of you already has it:
+don't pass it on with an @" instead, so the lead doesn't hand it on to agents that already have it.
+It goes on to say that a question gets each agent's own answer, that each does its part when the
+message says who does what, and, for one job left undivided, which one agent says who does what:
+the lead if the message is for it, otherwise the first agent it named, or the first by name for
+All ([ADR 0287](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0287-agents-are-told-how-run-files-and-several-agents-work.md)).
 
 An agent cannot notice that the work has stopped, so Chips does. When the last words in a room
 with a lead are an agent's that reached nobody, and nobody has been working for twenty seconds,

@@ -130,6 +130,7 @@
 }
 
 .ui-approval__preview {
+  max-height: 200px;
   margin: 10px 14px 0;
   padding: 8px 12px;
   font-size: var(--text-md);
@@ -256,8 +257,8 @@
   flex: 1 1 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 9px 12px;
+  gap: 10px;
+  padding: 5px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -278,17 +279,22 @@
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: baseline;
+  gap: 8px;
 }
 .ui-approval__let-words b {
+  flex: none;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink);
 }
 .ui-approval__let-words small {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--text-xs);
   color: var(--ink-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition: color var(--motion-base) var(--ease);
 }
 .ui-approval__let[data-on="true"] .ui-approval__let-words small {
@@ -298,8 +304,8 @@
   appearance: none;
   position: relative;
   flex: none;
-  width: 42px;
-  height: 25px;
+  width: 36px;
+  height: 22px;
   margin: 0;
   border-radius: var(--radius-pill);
   background: var(--line-2);
@@ -312,8 +318,8 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 21px;
-  height: 21px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--knob);
   box-shadow: var(--shadow-1);
@@ -323,7 +329,7 @@
   background: var(--gold);
 }
 .ui-approval__switch:checked::before {
-  transform: translateX(17px);
+  transform: translateX(14px);
 }
 .ui-approval__switch:disabled {
   opacity: 0.5;
@@ -352,9 +358,10 @@
   }
 }
 
-/* Why a yes goes no further than this once (ADRs 0195, 0239): a line of its own where the
-   choices would be, above the buttons. */
+/* Why a yes goes no further than this once (ADRs 0195, 0239): a line of its own, under the
+   choices and the buttons. */
 .ui-approval__once {
+  order: 3;
   flex: 1 1 100%;
   margin: 0;
   font-size: var(--text-xs);
@@ -383,15 +390,17 @@
   vertical-align: 1px;
 }
 
-/* The choice of how far a yes reaches, on a line of its own, so the buttons keep theirs as
-   Approve's words grow (ADR 0280). */
+/* The choice of how far a yes reaches, on the buttons' line, which wraps where there isn't room
+   (ADR 0280, addendum of 8 November 2026). */
 .ui-approval__choose {
-  flex: 1 1 100%;
+  order: 1;
+  flex: none;
   display: flex;
 }
 
 /* What the choice lets through and where it reaches (ADRs 0239, 0280), between it and the answer. */
 .ui-approval__standing {
+  order: 3;
   flex: 1 1 100%;
   display: flex;
   flex-direction: column;
@@ -399,6 +408,7 @@
 }
 
 .ui-approval__buttons {
+  order: 2;
   margin-left: auto;
   display: flex;
   gap: 6px;

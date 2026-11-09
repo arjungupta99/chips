@@ -168,6 +168,7 @@ import { NeedsCard } from "../needs/NeedsCard";
 import { useChips } from "../store/provider";
 import { Aside, alpha, EdgeBand, GLASS } from "../ui/Glass";
 import { useLayout } from "../ui/layout";
+import { panesWait } from "../ui/PaneMotion";
 import { Empty, useRoomColumn, useRoomColumnWidth } from "../ui/Screen";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
@@ -1081,6 +1082,7 @@ export function SpaceView({
   files: givenFiles,
   onOpenSpace,
   onOpenAgent,
+  onOpenPermissions,
   onOpenRoom,
   headHeight = 0,
   bandReach = 0,
@@ -1113,6 +1115,8 @@ export function SpaceView({
   readonly onOpenSpace?: ((spaceId: string) => void) | undefined;
   /** Opens an agent's page: the one a line about it names, as a compaction's (ADR 0146). */
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
+  /** An agent's Permissions, from its band. Absent, the page is pushed (ADR 0286). */
+  readonly onOpenPermissions?: ((agentId: string) => void) | undefined;
   /**
    * How tall the navigation bar standing over this room is, when it is standing *over* it: the
    * phone's room is drawn under a transparent bar (`app/spaces/[id].tsx`), and the room beside an
@@ -1469,6 +1473,7 @@ export function SpaceView({
                   store={store}
                   space={space}
                   directory={snapshot.directory}
+                  onOpenPermissions={onOpenPermissions}
                   headHeight={headHeight}
                   reach={bandReach}
                   onHeight={setPinsHeight}
@@ -1543,6 +1548,7 @@ function Head({
   store,
   space,
   directory,
+  onOpenPermissions,
   headHeight,
   reach,
   onHeight,
@@ -1550,6 +1556,7 @@ function Head({
   readonly store: Store;
   readonly space: Parameters<typeof visibleLines>[0];
   readonly directory: Directory;
+  readonly onOpenPermissions: ((agentId: string) => void) | undefined;
   readonly headHeight: number;
   readonly reach: number;
   readonly onHeight: (height: number) => void;
@@ -1571,7 +1578,12 @@ function Head({
         style={[styles.pinned, { top: headHeight }]}
         onLayout={(event) => onHeight(heightOf(event))}
       >
-        <LetWorkBand store={store} space={space} directory={directory} />
+        <LetWorkBand
+          store={store}
+          space={space}
+          directory={directory}
+          onOpenPermissions={onOpenPermissions}
+        />
         <Pins space={space} />
       </View>
     </>
@@ -1753,6 +1765,7 @@ function TapAway({
         field.glide.value = 0;
         field.shift.value = 0;
       },
+      waiting: panesWait,
     }),
     [field],
   );

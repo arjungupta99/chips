@@ -66,6 +66,7 @@ import {
   type RunFacts,
   refuseAgentNotTheirs,
   refuseCapsOverCeiling,
+  refuseHeldStart,
   refuseLimits,
   refuseNotAnApprover,
   refuseOnAgentMembership,
@@ -500,6 +501,7 @@ const ATTRIBUTION: Readonly<
   "policy.updated": { who: ["changed_by"], when: [] },
   "approval.routed": { who: ["routed_by"], when: ["routed_at"] },
   "approval.held_stopped": { who: ["stopped_by"], when: [] },
+  "approval.held_started": { who: ["started_by"], when: [] },
 };
 
 /** The events whose `from` is a participant ref for the sender: a steer, and feedback (M3.4). */
@@ -1427,6 +1429,7 @@ function participantNamed(event: Record<string, unknown>): string | undefined {
   if (event["type"] === "membership.added" || event["type"] === "membership.removed") {
     return String(event["participant_id"]);
   }
+  if (event["type"] === "approval.held_started") return String(event["asker"]);
   const asked = event["type"] === "space.created" ? event["asked_of"] : undefined;
   return typeof asked === "string" ? asked : undefined;
 }
@@ -1444,10 +1447,24 @@ async function namedFacts(
   const named = participantNamed(event);
   if (named === undefined) return null;
   const found = await deps.readModels.participant(principal.workspaceId, named);
+  if (event["type"] === "approval.held_started") return heldFacts(event, principal, deps, found);
   if (found?.kind !== "agent" || event["type"] !== "membership.added") {
     return participantFacts(found);
   }
   return participantFacts(found, await placeOf(event, principal, deps, found.id));
+}
+
+/** The agent let work without asking, and whether it is in the space named (ADR 0286). */
+async function heldFacts(
+  event: Record<string, unknown>,
+  principal: Principal,
+  deps: SubmitEventDeps,
+  found: ParticipantView | undefined,
+): Promise<ParticipantFacts | null> {
+  const facts = participantFacts(found);
+  if (facts === null || typeof event["space_id"] !== "string") return facts;
+  const role = await deps.readModels.memberRole(principal.workspaceId, event["space_id"], facts.id);
+  return { ...facts, inSpace: role !== undefined };
 }
 
 /** Where an agent being added is, and who is in the room it is added to. */
@@ -1500,6 +1517,7 @@ async function gatherStanding(
     refuseOwnerOut(event, principal, participant) ??
     refuseOnLeadRemoval(event, participant, facts) ??
     refuseOnAsking(event, participant) ??
+    refuseHeldStart(event, principal, role ?? null, participant) ??
     (await refuseOnAlsoAsked(event, principal, deps));
   if (onParticipant !== undefined) return { ok: false, error: onParticipant };
 

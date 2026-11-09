@@ -21,7 +21,7 @@ export function RowAvatar({
   directory,
   title,
   icon,
-  busy = false,
+  busy,
   size = "row",
 }: {
   readonly space: Space;
@@ -32,11 +32,11 @@ export function RowAvatar({
   /** The mark this person chose for the room, where they chose one. */
   readonly icon: SpaceIcon | undefined;
   /**
-   * There is work going in the room: the light runs round its face (ADR 0090). Still by default
-   * — the face at the head of a sheet asking whether to archive the room is not a list row, and
-   * a light running round it there is a room asking to be watched while it is being decided on.
+   * There is work going in the room: its face wears the pins (ADR 0285). Left out by default: the
+   * face at the head of a sheet asking whether to archive the room is not a list row, and pins
+   * going round it there are a room asking to be watched while it is being decided on.
    */
-  readonly busy?: boolean;
+  readonly busy?: boolean | undefined;
 }) {
   const face = spaceFace(space, directory);
   if (face.kind !== "harness")

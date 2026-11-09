@@ -9,9 +9,17 @@
  */
 
 import type { AskDot, AskingPromise } from "@chipschat/core";
-import { useEffect, useState } from "react";
-import { type LayoutChangeEvent, StyleSheet, Text, View } from "react-native";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type LayoutChangeEvent,
+  Animated as NativeAnimated,
+  Easing as NativeEasing,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, {
+  cancelAnimation,
   Easing,
   interpolate,
   interpolateColor,
@@ -37,18 +45,62 @@ const ASK_WIDTH = 34;
 const LANDING_GAP = 10;
 
 /** A clock from nought to one, again and again, on the UI thread; resting under Reduce Motion. */
-function useLoop(ms: number, rest: number): SharedValue<number> {
+function useLoop(ms: number, rest: number, running = true): SharedValue<number> {
   const still = useReduceMotion();
   const t = useSharedValue(still ? rest : 0);
   useEffect(() => {
-    if (still) {
-      t.value = rest;
+    if (still || !running) {
+      cancelAnimation(t);
+      t.value = still ? rest : 0;
       return;
     }
     t.value = 0;
     t.value = withRepeat(withTiming(1, { duration: ms, easing: Easing.linear }), -1, false);
-  }, [still, ms, rest, t]);
+  }, [still, ms, rest, running, t]);
   return t;
+}
+
+/** One dash and its gap of the stream, which goes round in the time of one step. */
+const STREAM_STEP = 24;
+const STREAM_MS = 800;
+
+/** The gold line along the path while an agent works without asking: nothing comes to a person. */
+function Stream({ color, on }: { readonly color: string; readonly on: boolean }) {
+  const still = useReduceMotion();
+  const x = useRef(new NativeAnimated.Value(0)).current;
+  useEffect(() => {
+    if (still || !on) {
+      x.setValue(0);
+      return;
+    }
+    const loop = NativeAnimated.loop(
+      NativeAnimated.timing(x, {
+        toValue: STREAM_STEP,
+        duration: STREAM_MS,
+        easing: NativeEasing.linear,
+        useNativeDriver: true,
+      }),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [still, on, x]);
+  return (
+    <View style={styles.stream}>
+      <NativeAnimated.View style={[styles.streamRun, { transform: [{ translateX: x }] }]}>
+        <Svg height={3} width="100%">
+          <Line
+            x1="0"
+            y1="1.5"
+            x2="100%"
+            y2="1.5"
+            stroke={color}
+            strokeWidth={3}
+            strokeDasharray="12 12"
+          />
+        </Svg>
+      </NativeAnimated.View>
+    </View>
+  );
 }
 
 /** Where the ask is along its flight: there by 38%, held, back by 86%, faded by 94%. */
@@ -66,6 +118,8 @@ export function Hero({
   person,
   personName,
   face,
+  own,
+  working = false,
 }: {
   readonly harness: string;
   /** More harnesses behind the first, drawn smaller and overlapped. */
@@ -77,14 +131,29 @@ export function Hero({
   /** Whose face it is, for its initials. */
   readonly personName: string;
   readonly face: Parameters<typeof Avatar>[0]["icon"];
+  /** The face at the left end, when it is an agent's rather than the harness's (ADR 0286). */
+  readonly own?: ReactNode;
+  /** It is working without asking: no ask flies, the path runs gold, and the person steps back. */
+  readonly working?: boolean;
 }) {
   const palette = usePalette();
-  const t = useLoop(FLIGHT_MS, 0.42);
+  const still = useReduceMotion();
+  const t = useLoop(FLIGHT_MS, 0.42, !working);
   const width = useSharedValue(0);
+  const w = useSharedValue(working ? 1 : 0);
+  useEffect(() => {
+    w.value = withTiming(working ? 1 : 0, {
+      duration: still ? 0 : 360,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [working, still, w]);
+  const quiet = useAnimatedStyle(() => ({ opacity: 1 - w.value }));
+  const flowing = useAnimatedStyle(() => ({ opacity: w.value }));
+  const stepsBack = useAnimatedStyle(() => ({ opacity: 1 - 0.58 * w.value }));
   const ask = useAnimatedStyle(() => {
     const far = Math.max(0, width.value - ASK_WIDTH - LANDING_GAP);
     return {
-      opacity: interpolate(t.value, [0, 0.08, 0.86, 0.94, 1], [0, 1, 1, 0, 0]),
+      opacity: interpolate(t.value, [0, 0.08, 0.86, 0.94, 1], [0, 1, 1, 0, 0]) * (1 - w.value),
       borderColor: interpolateColor(t.value, [0.5, 0.56], [palette.amber, palette.green]),
       transform: [
         { translateX: interpolate(t.value, FLY_AT, FLY_X) * far },
@@ -96,14 +165,14 @@ export function Hero({
     backgroundColor: interpolateColor(t.value, [0.5, 0.56], [palette.amber, palette.green]),
   }));
   const ring = useAnimatedStyle(() => ({
-    opacity: interpolate(t.value, [0, 0.36, 0.42, 0.6, 1], [0, 0, 1, 0, 0]),
+    opacity: interpolate(t.value, [0, 0.36, 0.42, 0.6, 1], [0, 0, 1, 0, 0]) * (1 - w.value),
     transform: [
       { scale: interpolate(t.value, [0, 0.36, 0.42, 0.6, 1], [0.85, 0.85, 1, 1.12, 1.12]) },
     ],
   }));
   const yes = useAnimatedStyle(() => {
     const shown = interpolate(t.value, [0, 0.48, 0.54, 0.84, 0.92, 1], [0, 0, 1, 1, 0, 0]);
-    return { opacity: shown, transform: [{ scale: 0.4 + 0.6 * shown }] };
+    return { opacity: shown * (1 - w.value), transform: [{ scale: 0.4 + 0.6 * shown }] };
   });
   return (
     <View
@@ -113,7 +182,9 @@ export function Hero({
       testID="asking-hero"
     >
       <View style={[styles.end, also.length > 0 ? styles.wide : null]}>
-        {also.length === 0 ? (
+        {own !== undefined ? (
+          own
+        ) : also.length === 0 ? (
           <Avatar name={harness} kind="harness" size="lg" decorative />
         ) : (
           <View style={styles.stack}>
@@ -134,23 +205,28 @@ export function Hero({
           width.value = event.nativeEvent.layout.width;
         }}
       >
-        <Svg style={StyleSheet.absoluteFill} height={48}>
-          <Line
-            x1="0"
-            y1="24"
-            x2="100%"
-            y2="24"
-            stroke={palette.line2}
-            strokeWidth={2}
-            strokeDasharray="2 4"
-          />
-        </Svg>
+        <Animated.View style={[StyleSheet.absoluteFill, quiet]}>
+          <Svg style={StyleSheet.absoluteFill} height={48}>
+            <Line
+              x1="0"
+              y1="24"
+              x2="100%"
+              y2="24"
+              stroke={palette.line2}
+              strokeWidth={2}
+              strokeDasharray="2 4"
+            />
+          </Svg>
+        </Animated.View>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.streamPlace, flowing]}>
+          <Stream color={palette.gold} on={working} />
+        </Animated.View>
         <Animated.View style={[styles.ask, { backgroundColor: palette.surface }, ask]}>
           <Animated.View style={[styles.bar, bars]} />
           <Animated.View style={[styles.bar, styles.short, bars]} />
         </Animated.View>
       </View>
-      <View style={styles.end}>
+      <Animated.View style={[styles.end, stepsBack]}>
         <View>
           <Animated.View style={[styles.ring, { borderColor: palette.amber }, ring]} />
           <Avatar name={personName} kind="person" size="lg" icon={face} decorative />
@@ -178,7 +254,7 @@ export function Hero({
         <Text style={[styles.endName, { color: palette.ink3 }]} numberOfLines={1}>
           {person}
         </Text>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -315,6 +391,9 @@ const styles = StyleSheet.create({
   behind: { marginLeft: -14 },
   endName: { fontSize: TEXT.xs, fontWeight: "600" },
   path: { flex: 1, height: 48, justifyContent: "center" },
+  streamPlace: { justifyContent: "center" },
+  stream: { height: 3, overflow: "hidden" },
+  streamRun: { position: "absolute", top: 0, bottom: 0, left: -STREAM_STEP, right: 0 },
   ask: {
     position: "absolute",
     left: 0,

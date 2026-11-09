@@ -10,7 +10,7 @@
 
 import { listRuns, mayOpenSpace, myRole, type Store, serverHost, spaceList } from "@chipschat/core";
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useDeferredValue, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { AgentPane } from "../../src/agents/AgentPane";
 import { useLanding } from "../../src/pairing/landing";
@@ -75,7 +75,7 @@ function Spaces({
     sheet?: string;
   }>();
   const [opened, go] = useOpened("spaces", SPACES_OPEN);
-  const { space, agent, history } = opened;
+  const { space, agent, history, permissions } = opened;
   // A room opened is the top of the pane: whatever was over the last one goes with it, and so does
   // where a link said to land in the last one.
   const open = (id: string) => {
@@ -96,6 +96,7 @@ function Spaces({
   // The panes wait for the room's words to go before they move (ADR 0279), while the room is what
   // the pane shows rather than an agent's card over it.
   const lead = useWordsLead(shown !== undefined && agent === undefined);
+  const { room, asked } = useDrawnRoom(shown, { at, words, add, sheet });
   if (!wide) return <List store={store} snapshot={snapshot} selfId={selfId} server={server} />;
   const close = () => go({});
   // An agent's card opened from the room stands over it in the pane, with the way back to it, as a
@@ -110,8 +111,15 @@ function Spaces({
           agentId={agent}
           selfId={selfId}
           history={history !== undefined}
-          onBack={history === undefined ? back : () => go({ space: shown, agent })}
+          permissions={permissions !== undefined}
+          // From the room's band, back is the room; from the card, the card (ADR 0286).
+          onBack={
+            history !== undefined || permissions === "card"
+              ? () => go({ space: shown, agent })
+              : back
+          }
           onHistory={() => go({ space: shown, agent, history: "1" })}
+          onPermissions={() => go({ space: shown, agent, permissions: "card" })}
           onOpenRoom={(id) => (id === shown ? back() : open(id))}
           onOpenAgent={(other) => go({ space: shown, agent: other })}
           onOpenHarness={(harnessId) => router.push(`/harnesses/${harnessId}`)}
@@ -136,7 +144,7 @@ function Spaces({
           />
         }
         detail={
-          shown === undefined ? (
+          room === undefined ? (
             <PaneEmpty icon="chat" title="No space open">
               {mayOpenSpace(myRole(snapshot.model, selfId))
                 ? "Choose a space on the left, or make one with +."
@@ -145,17 +153,15 @@ function Spaces({
           ) : (
             <View style={styles.fill}>
               <RoomPane
-                key={shown}
+                key={room}
                 store={store}
-                spaceId={shown}
+                spaceId={room}
                 selfId={selfId}
                 onOpen={open}
-                onOpenAgent={(id) => go({ space: shown, agent: id })}
+                onOpenAgent={(id) => go({ space: room, agent: id })}
+                onOpenPermissions={(id) => go({ space: room, agent: id, permissions: "room" })}
                 onClose={close}
-                at={at}
-                words={words}
-                add={add === "1"}
-                sheet={sheet === "1"}
+                {...asked}
                 onDetails={(item) => router.push(`/needs/${item.id}`)}
               />
               {card}
@@ -167,8 +173,34 @@ function Spaces({
   );
 }
 
+/**
+ * The room drawn beside the list: a step behind the one picked, so the row lights at once and the
+ * room is drawn behind that. Drawing a room takes a few hundred milliseconds, and nothing on the
+ * screen answered the tap until it had (the iPad simulator, 8 November 2026). A room still being
+ * drawn is let go for the next one tapped. What a link asked of a room goes to that room, and not
+ * to the one still standing here.
+ */
+function useDrawnRoom(
+  shown: string | undefined,
+  link: {
+    readonly at?: string | undefined;
+    readonly words?: string | undefined;
+    readonly add?: string | undefined;
+    readonly sheet?: string | undefined;
+  },
+) {
+  const room = useDeferredValue(shown);
+  const asked =
+    room === shown
+      ? { at: link.at, words: link.words, add: link.add === "1", sheet: link.sheet === "1" }
+      : UNASKED;
+  return { room, asked };
+}
+
+const UNASKED = { at: undefined, words: undefined, add: false, sheet: false };
+
 /** What says what is open beside Spaces: the room, and an agent's card over it. */
-const SPACES_OPEN = ["space", "agent", "history"] as const;
+const SPACES_OPEN = ["space", "agent", "history", "permissions"] as const;
 
 /**
  * Previous Space and Next Space, from the menu bar or ⌥↑ ⌥↓ (ADR 0256): along the rooms the list

@@ -120,13 +120,26 @@ describe("a page of the project", () => {
     );
     expect(html).toContain('data-chips-file="reports/supply chain.pdf"');
     expect(html).toContain('href="#top"');
-    expect(html).toContain('href="https://example.com"');
     expect(html).toContain('<a href="index.html">Here</a>');
     expect(html).toContain('href="../../up.html"');
     // In a frame, the window is told which file.
     expect(html).toContain("window.parent.postMessage({chipsFile:");
     // A page with no such links has no script added.
     expect(await built({ "index.html": '<a href="#x">x</a>' })).not.toContain("chipsFile");
+  });
+
+  it("makes a link to an address ask for a window, the one way out of a frame (ADR 0227)", async () => {
+    const html = await built({
+      "index.html":
+        '<a href="http://localhost:4173/home.html">App</a><a href="https://example.com" target="_self">Out</a><a href="mailto:a@example.com">Mail</a><area href="https://example.com/map"><a href="#top">Top</a>',
+    });
+    expect(html).toContain('<a href="http://localhost:4173/home.html" target="_blank">App</a>');
+    expect(html).toContain('<a href="https://example.com" target="_blank">Out</a>');
+    expect(html).toContain('<a href="mailto:a@example.com" target="_blank">Mail</a>');
+    expect(html).toContain('<area href="https://example.com/map" target="_blank">');
+    expect(html).toContain('<a href="#top">Top</a>');
+    // Going out needs no script of the builder's.
+    expect(html).not.toContain("chipsFile");
   });
 
   it("keeps a script's words from closing the element they stand in", async () => {

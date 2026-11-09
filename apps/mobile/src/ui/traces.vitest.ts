@@ -14,7 +14,7 @@ import {
 } from "./traces";
 
 /** The pins' round in `ChipPulse.tsx`: ten pins 150 ms apart, each up in 130 and down in 260. */
-const TIMING: Timing = { roundMs: 9 * 150 + 130 + 260, stepMs: 150, travelMs: 520 };
+const TIMING: Timing = { roundMs: 10 * 150, stepMs: 150, travelMs: 520 };
 
 /** A track's value at `at` of the clock, as the native driver works it out: straight between points. */
 function read(track: Track, at: number): number {

@@ -38,6 +38,7 @@ const EVERY_EVENT = [
   "agent.asked",
   "agent.fork",
   "approval.executed",
+  "approval.held_started",
   "approval.held_stopped",
   "approval.request",
   "approval.resolved",

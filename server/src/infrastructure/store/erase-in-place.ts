@@ -510,6 +510,9 @@ async function clearRooms(
       select id from runs where workspace_id = ${workspaceId} and space_id in (${rooms})
     )`.execute(trx);
   }
+  // A yes given from an agent's page has no run to be found by (ADR 0286).
+  await sql`delete from session_rules
+    where workspace_id = ${workspaceId} and space_id in (${rooms})`.execute(trx);
   for (const [table, column] of Object.entries(ROOM_COLUMN)) {
     await sql`delete from ${sql.table(table)}
       where workspace_id = ${workspaceId} and ${sql.ref(column)} in (${rooms})`.execute(trx);

@@ -1744,7 +1744,7 @@ const Row = memo(function Row({
 }) {
   const palette = usePalette();
   // Work going in the room, whether a run of its own or a turn out of the harness's queue
-  // (ADR 0090): the light runs round the face, and the gear stands where the harness's own
+  // (ADR 0090, ADR 0285): the face wears the pins, and the gear stands where the harness's own
   // thought-bubble emoji used to be read out.
   const working = spaceWorking(space);
   return (

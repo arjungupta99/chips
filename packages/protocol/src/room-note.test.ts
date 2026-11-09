@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { CEILING } from "./exchange.js";
 import {
+  FILE_WORDS,
   type NoteMember,
   noteHandle,
   noteWithoutRules,
+  REACH_A_PERSON_WORDS,
+  RUNNING_WORDS,
   renderRoomNote,
   roomNote,
   roomNoteFor,
   roomRules,
+  severalAsked,
   toEveryAgent,
   UNIVERSE_WORDS,
   yoursWithoutAt,
@@ -37,7 +41,7 @@ describe("the room note", () => {
   it("lists the room with handles, the taker last as you, and says what an @ does", () => {
     const room = roomNoteFor([ARJUN, HELLO, ONE, TWO], [TWO.id]);
     expect(room.notes[TWO.id]).toBe(
-      "In this space: Arjun (person, @Arjun), Hello (agent, @Hello), OpenClaw (agent, @OpenClaw), and you, OpenClaw 2 (@OpenClaw2). Everyone here reads what you write; only those you @-mention act on it. To hand work to an agent or ask it something, @-mention it. If a message asks nothing of you now, as when it names a step that is yours later, answer NO_REPLY and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting.",
+      "In this space: Arjun (person, @Arjun), Hello (agent, @Hello), OpenClaw (agent, @OpenClaw), and you, OpenClaw 2 (@OpenClaw2). Everyone here reads what you write; only those you @-mention act on it. To hand work to an agent or ask it something, @-mention it. When you need a person to do or decide something, @-mention them. That is what reaches their phone. Don't @ them for updates. If a message asks nothing of you now, as when it names a step that is yours later, answer NO_REPLY and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting. To get a file from the person's computer, ask them to attach it to a message here. Don't try to read their Desktop, Documents or Downloads: macOS can block that, and the read can hang.",
     );
     expect(roomNote.safeParse(room).success).toBe(true);
     expect(room.members.map((member) => member.handle)).toEqual([
@@ -70,7 +74,7 @@ describe("the room note", () => {
   it("stops at who reads it when no other agent is here", () => {
     const room = roomNoteFor([ARJUN, HELLO], [HELLO.id]);
     expect(room.notes[HELLO.id]).toBe(
-      "In this space: Arjun (person, @Arjun), and you, Hello (@Hello). Everyone here reads what you write.",
+      "In this space: Arjun (person, @Arjun), and you, Hello (@Hello). Everyone here reads what you write. To get a file from the person's computer, ask them to attach it to a message here. Don't try to read their Desktop, Documents or Downloads: macOS can block that, and the read can hang.",
     );
   });
 
@@ -87,9 +91,11 @@ describe("the room note", () => {
       project,
     );
     expect(alone.notes[HELLO.id]).toBe(
-      `In this space: Arjun (person, @Arjun), and you, Hello (@Hello). Everyone here reads what you write. ${UNIVERSE_WORDS}`,
+      `In this space: Arjun (person, @Arjun), and you, Hello (@Hello). Everyone here reads what you write. ${FILE_WORDS} ${UNIVERSE_WORDS} ${RUNNING_WORDS}`,
     );
-    expect(alone.rules?.[HELLO.id]).toBe(`Everyone here reads what you write. ${UNIVERSE_WORDS}`);
+    expect(alone.rules?.[HELLO.id]).toBe(
+      `Everyone here reads what you write. ${FILE_WORDS} ${UNIVERSE_WORDS} ${RUNNING_WORDS}`,
+    );
     const shared = roomNoteFor(
       [ARJUN, ONE, TWO],
       [TWO.id],
@@ -99,9 +105,25 @@ describe("the room note", () => {
       undefined,
       project,
     );
-    expect(shared.rules?.[TWO.id]).toMatch(/waiting\. People open the space's project with/);
+    expect(shared.rules?.[TWO.id]).toContain(`${FILE_WORDS} ${UNIVERSE_WORDS} ${RUNNING_WORDS}`);
     expect(noteWithoutRules(shared, TWO.id)).not.toContain("Universe");
     expect(roomNoteFor([ARJUN, HELLO], [HELLO.id]).notes[HELLO.id]).not.toContain("Universe");
+  });
+
+  it("says how to reach a person beside other agents, and how to get a file everywhere (ADR 0287)", () => {
+    const shared = roomNoteFor([ARJUN, ONE, TWO], [TWO.id]);
+    expect(shared.rules?.[TWO.id]).toContain(REACH_A_PERSON_WORDS);
+    expect(shared.rules?.[TWO.id]).toContain(FILE_WORDS);
+    const alone = roomNoteFor([ARJUN, HELLO], [HELLO.id]);
+    expect(alone.rules?.[HELLO.id]).not.toContain(REACH_A_PERSON_WORDS);
+    expect(alone.rules?.[HELLO.id]).toContain(FILE_WORDS);
+  });
+
+  it("says what a page and a running program can do only where there is a project (ADR 0287)", () => {
+    expect(roomNoteFor([ARJUN, HELLO], [HELLO.id]).notes[HELLO.id]).not.toContain("Run again");
+    expect(roomRules(roomNoteFor([ARJUN, HELLO], [HELLO.id]).members, HELLO.id, true)).toContain(
+      "press Run again",
+    );
   });
 
   it("lists a member no handle reaches without one", () => {
@@ -161,7 +183,7 @@ describe("the room note with a lead (ADR 0104)", () => {
   it("says who leads, who is working, and how long the others have been without a turn", () => {
     const note = roomNoteFor(room, [o2.id], now);
     expect(note.notes[o2.id]).toBe(
-      "In this space: Arjun (person, @Arjun), ASCII Art (Jacobian agent, @ASCIIArt), J1 (Jacobian agent, @J1), O1 (OpenClaw agent, @O1), and you, O2 (OpenClaw agent, @O2). ASCII Art leads here: it hands out the work, and what is nobody's turn goes to it. Working now: O1, 2 minutes in (last step: Editing ascii-alphabet.html). Not working: ASCII Art for 2 minutes, J1 for 3 minutes. Everyone here reads what you write; only those you @-mention act on it. To hand work to an agent or ask it something, @-mention it. If a message asks nothing of you now, as when it names a step that is yours later, answer NO_REPLY and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting.",
+      "In this space: Arjun (person, @Arjun), ASCII Art (Jacobian agent, @ASCIIArt), J1 (Jacobian agent, @J1), O1 (OpenClaw agent, @O1), and you, O2 (OpenClaw agent, @O2). ASCII Art leads here: it hands out the work, and what is nobody's turn goes to it. Working now: O1, 2 minutes in (last step: Editing ascii-alphabet.html). Not working: ASCII Art for 2 minutes, J1 for 3 minutes. Everyone here reads what you write; only those you @-mention act on it. To hand work to an agent or ask it something, @-mention it. When you need a person to do or decide something, @-mention them. That is what reaches their phone. Don't @ them for updates. If a message asks nothing of you now, as when it names a step that is yours later, answer NO_REPLY and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting. To get a file from the person's computer, ask them to attach it to a message here. Don't try to read their Desktop, Documents or Downloads: macOS can block that, and the read can hang.",
     );
     expect(note.members.find((member) => member.name === "ASCII Art")?.lead).toBe(true);
     expect(note.working).toEqual(now.working);
@@ -305,8 +327,8 @@ describe("the rules a room note ends with (ADR 0250)", () => {
 
   it("are only that everyone reads what it writes where no other agent is there", () => {
     const room = roomNoteFor([ARJUN, J], [J.id]);
-    expect(room.rules?.[J.id]).toBe("Everyone here reads what you write.");
-    expect(roomRules(room.members, J.id)).toBe("Everyone here reads what you write.");
+    expect(room.rules?.[J.id]).toBe(`Everyone here reads what you write. ${FILE_WORDS}`);
+    expect(roomRules(room.members, J.id)).toBe(`Everyone here reads what you write. ${FILE_WORDS}`);
   });
 
   it("leave the facts when taken off: the news, who is here, who works, and the spend", () => {
@@ -358,7 +380,7 @@ describe("the room note's spend line (ADR 0117)", () => {
       },
     );
     expect(note).toBe(
-      "In this space: Arjun (person, @Arjun), and you, J. This job has spent $0.04 of the $10.00 this space allows a job; at $10.00 Chips holds the agents until a person acts. Everyone here reads what you write.",
+      "In this space: Arjun (person, @Arjun), and you, J. This job has spent $0.04 of the $10.00 this space allows a job; at $10.00 Chips holds the agents until a person acts. Everyone here reads what you write. To get a file from the person's computer, ask them to attach it to a message here. Don't try to read their Desktop, Documents or Downloads: macOS can block that, and the read can hang.",
     );
   });
 
@@ -393,7 +415,7 @@ describe("each person's time (ADR 0157)", () => {
   it("follows the room's line, with the date, the clock and the offset to write it with", () => {
     const note = roomNoteFor([here, J], [J.id], undefined, undefined, undefined, at);
     expect(note.notes[J.id]).toBe(
-      "In this space: Arjun (person, @Arjun), and you, J. Arjun's time now: 9:12 am, Tuesday 13 October 2026 (2026-10-13T09:12-07:00, America/Los_Angeles). Everyone here reads what you write.",
+      "In this space: Arjun (person, @Arjun), and you, J. Arjun's time now: 9:12 am, Tuesday 13 October 2026 (2026-10-13T09:12-07:00, America/Los_Angeles). Everyone here reads what you write. To get a file from the person's computer, ask them to attach it to a message here. Don't try to read their Desktop, Documents or Downloads: macOS can block that, and the read can hang.",
     );
     expect(note.members[0]?.time_zone).toBe("America/Los_Angeles");
     expect(roomNote.safeParse(note).success).toBe(true);
@@ -484,5 +506,112 @@ describe("a message for every agent (ADR 0249)", () => {
       false,
     );
     expect(toEveryAgent({ text: "Before ADR 0081" })).toBe(false);
+  });
+});
+
+describe("a person's message for several agents (ADR 0287)", () => {
+  const SANJAY: NoteMember = {
+    id: "agt_sanjay",
+    kind: "agent",
+    name: "Sanjay",
+    harness: "Claude Code",
+    lead: true,
+  };
+  const MUSA: NoteMember = { id: "agt_musa", kind: "agent", name: "Musa", harness: "Codex" };
+  const VICTOR: NoteMember = { id: "agt_victor", kind: "agent", name: "Victor", harness: "Hermes" };
+  const IVAN: NoteMember = { id: "agt_ivan", kind: "agent", name: "Ivan", harness: "Jacobian" };
+  const room = [ARJUN, IVAN, MUSA, SANJAY, VICTOR];
+  const unled = [ARJUN, IVAN, MUSA, { ...SANJAY, lead: false }, VICTOR];
+  const to = (...ids: string[]) => ({ addressed_to: ids });
+  const noteOf = (members: readonly NoteMember[], payload: Record<string, unknown>, id: string) => {
+    const several = severalAsked(payload, members);
+    return (
+      roomNoteFor(
+        members,
+        [id],
+        undefined,
+        several === undefined ? {} : { [id]: { several: { saidBy: "Arjun", ...several } } },
+      ).notes[id] ?? ""
+    );
+  };
+
+  it("is everyone it named, in its order, with the lead to organise", () => {
+    expect(severalAsked(to(VICTOR.id, SANJAY.id, MUSA.id), room)).toEqual({
+      asked: [VICTOR.id, SANJAY.id, MUSA.id],
+      organiser: SANJAY.id,
+    });
+  });
+
+  it("falls to the first it named where the lead wasn't asked, so nobody waits on no one", () => {
+    expect(severalAsked(to(VICTOR.id, MUSA.id), room)?.organiser).toBe(VICTOR.id);
+  });
+
+  it("falls to the first it named in a room with no lead", () => {
+    expect(severalAsked(to(VICTOR.id, IVAN.id), unled)?.organiser).toBe(VICTOR.id);
+  });
+
+  it("is every agent, by name, for one sent to all, and the lead still organises", () => {
+    const payload = { addressed_to: [], addressed_to_all: true };
+    expect(severalAsked(payload, room)).toEqual({
+      asked: [IVAN.id, MUSA.id, SANJAY.id, VICTOR.id],
+      organiser: SANJAY.id,
+    });
+    expect(severalAsked(payload, unled)?.organiser).toBe(IVAN.id);
+  });
+
+  it("tells every taker the same organiser, whichever of them it is told to", () => {
+    const payload = to(VICTOR.id, MUSA.id, IVAN.id);
+    expect(severalAsked(payload, room)).toEqual(severalAsked(payload, [...room].reverse()));
+  });
+
+  it("is nothing for one agent, or for a person named beside one", () => {
+    expect(severalAsked(to(MUSA.id), room)).toBeUndefined();
+    expect(severalAsked(to(MUSA.id, ARJUN.id), room)).toBeUndefined();
+    expect(severalAsked({}, room)).toBeUndefined();
+  });
+
+  it("counts an agent named twice once", () => {
+    expect(severalAsked(to(MUSA.id, MUSA.id), room)).toBeUndefined();
+  });
+
+  it("reads a harness asked before its agent took its place as that agent", () => {
+    const current = (id: string) => (id === "hrn_codex" ? MUSA.id : id);
+    expect(severalAsked(to("hrn_codex", IVAN.id), room, current)?.asked).toEqual([
+      MUSA.id,
+      IVAN.id,
+    ]);
+  });
+
+  it("tells one who isn't organising to answer a question, do its part, or wait", () => {
+    expect(noteOf(room, to(SANJAY.id, MUSA.id, VICTOR.id, IVAN.id), MUSA.id)).toMatch(
+      /^Arjun sent this to you, Sanjay, Victor and Ivan too, so each of you already has it: don't pass it on with an @\. Give your own answer to a question without waiting for the others\. If it says who does what, do your part\. If one thing is to be made and it doesn't say who does what, Sanjay says who does what: answer NO_REPLY and wait for that\. In this space:/,
+    );
+  });
+
+  it("tells the organiser to say who does what", () => {
+    expect(noteOf(room, to(SANJAY.id, MUSA.id), SANJAY.id)).toMatch(
+      /^Arjun sent this to you and Musa too, so each of you already has it: don't pass it on with an @\. Give your own answer to a question without waiting for the others\. If it says who does what, do your part\. If one thing is to be made and it doesn't say who does what, you say who does what, with an @ for each, before anyone starts\. In this space:/,
+    );
+  });
+
+  it("says one thing, not that the message is the taker's alone or every agent's", () => {
+    const several = severalAsked(to(SANJAY.id, MUSA.id), room);
+    const news = {
+      yours: { saidBy: "Arjun" },
+      toAll: { saidBy: "Arjun" },
+      ...(several === undefined ? {} : { several: { saidBy: "Arjun", ...several } }),
+    };
+    const note = roomNoteFor(room, [MUSA.id], undefined, { [MUSA.id]: news }).notes[MUSA.id];
+    expect(note).not.toContain("it is yours to answer");
+    expect(note).not.toContain("every agent here");
+    expect(note).toContain("Sanjay says who does what");
+  });
+
+  it("says nothing to one the message isn't for", () => {
+    const several = severalAsked(to(SANJAY.id, MUSA.id), room);
+    const note = roomNoteFor(room, [IVAN.id], undefined, {
+      ...(several === undefined ? {} : { [IVAN.id]: { several: { saidBy: "Arjun", ...several } } }),
+    }).notes[IVAN.id];
+    expect(note).toMatch(/^In this space:/);
   });
 });

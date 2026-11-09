@@ -77,8 +77,12 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
     why: "the wire's kinds, the + asking a harness, and a harness's own context set (ADR 0134)",
   },
   "apps/web/src/app/Harnesses.tsx": {
-    count: 3,
-    why: `the harness a new agent is asked of (ADR 0190); a file of a harness's own context set (ADR 0135); ${SHAPE}`,
+    count: 4,
+    why: `the harness a new agent is asked of (ADR 0190); a file of a harness's own context set (ADR 0135); a harness asking for itself, whose asks are on its own page (ADR 0286); ${SHAPE}`,
+  },
+  "apps/web/src/app/agent/AgentPermissions.tsx": {
+    count: 2,
+    why: "the harness's own face, beside the rules that are its own and the row that goes to it (ADR 0286)",
   },
   "apps/web/src/app/harness/HarnessPage.tsx": {
     count: 1,

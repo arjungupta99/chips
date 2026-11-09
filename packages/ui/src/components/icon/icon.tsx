@@ -53,6 +53,18 @@ const PATHS = {
   pen: ["M4 20l1.2-4.4L16.4 4.4a2.1 2.1 0 0 1 3 3L8.2 18.6z", "M14.3 6.5l3 3"],
   check: ["M5 12.5l4.5 4.5L19 7"],
   x: ["M6 6l12 12M18 6L6 18"],
+  /** The gold banner a room shows while an agent works without asking (ADR 0286). */
+  banner: [
+    "M6 7h12a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-4a3 3 0 0 1 3-3z",
+    "M6.4 12a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0z",
+    "M12 12h5",
+  ],
+  /** That a banner is off for this agent (ADR 0286). */
+  eyeOff: [
+    "M3 3l18 18",
+    "M10.6 5.2A9.7 9.7 0 0 1 12 5c5 0 8.5 4.4 9.5 6.4.2.4.2.8 0 1.2a15 15 0 0 1-2.5 3.4",
+    "M6.2 6.6a15 15 0 0 0-3.7 4.8c-.2.4-.2.8 0 1.2C3.5 14.6 7 19 12 19c1.7 0 3.2-.5 4.6-1.2",
+  ],
   play: ["M7 5l12 7-12 7z"],
   /** A call to the web, in a thinking bubble (ADR 0126). */
   globe: [

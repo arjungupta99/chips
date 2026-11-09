@@ -83,6 +83,7 @@ import { desktop, inDesktop } from "../native.ts";
 import type { AgentsService } from "./Agents.tsx";
 import type { Chosen } from "./Ask.tsx";
 import { AgentPane } from "./agent/AgentPane.tsx";
+import { type BannerService, bannerServiceOf } from "./agent/bannerService.ts";
 import { Columns, ColumnsShellFrame, useNarrowForThird } from "./Columns.tsx";
 import type { DecisionInput } from "./Decide.tsx";
 import type { OnFeedback } from "./Feedback.tsx";
@@ -283,6 +284,7 @@ export function Shell({
   // An agent a search result opened: the Agents page opens on its page. The rail's own choice of
   // a page opens it on its list again.
   const [agentOpened, setAgentOpened] = useState<string | undefined>(undefined);
+  const [permissionsOpened, setPermissionsOpened] = useState(false);
   // You's Connect a harness (ADR 0185's addendum): the Agents page opens with its dialog up, where
   // the harness lands once it has said hello. Any other way to the page opens it without.
   const [connecting, setConnecting] = useState(false);
@@ -293,6 +295,7 @@ export function Shell({
   // A section from the top: its list, or You at the relay card when `reveal` asks.
   const goTo = useCallback((next: Tab, reveal: number) => {
     setAgentOpened(undefined);
+    setPermissionsOpened(false);
     setConnecting(false);
     setRevealRelay(reveal);
     setTab(next);
@@ -305,11 +308,19 @@ export function Shell({
   }, [goTo]);
   const openAgent = useCallback((agentId: string) => {
     setAgentOpened(agentId);
+    setPermissionsOpened(false);
+    setConnecting(false);
+    setTab("agents");
+  }, []);
+  const openPermissions = useCallback((asker: string) => {
+    setAgentOpened(asker);
+    setPermissionsOpened(true);
     setConnecting(false);
     setTab("agents");
   }, []);
   const connectHarness = useCallback(() => {
     setAgentOpened(undefined);
+    setPermissionsOpened(false);
     setConnecting(true);
     setTab("agents");
   }, []);
@@ -625,6 +636,9 @@ export function Shell({
       onOpenInSpaces={select}
       onAgentsList={() => selectTab("agents")}
       agentOpened={agentOpened}
+      permissionsOpened={permissionsOpened}
+      onOpenPermissions={openPermissions}
+      banners={bannerServiceOf(store, snapshot)}
       onOpenAgent={openAgent}
       connecting={connecting}
       onConnectHarness={connectHarness}
@@ -995,6 +1009,9 @@ interface MiddlePaneProps {
   readonly onAgentsList: () => void;
   /** An agent a search result opened, which the Agents page opens on. */
   readonly agentOpened: string | undefined;
+  readonly permissionsOpened: boolean;
+  readonly onOpenPermissions: (asker: string) => void;
+  readonly banners: BannerService;
   readonly onOpenAgent: (agentId: string) => void;
   /** The Agents page opens with Connect a harness up: You's card asked for it. */
   readonly connecting: boolean;
@@ -1373,6 +1390,8 @@ function MiddlePane(p: MiddlePaneProps) {
         }}
         agents={agents}
         initialAgent={p.agentOpened}
+        initialPermissions={p.permissionsOpened}
+        banners={p.banners}
         initialAdding={p.connecting}
         files={p.files}
         faces={p.spaceIcons}
@@ -1438,6 +1457,8 @@ function besidePane(p: MiddlePaneProps, agents: AgentsService): ReactNode {
         files={p.files}
         faces={p.spaceIcons}
         agents={agents}
+        banners={p.banners}
+        onSetRules={(input) => p.store.setRules(input)}
         onBack={p.onAgentsList}
         onOpenRoom={(spaceId) =>
           p.onSearchBeside({ kind: "space", key: `space:${spaceId}`, spaceId })
@@ -1515,6 +1536,8 @@ function roomView(p: MiddlePaneProps, selected: Space, headEnd?: ReactNode) {
       onOpenAgent={p.onOpenAgent}
       onStopLane={(lane) => stopLane(p.store, lane)}
       onStopLetWork={(asker) => p.store.stopLetWork({ spaceId: selected.id, asker })}
+      banners={p.banners}
+      onOpenPermissions={p.onOpenPermissions}
       onDiscard={(key) => p.store.discard(key)}
       onRead={(seq) => p.store.markRead(selected.id, seq)}
       onLine={p.onLine}

@@ -16,8 +16,13 @@
 
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
-import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
-import { DURATION, EASE, EASED } from "./PadBarMotion";
+import Animated, {
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { DURATION, EASE, EASED, PANES_HOLD, setLinesWaiting } from "./PadBarMotion";
 import { withSteadyTiming } from "./steadySpring";
 
 /**
@@ -25,8 +30,59 @@ import { withSteadyTiming } from "./steadySpring";
  * width with their words out of sight, until the words have gone (`useWordsLead`, ADR 0279),
  * waiting on the steady clock as the words do; nought elsewhere. What a column shows is kept until
  * it has gone, wait and all.
+ *
+ * Past that they go on waiting until the lines have taken the new width (`panesWait`). The lead was
+ * all they waited for until 8 November 2026, and it takes neither JavaScript nor a layout, where the
+ * lines take both: with JavaScript busy, a column came in over the bubbles and they took their new
+ * shapes under it later (Arjun's iPad: "the column sometimes overlaps the bubbles, and then bubbles
+ * resize later, which looks off").
  */
 export const PaneLead = createContext(0);
+
+/**
+ * Says whether a room's lines have yet to take the new width the panes beside them are moving for:
+ * written from the commit that says so, and the panes set off from the one that draws the lines at
+ * that width.
+ */
+export function panesWait(waiting: boolean): void {
+  setLinesWaiting(waiting);
+}
+
+/** How long panes asked to move have, at most, before they have got there. */
+function moveOf(lead: number): number {
+  return lead === 0 ? DURATION : lead + PANES_HOLD.most + DURATION;
+}
+
+/**
+ * A length the panes move, on the UI thread: to `to` from wherever it stood, once their lead is past
+ * (`PaneLead`). Its first it takes at once, and so does any while `still`.
+ *
+ * It moves when it changes, and at no other time. A width is a layout, so each frame of a move is a
+ * commit of the whole tree, and the moves were started by a style that ran again for anything it
+ * depended on: every box took its first length at once and then, a render later, set off from there
+ * to there, for 0.72 s. Each room opened beside the list has two or three of these boxes, so
+ * changing rooms was some forty commits of nothing, each laying out and walking every list on the
+ * screen, across the room's first rows (the iPad simulator, 8 November 2026).
+ */
+function usePaneLength(to: number, still: boolean): SharedValue<number> {
+  const lead = useContext(PaneLead);
+  const length = useSharedValue(to);
+  const stood = useRef(to);
+  useEffect(() => {
+    if (stood.current === to) return;
+    stood.current = to;
+    if (still) length.value = to;
+    else if (lead === 0) length.value = withTiming(to, { duration: DURATION, easing: EASE });
+    else
+      length.value = withSteadyTiming(to, {
+        ms: DURATION,
+        ease: EASED,
+        wait: lead,
+        hold: PANES_HOLD,
+      });
+  }, [to, still, lead, length]);
+  return length;
+}
 
 /**
  * A box whose width goes to `width` from wherever it stood, once the panes' lead is past
@@ -46,14 +102,8 @@ export function Widening({
   readonly testID?: string | undefined;
   readonly children?: ReactNode;
 }) {
-  const first = useFirst();
-  const at = first || still;
-  const lead = useContext(PaneLead);
-  const sized = useAnimatedStyle(() => {
-    if (at) return { width };
-    if (lead === 0) return { width: withTiming(width, { duration: DURATION, easing: EASE }) };
-    return { width: withSteadyTiming(width, { ms: DURATION, ease: EASED, wait: lead }) };
-  }, [width, at, lead]);
+  const length = usePaneLength(width, still);
+  const sized = useAnimatedStyle(() => ({ width: length.value }));
   return (
     <Animated.View style={[style, sized]} testID={testID}>
       {children}
@@ -75,13 +125,8 @@ export function Clearing({
   readonly style?: StyleProp<ViewStyle>;
   readonly children?: ReactNode;
 }) {
-  const first = useFirst();
-  const lead = useContext(PaneLead);
-  const padded = useAnimatedStyle(() => {
-    if (first) return { paddingLeft: left };
-    if (lead === 0) return { paddingLeft: withTiming(left, { duration: DURATION, easing: EASE }) };
-    return { paddingLeft: withSteadyTiming(left, { ms: DURATION, ease: EASED, wait: lead }) };
-  }, [left, first, lead]);
+  const length = usePaneLength(left, false);
+  const padded = useAnimatedStyle(() => ({ paddingLeft: length.value }));
   return <Animated.View style={[style, padded]}>{children}</Animated.View>;
 }
 
@@ -99,7 +144,7 @@ export function useKept<T>(value: T | undefined): T | undefined {
       setKept(value);
       return;
     }
-    const timer = setTimeout(() => setKept(undefined), lead + DURATION);
+    const timer = setTimeout(() => setKept(undefined), moveOf(lead));
     return () => clearTimeout(timer);
   }, [value, lead]);
   return value ?? (kept === undefined ? undefined : last.current);
@@ -120,17 +165,8 @@ export function useGone(hidden: boolean): boolean {
       setGone(false);
       return;
     }
-    const timer = setTimeout(() => setGone(true), lead + DURATION);
+    const timer = setTimeout(() => setGone(true), moveOf(lead));
     return () => clearTimeout(timer);
   }, [hidden, lead]);
   return hidden && gone;
-}
-
-/** True on the first drawing only. */
-function useFirst(): boolean {
-  const first = useRef(true);
-  useEffect(() => {
-    first.current = false;
-  }, []);
-  return first.current;
 }

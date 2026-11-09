@@ -67,7 +67,23 @@ interface SteadyTiming extends Animation<SteadyTiming> {
   from: number;
   last: number;
   elapsed: number;
+  /** How long it has gone on waiting for its `hold`. */
+  held: number;
   current: number;
+}
+
+/**
+ * What a steady timing goes on waiting for at `at` (its `wait` if not said): for as long as `held`
+ * says so, and `most` milliseconds at the most.
+ */
+export interface SteadyHold {
+  /**
+   * A worklet to ask, not a shared value: one in a style's closure is an input of that style, which
+   * runs again when it changes and starts the timing over, wait and all.
+   */
+  readonly held: () => boolean;
+  readonly most: number;
+  readonly at?: number;
 }
 
 /** How a steady timing goes: over `ms`, eased by `ease`, after `wait`, all on the steady clock. */
@@ -76,6 +92,8 @@ export interface SteadyTimingConfig {
   /** A function a worklet can call (`Easing.bezierFn`). */
   readonly ease: (share: number) => number;
   readonly wait?: number;
+  /** What it goes on waiting for, past its `wait`. */
+  readonly hold?: SteadyHold;
 }
 
 /**
@@ -86,7 +104,7 @@ export interface SteadyTimingConfig {
  */
 export function withSteadyTiming(
   to: number,
-  { ms, ease, wait = 0 }: SteadyTimingConfig,
+  { ms, ease, wait = 0, hold }: SteadyTimingConfig,
   callback?: AnimationCallback,
 ): number {
   "worklet";
@@ -97,10 +115,18 @@ export function withSteadyTiming(
       animation.current = Number(value);
       animation.last = now;
       animation.elapsed = 0;
+      animation.held = 0;
     };
     const onFrame = (animation: SteadyTiming, now: number) => {
       animation.elapsed += Math.min(STEADY_FRAME_MS, Math.max(0, now - animation.last));
       animation.last = now;
+      if (hold?.held() && animation.held < hold.most) {
+        const past = animation.elapsed - (hold.at ?? wait);
+        if (past > 0) {
+          animation.held += past;
+          animation.elapsed -= past;
+        }
+      }
       const share = Math.min(1, Math.max(0, animation.elapsed - wait) / ms);
       animation.current = animation.from + (to - animation.from) * ease(share);
       return share >= 1;
@@ -111,6 +137,7 @@ export function withSteadyTiming(
       from: to,
       last: 0,
       elapsed: 0,
+      held: 0,
       current: to,
       callback,
     } as SteadyTiming;

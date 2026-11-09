@@ -100,12 +100,24 @@ that use `rm`, `sudo` or `git push`. An ask that matters (money, a message to so
 anything marked as not undoable) still waits for a person, and a rule a person set that says no
 still says it. Only a person gives one, and only as a yes, and never for an ask that matters.
 
+A person can also give the second one before anything has been asked, from the agent's own
+Permissions page: [`approval.held_started`](/reference/events/approval-held_started/) with the space
+and the agent (`asker`). It covers the same things and ends the same way. Only the person whose
+agent it is, or an owner or an admin, may send it.
+
 The room shows a band under its name while one holds (`Jiro is working without asking`), with
-Stop; You's Allowed always lists them too. Stop sends `approval.held_stopped` with the space and
-the agent (`asker`), and the agent's next ask comes to a person.
+Stop and ×; You's Allowed always lists them too. Stop sends `approval.held_stopped` with the space
+and the agent (`asker`), and the agent's next ask comes to a person.
+
+× puts the band away until the agent is given a new yes. Disable banner, and the switches on the
+agent's and the harness's pages, say whether a person wants it for that agent or for all of a
+harness's agents. These are one person's, on all their devices, and change only what they see: the
+agent goes on working either way, and a card still comes for anything that matters.
 
 A server older than 1.2 drops both fields, and says so by leaving `held_yes` out of `server.takes`
-in its [`hello`](/reference/events/hello/). The apps then offer neither.
+in its [`hello`](/reference/events/hello/). The apps then offer neither. One that leaves out
+`held_start` is not offered Let it work from the page, and one that leaves out `banners` keeps
+none of a person's choices, so × stays on that device and the switches aren't offered.
 
 ## Rules the protocol keeps
 

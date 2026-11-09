@@ -31,6 +31,7 @@ import { registerAgentKeepRoutes } from "./routes/agent-keep.js";
 import { registerAgentModelRoutes } from "./routes/agent-models.js";
 import { registerAgentNameRoutes } from "./routes/agent-name.js";
 import { registerApprovalRoutes } from "./routes/approvals.js";
+import { registerBannerRoutes } from "./routes/banners.js";
 import { registerDevRoutes } from "./routes/dev.js";
 import { registerDeviceRoutes } from "./routes/devices.js";
 import { registerDirectAskRoutes } from "./routes/direct-asks.js";
@@ -336,6 +337,7 @@ export function createApp(deps: GatewayDeps): Hono<GatewayEnv> {
   registerHiddenSpaceRoutes(app, deps);
   registerPinnedSpaceRoutes(app, deps);
   registerReadMarkRoutes(app, deps);
+  registerBannerRoutes(app, deps);
   registerAgentFaceRoutes(app, deps);
   registerAgentNameRoutes(app, deps);
   registerAgentContextRoutes(app, deps);

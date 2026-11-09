@@ -50,6 +50,7 @@ export {
   laneChainCostUsd,
   lanesInSpace,
   lastWords,
+  lettingWork,
   type MessageTrail,
   mayAnswer,
   mayDelete,

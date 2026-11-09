@@ -2023,6 +2023,103 @@ describe("policy at the door (M1.4)", () => {
   });
 });
 
+describe("letting an agent work from its page (ADR 0286)", () => {
+  async function askerIn(key: string): Promise<{ runId: string; asker: string }> {
+    const runId = await startedRun(key);
+    const run = await ws.gateway.deps.readModels.run(ws.workspaceId, runId);
+    return { runId, asker: run?.agent_id ?? run?.harness_id ?? "" };
+  }
+
+  const start = (asker: string, key: string, space = ws.spaceId) => ({
+    type: "approval.held_started",
+    space_id: space,
+    asker,
+    idempotency_key: key,
+  });
+
+  const send = (person: TestWorkspace["arjun"], runId: string, body: unknown) => {
+    const path = `/v1/runs/${runId}/events`;
+    return call("POST", path, signed(person, "POST", path, body));
+  };
+
+  const held = (asker: string, now: string) =>
+    ws.gateway.deps.readModels.rulesForAWhile(ws.workspaceId, ws.spaceId, asker, now);
+
+  const ask = (runId: string, key: string, action: object) =>
+    call("POST", `/v1/runs/${runId}/events`, {
+      headers: { ...ws.scout.headers, "idempotency-key": key },
+      body: {
+        type: "approval.request",
+        approval_id: ws.ids.next("approval"),
+        action,
+        risk: [],
+        expires_in: 3600,
+      },
+    });
+
+  it("takes the person whose agent it is, and the row holds until it is stopped", async () => {
+    const { runId, asker } = await askerIn("start-run");
+    const given = await send(ws.arjun, runId, start(asker, "start-1"));
+    expect(given.status, JSON.stringify(given.body)).toBe(201);
+    expect(await held(asker, new Date(Date.now() + 365 * 86_400_000).toISOString())).toHaveLength(
+      1,
+    );
+
+    const stopped = await send(ws.arjun, runId, {
+      type: "approval.held_stopped",
+      space_id: ws.spaceId,
+      asker,
+      idempotency_key: "start-stop",
+    });
+    expect(stopped.status, JSON.stringify(stopped.body)).toBe(201);
+    expect(await held(asker, new Date().toISOString())).toEqual([]);
+  });
+
+  it("makes one row however often the same key is sent", async () => {
+    const { runId, asker } = await askerIn("start-who");
+    await send(ws.arjun, runId, start(asker, "start-once"));
+    await send(ws.arjun, runId, start(asker, "start-once"));
+    expect(await held(asker, new Date().toISOString())).toHaveLength(1);
+  });
+
+  it("lets its next ask go ahead, and what matters still waits for a person", async () => {
+    const { runId, asker } = await askerIn("start-asks");
+    await send(ws.arjun, runId, start(asker, "start-asks-1"));
+    const small = await ask(runId, "start-small", {
+      kind: "shell.exec",
+      input: { command: "rm -rf build" },
+    });
+    expect(small.body["resolution"]).toBe("approved");
+    const big = await ask(runId, "start-big", {
+      kind: "email.send",
+      external: true,
+      irreversible: true,
+    });
+    expect(big.body["resolution"]).toBeUndefined();
+  });
+
+  it("is refused to a member whose agent it isn't, and to a harness", async () => {
+    const { runId, asker } = await askerIn("start-refused");
+    const dana = await send(ws.dana, runId, start(asker, "start-dana"));
+    expect(dana.status).toBe(403);
+    expect(dana.body["error"]).toMatchObject({ code: "forbidden" });
+    const harness = await call("POST", `/v1/runs/${runId}/events`, {
+      headers: { ...ws.scout.headers, "idempotency-key": "start-harness" },
+      body: start(asker, "start-harness"),
+    });
+    expect(harness.status).toBe(403);
+    expect(await held(asker, new Date().toISOString())).toEqual([]);
+  });
+
+  it("is refused for a person, and for nobody", async () => {
+    const { runId } = await askerIn("start-who-for");
+    const person = await send(ws.arjun, runId, start(ws.dana.participantId, "start-p"));
+    expect(person.status).toBe(404);
+    const nobody = await send(ws.arjun, runId, start("agt_01K4ZQPX0000000000000NOPE", "start-n"));
+    expect(nobody.status).toBe(404);
+  });
+});
+
 describe("the sweep: what nobody answered in time (M1.4)", () => {
   const sweepAt = (ms: number) =>
     createSweep({

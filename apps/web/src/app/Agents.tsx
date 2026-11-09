@@ -18,6 +18,7 @@ import {
   agentCard,
   agentDeleteAsking,
   agentsTab,
+  BANNER_OFF_WORDS,
   belongsTo,
   type ConnectionState,
   type ContextReads,
@@ -30,7 +31,10 @@ import {
   type ModelReads,
   mayOpenSpace,
   myRole,
+  NOT_ASKING_WORDS,
+  PERMISSIONS_TITLE,
   patientLook,
+  permissionsRow,
   ROOM_PICK_ROW,
   type RoomPick,
   type ShownAgents,
@@ -46,6 +50,7 @@ import { Avatar, ChipMark, Icon, LIBRARY_MARKS } from "@chipschat/ui";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Fold, useArrivals } from "./Arrive.tsx";
 import { useStays } from "./agent/AgentHistory.tsx";
+import type { BannerService } from "./agent/bannerService.ts";
 import { RoomPickDialog } from "./agent/RoomPick.tsx";
 import type { AgentsService } from "./agent/service.ts";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
@@ -82,6 +87,7 @@ export function AgentListRow({
   pick,
   arriving,
   face = "sm",
+  permission,
 }: {
   readonly row: AgentRow;
   readonly onOpen: (id: string) => void;
@@ -90,6 +96,8 @@ export function AgentListRow({
   readonly arriving?: boolean | undefined;
   /** The face's size: the list's 48 in the first column (ADR 0284), a page's own rows smaller. */
   readonly face?: "sm" | "md" | undefined;
+  /** On a harness's page (ADR 0286): that it isn't asking, and that its banner is off. */
+  readonly permission?: { readonly working: boolean; readonly sub: string | undefined } | undefined;
 }) {
   const waiting = waitingWords(row.held);
   const ring = RING[row.doing];
@@ -120,6 +128,7 @@ export function AgentListRow({
           <span className="agent-name">{row.name}</span>
           {/* The harness's Main agent says so, in its face's colour (ADR 0145). */}
           {row.lead && <MainTag name={row.name} icon={row.face} />}
+          <BannerOffMark sub={permission?.sub} />
         </span>
         <span className={row.free ? "agent-line agent-free" : "agent-line"}>
           {/* Where it is and what it is doing crossfade as they change. */}
@@ -129,7 +138,7 @@ export function AgentListRow({
             {waiting !== undefined && <span className="agent-waiting">{waiting}</span>}
           </Swap>
         </span>
-        <span className="agent-when">{row.at === undefined ? "" : relativeTime(row.at)}</span>
+        <RowEnd at={row.at} working={permission?.working === true} />
       </button>
     </li>
   );
@@ -329,6 +338,7 @@ export function AgentSections({
   harnessId,
   words = "",
   face,
+  permissionOf,
 }: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
@@ -346,6 +356,10 @@ export function AgentSections({
   readonly pickOf?: ((row: AgentRow, run: string) => RowPick) | undefined;
   /** Rows archived, unarchived or deleted, held where they stood until they have gone. */
   readonly held?: readonly Leaving<AgentRow>[] | undefined;
+  /** What a row says of asking and of its banner (ADR 0286), on a harness's own list. */
+  readonly permissionOf?:
+    | ((agentId: string) => { readonly working: boolean; readonly sub: string | undefined })
+    | undefined;
 }) {
   const tab = agentsTab(model, directory, selfId, { harnessId });
   const [archivedOpen, setArchived] = useState(false);
@@ -382,6 +396,7 @@ export function AgentSections({
       pick={pickOf?.(each, run)}
       arriving={arriving.has(each.id)}
       face={face}
+      permission={permissionOf?.(each.id)}
     />
   );
   return (
@@ -516,11 +531,13 @@ export function AgentPage({
   selfId,
   faces,
   agents,
+  banners,
   backLabel = "Agents",
   onBack,
   onOpenRoom,
   onOpenAgent,
   onOpenHistory,
+  onOpenPermissions,
   onOpenFace,
   context,
   heartbeats,
@@ -542,6 +559,9 @@ export function AgentPage({
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
   /** Opens its message history on a page of its own. */
   readonly onOpenHistory: () => void;
+  /** Opens its Permissions (ADR 0286), with what the person chose for its banner. */
+  readonly onOpenPermissions?: (() => void) | undefined;
+  readonly banners?: BannerService | undefined;
   /** Opens its face on a page of its own (ADR 0272), for whoever may change it. */
   readonly onOpenFace?: (() => void) | undefined;
   /** Its context files, through the store (ADR 0134). Absent, the card has no Context group. */
@@ -589,6 +609,15 @@ export function AgentPage({
                 onOpenRoom={onOpenRoom}
                 onOpenAgent={onOpenAgent}
               />
+              {onOpenPermissions !== undefined && (
+                <PermissionsGroup
+                  model={model}
+                  directory={directory}
+                  agentId={agentId}
+                  banners={banners}
+                  onOpen={onOpenPermissions}
+                />
+              )}
               <LockGroup agentId={agentId} card={card} agents={agents} />
               {card.mayFace && onOpenFace !== undefined && (
                 <IconGroup name={card.name} face={card.face} onOpen={onOpenFace} />
@@ -893,6 +922,54 @@ function Facts(props: {
  * delete it: while it is on, nobody renames, archives or deletes it. A flip the server turns away
  * goes back, and says why under it.
  */
+/** That the banner is off for this agent, beside its name on its harness's page (ADR 0286). */
+function BannerOffMark(props: { readonly sub: string | undefined }) {
+  if (props.sub !== BANNER_OFF_WORDS) return null;
+  return (
+    <span className="agent-banner-off" title={BANNER_OFF_WORDS}>
+      <Icon name="eyeOff" size={13} />
+    </span>
+  );
+}
+
+/** The end of a row: when it last spoke, or that it isn't asking. */
+function RowEnd(props: { readonly at: string | undefined; readonly working: boolean }) {
+  if (props.working) return <span className="agent-when agent-not-asking">{NOT_ASKING_WORDS}</span>;
+  return <span className="agent-when">{props.at === undefined ? "" : relativeTime(props.at)}</span>;
+}
+
+/** Whether it asks, and the way to everything about that (ADR 0286). */
+function PermissionsGroup(props: {
+  readonly model: WorkspaceModel;
+  readonly directory: Directory;
+  readonly agentId: string;
+  readonly banners: BannerService | undefined;
+  readonly onOpen: () => void;
+}) {
+  const row = permissionsRow(
+    { model: props.model, directory: props.directory, banners: props.banners?.banners },
+    props.agentId,
+  );
+  return (
+    <section className="ctx" aria-label={PERMISSIONS_TITLE}>
+      <div className="ctx-h">
+        <h3 className="agents-h">{PERMISSIONS_TITLE}</h3>
+      </div>
+      <ul className="ctx-group">
+        <GroupRow
+          label={PERMISSIONS_TITLE}
+          sub={row.sub}
+          value={row.value}
+          goldValue={row.working}
+          mark={{ icon: "unlock", ground: 3 }}
+          onClick={props.onOpen}
+          testId="agent-permissions"
+        />
+      </ul>
+    </section>
+  );
+}
+
 function LockGroup(props: {
   readonly agentId: string;
   readonly card: AgentCard;

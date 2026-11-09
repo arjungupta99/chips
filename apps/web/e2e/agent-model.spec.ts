@@ -167,6 +167,8 @@ test("says the harness is away instead of opening, and opens once it is back", a
       await row.click();
       await expect(page.getByTestId("model-dialog")).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: 15_000 });
+    // A page takes the keyboard when its column has opened, and only then does Escape reach it.
+    await expect(page.getByTestId("model-dialog").locator(":focus")).toHaveCount(1);
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("model-dialog")).toHaveCount(0);
     await expect(row).toBeFocused();

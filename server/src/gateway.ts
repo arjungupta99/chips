@@ -155,6 +155,7 @@ import { createAgentContextWindowRegistry } from "./infrastructure/store/agent-c
 import { agentGate } from "./infrastructure/store/agent-gate.js";
 import { createAgentHeartbeatRegistry } from "./infrastructure/store/agent-heartbeat-registry.js";
 import { createAgentModelRegistry } from "./infrastructure/store/agent-model-registry.js";
+import { createBannerRegistry } from "./infrastructure/store/banner-registry.js";
 import { createContextRegistry } from "./infrastructure/store/context-registry.js";
 import { createDeviceRegistry } from "./infrastructure/store/device-registry.js";
 import { createDirectAskRegistry } from "./infrastructure/store/direct-asks.js";
@@ -553,6 +554,8 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
       running?.ws.runState(workspaceId, participantId, frame) ?? 0,
     reads: (workspaceId, participantId, frame) =>
       running?.ws.reads(workspaceId, participantId, frame) ?? 0,
+    banners: (workspaceId, participantId, frame) =>
+      running?.ws.banners(workspaceId, participantId, frame) ?? 0,
     contextEdit: (workspaceId, harnessId, frame) =>
       running?.ws.contextEdit(workspaceId, harnessId, frame) ?? 0,
     hearingContext: (workspaceId, harnessId) =>
@@ -784,6 +787,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
   const spaceIcons = createSpaceIconRegistry(db);
   const hiddenSpaces = createHiddenSpaceRegistry(db);
   const pinnedSpaces = createPinnedSpaceRegistry(db);
+  const banners = createBannerRegistry(db);
   const readMarks = createReadMarkRegistry(db);
   const pushTokens = createPushRegistry(db);
   // One sender for every push, so that what it learns about whether it can send at all holds for
@@ -1163,6 +1167,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     spaceIcons,
     hiddenSpaces,
     pinnedSpaces,
+    banners,
     readMarks,
     push: pushTokens,
     pushStanding: pushSender.standing,

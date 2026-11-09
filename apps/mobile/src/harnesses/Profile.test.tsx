@@ -863,6 +863,41 @@ describe("When it asks you (ADR 0195)", () => {
     });
   });
 
+  it("switches the banner for all its agents, with Undo (ADR 0286)", async () => {
+    const snapshot = { ...asking(), keepsBanners: true };
+    const store = fakeStore(snapshot);
+    await render(
+      <SafeAreaProvider initialMetrics={IPHONE}>
+        <Profile store={store} snapshot={snapshot} harnessId="har_scout" selfId="per_arjun" />
+      </SafeAreaProvider>,
+    );
+    expect(screen.getByTestId("harness-banners-row")).toHaveTextContent(/Show banners/);
+    expect(screen.getByTestId("harness-banners-foot")).toHaveTextContent(/any made later/);
+    await fireEvent(screen.getByTestId("harness-banners-switch"), "valueChange", false);
+    expect(store.calls).toContainEqual({
+      name: "setHarnessBanner",
+      args: { harnessId: "har_scout", shown: false },
+    });
+    expect(screen.getByTestId("undo-pill")).toHaveTextContent(/Banners off for its agent/);
+    await userEvent.press(screen.getByTestId("undo-pill-undo"));
+    expect(store.calls.map((each) => each.name)).toContain("undoHarnessBanner");
+  });
+
+  it("offers no banner switch on a server that keeps no choices (ADR 0286)", async () => {
+    const snapshot = { ...asking(), keepsBanners: false };
+    await render(
+      <SafeAreaProvider initialMetrics={IPHONE}>
+        <Profile
+          store={fakeStore(snapshot)}
+          snapshot={snapshot}
+          harnessId="har_scout"
+          selfId="per_arjun"
+        />
+      </SafeAreaProvider>,
+    );
+    expect(screen.queryByTestId("harness-banners-row")).toBeNull();
+  });
+
   it("says who decides when and who decides the answer, and the three promises", async () => {
     await open(asking());
     const section = screen.getByTestId("asking");

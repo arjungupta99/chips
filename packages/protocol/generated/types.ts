@@ -4035,6 +4035,40 @@ export interface ApprovalHeldStopped {
   stopped_by?: string;
 }
 
+/** `approval.held_started` — A person let an agent work without asking in a space until it is stopped, from the agent's page rather than an ask's card. */
+export interface ApprovalHeldStarted {
+  /** Protocol major version. */
+  v: 1;
+  type: "approval.held_started";
+  /** The event's own id. Stable across a retry of the same event. */
+  id: string;
+  /** When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced. */
+  ts: string;
+  /** A workspace identifier: `ws_` followed by a ULID. */
+  workspace_id: string;
+  /** The space, when the event belongs to one. */
+  space_id?: string;
+  /** The run, when the event belongs to one. */
+  run_id?: string;
+  /** Assigned by the server on append, monotonic per workspace. Absent on the way in. */
+  seq?: number;
+  /** Required on every client-originated write. Sending the same key twice is a no-op. */
+  idempotency_key?: string;
+  /** The participant an event is attributed to. */
+  actor: {
+    /** Whether a person, a harness, one of a harness's agents or Chips itself acted. */
+    kind: "person" | "harness" | "agent" | "system";
+    /** The participant id, or `system` for Chips. */
+    id: string;
+    /** For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips. */
+    harness_id?: string;
+  };
+  /** Whose asks go ahead: the agent, or a harness without agents, in the space. */
+  asker: string;
+  /** Who gave it. Filled in by Chips from the credential. */
+  started_by?: string;
+}
+
 /** `attachment.limits_set` — An owner or an admin capped how big a photo, a video or a file may be here (ADR 0047). Everyone's, and the server refuses an upload over it. */
 export interface AttachmentLimitsSet {
   /** Protocol major version. */

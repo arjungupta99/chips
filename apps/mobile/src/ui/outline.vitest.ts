@@ -1,7 +1,17 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { BITE, BITE_DOT, bittenPath, PIN_STEP_MS, PINS, pinsOf } from "./outline";
+import {
+  BITE,
+  BITE_DOT,
+  bittenPath,
+  PIN_STEP_MS,
+  PINS,
+  pinsOf,
+  WORKING_PIN_STEP_MS,
+  WORKING_PINS,
+  workingPinsOf,
+} from "./outline";
 
 /**
  * The phone keeps its own copy of the agent's outline (it may not reach into `@chipschat/ui`), so
@@ -88,5 +98,77 @@ describe("an agent's outline", () => {
 
   it("runs the light round the pins in a second and a half, however many there are", () => {
     expect(PIN_STEP_MS * PINS.at.length).toBe(1500);
+  });
+});
+
+describe("the pins a working room wears", () => {
+  const close = (a: number, b: number) => expect(a).toBeCloseTo(b, 6);
+  // Where a pin ends, out along the way it points, from its centre.
+  const tip = (pin: ReturnType<typeof workingPinsOf>[number]) => {
+    const angle = (pin.turn * Math.PI) / 180;
+    return {
+      x: pin.cx + (pin.h / 2) * Math.sin(angle),
+      y: pin.cy - (pin.h / 2) * Math.cos(angle),
+    };
+  };
+
+  it("are an agent's pins, as thick and as long, twelve of them on one 1.5 s turn", () => {
+    for (const round of [true, false]) {
+      const pins = workingPinsOf(100, round);
+      expect(pins).toHaveLength(WORKING_PINS.count);
+      for (const pin of pins) {
+        close(pin.w, PINS.width * 100);
+        close(pin.h, (PINS.over + PINS.tuck) * 100);
+      }
+    }
+    expect(WORKING_PIN_STEP_MS * WORKING_PINS.count).toBe(1500);
+  });
+
+  it("stand all the way round a circle, clockwise from the top, as far out as an agent's", () => {
+    const pins = workingPinsOf(100, true);
+    pins.forEach((pin, index) => {
+      expect(pin.turn).toBe(index * 30);
+      const end = tip(pin);
+      close(Math.hypot(end.x - 50, end.y - 50), 50 + PINS.over * 100);
+    });
+    close(pins[0]?.cx ?? 0, 50);
+    expect(pins[0]?.cy).toBeLessThan(0);
+  });
+
+  it("stand three to a side of a square at its quarters, clockwise from the top", () => {
+    const pins = workingPinsOf(100, false);
+    expect(pins.map((pin) => pin.turn)).toEqual([
+      0, 0, 0, 90, 90, 90, 180, 180, 180, 270, 270, 270,
+    ]);
+    const tips = pins.map(tip);
+    const out = PINS.over * 100;
+    expect(tips.map((end) => Math.round(end.x))).toEqual([
+      25,
+      50,
+      75,
+      100 + out,
+      100 + out,
+      100 + out,
+      75,
+      50,
+      25,
+      -out,
+      -out,
+      -out,
+    ]);
+    expect(tips.map((end) => Math.round(end.y))).toEqual([
+      -out,
+      -out,
+      -out,
+      25,
+      50,
+      75,
+      100 + out,
+      100 + out,
+      100 + out,
+      75,
+      50,
+      25,
+    ]);
   });
 });

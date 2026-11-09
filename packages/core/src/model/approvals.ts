@@ -34,6 +34,17 @@ export function updateApproval(
 function letWork(state: Building, event: ClientEvent, asker: string, by: string): void {
   const minutes = field<number>(event, "for_minutes");
   if (minutes === undefined && field<boolean>(event, "until_stopped") !== true) return;
+  keepLetWork(state, event, asker, by, minutes);
+}
+
+/** The yes kept on the space, one given on a card or from an agent's page (ADR 0286). */
+function keepLetWork(
+  state: Building,
+  event: ClientEvent,
+  asker: string,
+  by: string,
+  minutes: number | undefined,
+): void {
   const space = spaceOf(state, event);
   if (space === undefined || asker === "") return;
   const given: LetWork = {
@@ -199,6 +210,17 @@ export const APPROVAL_FOLDS: Readonly<Record<string, FoldStep>> = {
       runId: event.run_id,
       reason: field<string>(event, "reason"),
     });
+  },
+
+  // Somebody let an agent work without asking here, from its page (ADR 0286): the same yes.
+  "approval.held_started": (state, event) => {
+    keepLetWork(
+      state,
+      event,
+      required<string>(event, "asker"),
+      field<string>(event, "started_by") ?? event.actor.id,
+      undefined,
+    );
   },
 
   // Somebody stopped an agent working without asking here (ADR 0281): its asks come to a person.

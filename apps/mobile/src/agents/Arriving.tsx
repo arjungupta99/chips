@@ -45,6 +45,7 @@ const ROUND: Turns = {
   high: BLANK_LIT,
   rise: Easing.out(Easing.quad),
   fall: Easing.in(Easing.quad),
+  ring: true,
 };
 
 /** How far behind the row above each row's light starts: a wave down the list, not a flash. */

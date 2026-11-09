@@ -67,6 +67,7 @@ export {
   sweepOf,
   takesModels,
 } from "./agentModel.js";
+export * from "./agentPermissions.js";
 export type { SettingGroup, SettingLook } from "./agentSettings.js";
 export {
   noCopy,
@@ -104,6 +105,7 @@ export {
   awayWords,
   guestAgentsWords,
   roomByline,
+  roomOf,
   type StayFact,
   type Stretch,
   stayFact,
@@ -160,6 +162,7 @@ export {
   ALWAYS_EMPTY,
   type AskStanding,
   actionWords,
+  agentAskHistory,
   alwaysAsking,
   alwaysByHarness,
   alwaysCount,
@@ -185,7 +188,6 @@ export {
   holdsWords,
   hourEnds,
   type Lasting,
-  lettingWork,
   letWorkWords,
   ONCE_ONLY_WORDS,
   offersLetWork,
@@ -196,6 +198,7 @@ export {
   type RulesChange,
   reachWords,
   rulesOf,
+  STILL_ASKS,
   STOPPED_MS,
   startWords,
   stoppedWords,
@@ -300,6 +303,7 @@ export {
   uploadFile,
   voiceNoteName,
 } from "./attachments.js";
+export * from "./banners.js";
 export type {
   CallKind,
   CallWords,
@@ -878,6 +882,7 @@ export {
   laneChainCostUsd,
   lanesInSpace,
   lastWords,
+  lettingWork,
   limitsDraft,
   limitsFoot,
   limitsFromDraft,

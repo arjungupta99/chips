@@ -73,7 +73,7 @@ import { CommandPlate } from "./CommandPlate.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { clockTime } from "./time.ts";
 
-/** How long Approve shows its tick before the card cools, if the answer has not come back. */
+/** How long Approve shows its tick before the buttons come back, if no answer does. */
 const TICK_MS = 4000;
 
 export interface DecisionInput {
@@ -248,13 +248,32 @@ function useSweep(approval: ApprovalModel): boolean {
   return first && approval.resolved === undefined;
 }
 
+/**
+ * The card, and the ask as it draws it. Approve pressed here, it goes on drawing the ask that was
+ * pressed, with its tick, until it folds away (`RoomAsks`). The answer comes back in a moment, and
+ * would swap the tick for a line just before the card goes. The phone holds its ask the same way.
+ */
 export function Decide(props: DecideProps) {
-  const { approval, busy } = props;
+  const [answered, setAnswered] = useAnswered();
+  const approval = useMemo(
+    () =>
+      answered ? { ...props.approval, resolved: undefined, executed: undefined } : props.approval,
+    [props.approval, answered],
+  );
+  return <DecideCard {...props} approval={approval} answered={answered} onAnswered={setAnswered} />;
+}
+
+function DecideCard(
+  props: DecideProps & {
+    readonly answered: boolean;
+    readonly onAnswered: (answered: boolean) => void;
+  },
+) {
+  const { approval, busy, answered, onAnswered: setAnswered } = props;
   const [scope, setScope] = useState<ApprovalScope>("once");
   const [mode, setMode] = useState<Mode>("idle");
   const [draft, setDraft] = useState(approval.preview ?? "");
   const [reason, setReason] = useState("");
-  const [answered, setAnswered] = useAnswered();
   const plate = useMemo(() => commandPlate(approval), [approval]);
   const resolution = resolutionOf(approval, props.directory);
   const sweep = useSweep(approval);

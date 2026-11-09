@@ -13,6 +13,7 @@ export type {
 export {
   authorize,
   refuseAgentNotTheirs,
+  refuseHeldStart,
   refuseNotAnApprover,
   refuseOnAgentMembership,
   refuseOnAsking,
@@ -85,6 +86,7 @@ export { DEFAULT_PRICE_TABLE, estimateCost, parsePriceTable, priceFor } from "./
 export type {
   CarriedSpend,
   Change,
+  HeldStarted,
   HeldStopped,
   Patch,
   ProjectionTable,
@@ -153,6 +155,7 @@ export {
 } from "./run-state.js";
 export type { AttachmentKind } from "./sniff.js";
 export {
+  contentDisposition,
   isRasterImage,
   kindOf,
   servesInline,

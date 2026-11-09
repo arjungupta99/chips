@@ -42,6 +42,7 @@ import {
 import type { Context, Hono } from "hono";
 import { PAGE_TICKET_TTL_SECONDS, type Principal } from "../../../application/index.js";
 import { isPushRequest, type ProjectRefusal } from "../../../application/use-cases/project-door.js";
+import { contentDisposition } from "../../../domain/index.js";
 import { mintProjectToken, readProjectToken } from "../../../infrastructure/projects/token.js";
 import type { GatewayDeps, GatewayEnv } from "../context.js";
 import { HttpError } from "../errors.js";
@@ -420,7 +421,7 @@ export function registerProjectReadRoutes(app: Hono<GatewayEnv>, deps: GatewayDe
     const name = path.split("/").pop() ?? path;
     return c.body(new Uint8Array(read.bytes), 200, {
       "content-type": projectFileType(path),
-      "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+      "content-disposition": contentDisposition("attachment", name),
       "x-content-type-options": "nosniff",
       "content-security-policy": "sandbox",
       "cache-control": "private, no-store",

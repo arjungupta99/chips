@@ -77,7 +77,7 @@ function agentsIn(directory: Directory, ids: ReadonlySet<string>): Participant[]
 }
 
 /** The room an agent is in now, or the one it was last in while archived or free. */
-function roomOf(agent: Participant): string | undefined {
+export function roomOf(agent: Participant): string | undefined {
   if (typeof agent.room === "string") return agent.room;
   return agent.releasedFrom ?? agent.lastRoom ?? undefined;
 }

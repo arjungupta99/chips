@@ -8,6 +8,7 @@
  */
 
 import type {
+  BannersFrame,
   ContextEditFrame,
   FolderOpenFrame,
   FolderRunFrame,
@@ -80,6 +81,11 @@ export interface Sessions {
    * that said `reads`, and nobody else's. Returns how many.
    */
   readonly reads: (workspaceId: string, participantId: string, frame: ReadFrame) => number;
+  /**
+   * What a person wants of the gold banner, changed on one of their devices (ADR 0286): `banners`
+   * to every socket of theirs that said so, and nobody else's. Returns how many.
+   */
+  readonly banners: (workspaceId: string, participantId: string, frame: BannersFrame) => number;
   /**
    * Send a person's edit of a context file to its harness (ADR 0134): the `context.edit` frame to
    * every socket of it that said `context` in its `hello`. Returns how many; nought means nobody

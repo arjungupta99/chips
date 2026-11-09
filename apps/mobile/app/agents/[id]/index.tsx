@@ -74,6 +74,7 @@ function Card({
             ),
         }}
         onHistory={() => router.push(`/agents/${agentId}/history`)}
+        onPermissions={() => router.push(`/agents/${agentId}/permissions`)}
         onOpenRoom={(spaceId) => router.push(`/spaces/${spaceId}`)}
         onOpenAgent={(other) => router.push(`/agents/${other}`)}
         // Deleted from its own card: there is nothing left here to show.

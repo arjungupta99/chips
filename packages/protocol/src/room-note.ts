@@ -30,6 +30,7 @@
 import { z } from "zod";
 import { handleMap, isHandle } from "./mentions.js";
 import { NO_REPLY } from "./no-reply.js";
+import { namesInWords } from "./project.js";
 import { type JobSpend, spendWords } from "./spend.js";
 
 export const roomMember = z.object({
@@ -168,6 +169,15 @@ export interface TakerNews {
   /** That the message went to every agent here, and who sent it (`toEveryAgent`, ADR 0249). */
   readonly toAll?: { readonly saidBy: string };
   /**
+   * That a person's message went to more than one agent (ADR 0287): who sent it, everyone it is
+   * for, and the one who says who does what if it is one piece of work (`severalAsked`).
+   */
+  readonly several?: {
+    readonly saidBy: string;
+    readonly asked: readonly string[];
+    readonly organiser: string;
+  };
+  /**
    * How many lines of what was said since its last turn come with this one, when older ones were
    * left out to fit its harness's budget (ADR 0105).
    */
@@ -195,8 +205,6 @@ export function noteHandle(member: NoteMember, members: readonly NoteMember[]): 
  * Chipses can break a tie in differently; this reads the same from both.
  */
 export function roomMembers(members: readonly NoteMember[]): RoomMember[] {
-  const byName = (a: NoteMember, b: NoteMember) =>
-    a.name.localeCompare(b.name, "en", { sensitivity: "base", numeric: true });
   const ordered = [
     ...members.filter((member) => member.kind === "person").sort(byName),
     ...members.filter((member) => member.kind !== "person").sort(byName),
@@ -284,12 +292,36 @@ export const UNIVERSE_WORDS =
   "People open the space's project with the Universe button at the top right of the space, so when someone asks where a file is, point them there.";
 
 /**
+ * What Universe and Run can and can't do (ADR 0287). The Health space's agents didn't know: a page
+ * opened from Universe looked empty beside the running app, its links to the app went nowhere on a
+ * phone, and they had a person press Stop and then Run where one press does both.
+ */
+export const RUNNING_WORDS =
+  "Open page shows a copy of the project's files. It can't reach a running program or its data, so a page that needs live data has to be opened at the program's own address. Links to the project's files open in Chips. Web links open in the browser. `localhost` only works on the Mac where the program runs. On a phone it means the phone. To pick up changes in a running program, ask the person to press Run again. It stops the old one and starts the new one.";
+
+/**
+ * How an agent gets a file off the person's computer (ADR 0287). In the Health space two agents
+ * tried four times to reach a Desktop, and each try hung behind a permission box.
+ */
+export const FILE_WORDS =
+  "To get a file from the person's computer, ask them to attach it to a message here. Don't try to read their Desktop, Documents or Downloads: macOS can block that, and the read can hang.";
+
+/**
+ * What reaches a person (ADR 0287): an agent's words push only those it @s, and nine of the Health
+ * space's messages asked its person for something while @-ing only another agent.
+ */
+export const REACH_A_PERSON_WORDS =
+  "When you need a person to do or decide something, @-mention them. That is what reaches their phone. Don't @ them for updates.";
+
+/**
  * How the space works, the words a taker's note ends with (ADR 0250): that everyone here reads what
  * it writes, and beside other agents, what an @ does and when to answer NO_REPLY. They stay the same
  * from turn to turn while the space's agents do, and its project once it has one: where people
- * open it (`UNIVERSE_WORDS`). Said with every turn, they were a quarter of what a turn in a busy room
- * carried, and in a session that keeps its turns they piled up, so `message.new` carries them apart
- * too (`room.rules`) for a harness to say once a session.
+ * open it (`UNIVERSE_WORDS`) and what a page and a running program can do (`RUNNING_WORDS`). Said
+ * with every turn, they were a quarter of what a turn in a busy room carried, and in a session that
+ * keeps its turns they piled up, so `message.new` carries them apart too (`room.rules`) for a harness
+ * to say once a session. How to get a file from a person holds in every space (`FILE_WORDS`, ADR
+ * 0287); how to reach one, beside other agents, whose @s are the room's traffic.
  */
 export function roomRules(
   members: readonly RoomMember[],
@@ -299,12 +331,14 @@ export function roomRules(
   const shared = members.some(
     (member) => member.participant_id !== youId && member.kind === "agent",
   );
-  const universe = project === true ? [UNIVERSE_WORDS] : [];
-  if (!shared) return ["Everyone here reads what you write.", ...universe].join(" ");
+  const universe = project === true ? [UNIVERSE_WORDS, RUNNING_WORDS] : [];
+  if (!shared) return ["Everyone here reads what you write.", FILE_WORDS, ...universe].join(" ");
   return [
     "Everyone here reads what you write; only those you @-mention act on it.",
     "To hand work to an agent or ask it something, @-mention it.",
+    REACH_A_PERSON_WORDS,
     `If a message asks nothing of you now, as when it names a step that is yours later, answer ${NO_REPLY} and nothing else: the space shows nothing, and nobody needs to hear that you are ready or waiting.`,
+    FILE_WORDS,
     ...universe,
   ].join(" ");
 }
@@ -417,14 +451,16 @@ function newsLines(members: readonly RoomMember[], youId: string, news?: TakerNe
   const shared = members.some((each) => each.participant_id !== youId && each.kind === "agent");
   return [
     ...nobodysLines(news.nobodys),
-    ...(news.yours === undefined || !shared
+    // "It is yours to answer" would say the opposite of "Sanjay says who does what".
+    ...(news.yours === undefined || !shared || news.several !== undefined
       ? []
       : [`${news.yours.saidBy} sent this message to you without an @: it is yours to answer.`]),
-    ...(news.toAll === undefined || !shared
+    ...(news.toAll === undefined || !shared || news.several !== undefined
       ? []
       : [
           `${news.toAll.saidBy} sent this message to every agent here, so each of you has it: answer it yourself, and don't pass it on with an @.`,
         ]),
+    ...severalLines(members, youId, news.several),
     ...joinedLines(news.joined),
     ...(newcomers.length === 0 ? [] : [`New since your last turn: ${newcomers.join("; ")}.`]),
     ...cutLines(news.cut),
@@ -454,6 +490,71 @@ export function yoursWithoutAt(payload: Readonly<Record<string, unknown>>, taker
  */
 export function toEveryAgent(payload: Readonly<Record<string, unknown>>): boolean {
   return payload["addressed_to_all"] === true;
+}
+
+/** The note's order: by name, numbers in order ("OpenClaw 2" before "OpenClaw 10"). */
+const byName = (a: NoteMember, b: NoteMember) =>
+  a.name.localeCompare(b.name, "en", { sensitivity: "base", numeric: true });
+
+/**
+ * Who a person's message for more than one agent is for, and who organises it (ADR 0287): everyone
+ * it is for, in the order it named them (by name, for one sent to every agent), and the lead if it
+ * is one of them, else the first. Worked out from the message, so that every taker, on whichever
+ * harness, is told the same one. Nothing for a message for fewer than two.
+ *
+ * `current` turns an id the message was sent to into the id that member has now: a harness asked
+ * in a room its agent has since claimed (ADR 0087).
+ */
+export function severalAsked(
+  payload: Readonly<Record<string, unknown>>,
+  members: readonly NoteMember[],
+  current: (id: string) => string = (id) => id,
+): { readonly asked: readonly string[]; readonly organiser: string } | undefined {
+  const agents = members.filter((member) => member.kind === "agent");
+  const addressed = payload["addressed_to"];
+  const named = Array.isArray(addressed)
+    ? [...new Set((addressed as string[]).map(current))].flatMap((id) => {
+        const agent = agents.find((each) => each.id === id);
+        return agent === undefined ? [] : [agent];
+      })
+    : [];
+  const asked = toEveryAgent(payload) ? [...agents].sort(byName) : named;
+  const [first] = asked;
+  if (first === undefined || asked.length < 2) return undefined;
+  return {
+    asked: asked.map((agent) => agent.id),
+    organiser: (asked.find((agent) => agent.lead === true) ?? first).id,
+  };
+}
+
+/**
+ * What a taker is told of a person's message for several agents (ADR 0287). A question gets each
+ * agent's own answer. Work the person has divided goes ahead at once. One job left undivided is
+ * divided by one agent, because the agents start within seconds of each other: in the Health space
+ * two built the same mocks, and one threw its set away. Four deciding together would be four plans.
+ */
+function severalLines(
+  members: readonly RoomMember[],
+  youId: string,
+  several: TakerNews["several"],
+): string[] {
+  if (several === undefined || !several.asked.includes(youId)) return [];
+  const nameOf = (id: string) => members.find((member) => member.participant_id === id)?.name;
+  const others = several.asked.flatMap((id) => {
+    const name = id === youId ? undefined : nameOf(id);
+    return name === undefined ? [] : [name];
+  });
+  const organiser = nameOf(several.organiser);
+  if (others.length === 0 || organiser === undefined) return [];
+  const undivided = "If one thing is to be made and it doesn't say who does what,";
+  return [
+    `${several.saidBy} sent this to ${namesInWords(["you", ...others])} too, so each of you already has it: don't pass it on with an @.`,
+    "Give your own answer to a question without waiting for the others.",
+    "If it says who does what, do your part.",
+    several.organiser === youId
+      ? `${undivided} you say who does what, with an @ for each, before anyone starts.`
+      : `${undivided} ${organiser} says who does what: answer ${NO_REPLY} and wait for that.`,
+  ];
 }
 
 /** To the lead, that the message is its because it was nobody's turn (ADR 0104). */

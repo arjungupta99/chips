@@ -154,6 +154,30 @@ export function servesInline(mime: string): boolean {
   return INLINE.has(mime);
 }
 
+/** Percent-encoded for `filename*`: RFC 5987 also refuses four marks encodeURIComponent keeps. */
+const extValue = (name: string): string =>
+  encodeURIComponent(name).replace(
+    /['()*]/g,
+    (mark) => `%${mark.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
+/**
+ * `content-disposition` for a file of this name (RFC 6266). A header is bytes, and `new Response`
+ * throws on a character past U+00FF, as macOS's U+202F before the PM in every screen recording's
+ * name is. So a name that is not plain ASCII goes out twice: an ASCII stand-in in `filename`, and
+ * the name itself in `filename*`, which a client that knows it prefers.
+ *
+ * Marks that would end the quoted string, control characters, and half a surrogate pair (the
+ * 255-character cut can leave one, and encodeURIComponent throws on it) are in neither form.
+ */
+export function contentDisposition(how: "inline" | "attachment", filename: string): string {
+  const name = filename.replace(/["\\\p{Cc}\p{Cs}]/gu, "_");
+  const standIn = name.replace(/\p{Zs}/gu, " ").replace(/[^\x20-\x7e]/gu, "_");
+  return standIn === name
+    ? `${how}; filename="${name}"`
+    : `${how}; filename="${standIn}"; filename*=UTF-8''${extValue(name)}`;
+}
+
 /**
  * The headers an attachment is served with. An inline type keeps its own; anything else goes
  * out as an opaque download, so an uploaded `.html` or `.svg` never runs in the app's origin.
@@ -162,12 +186,11 @@ export function servingHeaders(
   mime: string,
   filename: string,
 ): { readonly contentType: string; readonly disposition: string } {
-  const safeName = filename.replace(/["\\\r\n]/g, "_");
   if (servesInline(mime)) {
-    return { contentType: mime, disposition: `inline; filename="${safeName}"` };
+    return { contentType: mime, disposition: contentDisposition("inline", filename) };
   }
   return {
     contentType: "application/octet-stream",
-    disposition: `attachment; filename="${safeName}"`,
+    disposition: contentDisposition("attachment", filename),
   };
 }

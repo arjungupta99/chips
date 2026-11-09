@@ -255,3 +255,21 @@ the window captured from the screen as the rail folded and once folded: the + wh
 Tests: `room/widthGlide.test.ts` (the place kept once the lines hold the new width, before any
 glide), `Shell.test.tsx` (the + under the tabs while folded, the one beside the name out of reach,
 and back). Not walked: the built Mac app's WebKit itself.
+
+## Addendum, 8 November 2026: a card under a bubble
+
+Arjun, of "2 files changed" under a reply as a column opened on the Mac: "this bubble does not
+animate correctly". It stood in the words' fade as a whole, so its frame went with its words and
+came back after the glide, while every bubble stayed; and it never took the bubble's new width on
+the way.
+
+1. **A card's frame stays, and only its words go,** as a bubble's do.
+2. **Its box takes each width on the way,** on the columns' curve and clock (`CARDS`, in
+   `room/widthGlide.ts`). A bubble is clipped from its old shape to its new one, which would cut
+   through the card's border; one line of words costs nothing to lay out again, and its row is held
+   at the height it lands at.
+
+Measured in Chromium at 1100 wide, frame by frame: the frame at full opacity throughout and the words
+out and back, the width 539 to 431 and back on one curve with no reversals. In a WKWebView, the
+window captured from the screen and the glide frozen part way: the card whole, and its right edge
+within a hundredth of a pixel of the bubble's drawn edge above it.

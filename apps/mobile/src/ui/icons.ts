@@ -79,6 +79,18 @@ export const SYSTEM_ICONS = {
   pause: ["M8 5v14M16 5v14"],
   stop: ["M6 6h12v12H6z"],
   x: ["M6 6l12 12M18 6L6 18"],
+  /** The gold banner a room shows while an agent works without asking (ADR 0286). */
+  banner: [
+    "M6 7h12a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-4a3 3 0 0 1 3-3z",
+    "M6.4 12a1.4 1.4 0 1 0 2.8 0a1.4 1.4 0 1 0-2.8 0z",
+    "M12 12h5",
+  ],
+  /** That a banner is off for this agent (ADR 0286). */
+  eyeOff: [
+    "M3 3l18 18",
+    "M10.6 5.2A9.7 9.7 0 0 1 12 5c5 0 8.5 4.4 9.5 6.4.2.4.2.8 0 1.2a15 15 0 0 1-2.5 3.4",
+    "M6.2 6.6a15 15 0 0 0-3.7 4.8c-.2.4-.2.8 0 1.2C3.5 14.6 7 19 12 19c1.7 0 3.2-.5 4.6-1.2",
+  ],
   /** What opens: the capsule over the field, which opens who a message is for (ADR 0081). */
   down: ["M6 9l6 6 6-6"],
   /** A thinking bubble's calls (ADR 0126): the web's since the Mac's bubble drew them too. */

@@ -39,6 +39,7 @@ import {
   type RoomContext,
   renderExchangeNote,
   roomNoteFor,
+  severalAsked,
   type TakerNews,
   takersOf,
   toEveryAgent,
@@ -837,14 +838,22 @@ class Session {
     if (type !== "message.new" || event.space_id === null) return undefined;
     const takers = this.turnTakers(event);
     const who = takers.length > 0 ? takers : [this.principal.participantId];
-    // A message for a taker with no @ for it says that it is theirs (ADR 0104 addendum), and one
-    // for every agent that each has it (ADR 0249).
+    // A message for a taker with no @ for it says that it is theirs (ADR 0104 addendum), one for
+    // every agent that each has it (ADR 0249), and a person's for several who organises it (ADR 0287).
     const sender = turn.nobodys === undefined ? { saidBy: this.nameOf(event.actor.id) } : undefined;
     const toAll = sender !== undefined && toEveryAgent(event.payload) ? sender : undefined;
+    const members = this.host.workspace.noteMembers(event.space_id);
+    const several =
+      sender !== undefined && event.actor.kind === "person"
+        ? severalAsked(event.payload, members)
+        : undefined;
     const toldTo = (id: string): TakerNews => ({
       ...(turn.nobodys === undefined ? {} : { nobodys: turn.nobodys }),
       ...(sender === undefined || !yoursWithoutAt(event.payload, id) ? {} : { yours: sender }),
       ...(toAll === undefined ? {} : { toAll }),
+      ...(sender === undefined || several === undefined
+        ? {}
+        : { several: { saidBy: sender.saidBy, ...several } }),
       ...(turn.cut === undefined ? {} : { cut: turn.cut }),
     });
     const told = who.map((id) => [id, toldTo(id)] as const);
@@ -852,7 +861,7 @@ class Session {
       ? undefined
       : Object.fromEntries(told);
     return roomNoteFor(
-      this.host.workspace.noteMembers(event.space_id),
+      members,
       who,
       undefined,
       news,

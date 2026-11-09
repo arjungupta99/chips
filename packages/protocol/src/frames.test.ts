@@ -34,6 +34,7 @@ const SERVER_FRAMES = [
   "folder.run",
   "folder.run_state",
   "read",
+  "banners",
   "context.edit",
   "model.change",
   "heartbeat.change",
@@ -46,7 +47,7 @@ const SERVER_FRAMES = [
 ];
 
 describe("frames", () => {
-  it("names the ten frames of Appendix B, restart (ADR 0094), join (ADR 0122), folder.open (ADR 0225), folder.run and folder.run_state (ADR 0226), read (ADR 0262), context.edit (ADR 0134), model.change (ADR 0140), heartbeat.change (ADR 0143), context_window.compact and context_window.change (ADR 0146), and job.change (ADR 0252)", () => {
+  it("names the ten frames of Appendix B, restart (ADR 0094), join (ADR 0122), folder.open (ADR 0225), folder.run and folder.run_state (ADR 0226), read (ADR 0262), banners (ADR 0286), context.edit (ADR 0134), model.change (ADR 0140), heartbeat.change (ADR 0143), context_window.compact and context_window.change (ADR 0146), and job.change (ADR 0252)", () => {
     expect([...FRAME_NAMES]).toEqual([
       "hello",
       "subscribe",
@@ -61,6 +62,7 @@ describe("frames", () => {
       "folder.run",
       "folder.run_state",
       "read",
+      "banners",
       "context.edit",
       "model.change",
       "heartbeat.change",

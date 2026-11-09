@@ -130,6 +130,8 @@ export interface SessionHub {
   readonly runState: Sessions["runState"];
   /** How far a person read, to every socket of theirs that hears `reads` (ADR 0262). */
   readonly reads: Sessions["reads"];
+  /** What a person wants of the banner, to every socket of theirs that hears it (ADR 0286). */
+  readonly banners: Sessions["banners"];
   /**
    * The way each device of a workspace has a socket now, by device (ADR 0211, Phase 4): the
    * relay, the tunnel door, or the port. A device with two takes the one opened last.
@@ -536,6 +538,15 @@ export function createSessionHub(options: SessionHubOptions): SessionHub {
       for (const session of sessions) {
         if (!isPerson(workspaceId, participantId)(session) || !session.hears("reads")) continue;
         session.offer("reads", frame);
+        sent += 1;
+      }
+      return sent;
+    },
+    banners: (workspaceId, participantId, frame) => {
+      let sent = 0;
+      for (const session of sessions) {
+        if (!isPerson(workspaceId, participantId)(session) || !session.hears("banners")) continue;
+        session.offer("banners", frame);
         sent += 1;
       }
       return sent;

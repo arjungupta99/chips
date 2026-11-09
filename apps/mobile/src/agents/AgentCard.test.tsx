@@ -86,7 +86,9 @@ function forkingStore(stays: readonly AgentStay[] = []) {
 function card(
   agentId: string,
   store = storeWith(),
-  handlers: Partial<Record<"history" | "room" | "agent" | "deleted", (to?: string) => void>> = {},
+  handlers: Partial<
+    Record<"history" | "permissions" | "room" | "agent" | "deleted", (to?: string) => void>
+  > = {},
 ) {
   return render(
     <AgentCard
@@ -95,6 +97,7 @@ function card(
       agentId={agentId}
       selfId={ME}
       onHistory={() => handlers.history?.()}
+      onPermissions={() => handlers.permissions?.()}
       onOpenRoom={(spaceId) => handlers.room?.(spaceId)}
       onOpenAgent={(other) => handlers.agent?.(other)}
       onDeleted={() => handlers.deleted?.()}
@@ -331,6 +334,7 @@ describe("locking an agent's changes (ADR 0199)", () => {
         snapshot={store.getSnapshot()}
         agentId="agt_shopping"
         selfId={ME}
+        onPermissions={() => undefined}
         lockGlow
         onHistory={() => undefined}
         onOpenRoom={() => undefined}
@@ -354,6 +358,7 @@ describe("an agent's card", () => {
             agentId="agt_chess"
             selfId={ME}
             onHistory={() => undefined}
+            onPermissions={() => undefined}
             onOpenRoom={() => undefined}
             onOpenAgent={() => undefined}
             onDeleted={() => undefined}
@@ -367,6 +372,14 @@ describe("an agent's card", () => {
       .getAllByTestId(/^agent-(now|lock-switch|history)$/)
       .map((each) => each.props["testID"] as string);
     expect(order).toEqual(["agent-now", "agent-lock-switch", "agent-history"]);
+  });
+
+  it("opens its Permissions, saying whether it asks (ADR 0286)", async () => {
+    let opened = 0;
+    await card("agt_chess", undefined, { permissions: () => (opened += 1) });
+    expect(screen.getByTestId("agent-permissions")).toHaveTextContent(/Asks you/);
+    await userEvent.press(screen.getByTestId("agent-permissions"));
+    expect(opened).toBe(1);
   });
 
   it("stands in one column on a phone", async () => {

@@ -153,7 +153,7 @@ describe("a turn's spend (ADR 0117)", () => {
     });
     // Before the rules the note ends with (ADR 0250).
     expect(noteOf(scoutSide.of("message.new"), scoutAgent)).toMatch(
-      /This job has spent \$0\.00 of the \$3\.00 this space allows a job; at \$3\.00 Chips holds the agents until a person acts\. Everyone here reads what you write\.$/,
+      /This job has spent \$0\.00 of the \$3\.00 this space allows a job; at \$3\.00 Chips holds the agents until a person acts\. Everyone here reads what you write\. To get a file /,
     );
   });
 

@@ -28,6 +28,7 @@ import { TERMINAL } from "./state.js";
 import type {
   Approval,
   Lane,
+  LetWork,
   Line,
   MessageRoute,
   Run,
@@ -724,6 +725,16 @@ export function myRole(model: WorkspaceModel, selfId: string): WorkspaceRole | u
 /** An owner or an admin: somebody who runs the workspace rather than just working in it. */
 export function administers(role: WorkspaceRole | undefined): boolean {
   return role === "owner" || role === "admin";
+}
+
+/** The agents let work in a space without asking that still are (ADR 0281), against the clock. */
+export function lettingWork(
+  space: Space | undefined,
+  now: number = Date.now(),
+): readonly LetWork[] {
+  return (space?.letWork ?? []).filter(
+    (held) => held.until === undefined || Date.parse(held.until) > now,
+  );
 }
 
 /**
