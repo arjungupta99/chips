@@ -1,6 +1,6 @@
 {
   "name": "@chipschat/docs",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "The Chips documentation site. Documentation is a product surface, not a manual.",
   "license": "FSL-1.1-ALv2",

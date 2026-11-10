@@ -3,13 +3,13 @@
 //! An app opened from Finder is given launchd's PATH, `/usr/bin:/bin:/usr/sbin:/sbin`, which has
 //! none of Homebrew, nodejs.org's Node, nvm or `~/.local/bin`. A bridge started with it can't find
 //! the harness it connects, nor the adapter it was just told to install, and the bridge it keeps
-//! running stores the same short PATH. So the login shell is asked once what PATH it sets, and the
-//! usual places are added after it in case it doesn't answer.
+//! running stores the same short PATH. So the login shell is asked what PATH it sets, each time,
+//! so that what a person has just installed is found (ADR 0288), and the usual places are added
+//! after it in case it doesn't answer.
 
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 /// How long the login shell has to say its PATH: a slow profile is waited for, a stuck one isn't.
@@ -82,17 +82,57 @@ fn from_login_shell() -> Option<String> {
     Some(said[from..to].to_string())
 }
 
-/// The PATH for a bridge this app starts: worked out once, the first time one is.
-pub fn for_bridges() -> &'static str {
-    static PATH: OnceLock<String> = OnceLock::new();
-    PATH.get_or_init(|| {
-        let home = std::env::var("HOME").unwrap_or_default();
-        merged(
-            from_login_shell().as_deref(),
-            Path::new(&home),
-            std::env::var("PATH").ok().as_deref(),
-        )
-    })
+/// The PATH for a bridge this app starts, or for looking for a program: the shell's as it is now.
+pub fn for_bridges() -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    merged(
+        from_login_shell().as_deref(),
+        Path::new(&home),
+        std::env::var("PATH").ok().as_deref(),
+    )
+}
+
+/// The most names one ask looks for: the gallery has a handful of cards.
+const MOST_NAMES: usize = 32;
+
+/// A command by its bare name, the only thing looked for: never a path.
+fn bare(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && !name.starts_with('.')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
+
+/// A file that can be run.
+fn runs(path: &Path) -> bool {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        meta.is_file() && meta.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        meta.is_file()
+    }
+}
+
+/// Which of `names` are programs somewhere on `path`, in the order asked (ADR 0288).
+pub fn found_among(names: &[String], path: &str) -> Vec<String> {
+    names
+        .iter()
+        .take(MOST_NAMES)
+        .filter(|name| bare(name))
+        .filter(|name| {
+            path.split(':')
+                .any(|dir| !dir.is_empty() && runs(&Path::new(dir).join(name.as_str())))
+        })
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -111,6 +151,29 @@ mod tests {
             path,
             "/Users/someone/.nvm/versions/node/v22/bin:/opt/homebrew/bin:/usr/bin:/opt/homebrew/sbin:/usr/local/bin:/bin:/usr/sbin:/sbin:/Users/someone/.local/bin"
         );
+    }
+
+    #[test]
+    fn finds_programs_that_can_be_run_and_nothing_else() {
+        let dir = std::env::temp_dir().join(format!("chips-found-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("folder")).unwrap();
+        let program = dir.join("codex");
+        std::fs::write(&program, "#!/bin/sh\n").unwrap();
+        std::fs::write(dir.join("notes"), "not a program").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+            std::fs::set_permissions(dir.join("notes"), std::fs::Permissions::from_mode(0o644))
+                .unwrap();
+        }
+        let names: Vec<String> = ["hermes", "notes", "folder", "codex", "../codex", ".codex"]
+            .iter()
+            .map(|name| name.to_string())
+            .collect();
+        let path = format!("/nowhere::{}", dir.display());
+        assert_eq!(found_among(&names, &path), vec!["codex".to_string()]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

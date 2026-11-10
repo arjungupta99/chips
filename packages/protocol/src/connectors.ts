@@ -48,6 +48,22 @@ export const connector = z
       .describe(
         'What has to be on the computer first, said after "You need": its harness installed and running as its bridge needs. Chips for Mac says it under Connect.',
       ),
+    program: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9._-]{0,40}$/)
+      .optional()
+      .describe(
+        "The agent's own command, as a person runs it: Chips for Mac looks for it, to say the agent is on this Mac (ADR 0288).",
+      ),
+    whose: words(200)
+      .optional()
+      .describe(
+        "Who makes the agent and where what a person sends it goes, in whole sentences, said beside its way in (ADR 0288).",
+      ),
+    terms: z
+      .url({ protocol: /^https?$/ })
+      .optional()
+      .describe("Its maker's own terms or licence."),
     kind: connectorKind,
     command: words(400)
       .optional()

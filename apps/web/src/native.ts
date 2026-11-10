@@ -90,6 +90,11 @@ export interface Desktop {
    * carries none, or one built before it could.
    */
   readonly canRunHere?: (() => Promise<boolean>) | undefined;
+  /**
+   * Which of these commands are on this Mac, as a Terminal would find them (ADR 0288); nothing from
+   * a shell built before it could say.
+   */
+  readonly programsHere?: ((names: readonly string[]) => Promise<string[] | undefined>) | undefined;
   /** Run Chips on this Mac from that copy: its `chips up`, and the line it printed. */
   readonly runHere?: ((reach: Reach) => Promise<UpAnswer>) | undefined;
   /**
@@ -196,6 +201,8 @@ export function desktopWith(api: TauriApi): Desktop {
   return {
     discover: (millis) => api.invoke<FoundServer[]>("discover_servers", { millis }),
     canRunHere: () => api.invoke<boolean>("can_run_here").catch(() => false),
+    programsHere: (names) =>
+      api.invoke<string[]>("programs_here", { names }).catch(() => undefined),
     runHere: async (reach) =>
       JSON.parse(await api.invoke<string>("run_here", { reach })) as UpAnswer,
     connectHere: (card, link, onLine) => connectHereWith(api, card, link, onLine),

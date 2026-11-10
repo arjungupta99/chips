@@ -12,8 +12,8 @@
  * says its own sentences.
  */
 
-import { rmSync } from "node:fs";
-import { delimiter, dirname } from "node:path";
+import { existsSync, rmSync } from "node:fs";
+import { delimiter, dirname, join } from "node:path";
 import { keptJoin } from "@chipschat/harness";
 import { type Connector, parseJoinLink } from "@chipschat/protocol";
 import {
@@ -76,9 +76,18 @@ function pathWith(folder: string, path: string | undefined): string {
 }
 
 /**
+ * The npm an install carries beside its Node (ADR 0288), which the ACP bridge fetches an agent's
+ * adapter with on a machine that has none. A checkout's Node has none beside it, and goes without.
+ */
+function carriedNpm(node: string): Record<string, string> {
+  const npm = join(dirname(node), "npm", "bin", "npm-cli.js");
+  return existsSync(npm) ? { CHIPS_NPM: npm } : {};
+}
+
+/**
  * What the bridge runs in: the shell's environment, Chips's Node first on its PATH (an agent run
  * as `#!/usr/bin/env node` finds it), and, when it joins, what keep is handed for this run alone:
- * the link where there is one. Without one it joins with the key it kept.
+ * the link where there is one, and the npm it may need. Without a link it joins with the key it kept.
  */
 function runIn(
   deps: BridgeDeps,
@@ -96,6 +105,7 @@ function runIn(
     ...env,
     ...(joining.link === undefined ? {} : { CHIPS_JOIN_LINK: joining.link }),
     CHIPS_NODE: deps.node,
+    ...carriedNpm(deps.node),
     CHIPS_STOP_COMMAND: `chips disconnect ${card.id}`,
     CHIPS_STEPS: "json",
   };

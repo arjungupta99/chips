@@ -85,6 +85,36 @@ export function ownWayHeading(cards: number): string {
   return cards === 0 ? "Build your own" : "Or build your own";
 }
 
+/** What the first run's gallery says under its title, by what Chips for Mac found (ADR 0288). */
+export function firstRunLede(
+  cards: readonly Connector[] | undefined,
+  found: ReadonlySet<string> | undefined,
+): string {
+  if (found === undefined || cards === undefined) {
+    return "Pick the one you already run. It joins as an agent you can talk to and supervise from your phone.";
+  }
+  return cards.some((card) => isFoundHere(card, found))
+    ? "The ones marked On this Mac are already installed. Pick one and it joins as an agent you can talk to and supervise from your phone."
+    : "None of these are on this Mac yet. Pick one, and Chips will tell you what to run to get it.";
+}
+
+/** Whether Chips for Mac found this card's agent (ADR 0288). */
+export function isFoundHere(card: Connector, found: ReadonlySet<string> | undefined): boolean {
+  return card.program !== undefined && found?.has(card.program) === true;
+}
+
+/** The cards with those found on this Mac first, each side in the order it came (ADR 0288). */
+export function foundFirst(
+  cards: readonly Connector[],
+  found: ReadonlySet<string> | undefined,
+): readonly Connector[] {
+  if (found === undefined || found.size === 0) return cards;
+  return [
+    ...cards.filter((card) => isFoundHere(card, found)),
+    ...cards.filter((card) => !isFoundHere(card, found)),
+  ];
+}
+
 /** A docs card's line for a harness here already: picking it offers another, or a new agent. */
 export function connectedHereLine(press: "Tap" | "Click"): string {
   return `Connected here. ${press} for another, or a new agent.`;
@@ -268,8 +298,12 @@ export function connectNote(choice: ConnectChoice, link?: string): string {
     return `It answers with your harness's id, its key and its space, to call Chips with. ${once}`;
   }
   // What has to be on that computer first, as On this Mac says it (the new-person sweep's
-  // finding 3): the card's `needs`, on every card, not only the Mac's.
-  const needed = choice.needs === undefined ? once : `${once} That computer needs ${choice.needs}.`;
+  // finding 3): the card's `needs`, on every card, not only the Mac's. Then who makes it.
+  const needed = [
+    once,
+    ...(choice.needs === undefined ? [] : [`That computer needs ${choice.needs}.`]),
+    ...(choice.whose === undefined ? [] : [choice.whose]),
+  ].join(" ");
   if (choice.published !== false) return needed;
   return choice.package === undefined
     ? `${needed} Not published yet: that computer needs its own copy of ${choice.name}'s connector.`
@@ -589,7 +623,8 @@ export function hereButton(name: string, state: "ready" | "running" | "stopped")
 
 /** Under Connect: what has to be on this Mac first (the card's `needs`), and whether it is out yet. */
 export function hereNote(card: Connector): string {
-  const needs = `You need ${card.needs ?? `${card.name} on this Mac`}.`;
+  const first = `You need ${card.needs ?? `${card.name} on this Mac`}.`;
+  const needs = card.whose === undefined ? first : `${first} ${card.whose}`;
   return card.published === false
     ? `${needs} Not published yet: Chips fetches ${card.name}'s bridge from npm, where it isn't yet.`
     : needs;

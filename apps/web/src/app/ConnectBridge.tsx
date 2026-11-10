@@ -45,11 +45,29 @@ import {
 } from "@chipschat/core";
 import type { Connector } from "@chipschat/protocol";
 import { Button } from "@chipschat/ui";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { type ConnectingHere, type Desktop, desktop } from "../native.ts";
 
 /** The shell's way to run a card's line here. */
 export type ConnectHere = NonNullable<Desktop["connectHere"]>;
+
+/** After a card's note: its page in the docs, and its maker's terms (ADR 0288). */
+export function CardLinks(props: { readonly card: Connector }) {
+  const links = [
+    ["Its page", props.card.docs],
+    ["Its terms", props.card.terms],
+  ] as const;
+  return links.map(([words, href]) =>
+    href === undefined ? null : (
+      <Fragment key={words}>
+        {" "}
+        <a href={href} target="_blank" rel="noreferrer">
+          {words}
+        </a>
+      </Fragment>
+    ),
+  );
+}
 
 /**
  * The shell's way to connect here, once it has said it carries `chips`: nothing in a browser.
@@ -331,14 +349,7 @@ function HereNote(props: {
   return (
     <p className="join-note center" data-testid="join-here-note">
       {hereNote(card)}
-      {card.docs === undefined ? null : (
-        <>
-          {" "}
-          <a href={card.docs} target="_blank" rel="noreferrer">
-            Its page
-          </a>
-        </>
-      )}
+      <CardLinks card={card} />
     </p>
   );
 }

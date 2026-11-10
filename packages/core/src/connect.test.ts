@@ -17,6 +17,8 @@ import {
   connectTileWords,
   copyOf,
   fetchesBridge,
+  firstRunLede,
+  foundFirst,
   GALLERY_LEDE,
   type HereLine,
   harnessNamed,
@@ -27,6 +29,7 @@ import {
   hereSentence,
   hereSteps,
   installLine,
+  isFoundHere,
   kindWords,
   linkLeft,
   linkShare,
@@ -379,6 +382,35 @@ describe("a bridge's card (ADR 0218, phase 5)", () => {
     // A quote in a link stays inside it.
     expect(installLine(HERMES, "http://x/j/a'b")).toContain(
       `CHIPS_JOIN_LINK='http://x/j/a'\\''b' sh`,
+    );
+  });
+
+  it("says who makes the agent, beside what it needs, wherever it is connected (ADR 0288)", () => {
+    const whose = "Codex is made by OpenAI and has its own terms. What you send it goes to OpenAI.";
+    const codex = { ...OPENCLAW, name: "Codex", needs: "Codex installed and signed in", whose };
+    expect(connectNote(codex)).toBe(
+      `The link in it works once, for 15 minutes. That computer needs Codex installed and signed in. ${whose}`,
+    );
+    expect(hereNote({ ...codex, published: true })).toBe(
+      `You need Codex installed and signed in. ${whose}`,
+    );
+  });
+
+  it("puts what is on this Mac first, and says so, keeping each side's order (ADR 0288)", () => {
+    const named = (id: string, program?: string) =>
+      ({ ...OPENCLAW, id, name: id, ...(program === undefined ? {} : { program }) }) as Connector;
+    const cards = [named("a", "a-cmd"), named("b", "b-cmd"), named("c"), named("d", "d-cmd")];
+    const ids = (found?: ReadonlySet<string>) => foundFirst(cards, found).map((card) => card.id);
+    expect(ids()).toEqual(["a", "b", "c", "d"]);
+    expect(ids(new Set())).toEqual(["a", "b", "c", "d"]);
+    expect(ids(new Set(["d-cmd", "b-cmd"]))).toEqual(["b", "d", "a", "c"]);
+    expect(isFoundHere(cards[2] as Connector, new Set(["c"]))).toBe(false);
+
+    expect(firstRunLede(cards, undefined)).toMatch(/^Pick the one you already run\./);
+    expect(firstRunLede(undefined, new Set())).toMatch(/^Pick the one you already run\./);
+    expect(firstRunLede(cards, new Set(["a-cmd"]))).toMatch(/^The ones marked On this Mac/);
+    expect(firstRunLede(cards, new Set())).toBe(
+      "None of these are on this Mac yet. Pick one, and Chips will tell you what to run to get it.",
     );
   });
 

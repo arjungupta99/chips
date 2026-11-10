@@ -2,6 +2,7 @@
 /// window, and no other window should one ever be made.
 const COMMANDS: &[&str] = &[
     "can_run_here",
+    "programs_here",
     "run_here",
     "connect_here",
     "cancel_connect",

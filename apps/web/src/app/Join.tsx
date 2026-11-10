@@ -27,6 +27,7 @@ import {
   CANCEL_LINK,
   CONNECT_WAY_ORDER,
   CONNECT_WAYS,
+  CONNECT_WHERE,
   type ConnectChoice,
   type ConnectWay,
   type ConnectWhere,
@@ -41,8 +42,10 @@ import {
   decidedWords,
   faceOf,
   fetchesBridge,
+  foundFirst,
   GALLERY_LEDE,
   hereAlreadyWords,
+  isFoundHere,
   type JoinCard,
   type JoinRequest,
   joinCardOf,
@@ -70,11 +73,13 @@ import { Avatar, Button, Icon } from "@chipschat/ui";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import {
   BridgeWays,
+  CardLinks,
   type ConnectHere,
   CopyBox,
   LinkSteps,
   useConnectHere,
 } from "./ConnectBridge.tsx";
+import { useFoundHere } from "./firstRun.ts";
 import { GrowingDialog } from "./GrowingDialog.tsx";
 import { useNow } from "./useNow.ts";
 import { Switch } from "./you/controls.tsx";
@@ -137,7 +142,8 @@ export function Gallery(props: {
   /** The card whose page stands beside it, by `choiceKey` (ADR 0284's addendum): it is chosen. */
   readonly chosen?: string | undefined;
 }) {
-  const cards = props.cards ?? [];
+  const { found, order } = useFoundHere(props.cards);
+  const cards = foundFirst(props.cards ?? [], order);
   const chosen = (choice: Choice) =>
     choiceKey(choice) === props.chosen
       ? ({ "data-chosen": "true", "aria-current": "page" } as const)
@@ -168,6 +174,8 @@ export function Gallery(props: {
                   {card.name}{" "}
                   {here ? (
                     <span className="join-kind here">Connected</span>
+                  ) : isFoundHere(card, found) ? (
+                    <span className="join-kind one found">{CONNECT_WHERE.here}</span>
                   ) : (
                     <span className={kind.one ? "join-kind one" : "join-kind"}>{kind.words}</span>
                   )}
@@ -218,7 +226,8 @@ export function PageGallery(props: {
   readonly onPick: (choice: Choice, from: HTMLElement) => void;
 }) {
   const titleId = useId();
-  const cards = props.cards ?? [];
+  const { found, order } = useFoundHere(props.cards);
+  const cards = foundFirst(props.cards ?? [], order);
   const pick = (choice: Choice) => (event: { readonly currentTarget: HTMLElement }) =>
     props.onPick(choice, event.currentTarget);
   return (
@@ -242,6 +251,9 @@ export function PageGallery(props: {
               <span className="page-gallery-name">
                 <Avatar name={card.name} kind="harness" size="sm" />
                 <b>{card.name}</b>
+                {isFoundHere(card, found) && (
+                  <span className="join-kind one found">{CONNECT_WHERE.here}</span>
+                )}
               </span>
               <span className="page-gallery-line">{card.line}</span>
               {card.needs !== undefined && (
@@ -1028,14 +1040,7 @@ function CardNote(props: { readonly card: Connector; readonly link: string }) {
   return (
     <p className="join-note">
       {connectNote(card, props.link)}
-      {card.docs !== undefined && (
-        <>
-          {" "}
-          <a href={card.docs} target="_blank" rel="noreferrer">
-            Its page
-          </a>
-        </>
-      )}
+      <CardLinks card={card} />
     </p>
   );
 }

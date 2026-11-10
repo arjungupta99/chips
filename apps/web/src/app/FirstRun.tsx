@@ -16,6 +16,7 @@
 import {
   type DeviceKind,
   deviceKind,
+  firstRunLede,
   INVITE_TURN_ON_RELAY,
   ownsWorkspace,
   type PairedDeviceRecord,
@@ -37,7 +38,13 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { useConnectors, useDeviceFlag, useMyDevices, useServerFacts } from "./firstRun.ts";
+import {
+  useConnectors,
+  useDeviceFlag,
+  useFoundHere,
+  useMyDevices,
+  useServerFacts,
+} from "./firstRun.ts";
 import { type Choice, ConnectPage, Gallery, type JoinService } from "./Join.tsx";
 import { type SetupActions, SetupRail } from "./SetupCard.tsx";
 import { browserPermission, PERMISSION_ANSWERED } from "./useNotifications.ts";
@@ -64,6 +71,8 @@ export function FirstRun(props: {
   const [stage, setStage] = useState<Stage>({ kind: props.from ?? "name" });
   const { model, directory, joins } = props.snapshot;
   const total = props.from === "gallery" ? undefined : 3;
+  // Asked from the first step, so the gallery opens already in order.
+  const { found } = useFoundHere(props.cards);
   return (
     <div
       className="first-run"
@@ -92,7 +101,7 @@ export function FirstRun(props: {
               titleId={titleId}
               cards={props.cards}
               title="Bring your first agent"
-              lede="Pick the one you already run. It joins as an agent you can talk to and supervise from your phone."
+              lede={firstRunLede(props.cards, found)}
               onPick={(way) => setStage({ kind: "connect", way })}
             />
             <button

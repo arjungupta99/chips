@@ -10,6 +10,7 @@
     "core:window:allow-start-dragging",
     "deep-link:default",
     "allow-can-run-here",
+    "allow-programs-here",
     "allow-run-here",
     "allow-connect-here",
     "allow-cancel-connect",

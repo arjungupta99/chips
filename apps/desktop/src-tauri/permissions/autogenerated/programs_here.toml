@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-programs-here"
+description = "Enables the programs_here command without any pre-configured scope."
+commands.allow = ["programs_here"]
+
+[[permission]]
+identifier = "deny-programs-here"
+description = "Denies the programs_here command without any pre-configured scope."
+commands.deny = ["programs_here"]

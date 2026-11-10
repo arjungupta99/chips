@@ -57,6 +57,12 @@ every card. Each card also says where its link works: on the computer Chips runs
 its loopback address, or wherever that computer can reach Chips's address
 ([ADR 0247](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0247-what-a-new-person-meets-says-where-it-works.md)).
 
+A card can say three more things about the agent itself
+([ADR 0288](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0288-chips-says-what-is-on-this-mac-and-who-makes-each-agent.md)).
+`program` is the agent's own command: Chips for Mac looks for it, puts what it finds first and
+marks it On this Mac. `whose` says who makes the agent and where what a person sends it goes,
+beside its way in, and `terms` is a link to its maker's terms or licence.
+
 ## Getting a connector on this page
 
 1. Run `chips conformance custom --capabilities <what it declares>` against it, and say what the

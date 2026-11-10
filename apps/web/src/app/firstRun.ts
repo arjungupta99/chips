@@ -16,6 +16,7 @@ import {
 } from "@chipschat/core";
 import type { Connector } from "@chipschat/protocol";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { desktop } from "../native.ts";
 
 type Flag = "welcomed" | "phone" | "setup-hidden";
 
@@ -112,6 +113,56 @@ export function useConnectors(store: Store): readonly Connector[] | undefined {
     useCallback(() => store.connectors(), [store]),
     undefined,
   );
+}
+
+/** What Chips for Mac last found here, by command: nothing until it has said, or in a browser. */
+let foundHere: ReadonlySet<string> | undefined;
+const foundListeners = new Set<() => void>();
+
+function setFoundHere(programs: readonly string[]): void {
+  const next = new Set(programs);
+  const same = foundHere?.size === next.size && [...next].every((one) => foundHere?.has(one));
+  if (same) return;
+  foundHere = next;
+  for (const listener of foundListeners) listener();
+}
+
+function onFoundHere(changed: () => void): () => void {
+  foundListeners.add(changed);
+  return () => foundListeners.delete(changed);
+}
+
+/**
+ * Which of the cards' agents are on this Mac (ADR 0288), asked when a gallery opens and whenever
+ * the window comes back, which is when a person has just installed one. `order` is what was known
+ * as this gallery first drew, so that an answer arriving after it adds a tag and never moves a row
+ * under the pointer; the first run asks from its first step, so its gallery opens in order.
+ */
+export function useFoundHere(cards: readonly Connector[] | undefined): {
+  readonly found: ReadonlySet<string> | undefined;
+  readonly order: ReadonlySet<string> | undefined;
+} {
+  const found = useSyncExternalStore(onFoundHere, () => foundHere);
+  const [order] = useState(() => foundHere);
+  const names = [...new Set((cards ?? []).flatMap((card) => card.program ?? []))].join(" ");
+  useEffect(() => {
+    if (names === "") return;
+    let live = true;
+    const ask = () =>
+      void desktop()
+        .then((shell) => shell?.programsHere?.(names.split(" ")))
+        .then(
+          (programs) => live && programs !== undefined && setFoundHere(programs),
+          () => undefined,
+        );
+    ask();
+    window.addEventListener("focus", ask);
+    return () => {
+      live = false;
+      window.removeEventListener("focus", ask);
+    };
+  }, [names]);
+  return { found, order };
 }
 
 /**

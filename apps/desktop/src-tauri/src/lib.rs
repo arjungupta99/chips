@@ -57,6 +57,16 @@ fn can_run_here(app: AppHandle) -> bool {
     carried(&app).is_some()
 }
 
+/// Which of these commands are on this Mac, as a Terminal would find them (ADR 0288).
+#[tauri::command]
+async fn programs_here(names: Vec<String>) -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        shell_path::found_among(&names, &shell_path::for_bridges())
+    })
+    .await
+    .unwrap_or_default()
+}
+
 /// Run Chips on this Mac from the copy the app carries: `chips up`'s line of JSON, or what it said.
 /// The `chips` command is linked to it first, so `chips down` works in a terminal.
 #[tauri::command]
@@ -483,6 +493,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             can_run_here,
+            programs_here,
             run_here,
             connect_here,
             cancel_connect,

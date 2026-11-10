@@ -5,7 +5,15 @@
  * stops as a bridge does when its harness isn't there.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -32,6 +40,7 @@ fs.appendFileSync(process.env.FAKE_RAN, JSON.stringify({
   link: process.env.CHIPS_JOIN_LINK,
   card: process.env.CHIPS_CARD_NAME,
   node: process.env.CHIPS_NODE,
+  npm: process.env.CHIPS_NPM,
   stop: process.env.CHIPS_STOP_COMMAND,
   steps: process.env.CHIPS_STEPS,
   path: process.env.PATH,
@@ -133,6 +142,20 @@ describe("chips connect <id> '<link>'", () => {
       "  ✓ It matches the registry's checksum.",
       "Kept running as chat.chips.fake: chips disconnect fake stops it.",
     ]);
+  });
+
+  it("tells the bridge where the npm Chips carries is, only when it carries one (ADR 0288)", async () => {
+    const bare = depsFor({ "1.0.0": tarball("1.0.0") });
+    expect(await connectBridge(card("fake"), LINK, bare)).toBe(0);
+    expect(runs()[0]?.["npm"]).toBeUndefined();
+
+    const runtime = join(dir, "runtime");
+    mkdirSync(join(runtime, "npm", "bin"), { recursive: true });
+    writeFileSync(join(runtime, "npm", "bin", "npm-cli.js"), "");
+    symlinkSync(process.execPath, join(runtime, "node"));
+    const carrying = depsFor({ "1.0.0": tarball("1.0.0") }, { node: join(runtime, "node") });
+    expect(await connectBridge(card("fake"), LINK, carrying)).toBe(0);
+    expect(runs()[1]?.["npm"]).toBe(join(runtime, "npm", "bin", "npm-cli.js"));
   });
 
   it("with --json, says each step as a line of JSON and nothing else", async () => {

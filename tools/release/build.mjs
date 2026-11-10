@@ -96,6 +96,14 @@ copyFileSync(
 const node = await fetchNode(nodeVersion, target);
 copyFileSync(join(node, "bin", "node"), join(root, "runtime", "node"));
 chmodSync(join(root, "runtime", "node"), 0o755);
+// And its npm, for the ACP bridge to fetch an agent's adapter with on a Mac that has none (ADR 0288).
+// Its docs and man pages are read by nobody here, and its `.bin` is the only links it has.
+const npmFrom = join(node, "lib", "node_modules", "npm");
+const npmTo = join(root, "runtime", "npm");
+cpSync(npmFrom, npmTo, { recursive: true, verbatimSymlinks: true });
+for (const unused of ["docs", "man", join("node_modules", ".bin")]) {
+  rmSync(join(npmTo, unused), { recursive: true, force: true });
+}
 
 // 3. The natives, installed by that Node's own npm from their lock (SEC-36), so they are the
 // ones the lock names, each checked against its integrity, built for that Node's ABI.
@@ -150,6 +158,8 @@ say("  notices");
 const carried = [
   ...Object.keys(bundled.metafile.inputs).map((input) => packageRoot(input)),
   ...installed(join(root, "lib", "node_modules")),
+  npmTo,
+  ...installed(join(npmTo, "node_modules")),
   ...webPackages(),
 ].filter((dir) => dir !== undefined);
 writeFileSync(

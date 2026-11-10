@@ -11112,6 +11112,20 @@ button.agent-divider-pill {
   background: var(--surface-3);
   color: var(--ink-2);
 }
+/* Chips for Mac's answer comes a moment after the card has drawn (ADR 0288). */
+.join-kind.found {
+  animation: join-kind-found 180ms ease-out;
+}
+@keyframes join-kind-found {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .join-kind.found {
+    animation: none;
+  }
+}
 @keyframes join-spin {
   to {
     transform: rotate(360deg);
