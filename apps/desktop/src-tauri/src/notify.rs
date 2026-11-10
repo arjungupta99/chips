@@ -29,13 +29,10 @@ pub const DECIDED: &str = "chips://approval-decided";
 pub fn ask(app: &AppHandle, approval_id: String, title: String, body: String) {
     let app = app.clone();
     std::thread::spawn(move || {
-        let decision = match show(&title, &body) {
-            Ok(decision) => decision,
-            Err(reason) => {
-                // The window can say so in its own words; it still has the queue on screen.
-                let _ = app.emit("chips://notification-failed", reason);
-                return;
-            }
+        // A banner the system won't show is dropped: the window still has the ask on screen.
+        // Nothing listened for the failure it used to send (the onboarding audit, item 28).
+        let Ok(decision) = show(&title, &body) else {
+            return;
         };
         // The window may be hidden, or not made yet (ADR 0215); a click asks to see it.
         if decision == "opened" {
@@ -82,11 +79,10 @@ fn show(title: &str, body: &str) -> Result<String, String> {
 /// banner goes away.
 pub fn tell(app: &AppHandle, title: String, body: String) {
     let app = app.clone();
-    std::thread::spawn(move || match show_plain(&title, &body) {
-        Ok(true) => crate::show_window(&app),
-        Ok(false) => {}
-        Err(reason) => {
-            let _ = app.emit("chips://notification-failed", reason);
+    std::thread::spawn(move || {
+        // Unclicked, or not shown: the window has what the banner said either way.
+        if show_plain(&title, &body) == Ok(true) {
+            crate::show_window(&app);
         }
     });
 }

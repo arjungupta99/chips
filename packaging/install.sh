@@ -147,6 +147,25 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 printf '\n  Chips\n  ─────\n\n'
+
+# Chips for Mac links ~/.local/bin/chips to the copy it carries, which updates with the app (ADR
+# 0218, phase 5). A release unpacked here beside it would be one nothing runs, about 170 MB (the
+# onboarding audit, item 25), so nothing is downloaded. Once the app is in the Trash the link
+# leads nowhere, and this installs as on any other machine.
+if [ -z "$FROM" ] && [ -L "$BIN/chips" ] && [ -e "$BIN/chips" ]; then
+  case "$(readlink "$BIN/chips")" in
+    *.app/Contents/Resources/chips/bin/chips)
+      APP=$(readlink "$BIN/chips")
+      say "Chips for Mac is installed, and $BIN/chips runs the chips it carries,"
+      say "at ${APP%/Contents/Resources/chips/bin/chips}. It updates with the app."
+      say "To update, download Chips for Mac again from https://chipschat.ai/download and"
+      say "replace the copy in Applications. Nothing was installed."
+      printf '\n'
+      exit 0
+      ;;
+  esac
+fi
+
 if [ -n "$FROM" ]; then
   [ -f "$FROM" ] || die "No such file: $FROM"
   TARBALL="$FROM"

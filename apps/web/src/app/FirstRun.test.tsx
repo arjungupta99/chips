@@ -36,24 +36,53 @@ describe("the phone card", () => {
     expect(screen.queryByTestId("phone-offer-turn-on-relay")).toBeNull();
   });
 
-  it("offers an owner the relay there, with the Wi-Fi as the other way", async () => {
-    const openRelay = vi.fn();
+  it("offers an owner the relay there, asks, then turns it on (the onboarding audit, item 35)", async () => {
+    const setRelay = vi.fn(async () => ({}));
+    const owned = { devices: async () => [], setRelay } as unknown as Store;
     render(
-      <OpenRelay.Provider value={openRelay}>
-        <PhoneOffer
-          store={store}
-          issue={code("http://127.0.0.1:4450")}
-          serverUrl="http://127.0.0.1:4450"
-          owner
-          onClose={() => {}}
-        />
-      </OpenRelay.Provider>,
+      <PhoneOffer
+        store={owned}
+        issue={code("http://127.0.0.1:4450")}
+        serverUrl="http://127.0.0.1:4450"
+        owner
+        machine="Arjun's Mac mini"
+        onClose={() => {}}
+      />,
     );
     const turnOn = await screen.findByTestId("phone-offer-turn-on-relay");
     expect(turnOn.textContent).toBe("Turn on the relay");
     expect(screen.getByText("Or run chips up --reach lan to let your Wi-Fi in.")).toBeTruthy();
     fireEvent.click(turnOn);
-    expect(openRelay).toHaveBeenCalledTimes(1);
+    expect(setRelay).not.toHaveBeenCalled();
+    expect(screen.getByTestId("phone-offer-relay-ask").textContent).toContain(
+      "devices that can't reach Arjun's Mac mini directly, so your phone reaches Chips from anywhere",
+    );
+    fireEvent.click(screen.getByTestId("phone-offer-relay-cancel"));
+    expect(screen.queryByTestId("phone-offer-relay-ask")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("phone-offer-turn-on-relay"));
+    await act(async () => fireEvent.click(screen.getByTestId("phone-offer-relay-yes")));
+    expect(setRelay).toHaveBeenCalledWith(true);
+  });
+
+  it("says why when the relay couldn't be turned on, and can try again", async () => {
+    const setRelay = vi.fn(async () => {
+      throw new Error("The relay turned the server away.");
+    });
+    const owned = { devices: async () => [], setRelay } as unknown as Store;
+    render(
+      <PhoneOffer
+        store={owned}
+        issue={code("http://127.0.0.1:4450")}
+        serverUrl="http://127.0.0.1:4450"
+        owner
+        onClose={() => {}}
+      />,
+    );
+    fireEvent.click(await screen.findByTestId("phone-offer-turn-on-relay"));
+    await act(async () => fireEvent.click(screen.getByTestId("phone-offer-relay-yes")));
+    expect(screen.getByRole("alert").textContent).toBe("The relay turned the server away.");
+    expect((screen.getByTestId("phone-offer-relay-yes") as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("makes a code again once the relay is on, which reaches this computer from anywhere", async () => {

@@ -112,6 +112,8 @@ export interface UpDeps {
   readonly choose: (question: string, choices: readonly string[]) => Promise<number>;
   /** Polls until the check is true or the time is up; says which. */
   readonly waitFor: (check: () => Promise<boolean>, timeoutMs: number) => Promise<boolean>;
+  /** Older releases beside this one removed once the service runs on it, by version. */
+  readonly pruneReleases?: (() => readonly string[]) | undefined;
 }
 
 export interface UpOptions {
@@ -309,6 +311,12 @@ function whyStartedAgain(
   return lines;
 }
 
+/** The older releases taken away once the service runs on this one (the audit, item 33), said. */
+function prunedLines(deps: UpDeps): string[] {
+  const gone = deps.pruneReleases?.() ?? [];
+  return gone.length === 0 ? [] : [`  ✓ Removed older releases: ${gone.join(", ")}`];
+}
+
 /** The server: started in this process, started as a service, or found running. */
 async function startOrFind(
   path: UpPath,
@@ -330,6 +338,7 @@ async function startOrFind(
     const started = await startService(config, deps, choice, kind, found.carried);
     if (!started.ok) return { problem: started.problem };
     for (const line of whyStartedAgain(found, deps.release, before)) say(line);
+    for (const line of prunedLines(deps)) say(line);
     for (const line of await startsWhen(kind, deps)) say(line);
     const local = hereUrl(choice.host, config.server.port);
     return { ...askingServer(config, local, deps), service: kind };

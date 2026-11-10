@@ -14423,6 +14423,27 @@ button.jobs-day:focus-visible {
   line-height: 1.35;
   color: var(--ink-3);
 }
+/* Turn on the relay, asked on the card (the onboarding audit, item 35). */
+.phone-offer-relay {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  animation: phone-offer-relay-in 220ms var(--ease) both;
+}
+.phone-offer-relay small[role="alert"] {
+  color: var(--red-ink);
+}
+@keyframes phone-offer-relay-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phone-offer-relay {
+    animation: none;
+  }
+}
 .phone-offer-qr {
   width: 132px;
   height: 132px;

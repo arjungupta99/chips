@@ -7,7 +7,7 @@
  * a command means lives in `src/`, where a test can drive it without a terminal.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -90,6 +90,7 @@ import {
   up,
   writeFolder,
 } from "../src/index.js";
+import { forgetEverySecret } from "../src/keychain.js";
 import { facts, heading } from "../src/output.js";
 import { hereUrl, isReach } from "../src/reach.js";
 import {
@@ -464,9 +465,11 @@ async function uninstallHere(
         stop: () => stopEveryBridge({ ...bridgeDepsOf(config, out, machine, []), json: false }),
       },
       readFile: readText,
+      writeFile: (path, text) => writeFileSync(path, text),
       exists: existsSync,
       remove: removePath,
       run,
+      forgetSecrets: machine.platform === "darwin" ? forgetEverySecret : undefined,
     },
   );
   return done ? 0 : 1;

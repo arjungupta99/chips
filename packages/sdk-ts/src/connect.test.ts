@@ -12,10 +12,12 @@ import {
   messageIdOf,
 } from "@chipschat/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HELD_MOST } from "./connect.js";
 import {
   ConnectError,
   connect,
   firstTurnOf,
+  memoryStore,
   promptFor,
   RefusedError,
   renderContext,
@@ -599,6 +601,137 @@ async function waitForQuestion(): Promise<string> {
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
+
+describe("what was said before the harness was listening", () => {
+  /** A person's words for the harness, said while nothing of it is connected. */
+  async function saidWhileDown(text: string): Promise<number> {
+    const since = await server.gateway.deps.store.head(server.workspaceId);
+    await asPerson({
+      type: "message.post",
+      space_id: server.spaceId,
+      text,
+      to: [server.harnessId],
+      idempotency_key: `down-${text}`,
+    });
+    return since;
+  }
+
+  /** The first `message.new` a handler attached now hears, or nothing within half a second. */
+  function nextMessage(chips: Awaited<ReturnType<typeof open>>): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      chips.on("message.new", (message) => resolve(message.text));
+      setTimeout(() => resolve(undefined), 500);
+    });
+  }
+
+  it("waits for a handler attached after the harness's own setup, as a bridge attaches its", async () => {
+    const since = await saidWhileDown("Are you there?");
+    const store = memoryStore();
+    const chips = await connect({ url: server.url, token: server.token, since, store });
+    clients.push(chips);
+
+    // What every bridge does between connecting and listening: look for git, list its agents.
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    await chips.agents.list();
+    // Nobody has heard it, so its place in the log has not moved past it: a harness that stops
+    // here is sent it again at its next start.
+    expect(chips.lastSeq).toBe(since);
+    expect(store.state()?.since ?? since).toBe(since);
+
+    expect(await nextMessage(chips)).toBe("Are you there?");
+    expect(chips.lastSeq).toBeGreaterThan(since);
+  });
+
+  it("is heard once by handlers attached together, and what is said after comes after it", async () => {
+    const since = await saidWhileDown("First.");
+    const chips = await open({ since });
+    await settle();
+
+    const heard: string[] = [];
+    const every: string[] = [];
+    chips.on("event", (event) => {
+      if (event.type === "message.new") every.push(String(event["text"]));
+    });
+    chips.on("message.new", (message) => {
+      heard.push(message.text);
+    });
+    await asPerson({
+      type: "message.post",
+      space_id: server.spaceId,
+      text: "Second.",
+      to: [server.harnessId],
+      idempotency_key: "up-second",
+    });
+    await vi.waitFor(() => expect(heard).toEqual(["First.", "Second."]));
+    expect(every).toEqual(["First.", "Second."]);
+  });
+
+  it("waits for a waiter, a run or a room handler as it does for a handler", async () => {
+    const since = await saidWhileDown("Go on.");
+    const waiting = await open({ since });
+    await settle();
+    expect(
+      await waiting.waitFor((event) =>
+        event["type"] === "message.new" ? String(event["text"]) : undefined,
+      ),
+    ).toBe("Go on.");
+
+    // A run takes what a person does to it with no handler at all: `run.over`, `run.paused`.
+    const running = await open({ since });
+    await settle();
+    expect(running.lastSeq).toBe(since);
+    await running.runs.start({ spaceId: server.spaceId, goal: "Go." });
+    await vi.waitFor(() => expect(running.lastSeq).toBeGreaterThan(since));
+
+    const asked = await open({ since });
+    await settle();
+    asked.onSpaceAsked(() => undefined);
+    await vi.waitFor(() => expect(asked.lastSeq).toBeGreaterThan(since));
+  });
+
+  it("does not count a watch on the connection as listening", async () => {
+    const since = await saidWhileDown("Still there?");
+    const chips = await open({ since });
+    chips.on("state", () => undefined);
+    await settle();
+    expect(chips.lastSeq).toBe(since);
+    expect(await nextMessage(chips)).toBe("Still there?");
+  });
+
+  it("holds only so much for a harness that never listens, the newest of it", async () => {
+    let said: ((message: { readonly data?: unknown }) => void) | undefined;
+    const chips = await connect({
+      url: server.url.replace(/^http/, "ws"),
+      token: server.token,
+      createSocket: (url) => {
+        const socket = new WebSocket(url) as unknown as SocketLike;
+        return {
+          send: (data) => socket.send(data),
+          close: () => socket.close(),
+          addEventListener: (name, handler) => {
+            if (name === "message") said = handler;
+            socket.addEventListener(name, handler);
+          },
+        };
+      },
+    });
+    clients.push(chips);
+    const first = 1_000_000;
+    const frames = HELD_MOST + 3;
+    for (let seq = first; seq < first + frames; seq += 1) {
+      said?.({
+        data: JSON.stringify({ frame: "event", event: { type: "step.log", seq, title: "…" } }),
+      });
+    }
+    const seqs: number[] = [];
+    chips.on("event", (event) => {
+      if (typeof event["seq"] === "number" && event["seq"] >= first) seqs.push(event["seq"]);
+    });
+    await vi.waitFor(() => expect(seqs.length).toBe(HELD_MOST));
+    expect(seqs[0]).toBe(first + 3);
+    expect(seqs.at(-1)).toBe(first + frames - 1);
+  });
+});
 
 describe("what the harness says, and Chips's answer", () => {
   it("is told when Chips held its message from the agents it named (ADR 0097)", async () => {

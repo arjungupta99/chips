@@ -621,7 +621,10 @@ it in memory, for a test or a harness that stores it somewhere of its own.
 
 Without a store, a restart is the same story, by id. Persist what you need: `run.id`, the `approvalId` you
 minted, and `chips.lastSeq`. On start, pass `since: lastSeq` to `connect` so what happened while
-you were down is replayed to your handlers on the next tick after `connect` resolves; give
+you were down is replayed to your handlers. It waits for them: nothing is handed over, and
+`lastSeq` does not move, until you attach your first handler with `chips.on(...)` (or
+`onSpaceAsked`, `waitFor`, or start a run), so do your own setup first. Attach your handlers
+together, since what was held is handed over a tick after the first. Give
 `runs.start({ runId })` the same run id — the server acks it as a duplicate — and
 `run.approval({ approvalId })` the same approval id, and the promise resolves with the decision
 that was made while you were away. Absent `since`, the harness hears only what happens after it

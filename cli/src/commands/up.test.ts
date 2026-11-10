@@ -618,6 +618,27 @@ describe("the settings a service keeps (the new-person sweep's finding 6)", () =
     expect(out.lines.join("\n")).not.toContain("changed settings");
   });
 
+  it("takes away the older releases once the server runs on this one (the onboarding audit, item 33)", async () => {
+    const here = world({
+      answers: ["chips"],
+      files: { [PLIST]: written({}) },
+      runningVersion: async () => "0.1.9",
+    });
+    const pruned: string[] = [];
+    const deps = {
+      ...here.deps,
+      pruneReleases: () => {
+        // Only after the service was started again on this release.
+        pruned.push(`after ${here.ran.map((command) => command[1]).join(" ")}`);
+        return ["0.1.8"];
+      },
+    };
+    const out = scriptedConsole(true);
+    await up({ config, console: out, flags: flags({ interactive: true }), deps });
+    expect(pruned).toEqual(["after enable bootout bootstrap"]);
+    expect(out.lines.join("\n")).toContain("✓ Removed older releases: 0.1.8");
+  });
+
   it("leaves a server running this release as it is", async () => {
     const before = written({});
     const here = world({

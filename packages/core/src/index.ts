@@ -1145,6 +1145,7 @@ export {
   relayLists,
   relayNotConnectedWords,
   relayOffWords,
+  relayTurnOnAsk,
   type SocketWay,
   turnedBy,
   turnOffLead,

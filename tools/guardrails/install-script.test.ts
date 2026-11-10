@@ -232,6 +232,30 @@ describe("install.sh", () => {
     );
   });
 
+  it("downloads nothing where chips is Chips for Mac's own, and says how the app updates (the onboarding audit, item 25)", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    const app = join(home, "Applications", "Chips.app", "Contents", "Resources", "chips", "bin");
+    mkdirSync(app, { recursive: true });
+    writeFileSync(join(app, "chips"), '#!/bin/sh\necho "chips 0.1.0 (the app\'s)"\n');
+    chmodSync(join(app, "chips"), 0o755);
+    mkdirSync(join(home, ".local", "bin"), { recursive: true });
+    symlinkSync(join(app, "chips"), join(home, ".local", "bin", "chips"));
+    // A host that answers nothing: reaching it at all would fail the run.
+    const ran = installWith(
+      { CHIPS_DOWNLOAD_BASE: `file://${join(home, "nowhere")}` },
+      home,
+      "--no-path",
+    );
+    expect(ran.status, ran.stderr).toBe(0);
+    expect(ran.stdout).toContain(
+      `at ${join(home, "Applications", "Chips.app")}. It updates with the app.`,
+    );
+    expect(ran.stdout).toContain("download Chips for Mac again from https://chipschat.ai/download");
+    expect(ran.stdout).toContain("Nothing was installed.");
+    expect(existsSync(join(home, ".local", "lib", "chips"))).toBe(false);
+    expect(readlinkSync(join(home, ".local", "bin", "chips"))).toBe(join(app, "chips"));
+  });
+
   it("replaces a link to Chips for Mac once the app has gone to the Trash", () => {
     const home = mkdtempSync(join(tmpdir(), "chips-install-"));
     const gone = join(home, "Applications", "Chips.app", "Contents", "Resources", "chips", "bin");

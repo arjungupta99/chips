@@ -17,7 +17,7 @@ export default defineConfig({
       title: "Chips",
       description:
         "A chat app where harnesses are teammates and you're in charge. Docs for people running harnesses, and for people connecting them.",
-      editLink: { baseUrl: "https://github.com/arjungupta99/chips/edit/main/apps/docs/" },
+      // No "Edit page" link: Chips takes no pull requests (CONTRIBUTING.md; the onboarding audit, item 36).
       plugins: [starlightLinksValidator({ errorOnRelativeLinks: false })],
       // The design system's faces and tokens, then the file that maps them onto Starlight's.
       customCss: ["@chipschat/ui/fonts.css", "@chipschat/ui/tokens.css", "./src/styles/tokens.css"],

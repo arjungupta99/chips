@@ -40,8 +40,9 @@ a QR for the phone. Run again, it only opens the browser and shows the QR. Its f
 release keeps things, are on [Install](/start/install/#chips-up).
 
 `chips down` stops that service and keeps it from starting at login. `chips uninstall` removes
-the service, the install and the link on your `PATH`, and asks separately before it removes the
-workspace (`--remove-data` answers yes). Neither touches a launch agent `chips up` did not write,
+the service, the install, the link on your `PATH` and the line the install added to your shell
+profile for it, and asks separately before it removes the workspace and the keys Chips kept in
+the login keychain (`--remove-data` answers yes). Neither touches a launch agent `chips up` did not write,
 or `~/Chips`, where the bridges keep their settings and the agents their folders.
 Run through the link Chips for Mac makes, `chips uninstall` removes the service and the link but
 nothing inside the app, which goes to the Trash ([Chips for Mac](/operate/desktop/#removing-chips-for-mac)).

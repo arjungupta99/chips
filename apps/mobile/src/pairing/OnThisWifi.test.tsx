@@ -45,11 +45,13 @@ it("lists what answered, asks to join, shows the code, and is in once allowed", 
   expect(paired).toHaveBeenCalledWith(device);
 });
 
-it("says so when nothing answered, and shows nothing on a build that can't look", async () => {
+it("shows nothing while nothing answered, and nothing on a build that can't look", async () => {
   jest.mocked(canFind).mockReturnValue(true);
   jest.mocked(findServers).mockResolvedValue([]);
   await render(<OnThisWifi onPaired={jest.fn()} />);
-  expect(await screen.findByText(/Nothing here yet/)).toBeTruthy();
+  await act(async () => undefined);
+  expect(findServers).toHaveBeenCalled();
+  expect(screen.queryByTestId("on-this-wifi")).toBeNull();
 
   jest.mocked(canFind).mockReturnValue(false);
   await render(<OnThisWifi onPaired={jest.fn()} />);
@@ -99,7 +101,7 @@ it("looks again while nothing has answered, so a Chips allowed late still slides
     jest.mocked(canFind).mockReturnValue(true);
     jest.mocked(findServers).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     jest.mocked(findServers).mockResolvedValue([MINI]);
-    await render(<OnThisWifi foot onPaired={jest.fn()} />);
+    await render(<OnThisWifi onPaired={jest.fn()} />);
     await act(async () => undefined);
     expect(screen.queryByText("Arjun's Mac mini")).toBeNull();
 

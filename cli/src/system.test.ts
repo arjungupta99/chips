@@ -5,6 +5,7 @@
 
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -15,7 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { stableCommand, stableNode, writeText } from "./system.js";
+import { pruneReleases, releasesToRemove, stableCommand, stableNode, writeText } from "./system.js";
 
 let lib: string;
 beforeEach(() => {
@@ -80,5 +81,48 @@ describe("the service's file", () => {
     chmodSync(file, 0o644);
     writeText(file, "second");
     expect(statSync(file).mode & 0o777).toBe(0o600);
+  });
+});
+
+// Each update kept the release before it, about 170 MB each (the onboarding audit, item 33).
+describe("the releases chips up takes away", () => {
+  it("are all but the running one and the newest other, by their numbers", () => {
+    expect(releasesToRemove(["1.2.10", "1.2.9", "1.1.0", "1.2.2"], "1.2.10")).toEqual([
+      "1.1.0",
+      "1.2.2",
+    ]);
+    // Gone back to an older one: the newer stays to go forward to again.
+    expect(releasesToRemove(["1.2.0", "1.2.1", "1.2.2"], "1.2.1")).toEqual(["1.2.0"]);
+    expect(releasesToRemove(["1.2.2", "1.2.1"], "1.2.2")).toEqual([]);
+  });
+
+  it("are removed from beside an installed release, `current` and the one before left", () => {
+    const home = realpathSync(mkdtempSync(join(tmpdir(), "chips-home-")));
+    const chips = join(home, ".local", "lib", "chips");
+    for (const version of ["1.2.0", "1.2.1", "1.2.2"]) {
+      mkdirSync(join(chips, version), { recursive: true });
+    }
+    symlinkSync(join(chips, "1.2.2"), join(chips, "current"));
+    const machine = { platform: "darwin", home, environment: {} };
+    // Run through `current`, as the service runs it: still known as 1.2.2.
+    expect(pruneReleases({ version: "1.2.2", root: join(chips, "current") }, machine)).toEqual([
+      "1.2.0",
+    ]);
+    expect(existsSync(join(chips, "1.2.0"))).toBe(false);
+    expect(existsSync(join(chips, "1.2.1"))).toBe(true);
+    expect(existsSync(join(chips, "current"))).toBe(true);
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it("are none for a release install.sh didn't put there", () => {
+    const tarball = join(lib, "0.2.0");
+    mkdirSync(join(lib, "0.1.0"));
+    expect(
+      pruneReleases(
+        { version: "0.2.0", root: tarball },
+        { platform: "darwin", home: lib, environment: {} },
+      ),
+    ).toEqual([]);
+    expect(existsSync(join(lib, "0.1.0"))).toBe(true);
   });
 });

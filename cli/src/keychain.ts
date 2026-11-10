@@ -96,6 +96,23 @@ function macKeychain(): Keychain | undefined {
   };
 }
 
+/**
+ * Every key Chips and its bridges kept in the login keychain removed, for `chips uninstall` with
+ * the workspace (the onboarding audit, Part 2, item 25): each is under the service `chips`, and
+ * `security` removes one a call until none is left. A file store goes with the config folder.
+ */
+export function forgetEverySecret(): void {
+  for (let removed = 0; removed < 10_000; removed += 1) {
+    try {
+      execFileSync("/usr/bin/security", ["delete-generic-password", "-s", SERVICE], {
+        stdio: "ignore",
+      });
+    } catch {
+      return;
+    }
+  }
+}
+
 /** One JSON file, owner-only. Not as good as a keychain, and it says so. */
 function fileStore(environment: Environment): Keychain {
   const path = join(configHome(environment), "secrets.json");

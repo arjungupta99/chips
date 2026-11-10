@@ -17,6 +17,9 @@ function machine(over: Partial<UninstallDeps> = {}) {
     install: { lib: `${HOME}/.local/lib/chips`, link: `${HOME}/.local/bin/chips` },
     data: [DATA, `${HOME}/Library/Logs/Chips`, `${HOME}/.config/chips`],
     readFile: (path) => (path === PLIST ? ours : undefined),
+    writeFile: () => {
+      throw new Error("no profile here to write");
+    },
     exists: () => true,
     remove: (path) => removed.push(path),
     run: async () => ({ ok: true, output: "" }),
@@ -24,6 +27,9 @@ function machine(over: Partial<UninstallDeps> = {}) {
   };
   return { deps, removed };
 }
+
+/** Chips's PATH lines as install.sh and Chips for Mac write them, for ~/.local/bin. */
+const OUR_LINES = `\n# Chips\nexport PATH="${HOME}/.local/bin:$PATH"\n`;
 
 describe("chips uninstall", () => {
   it("removes the service, the link and the install, and keeps the workspace with --yes", async () => {
@@ -119,6 +125,71 @@ describe("chips uninstall", () => {
     expect(said).toContain(
       "Chips for Mac is still at /Applications/Chips.app. Drag it to the Trash to remove it.",
     );
+  });
+
+  it("takes Chips's PATH lines out of a profile and leaves the rest of it (the onboarding audit, item 25)", async () => {
+    const zshrc = `${HOME}/.zshrc`;
+    const bashrc = `${HOME}/.bashrc`;
+    const files: Record<string, string> = {
+      [PLIST]: ours,
+      [zshrc]: `export EDITOR=vim\n${OUR_LINES}alias ll="ls -l"\n`,
+      // Somebody's own line for the same folder, not written as Chips writes it, is theirs.
+      [bashrc]: `export PATH="${HOME}/.local/bin:$PATH"\n`,
+    };
+    const { deps } = machine({
+      readFile: (path) => files[path],
+      writeFile: (path, text) => {
+        files[path] = text;
+      },
+    });
+    const out = scriptedConsole(true);
+    await uninstall(out, { yes: true, removeData: false }, deps);
+    expect(out.lines.join("\n")).toContain("the PATH line in ~/.zshrc");
+    expect(files[zshrc]).toBe('export EDITOR=vim\nalias ll="ls -l"\n');
+    expect(files[bashrc]).toBe(`export PATH="${HOME}/.local/bin:$PATH"\n`);
+  });
+
+  it("leaves the line before them whole when it had no newline of its own", async () => {
+    const zshrc = `${HOME}/.zshrc`;
+    const files: Record<string, string> = { [zshrc]: `export A=1${OUR_LINES}export B=2\n` };
+    const { deps } = machine({
+      readFile: (path) => (path === PLIST ? ours : files[path]),
+      writeFile: (path, text) => {
+        files[path] = text;
+      },
+    });
+    await uninstall(scriptedConsole(true), { yes: true, removeData: false }, deps);
+    expect(files[zshrc]).toBe("export A=1\nexport B=2\n");
+  });
+
+  it("takes the lines from the top of a profile they begin", async () => {
+    const zprofile = `${HOME}/.zprofile`;
+    const files: Record<string, string> = { [zprofile]: `${OUR_LINES.slice(1)}export A=1\n` };
+    const { deps } = machine({
+      readFile: (path) => (path === PLIST ? ours : files[path]),
+      writeFile: (path, text) => {
+        files[path] = text;
+      },
+    });
+    await uninstall(scriptedConsole(true), { yes: true, removeData: false }, deps);
+    expect(files[zprofile]).toBe("export A=1\n");
+  });
+
+  it("forgets the keys in the login keychain with the workspace, and only then", async () => {
+    let forgot = 0;
+    const forgetSecrets = () => {
+      forgot += 1;
+    };
+    await uninstall(
+      scriptedConsole(true),
+      { yes: true, removeData: false },
+      machine({ forgetSecrets }).deps,
+    );
+    expect(forgot).toBe(0);
+    const out = scriptedConsole(true);
+    await uninstall(out, { yes: false, removeData: false }, machine({ forgetSecrets }).deps);
+    expect(out.lines.join("\n")).toContain("the keys Chips kept in your login keychain");
+    expect(forgot).toBe(1);
   });
 
   it("has nothing to remove from a checkout", async () => {

@@ -275,6 +275,24 @@ export function inviteRelayOffWords(url: string | undefined): string {
 export const INVITE_TURN_ON_RELAY = "Turn on the relay";
 
 /**
+ * Asked before the phone card turns the relay on itself (the onboarding audit, Part 2, item 35):
+ * what it then does, and where it is turned off. It used to open You, then Relay, and leave the
+ * switch to be found there.
+ */
+export function relayTurnOnAsk(machine: string | undefined): {
+  readonly says: string;
+  readonly yes: string;
+  readonly busy: string;
+} {
+  const there = machine ?? "this computer";
+  return {
+    says: `The relay carries sealed traffic for devices that can't reach ${there} directly, so your phone reaches Chips from anywhere. You can turn it off in You, then Relay.`,
+    yes: "Turn it on",
+    busy: "Turning it on…",
+  };
+}
+
+/**
  * On an invite sheet for a link that opens from anywhere: it asks (ADR 0232). Whoever opens it
  * waits for the person who made it, and the Allow comes up on that person's devices with Chips
  * open, so the maker learns it here rather than when somebody is left waiting.

@@ -8959,6 +8959,38 @@ describe("the first run (ADR 0170)", () => {
   };
   const forget = forgetFirstRunFlags;
 
+  it("withdraws a card's link on Back while it waits, and leaves one already used (the onboarding audit, item 34)", async () => {
+    forget();
+    onTestFinished(forget);
+    const store = fakeStore(snapshotOf([], { directory: OWNER, awaiting: 0 }));
+    store.connectorCards = [CLAW];
+    render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
+    fireEvent.click(await screen.findByTestId("first-run-continue"));
+
+    fireEvent.click(await screen.findByTestId("join-card-openclaw"));
+    await screen.findByTestId("join-sentence");
+    const first = [...(store.getSnapshot().joins?.keys() ?? [])][0];
+    fireEvent.click(screen.getByTestId("first-run-back"));
+    await waitFor(() => expect(store.joinsDenied).toEqual([first]));
+    expect(await screen.findByTestId("join-card-openclaw")).toBeTruthy();
+
+    // Opened again, the card makes a new link; used, Back leaves it.
+    fireEvent.click(screen.getByTestId("join-card-openclaw"));
+    await screen.findByTestId("join-sentence");
+    const second = [...(store.getSnapshot().joins?.values() ?? [])].find(
+      (each) => each.requestId !== first,
+    ) as JoinRequest;
+    act(() =>
+      store.update({
+        ...store.getSnapshot(),
+        joins: new Map([[second.requestId, { ...second, state: "redeemed" }]]),
+      }),
+    );
+    fireEvent.click(screen.getByTestId("first-run-back"));
+    await screen.findByTestId("join-card-openclaw");
+    expect(store.joinsDenied).toEqual([first]);
+  });
+
   it("walks the owner of a workspace no agent has joined: name, the docs' gallery, the sentence, the room, the phone", async () => {
     forget();
     onTestFinished(forget);

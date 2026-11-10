@@ -95,8 +95,9 @@ Linux machine that doesn't run Chips turns lingering on the same way when it is 
 same line.
 
 `chips down` stops the service and keeps it from starting at login until `chips up` runs again.
-`chips uninstall` removes the service, the install and the link; it asks separately before it
-removes your workspace, and `--remove-data` says yes. A launch agent `chips up` did not write — one
+`chips uninstall` removes the service, the install, the link and the `# Chips` PATH line the install
+added to your shell profile; it asks separately before it removes your workspace, and
+`--remove-data` says yes, which on a Mac also removes the keys Chips kept in your login keychain. A launch agent `chips up` did not write — one
 a checkout installed — is never replaced, stopped or removed.
 
 ### Where a release keeps things
@@ -199,7 +200,9 @@ anywhere the server is not bound to loopback.
 
 **A release.** Run the install line again, then `chips up`. The line puts the new version beside
 the old one and brings each harness's bridge kept here up to date; `chips up` starts the server
-again on the new version, which keeps running the old one until then.
+again on the new version, which keeps running the old one until then. Once it runs on the new one,
+`chips up` removes the versions older than the one before it, which stays so you can go back with
+`--version`. With Chips for Mac installed, the line installs nothing: `chips` is the app's own.
 
 **Chips for Mac** doesn't update itself yet. Download it again from
 [chipschat.ai/download](https://chipschat.ai/download), quit Chips, and replace the copy in

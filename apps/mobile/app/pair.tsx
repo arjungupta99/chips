@@ -284,7 +284,7 @@ function WelcomeFilm({
         )}
       </View>
       <View style={styles.wifi}>
-        <OnThisWifi foot held={held} onPaired={onPaired} />
+        <OnThisWifi held={held} onPaired={onPaired} />
       </View>
       {film.ended ? (
         <View style={{ height: insets.bottom }} />
@@ -348,7 +348,7 @@ function WideFilm({
   const waysIn = <WaysIn ways={ways} more={moreThan(video)} invites={join.invites} split={!side} />;
   // Held here, over the turn between the two layouts, which draw it in different places.
   const finder = useFinder(held, onPaired);
-  const wifi = <FinderView foot finder={finder} held={held} />;
+  const wifi = <FinderView finder={finder} held={held} />;
   if (side) {
     return (
       <>

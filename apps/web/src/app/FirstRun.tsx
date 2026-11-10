@@ -18,9 +18,11 @@ import {
   deviceKind,
   firstRunLede,
   INVITE_TURN_ON_RELAY,
+  type JoinRequest,
   ownsWorkspace,
   type PairedDeviceRecord,
   placeOf,
+  relayTurnOnAsk,
   type Snapshot,
   type Store,
   setupSteps,
@@ -48,12 +50,27 @@ import {
 import { type Choice, ConnectPage, Gallery, type JoinService } from "./Join.tsx";
 import { type SetupActions, SetupRail } from "./SetupCard.tsx";
 import { browserPermission, PERMISSION_ANSWERED } from "./useNotifications.ts";
-import { useOpenRelay } from "./you/openRelay.ts";
 
 type Stage =
   | { readonly kind: "name" }
   | { readonly kind: "gallery" }
   | { readonly kind: "connect"; readonly way: Choice };
+
+/**
+ * A card's link put away unused as the welcome goes Back (the onboarding audit, Part 2, item 34):
+ * withdrawn, rather than left working for its fifteen minutes. One already used, or ended, stays as
+ * it is; one not heard of yet was just made, and is withdrawn too.
+ */
+export function withdrawUnused(
+  join: Pick<JoinService, "deny">,
+  joins: ReadonlyMap<string, JoinRequest> | undefined,
+  id: string | undefined,
+): void {
+  if (id === undefined) return;
+  const state = joins?.get(id)?.state;
+  if (state !== undefined && state !== "allowed") return;
+  void join.deny(id).catch(() => undefined);
+}
 
 export function FirstRun(props: {
   readonly store: Store;
@@ -70,6 +87,13 @@ export function FirstRun(props: {
   const titleId = useId();
   const [stage, setStage] = useState<Stage>({ kind: props.from ?? "name" });
   const { model, directory, joins } = props.snapshot;
+  // The link the open card made last, for Back to withdraw while it waits.
+  const made = useRef<string | undefined>(undefined);
+  const back = () => {
+    withdrawUnused(props.join, joins, made.current);
+    made.current = undefined;
+    setStage({ kind: "gallery" });
+  };
   const total = props.from === "gallery" ? undefined : 3;
   // Asked from the first step, so the gallery opens already in order.
   const { found } = useFoundHere(props.cards);
@@ -125,13 +149,19 @@ export function FirstRun(props: {
             join={props.join}
             onOpen={(roomId) => props.onDone(roomId)}
             foldSwitches
-            onCancelled={() => setStage({ kind: "gallery" })}
+            onKept={(kept) => {
+              made.current = kept.id;
+            }}
+            onCancelled={() => {
+              made.current = undefined;
+              setStage({ kind: "gallery" });
+            }}
             footer={
               <button
                 type="button"
                 className="join-link"
                 data-testid="first-run-back"
-                onClick={() => setStage({ kind: "gallery" })}
+                onClick={back}
               >
                 Back
               </button>
@@ -348,12 +378,13 @@ export function PhoneOffer(props: {
   readonly relay?: string | undefined;
   /** An owner, who is offered the relay where a phone couldn't reach this computer. */
   readonly owner?: boolean | undefined;
+  /** The server's machine, as it names itself, for what turning the relay on means. */
+  readonly machine?: string | undefined;
   readonly step?: string | undefined;
   readonly onClose: () => void;
 }) {
   const since = useRef(Date.now() - 5000);
   const { qr, error } = usePairingQr(props.issue, props.serverUrl, props.relay);
-  const openRelay = useOpenRelay();
   const devices = useMyDevices(props.store, 3000);
   const paired = phonePairedSince(devices, since.current);
   const { onClose } = props;
@@ -377,7 +408,16 @@ export function PhoneOffer(props: {
         <PhoneWaiting
           qr={qr}
           error={error}
-          onRelay={props.owner === true ? openRelay : undefined}
+          onRelay={
+            props.owner === true
+              ? {
+                  machine: props.machine,
+                  turnOn: async () => {
+                    await props.store.setRelay(true);
+                  },
+                }
+              : undefined
+          }
           onLater={onClose}
         />
       ) : (
@@ -387,11 +427,68 @@ export function PhoneOffer(props: {
   );
 }
 
+/**
+ * Turn on the relay, on the phone card where a phone couldn't reach this computer: asked first,
+ * then turned on here (the onboarding audit, Part 2, item 35). The card makes a code with the relay
+ * in it once the server says it's on.
+ */
+function RelayOffer(props: { readonly relay: RelayTurnOn }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
+  const ask = relayTurnOnAsk(props.relay.machine);
+  if (!asking) {
+    return (
+      <Button size="sm" onClick={() => setAsking(true)} data-testid="phone-offer-turn-on-relay">
+        {INVITE_TURN_ON_RELAY}
+      </Button>
+    );
+  }
+  const turnOn = () => {
+    setBusy(true);
+    setError(undefined);
+    props.relay.turnOn().then(
+      () => setBusy(false),
+      (failure: unknown) => {
+        setError(failure instanceof Error ? failure.message : String(failure));
+        setBusy(false);
+      },
+    );
+  };
+  return (
+    <div className="phone-offer-relay" data-testid="phone-offer-relay-ask">
+      <small>{ask.says}</small>
+      {error !== undefined && (
+        <small className="harness-add-error" role="alert">
+          {error}
+        </small>
+      )}
+      <Button size="sm" onClick={turnOn} disabled={busy} data-testid="phone-offer-relay-yes">
+        {busy ? ask.busy : ask.yes}
+      </Button>
+      <button
+        type="button"
+        className="join-link"
+        disabled={busy}
+        data-testid="phone-offer-relay-cancel"
+        onClick={() => setAsking(false)}
+      >
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+/** The relay turned on from the card, for an owner, once asked. */
+interface RelayTurnOn {
+  readonly machine: string | undefined;
+  readonly turnOn: () => Promise<void>;
+}
+
 function PhoneWaiting(props: {
   readonly qr: PairingQr | undefined;
   readonly error: string | undefined;
-  /** You at the Relay card, for an owner. */
-  readonly onRelay: (() => void) | undefined;
+  readonly onRelay: RelayTurnOn | undefined;
   readonly onLater: () => void;
 }) {
   const { qr, onRelay } = props;
@@ -409,11 +506,7 @@ function PhoneWaiting(props: {
           data-link={qr.link}
         />
       )}
-      {local && onRelay !== undefined && (
-        <Button size="sm" onClick={onRelay} data-testid="phone-offer-turn-on-relay">
-          {INVITE_TURN_ON_RELAY}
-        </Button>
-      )}
+      {local && onRelay !== undefined && <RelayOffer relay={onRelay} />}
       {local && <small>{letYourWifiIn(onRelay !== undefined)}</small>}
       {qr !== undefined && <small>{scanWords(qr.relay)}</small>}
       <button
@@ -609,6 +702,7 @@ export function useFirstRun(input: {
         serverUrl={serverUrlOf(device)}
         relay={facts?.relay.url}
         owner={owner}
+        machine={facts?.machine}
         step={owed ? "3 of 3" : undefined}
         onClose={closePhone}
       />

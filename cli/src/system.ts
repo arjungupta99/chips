@@ -9,6 +9,7 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -190,6 +191,49 @@ export function installOf(
   return { lib: installed ? parent : release.root, link: linked };
 }
 
+/** Two versions in order by their numbers, 1.2.9 before 1.2.10. */
+function byVersion(a: string, b: string): number {
+  const x = a.split(/[.+-]/).map(Number);
+  const y = b.split(/[.+-]/).map(Number);
+  for (let i = 0; i < 3; i += 1) {
+    const apart = (x[i] || 0) - (y[i] || 0);
+    if (apart !== 0) return apart;
+  }
+  return a.localeCompare(b);
+}
+
+/**
+ * Of the releases `install.sh` keeps under `~/.local/lib/chips`, the ones to take away once a
+ * server runs on `running`: all but it and the newest other, which stays to go back to with
+ * `--version` (the onboarding audit, item 33). Each update kept the one before, about 170 MB. Pure.
+ */
+export function releasesToRemove(versions: readonly string[], running: string): string[] {
+  return versions
+    .filter((version) => version !== running)
+    .sort(byVersion)
+    .slice(0, -1);
+}
+
+/**
+ * The older releases removed from beside this one, by version, once the login service runs on it:
+ * nothing runs from them then, as the service and the bridges start through `current`. None for a
+ * release `install.sh` didn't install: an unpacked tarball, or the one Chips for Mac carries.
+ */
+export function pruneReleases(release: Release | undefined, machine: Machine): string[] {
+  if (release === undefined) return [];
+  const { lib } = installOf(release, machine);
+  if (lib === release.root) return [];
+  const versions = readdirSync(lib, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  // Its own folder by its real name, never `current`: unknown here, nothing is removed.
+  const running = basename(realpathSync(release.root));
+  if (!versions.includes(running)) return [];
+  const gone = releasesToRemove(versions, running);
+  for (const version of gone) rmSync(join(lib, version), { recursive: true, force: true });
+  return gone;
+}
+
 export function systemUpDeps(machine: Machine, release: Release | undefined): UpDeps {
   const command = release === undefined ? undefined : stableCommand(release);
   return {
@@ -212,5 +256,6 @@ export function systemUpDeps(machine: Machine, release: Release | undefined): Up
     open: (url) => openUrl(url, machine.platform),
     choose,
     waitFor,
+    pruneReleases: () => pruneReleases(release, machine),
   };
 }

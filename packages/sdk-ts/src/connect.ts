@@ -39,7 +39,8 @@ export interface ConnectOptions {
   /**
    * Replay from this `seq` before streaming live. Absent, the harness hears only what happens
    * after it connects; a harness that persists the last `seq` it saw passes it here so a
-   * decision made while it was down still reaches it.
+   * decision made while it was down still reaches it. What is replayed waits for the harness's
+   * first handler (`on`), so set up whatever you need before attaching them.
    */
   readonly since?: number | undefined;
   /** Reconnect with backoff when the socket drops. On unless said otherwise. */
@@ -85,6 +86,15 @@ export interface RestartAsk {
 }
 
 /** The part of a WebSocket this client uses, so a test can hand in a fake. */
+/**
+ * The most events held for a harness that is not listening yet. One that never listens would
+ * otherwise keep every event of its rooms for as long as it ran; past this the oldest go.
+ */
+export const HELD_MOST = 20_000;
+
+/** What `on` hears that is the connection's own, and no event of the log. */
+const OF_THE_CONNECTION: ReadonlySet<string> = new Set(["hello", "state", "receipt"]);
+
 export interface SocketLike {
   readonly send: (data: string) => void;
   readonly close: () => void;
@@ -195,12 +205,25 @@ export class Chips {
   /** Makes each ping's `ts` its own, so two in one millisecond are still told apart. */
   private pings = 0;
   /**
-   * Events held back, and why: one hold until the harness could attach a handler after connect,
-   * and one for each catch-up on asked rooms still reading, so that a room's first words heard
-   * live and read from its history are handed over once. Delivered in order when none is left.
+   * Events held back, and why: one hold until the harness is listening, and one for each
+   * catch-up on asked rooms still reading, so that a room's first words heard live and read from
+   * its history are handed over once. Delivered in order when none is left.
+   *
+   * The first hold used to last one tick after `connect` resolved. Three bridges looked for git
+   * and listed their agents before they attached a handler, so what `since` replayed was handed
+   * to nobody, and the place in the log moved past it: a message sent while a bridge was down was
+   * never answered (9 November 2026). An event nothing here could take is not heard. So the hold
+   * lasts until something takes events: a handler, a waiter, a run, or a handler for rooms asked
+   * (ADR 0289).
    */
   private held: Frame[] = [];
   private holds = 1;
+  /** The handshake is done: `connect` has resolved. */
+  private started = false;
+  /** Something here takes events (`listens`). */
+  private listening = false;
+  /** The first hold is on its way out. */
+  private letting = false;
   private readonly askHandlers = new Emitter<{ readonly asked: SpaceAsked }>();
   private readonly asks = new Asks(() => this.me()?.harness_id, {
     listening: () => this.askHandlers.count("asked") > 0,
@@ -249,9 +272,10 @@ export class Chips {
     const chips = new Chips(options);
     await chips.open(true);
     chips.endOrphans();
-    // What `since` replayed during the handshake is delivered on the next tick, so handlers
-    // attached right after `await connect(...)` hear it rather than missing it.
-    setTimeout(() => chips.release(), 0);
+    // What `since` replayed during the handshake waits for the harness's first handler
+    // (`listens`), however long its own setup takes before it attaches one.
+    chips.started = true;
+    chips.letGo();
     return chips;
   }
 
@@ -392,8 +416,16 @@ export class Chips {
     return this.since;
   }
 
+  /**
+   * Hear events by name, or all of them as `event`. What `since` replayed, and what was said
+   * since the connection opened, is handed over a tick after the first handler is attached:
+   * attach every handler together, and all of them hear it. `hello`, `state` and `receipt` are
+   * the connection's own, and attaching one of those alone starts nothing.
+   */
   on<K extends keyof ChipsEvents>(name: K, handler: Handler<ChipsEvents[K]>): () => void {
-    return this.emitter.on(name, handler);
+    const off = this.emitter.on(name, handler);
+    if (!OF_THE_CONNECTION.has(name)) this.listens();
+    return off;
   }
 
   /** Say something in a space. */
@@ -430,6 +462,7 @@ export class Chips {
    */
   onSpaceAsked(handler: Handler<SpaceAsked>): () => void {
     const off = this.askHandlers.on("asked", handler);
+    this.listens();
     if (this.ready) void this.catchUp();
     return off;
   }
@@ -560,6 +593,8 @@ export class Chips {
       laneId,
     );
     this.activeRuns.set(runId, run);
+    // A run takes what a person does to it with no handler at all (`run.over`, `run.paused`).
+    this.listens();
     return run;
   }
 
@@ -679,6 +714,7 @@ export class Chips {
 
   /** Resolve with the first event that matches, now or later. */
   waitFor<T>(match: (event: Record<string, unknown>) => T | undefined): Promise<T> {
+    this.listens();
     return new Promise<T>((resolve) => {
       this.waiters.add({ match, resolve: resolve as (value: unknown) => void });
     });
@@ -939,6 +975,22 @@ export class Chips {
     }
   }
 
+  /** Something here takes events from now on, so the first hold can go. */
+  private listens(): void {
+    this.listening = true;
+    this.letGo();
+  }
+
+  /**
+   * Let the first hold go, once the handshake is done and the harness is listening: on the next
+   * tick, so handlers attached together all hear what was held.
+   */
+  private letGo(): void {
+    if (!this.started || !this.listening || this.letting) return;
+    this.letting = true;
+    setTimeout(() => this.release(), 0);
+  }
+
   /** Let one hold go; with none left, deliver what was held, in order. */
   private release(): void {
     this.holds -= 1;
@@ -951,6 +1003,8 @@ export class Chips {
   private onEvent(event: Frame): void {
     if (this.holds > 0) {
       this.held.push(event);
+      // Nobody is listening, and may never be: keep the newest, as much as `HELD_MOST`.
+      if (!this.listening && this.held.length > HELD_MOST) this.held.shift();
       return;
     }
     const seq = event["seq"];
