@@ -469,7 +469,7 @@ function freeSpace(path: string): number | undefined {
 export function report(out: Console, findings: readonly Finding[]): number {
   const bad = findings.filter((each) => each.health === "bad");
   const warned = findings.filter((each) => each.health === "warn" && each.fix !== undefined);
-  out.out(heading(bad.length === 0 ? "Everything checks out" : `${bad.length} to fix`));
+  out.out(heading(headingOf(bad.length, warned.length)));
   out.out(
     facts(findings.map((finding) => [`${MARK[finding.health]} ${finding.check}`, finding.detail])),
   );
@@ -483,3 +483,15 @@ export function report(out: Console, findings: readonly Finding[]): number {
 }
 
 const MARK: Record<Health, string> = { ok: "·", warn: "!", bad: "x" };
+
+/**
+ * The line over the findings: "Everything checks out" only when nothing is worth a word, so it is
+ * never heading a warning (the onboarding audit, item 35).
+ */
+function headingOf(bad: number, warned: number): string {
+  if (bad > 0) return `${bad} to fix`;
+  if (warned === 0) return "Everything checks out";
+  return warned === 1
+    ? "Nothing to fix, one thing worth knowing"
+    : `Nothing to fix, ${warned} things worth knowing`;
+}

@@ -12,9 +12,10 @@
  */
 
 import type { ServerReach } from "@chipschat/core";
-import { type PairingPayload, pairingFromUrl } from "@chipschat/protocol";
+import { type PairingPayload, pairingCodeTyped, pairingFromUrl } from "@chipschat/protocol";
 
-const CODE = /^[A-Za-z2-9]{3}-[A-Za-z2-9]{3}$/;
+/** A code as it is read off a screen and typed: six of the alphabet, with or without the dash. */
+const CODE = /^[A-Za-z2-9]{3}[\s-]?[A-Za-z2-9]{3}$/;
 
 /** `http://host:4431/path?q#frag` → the three parts `pairingFromUrl` reads. */
 export function partsOf(text: string): {
@@ -38,8 +39,10 @@ export function partsOf(text: string): {
 export function scanned(text: string): PairingPayload | undefined {
   const trimmed = text.trim();
   if (trimmed === "") return undefined;
+  // Typed without its dash, or with a space, it is the same code (the onboarding audit, Part 2,
+  // item 20): put in the form a code is compared in.
   if (CODE.test(trimmed)) {
-    return pairingFromUrl({ search: "", hash: `#pair=${trimmed.toUpperCase()}` });
+    return pairingFromUrl({ search: "", hash: `#pair=${pairingCodeTyped(trimmed)}` });
   }
   return pairingFromUrl(partsOf(trimmed));
 }
@@ -53,6 +56,12 @@ export function pairingLinkIn(text: string): string | undefined {
   return text
     .split(/\s+/)
     .find((word) => /[?#&]pair=/.test(word) && pairingFromUrl(partsOf(word)) !== undefined);
+}
+
+/** An address typed without `http://` gets it: `192.168.1.20:4431` is what a screen shows. */
+function withScheme(typed: string): string {
+  if (typed === "" || /^https?:\/\//i.test(typed)) return typed.replace(/\/+$/, "");
+  return `http://${typed.replace(/\/+$/, "")}`;
 }
 
 /**
@@ -79,7 +88,7 @@ export function offerFrom(text: string, typedAddress = ""): Offer {
   if (payload === undefined) {
     return { ok: false, problem: "That is not a Chips pairing code." };
   }
-  const lan = payload.lan ?? typedAddress.trim();
+  const lan = payload.lan ?? withScheme(typedAddress.trim());
   if (lan === "") {
     return { ok: false, problem: "Add the server's address — the QR usually carries it." };
   }

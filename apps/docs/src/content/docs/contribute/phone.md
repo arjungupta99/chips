@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Most people get the app from TestFlight ([Get Chips on your iPhone](/start/iphone/)). This page is
+Most people get the app from the App Store ([Get Chips on your iPhone](/start/iphone/)). This page is
 for building it yourself from a checkout: on your own iPhone with one command, in a simulator, in
 Expo Go for a quick look at the screens, in a browser for the fastest loop, and onto TestFlight.
 **Expo Go** needs no Xcode and no Apple account, but runs without the native parts a build

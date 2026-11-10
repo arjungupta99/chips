@@ -46,7 +46,9 @@ test("N1: an owner's New phone… pairs a fresh browser as the person, not as so
   await expect(panel.getByRole("heading", { name: `A new phone for ${noor.name}` })).toBeVisible();
   const code = (await panel.getByTestId("pairing-code").textContent()) ?? "";
   expect(code).toMatch(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
-  await expect(panel.getByTestId("new-phone-link")).toContainText(`chips://pair?pair=${code}`);
+  await expect(panel.getByTestId("new-phone-link")).toContainText(
+    `https://chipschat.ai/p#pair=${code}`,
+  );
 
   const context = await browser.newContext();
   const fresh = await context.newPage();

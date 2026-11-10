@@ -63,6 +63,15 @@ export function useDeviceFlag(flag: Flag, deviceId: string): [boolean, (on: bool
   return [on, set];
 }
 
+/**
+ * The welcome marked as seen on a device paired by an invite: it is the first person's, who set the
+ * workspace up, and somebody invited has named themselves already on the way in. An invited owner
+ * was otherwise welcomed as the one whose Chips it is (the onboarding audit, Part 2, item 15).
+ */
+export function welcomedByInvite(deviceId: string): void {
+  writeFlag(keyOf("welcomed", deviceId), "1");
+}
+
 /** Something read from the server now and again, kept while the page is open. */
 function useRead<T>(read: () => Promise<T>, everyMs: number | undefined): T | undefined {
   const [value, setValue] = useState<T | undefined>(undefined);

@@ -2638,7 +2638,7 @@ describe("the empty Agents page (ADR 0261)", () => {
     capabilities: ["agents"],
     published: true,
   });
-  const empty = (role: "owner" | "member" = "owner") => {
+  const empty = (role: "owner" | "member" | "guest" = "owner") => {
     const store = fakeStore(
       snapshotOf(
         [fixture("person.joined", 1, { participant_id: ARJUN, display_name: "Arjun", role })],
@@ -2720,6 +2720,12 @@ describe("the empty Agents page (ADR 0261)", () => {
     expect(
       screen.getByText("No agents yet. A harness's agents come when it connects."),
     ).toBeTruthy();
+  });
+
+  it("offers a guest no Connect a harness, since a guest's add is refused (the onboarding audit, Part 2, item 16)", async () => {
+    empty("guest");
+    await screen.findByTestId("agents-title");
+    expect(screen.queryByRole("button", { name: "Connect a harness" })).toBeNull();
   });
 
   it("ends the shelf with Connect a harness once there are harnesses, and the header has none", () => {
@@ -6880,11 +6886,12 @@ describe("You (ADR 0034)", () => {
     await openYou(store);
     await openRow("issue-code", "pair-form");
     await waitFor(() => expect(screen.getByTestId("pairing-code").textContent).toBe("QRS-789"));
-    const link = screen.getByTestId("pairing-link").textContent ?? "";
     // Addressed where the server says it is, not where this page was served from: the phone
     // reading the QR cannot reach jsdom's origin, and would not want to.
-    expect(link).toContain(
-      "http://192.168.1.20:4431/#pair=QRS-789&v=1&relay=wss%3A%2F%2Frelay.example&key=",
+    expect(screen.getByTestId("pairing-address").textContent).toBe("http://192.168.1.20:4431");
+    const qr = await screen.findByTestId("pairing-qr");
+    expect(qr.getAttribute("data-link")).toContain(
+      "https://chipschat.ai/p#pair=QRS-789&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431&relay=wss%3A%2F%2Frelay.example&key=",
     );
     expect(screen.getByTestId("issued-code").textContent).toContain("through relay.example");
     await waitFor(() => expect(screen.getByRole("img", { name: /A QR code/ })).toBeDefined());
@@ -6896,8 +6903,7 @@ describe("You (ADR 0034)", () => {
     await openYou(store);
     await openRow("issue-code", "pair-form");
     await waitFor(() => expect(screen.getByTestId("pairing-code").textContent).toBe("QRS-789"));
-    const link = screen.getByTestId("pairing-link").textContent ?? "";
-    expect(link).toContain(`${location.origin}/#pair=QRS-789`);
+    expect(screen.getByTestId("pairing-address").textContent).toBe(location.origin);
   });
 
   it("lets an owner change a role, asking first, but not demote the last owner, and make an invite", async () => {
@@ -9019,7 +9025,7 @@ describe("the first run (ADR 0170)", () => {
     expect(phone.textContent).toContain("3 of 3");
     expect(phone.textContent).toContain("Get Chips on your phone");
     const qr = await within(phone).findByRole("img");
-    expect(qr.dataset["link"]).toMatch(/^chips:\/\/pair\?pair=QRS-789&v=1&lan=/);
+    expect(qr.dataset["link"]).toMatch(/^https:\/\/chipschat\.ai\/p#pair=QRS-789&v=1&lan=/);
     expect(qr.dataset["link"]).toContain("relay=wss%3A%2F%2Frelay.example");
     fireEvent.click(within(phone).getByTestId("phone-offer-later"));
     await waitFor(() => expect(screen.queryByTestId("phone-offer")).toBeNull());
@@ -9056,6 +9062,27 @@ describe("the first run (ADR 0170)", () => {
     render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
     await act(async () => undefined);
     expect(screen.queryByTestId("setup-card")).toBeNull();
+  });
+
+  it("welcomes no owner who was invited: the welcome is whoever set the workspace up's (Part 2, item 15)", async () => {
+    forget();
+    onTestFinished(forget);
+    const model = buildModel([]);
+    const people = {
+      ...model.people,
+      [ARJUN]: { participantId: ARJUN, role: "owner", invitedBy: DANA },
+    } as unknown as Snapshot["model"]["people"];
+    render(
+      <Shell
+        store={fakeStore(
+          snapshotOf([], { directory: OWNER, awaiting: 0, model: { ...model, people } }),
+        )}
+        device={DEVICE}
+        files={fakeFiles()}
+      />,
+    );
+    await act(async () => undefined);
+    expect(screen.queryByTestId("first-run")).toBeNull();
   });
 
   it("welcomes nobody who isn't the owner, and no owner whose workspace has agents", async () => {

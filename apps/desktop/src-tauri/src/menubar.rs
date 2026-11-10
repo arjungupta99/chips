@@ -110,6 +110,12 @@ pub fn install(app: &AppHandle, places: Places) -> tauri::Result<()> {
     // Greyed from the start where the server is here, until its first answer.
     let first = if server_here { &grey } else { &mark };
     let chosen = places.clone();
+    let lines = Lines {
+        menu: menu.clone(),
+        running,
+        at_login: at_login.clone(),
+        shown: server_here,
+    };
     TrayIconBuilder::with_id(TRAY)
         .menu(&menu)
         .icon(first.clone())
@@ -134,8 +140,34 @@ pub fn install(app: &AppHandle, places: Places) -> tauri::Result<()> {
         })
         .build(app)?;
 
-    watch(app.clone(), places.home, running, mark, grey);
+    watch(app.clone(), places, lines, mark, grey);
     Ok(())
+}
+
+/// The menu's lines the watch changes: the first, there only with a server here, and Open at Login.
+struct Lines {
+    menu: Menu<Wry>,
+    running: MenuItem<Wry>,
+    at_login: CheckMenuItem<Wry>,
+    shown: bool,
+}
+
+impl Lines {
+    /// A server here that wasn't when the app started, from `Run Chips here` or `chips up` in a
+    /// terminal: its line goes on the menu, and the app opens at login as it does on any Mac with a
+    /// server, unless the person turned that off (the onboarding audit, Part 2, item 6).
+    fn server_came(&mut self, places: &Places) {
+        if self.shown {
+            return;
+        }
+        if self.menu.insert(&self.running, 0).is_ok() {
+            self.shown = true;
+        }
+        if let Some(bundle) = &places.bundle {
+            let _ = login::keep(&places.home, &places.notes, bundle, true);
+            let _ = self.at_login.set_checked(login::is_on(&places.home));
+        }
+    }
 }
 
 /// Ask the server on this Mac every few seconds, and grey the icon while it does not answer. With
@@ -144,8 +176,8 @@ pub fn install(app: &AppHandle, places: Places) -> tauri::Result<()> {
 /// AppKit work on the main thread, and a Mac busy enough to miss three checks is where it hung.
 fn watch(
     app: AppHandle,
-    home: PathBuf,
-    running: MenuItem<Wry>,
+    places: Places,
+    mut lines: Lines,
     mark: Image<'static>,
     grey: Image<'static>,
 ) {
@@ -153,8 +185,11 @@ fn watch(
         let mut watch = Watch::default();
         let mut drawn = None;
         loop {
-            let answering = match here::serving(&home) {
-                Some(port) => watch.heard(here::answers(port)),
+            let answering = match here::serving(&places.home) {
+                Some(port) => {
+                    lines.server_came(&places);
+                    watch.heard(here::answers(port))
+                }
                 None => true,
             };
             if drawn != Some(answering) {
@@ -164,7 +199,7 @@ fn watch(
                         .set_icon_with_as_template(Some(icon.clone()), true)
                         .is_ok()
                     {
-                        let _ = running.set_text(saying(answering));
+                        let _ = lines.running.set_text(saying(answering));
                         drawn = Some(answering);
                     }
                 }

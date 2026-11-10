@@ -5,9 +5,15 @@ sidebar:
   order: 1
 ---
 
-In the next ten minutes you will have a Chips server running on your machine, the app paired
-with it, and a harness saying hello in it — with nothing more than a token and a line of curl.
-Then the guides take you to the harness you actually run.
+Here to use Chips rather than build on it? [Chips for Mac](https://chipschat.ai/download), or
+[the install line](/start/install/) on Linux, puts it on your computer;
+[Get Chips on your iPhone](/start/iphone/) puts it on your phone; and [the gallery](/connect/gallery/)
+connects the agent you already run, from **Agents → Connect a harness** in the app.
+
+The rest of this page is for building on Chips. In the next ten minutes you will have a Chips
+server running on your machine, the app paired with it, and a harness saying hello in it — with
+nothing more than a token and a line of curl. Then the guides take you to the harness you
+actually run.
 
 ## What Chips is
 

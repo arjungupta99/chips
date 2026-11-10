@@ -78,6 +78,61 @@ pub fn link_command(home: &Path, program: &Path) -> Result<Linked, String> {
     Ok(Linked::Made)
 }
 
+/// The line `install.sh` adds to a shell's profile for `~/.local/bin`, written the same way, so
+/// either finds the other's and neither adds it twice.
+pub fn path_line(home: &Path) -> String {
+    format!(
+        "export PATH=\"{}:$PATH\"",
+        home.join(".local").join("bin").display()
+    )
+}
+
+/// The profile a new terminal reads for a login shell: `.zshrc` for zsh, the Mac's own, and
+/// `.bash_profile` for bash, as `install.sh` picks them; none for another shell.
+pub fn profile_for(home: &Path, shell: &str) -> Option<PathBuf> {
+    if shell.ends_with("/zsh") {
+        Some(home.join(".zshrc"))
+    } else if shell.ends_with("/bash") {
+        Some(home.join(".bash_profile"))
+    } else {
+        None
+    }
+}
+
+/// The profiles a shell on a Mac may set its PATH in.
+const PROFILES: [&str; 5] = [
+    ".zshrc",
+    ".zprofile",
+    ".bash_profile",
+    ".bashrc",
+    ".profile",
+];
+
+/// `~/.local/bin` put on the PATH a new terminal has, so the `chips` linked there runs by its
+/// name: Chips tells people to run `chips up --reach lan` or `chips down`, and a Mac's Terminal
+/// doesn't look in `~/.local/bin` (the onboarding audit, item 8). Nothing is written where a
+/// profile names it already, or for a shell whose profile isn't known. True when it was written.
+pub fn add_to_path(home: &Path, shell: &str) -> Result<bool, String> {
+    let named = PROFILES.iter().any(|name| {
+        std::fs::read_to_string(home.join(name))
+            .map(|text| text.contains(".local/bin"))
+            .unwrap_or(false)
+    });
+    let Some(profile) = profile_for(home, shell) else {
+        return Ok(false);
+    };
+    if named {
+        return Ok(false);
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&profile)
+        .map_err(|error| error.to_string())?;
+    write!(file, "\n# Chips\n{}\n", path_line(home)).map_err(|error| error.to_string())?;
+    Ok(true)
+}
+
 /// `chips up`, as the app runs it: nothing asked, nothing opened, one line of JSON.
 pub fn up_args(reach: &str) -> Vec<String> {
     ["up", "--reach", reach, "--json", "--no-open"]
@@ -500,6 +555,38 @@ mod tests {
         assert_eq!(
             std::fs::read_link(&path).unwrap(),
             home.join(".local/lib/chips/current/bin/chips")
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn local_bin_goes_on_the_path_once_and_where_a_profile_has_it_not_at_all() {
+        let home = std::env::temp_dir().join(format!("chips-path-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).unwrap();
+        assert_eq!(add_to_path(&home, "/bin/zsh"), Ok(true));
+        let written = std::fs::read_to_string(home.join(".zshrc")).unwrap();
+        assert!(written.contains(&path_line(&home)));
+        // Again, and from install.sh's line in another profile: nothing more.
+        assert_eq!(add_to_path(&home, "/bin/zsh"), Ok(false));
+        assert_eq!(
+            std::fs::read_to_string(home.join(".zshrc")).unwrap(),
+            written
+        );
+        std::fs::remove_file(home.join(".zshrc")).unwrap();
+        std::fs::write(
+            home.join(".zprofile"),
+            "export PATH=\"$HOME/.local/bin:$PATH\"\n",
+        )
+        .unwrap();
+        assert_eq!(add_to_path(&home, "/bin/zsh"), Ok(false));
+        assert!(!home.join(".zshrc").exists());
+        // A shell whose profile isn't known is left alone.
+        std::fs::remove_file(home.join(".zprofile")).unwrap();
+        assert_eq!(add_to_path(&home, "/usr/local/bin/fish"), Ok(false));
+        assert_eq!(
+            profile_for(&home, "/bin/bash"),
+            Some(home.join(".bash_profile"))
         );
         let _ = std::fs::remove_dir_all(&home);
     }

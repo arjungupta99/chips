@@ -16,6 +16,7 @@
  * Content-Security-Policy holds it to (`page-parts.ts`).
  */
 
+import { APP_STORE_LINK, MAC_DOWNLOAD } from "@chipschat/protocol";
 import { type RelayPage, relayHtml } from "./page-parts.js";
 import { PAIR } from "./pair-page.js";
 
@@ -48,7 +49,7 @@ export const APP_SITE_ASSOCIATION = JSON.stringify({
  *
  * `lifeOf` is what the page says about the link's life: when it runs out, the time on its last
  * day and the date before that, and what to do once Chips is installed if it has run out by then.
- * Who sent it can't add anybody to a test of the app, so the page names no store and no test.
+ * Chips is on the App Store, so the page says where to get it (the onboarding audit, item 3).
  */
 export const LINKS_SOURCE = `function invite(hash) {
   var fields = new URLSearchParams(String(hash).replace(/^#/, ""));
@@ -112,6 +113,7 @@ const JOIN = relayHtml({
     <h1>Join on Chips</h1>
     <p>You've been invited to a workspace on Chips, where people and their agents talk.</p>
     <a id="open" class="open" href="#">Open in Chips</a>
+    <p class="note">No Chips yet? <a href="${APP_STORE_LINK}">Get it on the App Store</a> for iPhone or iPad, or <a href="${MAC_DOWNLOAD}">Chips for Mac</a>, then open this link again.</p>
     <p id="life" class="note"></p>
     <p class="note"><a id="browser" href="#">Join in this browser</a> instead. It opens only on the same network as the server.</p>
   </section>

@@ -17,6 +17,7 @@
  * and the mobile guide says so.
  */
 
+import { isPhonePairingLink } from "@chipschat/protocol";
 import { joinPathFor } from "./pairing/inviteLink";
 
 /** The route a link points at, or nothing when it points at something this app does not have. */
@@ -38,6 +39,10 @@ export function routeFor(raw: string): string | undefined {
  */
 export function routerPathFor(path: string): string | null {
   if (routeFor(path) !== undefined) return null;
+  // A phone's pairing QR at chipschat.ai/p (the install plan, §3.2), which iOS opens the app with
+  // once it has read the site's association file: the pairing screen, as `chips://pair` opens it,
+  // and `usePairingLink` follows the link itself, fragment and all.
+  if (isPhonePairingLink(path)) return "/pair";
   return joinPathFor(path) ?? path;
 }
 

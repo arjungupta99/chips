@@ -15,9 +15,10 @@
  */
 
 import { networkUrl } from "@chipschat/platform";
-import { pairingUrl } from "@chipschat/protocol";
+import { pairingCode, pairingCodeTyped, phonePairingUrl } from "@chipschat/protocol";
 import { OPERATOR_HEADER, readOperatorToken } from "@chipschat/server";
-import { type CliDevice, call, loadDevice } from "../device.js";
+import { serverAddress } from "../args.js";
+import { type CliDevice, call, loadDevice, PairingError } from "../device.js";
 import { type Console, facts, heading } from "../output.js";
 import { qr } from "./serve.js";
 
@@ -111,10 +112,88 @@ export async function issuePairingCode(options: IssueOptions): Promise<IssuedCod
     ]),
   );
   if (asked.note !== undefined) out.out(`\n  ${asked.note}`);
-  out.out("\n  Type the code into the app, or scan it:\n");
-  out.out(await qr(pairingUrl(url, issued.code, { relay, key: serverKey })));
-  out.out("");
+  if (relay === undefined && isLoopback(url)) {
+    // A QR for 127.0.0.1 opens on exactly one device, and it isn't the phone (the onboarding
+    // audit, item 29): the code is for another browser or `chips pair` on this machine.
+    out.out(
+      [
+        "",
+        "  Only this machine can reach this Chips, so a phone can't use the code. Type it in a",
+        "  browser or `chips pair` here, or let a phone in: `chips up --reach lan` for this",
+        "  Wi-Fi, or `chips up --reach relay` for anywhere.",
+        "",
+      ].join("\n"),
+    );
+  } else {
+    out.out(
+      "\n  On a phone, scan this with its camera. Or type the code and the address in Chips:\n",
+    );
+    out.out(await qr(phonePairingUrl(url, issued.code, { relay, key: serverKey })));
+    out.out("");
+  }
   return { code: issued.code, expiresAt: issued.expires_at, url, relay, serverKey };
+}
+
+function isLoopback(url: string): boolean {
+  try {
+    return LOOPBACK.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** The default server for `chips pair`: the one on this machine. */
+export const PAIR_DEFAULT_SERVER = "http://127.0.0.1:4431";
+
+/**
+ * What `chips pair` was asked: the code, wherever it stands among the words, and the server, from
+ * `--server` or a word that is an address. A code is read as `pairingCodeTyped` reads one, so
+ * `abc234` is `ABC-234`. Or what was wrong.
+ */
+export function pairingAsked(
+  words: readonly string[],
+  server: string | undefined,
+): { ok: true; code: string; server: string } | { ok: false; problem: string } {
+  const address = words.find((word) => /^https?:\/\//i.test(word));
+  const rest = words.filter((word) => word !== address);
+  const typed = rest[0];
+  if (typed === undefined) {
+    return {
+      ok: false,
+      problem:
+        "Give the pairing code: `chips pair ABC-234 --server <address>`, or `chips pair --issue` for one.",
+    };
+  }
+  const code = pairingCodeTyped(typed);
+  if (!pairingCode.safeParse(code).success) {
+    return {
+      ok: false,
+      problem: `\`${typed}\` isn't a pairing code. A code is six letters and digits, like ABC-234.`,
+    };
+  }
+  const given = server ?? address ?? PAIR_DEFAULT_SERVER;
+  const url = serverAddress(given);
+  if (url === undefined) {
+    return {
+      ok: false,
+      problem: `\`${given}\` isn't a server's address, like http://192.168.1.20:4431.`,
+    };
+  }
+  return { ok: true, code, server: url };
+}
+
+/** A pairing that failed, in words: the server's own, or that nothing answered. */
+export function pairingFailed(failure: unknown, server: string): string {
+  if (failure instanceof PairingError) return failure.message;
+  if (failure instanceof TypeError) {
+    return [
+      `Nothing answered at ${server}.`,
+      server === PAIR_DEFAULT_SERVER
+        ? "Chips isn't running on this machine: `chips up` starts it, or give `--server <address>` for one elsewhere."
+        : "Check the address, and that Chips is running there and this machine is on its network.",
+    ].join(" ");
+  }
+  return failure instanceof Error ? failure.message : String(failure);
 }
 
 /**

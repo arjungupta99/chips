@@ -1056,7 +1056,9 @@ describe("signing out", () => {
     const store = fake();
     await render(<You device={DEVICE} store={store} />);
     await userEvent.press(screen.getByTestId("sign-out"));
-    await waitFor(() => expect(mockReplaced).toEqual(["/pair"]));
+    await waitFor(() =>
+      expect(mockReplaced).toEqual([{ pathname: "/pair", params: { ways: "1" } }]),
+    );
     expect(store.calls).toContainEqual({ name: "revokeDevice", args: "dev_1" });
     // Its key, and its cache with it (SEC-32).
     expect(core.forgetDevice).toHaveBeenCalledWith(
@@ -1088,7 +1090,9 @@ describe("signing out", () => {
     };
     await render(<You device={DEVICE} store={store} />);
     await userEvent.press(screen.getByTestId("sign-out"));
-    await waitFor(() => expect(mockReplaced).toEqual(["/pair"]));
+    await waitFor(() =>
+      expect(mockReplaced).toEqual([{ pathname: "/pair", params: { ways: "1" } }]),
+    );
     expect(core.forgetDevice).toHaveBeenCalled();
   });
 
@@ -1104,7 +1108,9 @@ describe("signing out", () => {
     };
     await render(<You device={DEVICE} store={store} />);
     await userEvent.press(screen.getByTestId("sign-out"));
-    await waitFor(() => expect(mockReplaced).toEqual(["/pair"]));
+    await waitFor(() =>
+      expect(mockReplaced).toEqual([{ pathname: "/pair", params: { ways: "1" } }]),
+    );
     expect(asked).toEqual(["dev_1"]);
     expect(core.forgetDevice).toHaveBeenCalledWith("dev_1", expect.anything(), expect.anything());
   });
@@ -1132,7 +1138,9 @@ describe("deleting your account (ADR 0243)", () => {
     await userEvent.type(within(sheet).getByTestId("delete-account-typed"), "d");
     expect(confirm).toBeEnabled();
     await userEvent.press(confirm);
-    await waitFor(() => expect(mockReplaced).toEqual(["/pair"]));
+    await waitFor(() =>
+      expect(mockReplaced).toEqual([{ pathname: "/pair", params: { ways: "1" } }]),
+    );
     expect(store.calls).toContainEqual({ name: "deleteAccount", args: undefined });
     // The workspace leaves this phone as after a sign-out: its key and cache, here.
     expect(core.forgetDevice).toHaveBeenCalledWith("dev_1", expect.anything(), expect.anything());
@@ -1348,7 +1356,9 @@ describe("beside the list on an iPad (ADR 0256, 3 November 2026)", () => {
     const again = within(await screen.findByTestId("delete-account-page"));
     await userEvent.type(again.getByTestId("delete-account-typed"), "Northwind");
     await userEvent.press(again.getByTestId("delete-account-confirm"));
-    await waitFor(() => expect(mockReplaced).toEqual(["/pair"]));
+    await waitFor(() =>
+      expect(mockReplaced).toEqual([{ pathname: "/pair", params: { ways: "1" } }]),
+    );
     expect(asked).toHaveBeenCalledWith(
       "You've left Northwind",
       "Your account there is deleted.",

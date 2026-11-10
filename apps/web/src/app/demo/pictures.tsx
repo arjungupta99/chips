@@ -87,7 +87,8 @@ export function EndCard(props: {
   readonly words: FilmEnd;
   /** The other films, offered under More walkthroughs; none, and the heading goes too. */
   readonly more: readonly OfferedFilm[];
-  readonly onSetUp: () => void;
+  /** Set up my own Chips. Absent, the button is too: a browser paired already has its Chips. */
+  readonly onSetUp?: (() => void) | undefined;
   readonly onInvite: () => void;
   readonly onFilm: (film: string) => void;
   readonly onLookAround: () => void;
@@ -113,15 +114,17 @@ export function EndCard(props: {
         {place === "over" && <ChipMark size={46} />}
         <h2 id={titleId}>{words.line}</h2>
         <p>{words.sentence}</p>
-        <button
-          type="button"
-          className="demo-gold"
-          aria-expanded={expanded("own")}
-          data-testid="demo-set-up"
-          onClick={props.onSetUp}
-        >
-          Set up my own Chips
-        </button>
+        {props.onSetUp === undefined ? null : (
+          <button
+            type="button"
+            className="demo-gold"
+            aria-expanded={expanded("own")}
+            data-testid="demo-set-up"
+            onClick={props.onSetUp}
+          >
+            Set up my own Chips
+          </button>
+        )}
         <button
           type="button"
           className="demo-raised"

@@ -25,9 +25,11 @@ import {
   waitForAllow,
 } from "@chipschat/core";
 import {
+  APP_STORE_LINK,
   appPairingUrl,
   type InviteLink,
   inviteFromLink,
+  MAC_DOWNLOAD,
   type PairingPayload,
   pairingFromLink,
   pairingFromUrl,
@@ -36,6 +38,7 @@ import { Button, ChipMark } from "@chipschat/ui";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import type { Desktop, FoundServer, UpAnswer } from "../native.ts";
 import { browserDeviceName } from "./browserName.ts";
+import { welcomedByInvite } from "./firstRun.ts";
 import {
   appLinkForInvite,
   type InviteReach,
@@ -427,6 +430,9 @@ function Join(props: {
   readonly onGiveUp: () => void;
 }) {
   const { invite: link, inShell } = props;
+  // A plain-HTTP page away from loopback can make no key, so it can't join: said before a name is
+  // typed, not after Join (the onboarding audit, item 3). The Mac app makes its keys its own way.
+  const [keyless] = useState(() => !inShell && !canMakeKeys());
   const [opened, setOpened] = useState<Opened>({ kind: "asking" });
   const [name, setName] = useState("");
   const [error, setError] = useState<string | undefined>(undefined);
@@ -472,6 +478,7 @@ function Join(props: {
         inviter: opened.invite.invitedByName,
         place: opened.invite.spaceName ?? opened.invite.workspaceName,
       });
+      welcomedByInvite(device.deviceId);
       // A space's link lands them in its room (ADR 0168).
       props.onPaired(device, opened.invite.spaceId);
     } catch (problem) {
@@ -501,6 +508,7 @@ function Join(props: {
       <ChipMark size={40} />
       <h2>{invite === undefined ? "An invite" : joinTitle(invite)}</h2>
       {invite !== undefined && <Invited invite={invite} />}
+      {keyless && <KeylessJoin />}
       {opened.kind === "trouble" && (
         <p className="pair-error" role="alert">
           {opened.message}
@@ -520,14 +528,14 @@ function Join(props: {
         placeholder="Your name"
         autoComplete="name"
         enterKeyHint="go"
-        disabled={invite === undefined}
+        disabled={invite === undefined || keyless}
       />
       <div className="pair-actions">
         <Button
           type="submit"
           variant="primary"
           size="lg"
-          disabled={busy || invite === undefined || name.trim() === ""}
+          disabled={busy || keyless || invite === undefined || name.trim() === ""}
         >
           {busy ? "Joining…" : "Join"}
         </Button>
@@ -554,16 +562,44 @@ async function joinHere(
   return device;
 }
 
+/** Where to get Chips on this device: the App Store on an iPhone or iPad, the Mac download else. */
+function getChips(agent: string): { readonly href: string; readonly words: string } {
+  return /iPhone|iPad/.test(agent)
+    ? { href: APP_STORE_LINK, words: "Get it on the App Store" }
+    : { href: MAC_DOWNLOAD, words: "Get Chips for Mac" };
+}
+
+/**
+ * Why this page can't join, and the ways that can (the onboarding audit, item 3): the Chips app,
+ * or this server's own address on the machine that runs it.
+ */
+function KeylessJoin() {
+  const here = loopbackOf(location);
+  return (
+    <p className="pair-error" data-testid="join-keyless">
+      This page is plain HTTP at {location.host}, and a browser will not make a key on an address
+      like that, so it can't join here. Open the invite in the Chips app instead, or on the machine
+      that runs Chips, open <a href={here}>{here}</a>.
+    </p>
+  );
+}
+
 /**
  * The same invite handed to the Chips app, on a device that may have it: an iPhone, an iPad or a
- * Mac (ADR 0164). The page can't tell whether the app is there, so it asks.
+ * Mac (ADR 0164). The page can't tell whether the app is there, so it asks, and says where to get
+ * it (the onboarding audit, item 3).
  */
 function AppOffer(props: { readonly invite: InviteLink }) {
   if (typeof navigator === "undefined" || !mayHaveTheApp(navigator.userAgent)) return null;
+  const get = getChips(navigator.userAgent);
   return (
     <div className="pair-app" data-testid="join-in-app">
       <p>
-        <b>Have the Chips app?</b> Open the invite there.
+        <b>Have the Chips app?</b> Open the invite there. No Chips yet?{" "}
+        <a href={get.href} data-testid="join-get-chips">
+          {get.words}
+        </a>
+        .
       </p>
       <a
         className="ui-button"
@@ -611,6 +647,14 @@ function Invited(props: { readonly invite: InvitePeek }) {
     </>
   );
 }
+
+/**
+ * Where a code comes from, under the box it is typed in: nothing said it, so somebody who ran
+ * `chips up` in Terminal and then opened the Mac app had an empty box and no idea (the onboarding
+ * audit, Part 2, item 13).
+ */
+export const CODE_FROM =
+  "A code comes from a device already paired: You → Devices → Pair another device in Chips there, or chips pair --issue in Terminal on the computer Chips runs on.";
 
 /** Where Chips answers on this Mac when it runs here: `chips up`'s own port. */
 export const HERE = "http://127.0.0.1:4431";
@@ -1027,6 +1071,9 @@ function EnterCode(props: {
           )}
         </p>
         <Keyless keyless={keyless} payload={payload} serverUrl={serverUrl} />
+        <p className="pair-note" data-testid="pair-where-a-code">
+          {CODE_FROM}
+        </p>
         <input
           aria-label="Pairing code"
           value={code}

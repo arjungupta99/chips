@@ -16,11 +16,12 @@
  */
 
 import type { FilmEnd } from "@chipschat/core";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { MAC_DOWNLOAD } from "@chipschat/protocol";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Big } from "../pairing/JoinCard";
 import { PasteAction } from "../pairing/PasteAction";
-import type { PasteInvite } from "../pairing/usePasteInvite";
+import type { JoinInvites } from "../pairing/useJoin";
 import { Button } from "../ui/Button";
 import { ChipPulse } from "../ui/ChipPulse";
 import { Icon } from "../ui/Icon";
@@ -55,7 +56,7 @@ export function EndCard({
   /** The films under More walkthroughs: every other there is a video of (ADR 0217). */
   readonly more: readonly OfferedFilm[];
   /** What Have an invite link? pastes through, and what it says when the paste was no invite. */
-  readonly invites: Pick<PasteInvite, "paste" | "pasted" | "problem">;
+  readonly invites: JoinInvites;
   /** Over the film full screen, or in its frame's place on the first screen. */
   readonly place?: "over" | "page";
 }) {
@@ -80,6 +81,26 @@ export function EndCard({
         <WaysIn ways={ways} more={more} invites={invites} />
       </ScrollView>
     </View>
+  );
+}
+
+/** Under Paste: a pasted pairing link pairing, or what the paste or the pairing ran into. */
+function PasteSaid({ invites }: { readonly invites: JoinInvites }) {
+  const palette = usePalette();
+  const { pairing } = invites;
+  if (pairing?.working === true) {
+    return (
+      <Text style={[styles.problem, { color: palette.ink3 }]} testID="paste-pairing">
+        Pairing…
+      </Text>
+    );
+  }
+  const said = invites.problem ?? pairing?.failure;
+  if (said === undefined) return null;
+  return (
+    <Text style={[styles.problem, { color: palette.red }]} testID="paste-problem">
+      {said}
+    </Text>
   );
 }
 
@@ -114,7 +135,7 @@ export function WaysIn({
 }: {
   readonly ways: EndWays;
   readonly more: readonly OfferedFilm[];
-  readonly invites: Pick<PasteInvite, "paste" | "pasted" | "problem">;
+  readonly invites: JoinInvites;
   readonly split?: boolean;
 }) {
   const palette = usePalette();
@@ -129,12 +150,9 @@ export function WaysIn({
         testID="demo-scan"
       />
       <PasteAction invites={invites} raised />
-      {invites.problem === undefined ? null : (
-        <Text style={[styles.problem, { color: palette.red }]} testID="paste-problem">
-          {invites.problem}
-        </Text>
-      )}
+      <PasteSaid invites={invites} />
       <TypeAction onPress={ways.onType} />
+      <ForAComputer />
     </View>
   );
   const films =
@@ -203,6 +221,26 @@ export function WaysIn({
 }
 
 /**
+ * Every door above needs a Chips already running on a computer, so where to get one is said here
+ * (the onboarding audit, item 2): chipschat.ai's download page, for the Mac and the rest.
+ */
+export function ForAComputer() {
+  const palette = usePalette();
+  return (
+    <Text style={[styles.computer, { color: palette.ink3 }]} testID="demo-for-a-computer">
+      Chips runs on your computer. No Chips there yet?{" "}
+      <Text
+        accessibilityRole="link"
+        onPress={() => void Linking.openURL(MAC_DOWNLOAD)}
+        style={[styles.strong, { color: palette.accent }]}
+      >
+        Get it at chipschat.ai
+      </Text>
+    </Text>
+  );
+}
+
+/**
  * Have a pairing code?: a row like Have an invite link?'s, with Type at its end in the same soft
  * gold as iOS's Paste beside it. The whole row takes the tap.
  */
@@ -260,6 +298,7 @@ const styles = StyleSheet.create({
   ways: { alignSelf: "stretch", gap: SPACE.sm },
   big: { minHeight: 52, borderRadius: RADIUS.xxl },
   problem: { fontSize: TEXT.md, textAlign: "center" },
+  computer: { fontSize: TEXT.sm, textAlign: "center", marginTop: SPACE.xs },
   row: {
     minHeight: 52,
     borderRadius: RADIUS.xxl,

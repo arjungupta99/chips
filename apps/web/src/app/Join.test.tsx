@@ -10,7 +10,7 @@ import { type Directory, type JoinRequest, kindWords, type WorkspaceModel } from
 import type { Connector } from "@chipschat/protocol";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ConnectHere } from "./ConnectBridge.tsx";
+import { type ConnectHere, OnThisMac } from "./ConnectBridge.tsx";
 import { ConnectPage, type JoinService } from "./Join.tsx";
 
 const card = (kind: Connector["kind"], sentence?: string): Connector => ({
@@ -323,6 +323,27 @@ describe("a bridge's card on Chips for Mac", () => {
     expect(screen.queryByTestId("join-here-stall")).toBeNull();
   });
 
+  it("in the welcome, gives Connect's place to Open its space once the hello is in (the onboarding audit, item 7)", async () => {
+    const request = waiting({ state: "redeemed", name: "Hermes", spaceId: "spc_hermes" });
+    const shell = shellSaying([{ step: "checking" }, { step: "connected" }], 0);
+    const props = {
+      card: HERMES,
+      connect: shell.connectHere,
+      link: LINK,
+      request,
+      spent: false,
+      nowMs: Date.now(),
+      onNewLink: async () => LINK,
+    };
+    const { rerender } = render(<OnThisMac {...props} />);
+    const go = await screen.findByTestId("join-here-go");
+    await waitFor(() => expect((go as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(go);
+    await waitFor(() => expect(go.textContent).toBe("Connecting…"));
+    rerender(<OnThisMac {...props} arrived />);
+    await waitFor(() => expect(screen.queryByTestId("join-here-go")).toBeNull());
+  });
+
   it("says the card's stall where the joined bridge never says hello, rather than spinning on", async () => {
     joinedQuiet(3 * 60_000);
     const go = await screen.findByTestId("join-here-go");
@@ -330,7 +351,7 @@ describe("a bridge's card on Chips for Mac", () => {
     fireEvent.click(go);
     const stall = await screen.findByTestId("join-here-stall");
     expect(stall.textContent).toBe(
-      "Hermes connected but hasn't said anything yet.Open the checklist.",
+      "Hermes connected but hasn't said anything yet.Check on its computer that it's running and signed in. A harness of your own speaks when it first sends a message.",
     );
     // The words On another computer gives, in place of a Connect that would make a second Hermes.
     expect(screen.queryByTestId("join-here-go")).toBeNull();

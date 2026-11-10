@@ -25,7 +25,13 @@ export { down } from "./commands/down.js";
 export type { JoinCommandOptions } from "./commands/join.js";
 export { exportLines, joinChips } from "./commands/join.js";
 export type { IssuedCode, IssueOptions, OperatorServer } from "./commands/pair.js";
-export { issuePairingCode, requestPairingCode } from "./commands/pair.js";
+export {
+  issuePairingCode,
+  PAIR_DEFAULT_SERVER,
+  pairingAsked,
+  pairingFailed,
+  requestPairingCode,
+} from "./commands/pair.js";
 export type { RelayOptions } from "./commands/relay.js";
 export { relay } from "./commands/relay.js";
 export type { Removed, RemoveOptions } from "./commands/remove.js";

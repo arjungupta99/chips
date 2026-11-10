@@ -243,6 +243,19 @@ describe("chips connect <id> '<link>'", () => {
     });
   });
 
+  it("without --json, says each step's few words in the terminal once, as a sheet shows them", async () => {
+    const deps = depsFor(
+      { "1.0.0": tarball("1.0.0") },
+      { env: { PATH: "/usr/bin", FAKE_RAN: ran, FAKE_FAIL: "words" } },
+    );
+    expect(await connectBridge(card("fake"), LINK, deps)).toBe(1);
+    expect(deps.lines.filter((line) => line.includes("Looking for Fake"))).toEqual([
+      "  Looking for Fake…",
+    ]);
+    // Where it stopped is the bridge's own sentence, not its words for a sheet.
+    expect(deps.lines.some((line) => line.includes("Nothing answers on port 1234"))).toBe(false);
+  });
+
   it("refuses a line that isn't a link Chips made, before fetching anything", async () => {
     const deps = depsFor({ "1.0.0": tarball("1.0.0") }, { json: true });
     expect(await connectBridge(card("fake"), "not-a-link", deps)).toBe(1);

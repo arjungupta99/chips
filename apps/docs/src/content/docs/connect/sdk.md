@@ -86,7 +86,7 @@ started by hand first: two copies of one harness answer twice.
 ```ts
 import { connect, type Chips } from "@chipschat/harness";
 
-const url = process.env["CHIPS_URL"] ?? "http://127.0.0.1:4432";
+const url = process.env["CHIPS_URL"] ?? "http://127.0.0.1:4431";
 const token = process.env["CHIPS_HARNESS_TOKEN"]; // chips_at_…, from join(), or Connect a harness → Advanced
 if (token === undefined) throw new Error("set CHIPS_HARNESS_TOKEN");
 

@@ -22,7 +22,16 @@ import {
 } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, AppState, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  AppState,
+  Linking,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { isPad } from "../device/word";
 import { readSetting, SETTINGS, writeSetting } from "../prefs";
 import { onPushChosen } from "../push/chosen";
@@ -163,7 +172,11 @@ export function useSetup(store: Store, snapshot: Snapshot, device: Device | unde
     },
     onTurnOn: () => {
       if (device === undefined) return;
-      void turnOnPush(device);
+      // Refused once, iOS asks no more and answers no at once: Settings is where they're turned on
+      // (the onboarding audit, item 28).
+      void turnOnPush(device).then((turned) => {
+        if (turned.kind === "refused") void Linking.openSettings();
+      });
     },
   };
 }

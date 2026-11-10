@@ -26,7 +26,7 @@ import {
   setupSteps,
   showsWelcome,
 } from "@chipschat/core";
-import { appPairingUrl, type Connector, FIRST_PERSON_NAME } from "@chipschat/protocol";
+import { type Connector, FIRST_PERSON_NAME, phonePairingUrl } from "@chipschat/protocol";
 import { Button, ChipMark } from "@chipschat/ui";
 import QRCode from "qrcode";
 import {
@@ -268,7 +268,7 @@ export function letYourWifiIn(besideRelay: boolean): string {
 }
 
 /** Whether a phone could reach the address it would be shown: not one on this machine alone. */
-function reachableFromAPhone(url: string, relay: string | undefined): boolean {
+export function reachableFromAPhone(url: string, relay: string | undefined): boolean {
   if (relay !== undefined) return true;
   try {
     return placeOf(new URL(url).hostname) !== "loopback";
@@ -278,14 +278,15 @@ function reachableFromAPhone(url: string, relay: string | undefined): boolean {
 }
 
 /**
- * A code for the phone, as a `chips://pair` link the iPhone's camera opens in the app, drawn as a
- * QR. A code is good for fifteen minutes: a fresh one is made as the old one runs out. A server
- * that answers this computer alone, with no relay, gets no QR: it would open nothing.
+ * A code for the phone, as the chipschat.ai/p link the iPhone's camera opens (the install plan,
+ * §3.2): in Chips when it is there, at where to get it when it isn't. Drawn as a QR. A code is good
+ * for fifteen minutes: a fresh one is made as the old one runs out. A server that answers this
+ * computer alone, with no relay, gets no QR: it would open nothing.
  */
 async function qrOf(issued: IssuedCode, serverUrl: string): Promise<PairingQr | string> {
   const url = issued.serverUrl ?? serverUrl;
   if (!reachableFromAPhone(url, issued.relay)) return ONLY_THIS_COMPUTER;
-  const link = appPairingUrl(url, issued.code, { relay: issued.relay, key: issued.serverKey });
+  const link = phonePairingUrl(url, issued.code, { relay: issued.relay, key: issued.serverKey });
   const svg = await QRCode.toString(link, { type: "svg", margin: 1 });
   return { svg, link, relay: issued.relay !== undefined };
 }
@@ -414,12 +415,7 @@ function PhoneWaiting(props: {
         </Button>
       )}
       {local && <small>{letYourWifiIn(onRelay !== undefined)}</small>}
-      {qr !== undefined && (
-        <small>
-          Scan it with the iPhone's camera: Chips opens already paired
-          {qr.relay ? ", and reaches this computer from anywhere." : "."}
-        </small>
-      )}
+      {qr !== undefined && <small>{scanWords(qr.relay)}</small>}
       <button
         type="button"
         className="join-link"
@@ -430,6 +426,16 @@ function PhoneWaiting(props: {
       </button>
     </>
   );
+}
+
+/**
+ * Under the QR. With the relay on, a code a device makes asks first (ADR 0232), so the phone waits
+ * for an Allow here rather than opening already paired (the onboarding audit, item 31).
+ */
+export function scanWords(relay: boolean): string {
+  return relay
+    ? "Scan it with your iPhone's camera, then allow the phone when Chips asks here. It reaches this computer from anywhere. No Chips on the phone yet? The code leads to the App Store first."
+    : "Scan it with your iPhone's camera: Chips opens already paired. No Chips on the phone yet? The code leads to the App Store first.";
 }
 
 function PhonePaired(props: { readonly name: string; readonly relay: boolean }) {
@@ -449,6 +455,16 @@ function PhonePaired(props: { readonly name: string; readonly relay: boolean }) 
 }
 
 /** Whether this browser will raise a banner when an agent needs this person; the desktop always can. */
+/** How often the setup card asks for this person's devices: while an owner's card waits on one. */
+function devicesEvery(owner: boolean, hidden: boolean, allIn: boolean): number | undefined {
+  return owner && !hidden && !allIn ? 15_000 : undefined;
+}
+
+/** Whether this browser has refused banners for the page; never in the Mac app, which has its own. */
+function refusedHere(desktop: boolean): boolean {
+  return !desktop && browserPermission().state === "denied";
+}
+
 function useNotificationsOn(desktop: boolean): boolean {
   const where = globalThis;
   return useSyncExternalStore(
@@ -472,11 +488,14 @@ function useWelcome(
   const [welcome, setWelcome] = useState<"name" | "gallery" | undefined>(undefined);
   const decided = useRef(false);
   const listed = snapshot.directoryFrom !== undefined;
+  // Somebody invited, an owner among them, was not who set the workspace up: the welcome is that
+  // person's, on any device of theirs (the onboarding audit, Part 2, item 15).
+  const invited = snapshot.model.people[selfId]?.invitedBy !== undefined;
   useEffect(() => {
     if (decided.current || !listed) return;
     decided.current = true;
-    if (showsWelcome(snapshot.directory, selfId, welcomed)) setWelcome("name");
-  }, [listed, snapshot.directory, selfId, welcomed]);
+    if (showsWelcome(snapshot.directory, selfId, welcomed || invited)) setWelcome("name");
+  }, [listed, snapshot.directory, selfId, welcomed, invited]);
   return [welcome, setWelcome];
 }
 
@@ -524,7 +543,10 @@ export function useFirstRun(input: {
   const [welcome, setWelcome] = useWelcome(snapshot, selfId, welcomed);
 
   const owner = ownsWorkspace(snapshot.directory, selfId);
-  const devices = useMyDevices(store, owner && !hidden ? 15_000 : undefined);
+  // Asked again every 15 s while the card waits on a device, and no more once it has them all
+  // (the onboarding audit, Part 2, item 24): before, an owner's page asked for good.
+  const [devicesIn, setDevicesIn] = useState(false);
+  const devices = useMyDevices(store, devicesEvery(owner, hidden, devicesIn));
   const steps = setupSteps({
     server: facts,
     here: input.desktop ? "mac" : "browser",
@@ -532,8 +554,11 @@ export function useFirstRun(input: {
     model: snapshot.model,
     directory: snapshot.directory,
     notifications,
+    notificationsRefused: refusedHere(input.desktop),
   });
   const phoneDone = steps.find((step) => step.id === "phone")?.done === true;
+  const computerDone = steps.find((step) => step.id === "computer")?.done === true;
+  useEffect(() => setDevicesIn(phoneDone && computerDone), [phoneDone, computerDone]);
 
   const done = (roomId?: string) => {
     setWelcome(undefined);

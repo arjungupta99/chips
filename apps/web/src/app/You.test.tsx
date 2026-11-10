@@ -154,7 +154,7 @@ function fakePeople(devices: PairedDeviceRecord[], links: Invite[] = []) {
         code: "QRS-789",
         expiresAt: new Date(NOW + 15 * 60_000).toISOString(),
         url: "http://192.168.1.20:4431/#pair=QRS-789",
-        appUrl: "chips://pair?pair=QRS-789&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431",
+        appUrl: "https://chipschat.ai/p#pair=QRS-789&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431",
         relay: undefined,
       };
     },
@@ -600,6 +600,15 @@ describe("devices (ADR 0085)", () => {
       expect(within(form).getByTestId("pairing-code").textContent).toBe("QRS-789"),
     );
     expect(within(form).getByTestId("issued-code").textContent).toContain("On this network only");
+    // The address to type beside the code on a phone, not a long link (the onboarding audit, item 30).
+    expect(within(form).getByTestId("pairing-address").textContent).toBe(
+      "http://192.168.1.20:4431",
+    );
+    await waitFor(() =>
+      expect(within(form).getByTestId("pairing-qr").getAttribute("data-link")).toBe(
+        "https://chipschat.ai/p#pair=QRS-789&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431",
+      ),
+    );
     fireEvent.click(within(form).getByRole("button", { name: "Another code" }));
     await waitFor(() => expect(done.pairedFor).toHaveLength(2));
     // A server too old to make a computer's link offers none.
@@ -632,6 +641,22 @@ describe("devices (ADR 0085)", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it("draws no phone QR for a server only this computer reaches, and says how to let a phone in", async () => {
+    const { people } = fakePeople([device("Chips for Mac", { current: true })]);
+    const issuePairingCode = async () => ({
+      code: "QRS-789",
+      expiresAt: new Date(NOW + 15 * 60_000).toISOString(),
+      url: "http://127.0.0.1:4431/#pair=QRS-789",
+      relay: undefined,
+    });
+    renderYou({ people: { ...people, issuePairingCode } });
+    fireEvent.click(screen.getByTestId("issue-code"));
+    const issued = await screen.findByTestId("issued-code");
+    expect(issued.textContent).toContain("so a phone can't reach it");
+    expect(issued.textContent).toContain("chips up --reach lan");
+    expect(screen.queryByTestId("pairing-qr")).toBeNull();
   });
 
   it("reads the list once the connection is open, and says nothing is wrong before it", async () => {
@@ -912,9 +937,9 @@ describe("the workspace's rows", () => {
     );
     expect(done.pairedFor).toEqual([DANA]);
     expect(within(panel).getByRole("heading").textContent).toBe("A new phone for Dana");
-    expect(panel.textContent).toContain("On Dana's phone, open Chips and choose Scan a QR code.");
+    expect(panel.textContent).toContain("Scan the QR with Dana's phone's camera.");
     expect(within(panel).getByTestId("new-phone-link").textContent).toBe(
-      "chips://pair?pair=QRS-789&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431",
+      "https://chipschat.ai/p#pair=QRS-789&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431",
     );
     await waitFor(() => expect(within(panel).getByRole("img")).toBeTruthy());
     fireEvent.click(within(panel).getByRole("button", { name: "Done" }));
@@ -934,7 +959,7 @@ describe("the workspace's rows", () => {
     expect(done.replacing).toEqual(["dev_danas_iphone"]);
     expect(within(panel).getByRole("heading").textContent).toBe("Reconnect Dana's iPhone");
     expect(panel.textContent).toContain(
-      "Chips deleted from it, or the phone reset? On it, open Chips and choose Scan a QR code. It takes this Dana's iPhone's place, with every space and everything Dana said, and the old one is signed out.",
+      "Chips deleted from it, or the phone reset? Scan the QR with its camera. It takes this Dana's iPhone's place, with every space and everything Dana said, and the old one is signed out.",
     );
     // Another code names the same phone; Done puts the panel away.
     fireEvent.click(within(panel).getByRole("button", { name: "Another code" }));

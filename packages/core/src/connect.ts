@@ -218,7 +218,7 @@ const CARD_SAYS: Readonly<
 > = {
   sentence: (name) => `Paste this into your chat with ${name}, wherever you talk to it.`,
   install: (name) =>
-    `This goes on the computer where ${name} runs, and installs Chips there if it needs to.`,
+    `This goes on the computer where ${name} runs, and installs Chips there first if that computer has none.`,
   command: (name) => `This goes on the computer where ${name} runs.`,
   link: (name) => `Give ${name} this link, on the computer where it runs.`,
 };
@@ -319,7 +319,9 @@ const LOOPBACK_LINK = /^https?:\/\/(?:127\.\d+\.\d+\.\d+|localhost|\[::1\])(?::\
  */
 export function linkReach(link: string): string {
   if (LOOPBACK_LINK.test(link)) {
-    return "It works only on the computer Chips runs on, so run it there.";
+    // Where Chips is already, so the installer's line installs nothing: said, so the two
+    // sentences don't fight (the onboarding audit, item 40).
+    return "It works only on the computer Chips runs on, so run it there, where nothing needs installing.";
   }
   const origin = /^https?:\/\/[^/?#]+/.exec(link)?.[0] ?? link;
   return `That computer has to reach Chips at ${origin}: on the same network, on its tailnet, or at an address it can reach.`;
@@ -610,8 +612,15 @@ export const STEPS_LABEL: Readonly<Record<ConnectWhere, string>> = {
   another: "What happens",
 };
 
-/** On this Mac, before Connect is pressed: what it does. */
-export function hereSentence(name: string): string {
+/**
+ * On this Mac, before Connect is pressed: what it does. `found` is whether Chips for Mac found the
+ * agent here (ADR 0288), unknown until it says; where it didn't, the sentence doesn't say it runs
+ * here, as the gallery beside it says none of them do (the onboarding audit, Part 2, item 23).
+ */
+export function hereSentence(name: string, found?: boolean): string {
+  if (found === false) {
+    return `Chips didn't find ${name} on this Mac. Connect gets the ${name} bridge, then says what to run to install ${name} if it's still missing.`;
+  }
   return `${name} runs on this Mac, so Chips can connect it for you. It gets the ${name} bridge and keeps it running after you log in.`;
 }
 

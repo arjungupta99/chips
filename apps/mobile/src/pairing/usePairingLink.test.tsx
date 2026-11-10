@@ -7,6 +7,7 @@
 
 import { pairDevice } from "@chipschat/core";
 import { act, renderHook } from "@testing-library/react-native";
+import { usePairingNow } from "./PairingNow";
 import { usePairingLink } from "./usePairingLink";
 
 const mockRouter = { replace: jest.fn(), push: jest.fn() };
@@ -31,11 +32,13 @@ jest.mock("expo-linking", () => ({
   },
 }));
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter, usePathname: () => mockPathname }));
+/** The workspace this phone holds: `mockPaired`, or none on a phone just installed. */
+let mockHeld: typeof mockPaired | undefined = mockPaired;
 jest.mock("../store/provider", () => ({
   deviceStorage: {},
   useChips: () => ({
     ready: true,
-    paired: mockPaired,
+    paired: mockHeld,
     devices: [],
     began: mockBegan,
     switchTo: async () => {},
@@ -56,6 +59,25 @@ const HELD = "chips://pair?pair=ABC-234&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431
 beforeEach(() => {
   jest.clearAllMocks();
   mockPathname = "/pair";
+  mockHeld = mockPaired;
+});
+
+it("says over the screen which Chips it is pairing with while it does (Part 2, item 4)", async () => {
+  mockHeld = undefined;
+  mockUrl = "https://chipschat.ai/p#pair=ABC-234&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431";
+  let answer: (device: unknown) => void = () => undefined;
+  jest.mocked(pairDevice).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        answer = resolve as (device: unknown) => void;
+      }),
+  );
+  const now = await renderHook(() => usePairingNow());
+  await renderHook(() => usePairingLink());
+  expect(now.result.current).toBe("192.168.1.20:4431");
+  await act(async () => answer({ deviceId: "dev_1" }));
+  expect(now.result.current).toBeUndefined();
+  expect(mockBegan).toHaveBeenCalledWith({ deviceId: "dev_1" });
 });
 
 it("asks before a link pairs the phone with another server, and pairs on Switch", async () => {

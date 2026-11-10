@@ -158,16 +158,14 @@ describe("inviting", () => {
     expect(inviteUseWords({ singleUse: false, uses: 2 })).toBe("By several, used 2 times");
   });
 
-  it("shares the link alone, which a tap opens in Chips (ADR 0207), and Paste still reads", () => {
+  it("shares how to get Chips first, then the link a tap opens in Chips (ADR 0207); Paste still reads it", () => {
     const url =
       "https://relay.example/join#invite=chips_inv_x&lan=https%3A%2F%2Fchips.example&relay=wss%3A%2F%2Frelay.example&key=k";
-    expect(inviteShareWords(url)).toBe(url);
-    // With TestFlight's link, how to get Chips comes first, and Paste still finds the invite.
-    const fresh = inviteShareWords(url, "https://testflight.apple.com/join/AbCd1234");
-    expect(fresh).toBe(
-      `No Chips yet? Get it for iPhone: https://testflight.apple.com/join/AbCd1234\n\nThen tap this link to join:\n\n${url}`,
+    const words = inviteShareWords(url);
+    expect(words).toBe(
+      `No Chips yet? Get it on the App Store for iPhone or iPad: https://apps.apple.com/app/id6824148802\n\nThen tap this link to join:\n\n${url}`,
     );
-    expect(inviteFromLink(fresh)?.token).toBe("chips_inv_x");
+    expect(inviteFromLink(words)?.token).toBe("chips_inv_x");
   });
 });
 

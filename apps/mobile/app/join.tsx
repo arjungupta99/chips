@@ -14,6 +14,7 @@ import type { Device } from "@chipschat/core";
 import { inviteFromLink } from "@chipschat/protocol";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef } from "react";
+import { WAYS_IN } from "../src/demo/home";
 import { JoinCard } from "../src/pairing/JoinCard";
 import { JoinSheet } from "../src/pairing/JoinSheet";
 import { landIn } from "../src/pairing/landing";
@@ -50,7 +51,10 @@ export default function JoinScreen() {
     return offerOf(inviteFromLink(`chips://join?${fields.toString()}`));
   }, [invite, lan, relay, key]);
 
-  const back = () => (router.canGoBack() ? router.back() : router.replace("/"));
+  const back = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace(paired === undefined ? WAYS_IN : "/");
+  };
   // Back from the sheet, into a space of this workspace when the link named one (ADR 0168). Wide,
   // Spaces opens it beside the list. On a phone the room itself: gone back to when it is under
   // the sheet, so a link to the room on screen never stacks it twice; in its place otherwise.

@@ -100,6 +100,39 @@ export function appPairingUrl(server: string, code: string, offer: PairingOffer 
   return `chips://pair?${fields.toString()}`;
 }
 
+/** The page a phone's pairing QR opens at (the install plan, §3.2): on chipschat.ai, whoever runs the server. */
+export const PHONE_PAIR_PAGE = "https://chipschat.ai/p";
+
+/** Chips for iPhone and iPad on the App Store, for somebody who has no Chips yet. */
+export const APP_STORE_LINK = "https://apps.apple.com/app/id6824148802";
+
+/** Where to get Chips for a computer: Chips for Mac, and the install line for the rest. */
+export const MAC_DOWNLOAD = "https://chipschat.ai/download";
+
+/**
+ * The link a phone's QR carries (the install plan, §3.2):
+ * `https://chipschat.ai/p#pair=ABC-234&v=1&lan=http://…&relay=wss://…&key=…`.
+ *
+ * It is an ordinary address, so the iPhone's camera opens it. With Chips installed it is a
+ * universal link and the app pairs (`applinks:chipschat.ai`); without Chips the page says where to
+ * get it, and once it is installed hands the same payload to the app as `chips://pair?…`. The
+ * payload is the fragment, which never leaves the phone: the page reads it there and sends it
+ * nowhere. An app from before this link reads it in its own scanner as it reads any `#pair=`
+ * address, taking the server from `lan`, so the server's address always travels in it.
+ */
+export function phonePairingUrl(server: string, code: string, offer: PairingOffer = {}): string {
+  const fields = new URLSearchParams({ pair: code, v: String(PAIRING_VERSION) });
+  fields.set("lan", (offer.lan ?? server).replace(/\/$/, ""));
+  if (offer.relay !== undefined && offer.relay !== "") fields.set("relay", offer.relay);
+  if (offer.key !== undefined && offer.key !== "") fields.set("key", offer.key);
+  return `${PHONE_PAIR_PAGE}#${fields.toString()}`;
+}
+
+/** Whether a link is a phone's pairing link at `chipschat.ai/p`, the path the app claims. */
+export function isPhonePairingLink(link: string): boolean {
+  return /^https:\/\/chipschat\.ai\/p(?:[?#]|$)/i.test(link.trim());
+}
+
 /** Where a pairing link opens at a relay (ADR 0210): the page a computer is sent to. */
 export const RELAY_PAIR_PATH = "/pair";
 

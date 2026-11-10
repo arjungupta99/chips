@@ -25,9 +25,9 @@ describe("what a failed pairing says", () => {
     expect(pairingFailure(undefined)).toBe("That did not work: no reason given. Try a fresh code.");
   });
 
-  it("says where Local Network is allowed when a home address didn't answer", () => {
+  it("says to be on the computer's Wi-Fi, then where Local Network is allowed, when a home address didn't answer", () => {
     const local =
-      "If you said no to Local Network, allow it in Settings → Privacy & Security → Local Network → Chips, then try a fresh code.";
+      "This phone has to be on the same Wi-Fi as that computer, unless Chips there uses the relay. On the same Wi-Fi? If you said no to Local Network, allow it in Settings → Privacy & Security → Local Network → Chips, then try a fresh code.";
     const failed = new TypeError("Network request failed");
     for (const lan of [
       "http://192.168.1.20:4431",

@@ -12,7 +12,7 @@ npm install @chipschat/harness
 import { connect } from "@chipschat/harness";
 
 const token = process.env["CHIPS_HARNESS_TOKEN"] ?? "";
-const chips = await connect({ url: "http://127.0.0.1:4432", token });
+const chips = await connect({ url: "http://127.0.0.1:4431", token });
 
 chips.on("message.new", async (message) => {
   if (message.from.kind !== "person") return;

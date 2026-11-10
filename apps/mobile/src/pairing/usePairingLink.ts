@@ -38,10 +38,11 @@ import { useEffect, useRef, useState } from "react";
 import { thisDevice } from "../device/word";
 import { deviceStorage, useChips } from "../store/provider";
 import { waitForAllow } from "./allowWait";
-import { isElsewhere } from "./elsewhere";
+import { hostOf, isElsewhere } from "./elsewhere";
 import { pairingFailure } from "./failure";
 import { pairingLink, sameServer } from "./link";
 import type { ElsewhereAsk } from "./PairElsewhereSheet";
+import { setPairingNow } from "./PairingNow";
 import type { Offer } from "./scanned";
 import { phoneName } from "./usePairing";
 
@@ -107,7 +108,9 @@ export function usePairingLink(): ElsewhereAsk | undefined {
             workspace: workspaceLabel(paired.device),
             store: paired.store,
           };
+    sayPairing(offer, held);
     void follow(offer, held).then((outcome) => {
+      setPairingNow(undefined);
       const { began: begin, router: go, pathname: at } = latest.current;
       if (outcome.kind === "elsewhere") {
         setAsking({ offer: outcome.offer, held: outcome.held });
@@ -183,6 +186,14 @@ function useOpening(): Opening | undefined {
     return () => subscription.remove();
   }, []);
   return opening;
+}
+
+/**
+ * Said over the screen while a phone with no workspace yet tries the server and its relay
+ * (`PairingNow`): one that holds a workspace is asked first, or has nothing to wait for.
+ */
+function sayPairing(offer: Offer, held: Held | undefined): void {
+  if (offer.ok && held === undefined) setPairingNow(hostOf(offer.lan));
 }
 
 async function follow(offer: Offer, held: Held | undefined): Promise<Outcome> {

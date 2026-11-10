@@ -133,7 +133,9 @@ describe("install.sh", () => {
     expect(ran.status, ran.stderr).toBe(0);
     expect(ran.stdout).toContain("✓ Checked its SHA-256");
     expect(ran.stdout).toContain("✓ Installed chips 0.2.0");
-    expect(ran.stdout).toContain("Next: chips up");
+    // The PATH here lacks ~/.local/bin, so `chips` alone would not be found in this terminal
+    // (the onboarding audit, item 4).
+    expect(ran.stdout).toContain("Next: ~/.local/bin/chips up");
     const lib = join(home, ".local", "lib", "chips");
     expect(readlinkSync(join(lib, "current"))).toBe(join(lib, "0.2.0"));
     expect(realpathSync(join(home, ".local", "bin", "chips"))).toBe(
@@ -243,11 +245,30 @@ describe("install.sh", () => {
     );
   });
 
-  it("adds ~/.local/bin to the profile with --yes", () => {
+  it("adds ~/.local/bin to the profile with --yes, once however often it runs", () => {
     const home = mkdtempSync(join(tmpdir(), "chips-install-"));
     const ran = install(home, "--from", fakeRelease(home, "0.2.0"), "--yes");
     expect(ran.status, ran.stderr).toBe(0);
     expect(readFileSync(join(home, ".zshrc"), "utf8")).toContain(join(home, ".local", "bin"));
+    // Run again from the same terminal, whose PATH still lacks it (the onboarding audit, item 38).
+    const again = install(home, "--from", fakeRelease(join(home, "b"), "0.2.0"), "--yes");
+    expect(again.status, again.stderr).toBe(0);
+    expect(readFileSync(join(home, ".zshrc"), "utf8").match(/# Chips/g)).toHaveLength(1);
+    expect(again.stdout).toContain("already adds");
+  });
+
+  it("says just chips up where the PATH finds it", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    const bin = join(home, ".local", "bin");
+    const ran = run(
+      SCRIPT,
+      { PATH: `${bin}:/usr/bin:/bin:/usr/sbin:/sbin` },
+      home,
+      "--from",
+      fakeRelease(home, "0.2.0"),
+    );
+    expect(ran.status, ran.stderr).toBe(0);
+    expect(ran.stdout).toContain("Next: chips up\n");
   });
 
   it("refuses a tarball that does not match its SHA-256, and installs nothing", () => {
@@ -387,10 +408,10 @@ describe("install.sh", () => {
     install(home, "--from", fakeRelease(join(home, "a"), "0.2.0"), "--no-path");
     const ran = install(home, "--from", fakeRelease(join(home, "b"), "0.3.0"), "--no-path");
     expect(ran.stdout).toContain(
-      "Next: chips up, which starts a server running here again on 0.3.0",
+      "Next: ~/.local/bin/chips up, which starts a server running here again on 0.3.0",
     );
     const again = install(home, "--from", fakeRelease(join(home, "c"), "0.3.0"), "--no-path");
-    expect(again.stdout).toContain("Next: chips up\n");
+    expect(again.stdout).toContain("Next: ~/.local/bin/chips up\n");
   });
 
   it("says an ssh-keygen too old to check a signature is too old, not that the release isn't signed", () => {

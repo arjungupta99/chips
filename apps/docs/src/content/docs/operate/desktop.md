@@ -24,6 +24,10 @@ there is a server on the network, the same is a quieter **Run Chips on this Mac 
 the list; where Chips already answers on this Mac, it is not offered. Open the app from
 Applications first: one opened where it was downloaded runs from a copy macOS throws away.
 
+Running it also links the `chips` command at `~/.local/bin/chips` and, where no shell profile has
+it yet, adds `~/.local/bin` to your `PATH` in `.zshrc`, the same line the install line adds, so a
+new Terminal window runs `chips doctor` or `chips down` by name.
+
 If your server is somewhere else — another network, or through a tunnel — type its address
 instead. Either way the next screen is the pairing code, which is the same short-lived,
 single-use code a browser uses: the one `chips serve` printed, or one from `chips pair --issue`
@@ -108,7 +112,7 @@ from the round + beside the message field. A file let go anywhere else in the wi
 
 A person can belong to a home server and a company server at the same time. Each is an account
 on that server — its own key, made when you paired — and the app keeps them all: the name at the
-top left is a picker when there is more than one, and *Pair another server…* is the last entry. The workspaces you are not looking at stay connected in the background, so the
+top left is a picker when there is more than one, and *Join another workspace* is the last entry. The workspaces you are not looking at stay connected in the background, so the
 picker says what each is waiting on and the menu bar counts them all; a banner from any of them
 answers in that workspace.
 

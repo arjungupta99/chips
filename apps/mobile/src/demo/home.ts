@@ -10,6 +10,13 @@ import { useRouter } from "expo-router";
 import { useCallback } from "react";
 import { useChips } from "../store/provider";
 
+/**
+ * The first screen opened on its ways in, for somebody who has been in the app already: leaving the
+ * last workspace, pairing again, or back from an invite. Its film is for a first launch; going back
+ * to the first screen played it again from the start (the onboarding audit, Part 2, item 18).
+ */
+export const WAYS_IN = { pathname: "/pair", params: { ways: "1" } } as const;
+
 /** Go home once the demo has been left, `next` the workspace now in front, if any. */
 export function useHome(): (next: unknown, at?: "ways" | "code") => void {
   const router = useRouter();

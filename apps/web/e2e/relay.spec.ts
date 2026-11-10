@@ -32,7 +32,8 @@ test("a browser away from the network reaches the server through the relay; one 
   await page.getByTestId("issue-code").click();
   const code = (await page.getByTestId("pairing-code").textContent()) ?? "";
   expect(code).toMatch(/^[A-Z2-9]{3}-[A-Z2-9]{3}$/);
-  const link = (await page.getByTestId("pairing-link").textContent()) ?? "";
+  const link = (await page.getByTestId("pairing-qr").getAttribute("data-link")) ?? "";
+  expect(link).toMatch(/^https:\/\/chipschat\.ai\/p#/);
   const payload = new URLSearchParams(new URL(link).hash.slice(1));
   expect(payload.get("relay")).toBe(RELAY);
   expect(payload.get("key")).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -88,7 +89,7 @@ test("a browser away from the network reaches the server through the relay; one 
   // At home: the same payload with the network address reachable. The relay sees nothing.
   await page.getByTestId("you").click();
   await page.getByTestId("issue-code").click();
-  const homeLink = (await page.getByTestId("pairing-link").textContent()) ?? "";
+  const homeLink = (await page.getByTestId("pairing-qr").getAttribute("data-link")) ?? "";
   await page.getByTestId("people-row").click();
   await expect(form).toHaveCount(0);
   const home = await browser.newContext();

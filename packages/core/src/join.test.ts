@@ -90,6 +90,26 @@ describe("the card that follows a link", () => {
       stall: { kind: "silent" },
     });
     expect(stallWords({ kind: "silent" }, "Kit").says).toContain("Kit");
+    // Nothing to open from there (the onboarding audit, item 32): what to check, said plainly.
+    expect(stallWords({ kind: "silent" }, "Kit").doing).not.toContain("checklist");
+    // A running server is asked nothing by `chips up`: `--reach` is what lets the network in.
+    expect(
+      stallWords({ kind: "unreachable", from: "100.88.4.12", url: "http://127.0.0.1:4431" }).doing,
+    ).toContain("chips up --reach lan");
+  });
+
+  it("says when it took its key and nothing of it has connected since (the onboarding audit, Part 2, item 9)", () => {
+    const base = { request: redeemed, hello: false, nowMs: NOW };
+    const gone = { connected: false, since: new Date(NOW - SILENT_AFTER_MS).toISOString() };
+    expect(joinCardState({ ...base, state: gone })).toEqual({
+      done: 3,
+      stall: { kind: "unstarted" },
+    });
+    const justNow = { connected: false, since: new Date(NOW - 5000).toISOString() };
+    expect(joinCardState({ ...base, state: justNow })).toEqual({ done: 3 });
+    expect(stallWords({ kind: "unstarted" }, "Kit").says).toBe(
+      "Kit took its key but isn't connected.",
+    );
   });
 
   it("is a request a harness started: asked as it arrives, allowed when a person allows it", () => {

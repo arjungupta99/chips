@@ -18,6 +18,17 @@ describe("a pairing offer that arrives as a link", () => {
     });
   });
 
+  it("reads the phone's QR at chipschat.ai/p, the server from the link and not chipschat.ai", () => {
+    const link = `https://chipschat.ai/p#pair=ABC-234&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431&relay=wss%3A%2F%2Frelay.example&key=${KEY}`;
+    expect(pairingLink(link)).toEqual({
+      ok: true,
+      code: "ABC-234",
+      lan: "http://192.168.1.20:4431",
+      serverKey: KEY,
+      relayUrl: "wss://relay.example",
+    });
+  });
+
   it("carries the key and the relay when the link has them", () => {
     const link = `chips://pair?pair=ABC-234&v=1&lan=http%3A%2F%2Fa.b%3A4431&relay=wss%3A%2F%2Frelay.example&key=${KEY}`;
     expect(pairingLink(link)).toEqual({

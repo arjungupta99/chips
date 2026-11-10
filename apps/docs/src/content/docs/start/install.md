@@ -17,22 +17,13 @@ curl -fsSL https://chipschat.ai/install | sh
 chips up
 ```
 
-:::note[Releases are private for now]
-While the repository is private, so are its releases, and that address answers nothing yet. With
-access, download `chips-<version>-<platform>.tar.gz`, `SHA256SUMS` and `SHA256SUMS.sig` from the
-release into one folder, and install the file:
-
-```sh
-sh packaging/install.sh --from chips-0.2.0-darwin-arm64.tar.gz
-```
-:::
-
 `install.sh` works out the platform (macOS or Linux, Apple silicon, Intel or ARM), checks that
 `SHA256SUMS` is signed with Chips's release key and that the file matches its SHA-256, unpacks it
 into `~/.local/lib/chips/<version>`, and points `~/.local/bin/chips` at it. The signature is checked
 with OpenSSH's `ssh-keygen` (8.1 or later, on macOS and every current Linux); a release downloaded
-without one is not installed, and a file you already have says so when no signature is beside it. If `~/.local/bin` is not on your `PATH` it offers to add it to your shell's profile; `--no-path`
-leaves the profile alone and prints the line instead. Installing a newer version keeps the older
+without one is not installed, and a file you already have says so when no signature is beside it. If `~/.local/bin` is not on your `PATH` it offers to add it to your shell's profile, once, for the
+next terminal; `--no-path` leaves the profile alone and prints the line instead. Either way the
+line it prints to run next, `~/.local/bin/chips up`, works in the terminal you're in. Installing a newer version keeps the older
 one beside it and moves `current`.
 
 ### `chips up`
@@ -74,13 +65,16 @@ the link opens there in your own browser, already paired.
   ✓ Starts when you log in (`chips down` stops it)
   ✓ Opened in your browser, already paired
 
-  Get Chips on your phone: scan this
+  Get Chips on your phone: scan this with its camera
+
+  No Chips on it yet? The code leads to the App Store first.
+  Or type it in Chips: the code KMR-M3P, the address http://100.64.0.7:4431
 ```
 
 | Flag | What it does |
 | --- | --- |
 | `--reach tailnet\|lan\|relay\|local` | Answers the question, so nothing is asked. With a new answer, a running service of its own is rewritten. |
-| `--yes` | Takes the first answer offered. With nobody at the terminal and no flag, it is *only this machine*. |
+| `--yes` | Takes the first answer offered other than the relay, which waits for you to choose it. With nobody at the terminal and no flag, it is *only this machine*. |
 | `--no-service` | Runs in this terminal instead of as a login service. Ctrl-C stops it. |
 | `--no-open` | Prints the browser's link instead of opening it. |
 | `--port <n>` | Another port than 4431. |
@@ -202,6 +196,20 @@ harness, connect one as [Start here](/start/) does, with `pnpm chips connect cus
 anywhere the server is not bound to loopback.
 
 ## Updating
+
+**A release.** Run the install line again, then `chips up`. The line puts the new version beside
+the old one and brings each harness's bridge kept here up to date; `chips up` starts the server
+again on the new version, which keeps running the old one until then.
+
+**Chips for Mac** doesn't update itself yet. Download it again from
+[chipschat.ai/download](https://chipschat.ai/download), quit Chips, and replace the copy in
+Applications. Then bring each harness's bridge up to date in Terminal:
+
+```sh
+~/.local/bin/chips connect --update
+```
+
+**A checkout.**
 
 ```sh
 git pull

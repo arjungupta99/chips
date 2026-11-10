@@ -24,11 +24,9 @@ different product; they are the same data model with more of it turned on.
 
 ## What comes later
 
-| | Phase |
-| --- | --- |
-| Invites, passkeys, several people in a workspace | 5 |
-| Postgres, S3, several gateway processes, a Prometheus exporter | 6 |
-| SAML, SCIM, retention policies, an admin surface | 8 |
+Invites, passkeys and several people in a workspace are here. Not built yet: Postgres, S3, several
+gateway processes behind one address and a Prometheus exporter; after them, SAML, SCIM, retention
+policies and an admin surface.
 
 The `ee/` directory in the repository is reserved and empty until then. Anything that would go in
-it before Phase 8 is a signal the boundary is in the wrong place.
+it before that work is a signal the boundary is in the wrong place.

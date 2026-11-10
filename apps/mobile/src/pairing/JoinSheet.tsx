@@ -21,6 +21,7 @@ import {
   alreadyInAsking,
   DEAD_INVITE,
   invitedWords,
+  isDemo,
   joinAlongsideAsking,
   nameTaken,
   nameTakenWords,
@@ -69,8 +70,11 @@ export function JoinSheet({
   const [open, setOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | undefined>(undefined);
-  // The name to join under, typed, once the one you go by here was taken there (ADR 0197).
-  const [naming, setNaming] = useState<string | undefined>(undefined);
+  // The name to join under, typed, once the one you go by here was taken there (ADR 0197). From
+  // Look around it is asked at once: the demo calls everybody "You" (the onboarding audit, item 27).
+  const [naming, setNaming] = useState<string | undefined>(() =>
+    isDemo(paired.device) ? "" : undefined,
+  );
   const workspace = workspaceLabel(here.device);
   const name =
     snapshot.directory[here.device.participantId]?.displayName ?? here.device.displayName;

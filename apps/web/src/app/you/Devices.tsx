@@ -21,11 +21,13 @@ import {
 } from "@chipschat/core";
 import { Button } from "@chipschat/ui";
 import QRCode from "qrcode";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { browserDeviceName } from "../browserName.ts";
 import { ConfirmDialog } from "../ConfirmDialog.tsx";
 import { NotInDemo, useNotInDemo } from "../demo/NotInDemo.tsx";
+import { letYourWifiIn, ONLY_THIS_COMPUTER, reachableFromAPhone } from "../FirstRun.tsx";
 import { relativeTime } from "../time.ts";
+import { useNow } from "../useNow.ts";
 import { Problem, reasonOf } from "./controls.tsx";
 import { FormPage } from "./Form.tsx";
 import { Group, ListRow, RowMark } from "./list.tsx";
@@ -280,12 +282,33 @@ const KIND_PATHS: Readonly<Record<DeviceKind, ReactNode>> = {
 /** A code for another device, and the QR a phone's camera opens (M4.1). */
 export interface Pairing {
   readonly issued: IssuedCode | undefined;
+  /** The QR, or nothing while it is drawn and where no phone could reach the server. */
   readonly qr: string | undefined;
   readonly busy: boolean;
   readonly error: string | undefined;
   readonly issue: () => Promise<void>;
 }
 
+/** The address a code is for, from the code's own link: `http://192.168.1.20:4431`. */
+export function addressOf(issued: Pick<IssuedCode, "url" | "server">): string {
+  if (issued.server !== undefined) return issued.server;
+  try {
+    return new URL(issued.url).origin;
+  } catch {
+    return issued.url;
+  }
+}
+
+/** Whether a phone could use the code: the server has a relay, or answers beyond this computer. */
+export function phoneCanReach(issued: Pick<IssuedCode, "url" | "server" | "relay">): boolean {
+  return reachableFromAPhone(addressOf(issued), issued.relay);
+}
+
+/**
+ * A code, made when asked and made again as it runs out (the onboarding audit, item 30): a form
+ * left open never shows a code the server has forgotten. Its QR is the phone's chipschat.ai/p link,
+ * which the camera opens, and there is none where no phone could reach the server (item 29).
+ */
 export function usePairing(issueCode: () => Promise<IssuedCode>): Pairing {
   const [issued, setIssued] = useState<IssuedCode | undefined>(undefined);
   const [qr, setQr] = useState<string | undefined>(undefined);
@@ -297,13 +320,25 @@ export function usePairing(issueCode: () => Promise<IssuedCode>): Pairing {
     try {
       const code = await issueCode();
       setIssued(code);
-      setQr(await QRCode.toString(code.url, { type: "svg", margin: 1 }));
+      setQr(
+        phoneCanReach(code)
+          ? await QRCode.toString(code.appUrl ?? code.url, { type: "svg", margin: 1 })
+          : undefined,
+      );
     } catch (problem) {
       setError(reasonOf(problem, "Could not issue a code."));
     } finally {
       setBusy(false);
     }
   };
+  const latest = useRef(issue);
+  latest.current = issue;
+  useEffect(() => {
+    if (issued === undefined) return;
+    const left = Date.parse(issued.expiresAt) - Date.now();
+    const timer = setTimeout(() => void latest.current(), Math.max(30_000, left - 30_000));
+    return () => clearTimeout(timer);
+  }, [issued]);
   return { issued, qr, busy, error, issue };
 }
 
@@ -338,8 +373,8 @@ function PairForm(props: {
             <IssuedCodeView issued={pairing.issued} qr={pairing.qr} />
           )}
           <p className="you-form-foot">
-            On a phone, open Chips and choose Scan a QR code. On a computer, open Chips and paste
-            the code, or send it the link.
+            On a phone, scan the QR with its camera, or open Chips and type the code and the
+            address. On a computer, open Chips and type the code, or send it the link.
           </p>
           <div className="you-form-actions">
             <Button disabled={pairing.busy} onClick={() => void issue()}>
@@ -362,20 +397,27 @@ export function IssuedCodeView(props: {
   readonly qr: string | undefined;
 }) {
   const { issued } = props;
-  const minutes = Math.max(1, Math.round((Date.parse(issued.expiresAt) - Date.now()) / 60_000));
+  const now = useNow(15_000);
+  const minutes = Math.max(1, Math.round((Date.parse(issued.expiresAt) - now) / 60_000));
+  const phone = phoneCanReach(issued);
   return (
     <div className="pair-issued" data-testid="issued-code">
       <div className="pair-issued-code">
         <code data-testid="pairing-code">{issued.code}</code>
         <span className="token-life">
           good for {minutes} minute{minutes === 1 ? "" : "s"}, once
-          {issued.relay === undefined
-            ? ". On this network only: the server has no relay."
-            : `. Scanned by a phone, it reaches this server anywhere, through ${new URL(issued.relay).host}.`}
+          {!phone
+            ? `. ${ONLY_THIS_COMPUTER} ${letYourWifiIn(false)}`
+            : issued.relay === undefined
+              ? ". On this network only: the server has no relay."
+              : `. Scanned by a phone, it reaches this server anywhere, through ${new URL(issued.relay).host}.`}
         </span>
-        <code className="pair-issued-url" data-testid="pairing-link">
-          {issued.url}
-        </code>
+        <span className="token-life">
+          Address{" "}
+          <code className="pair-issued-url" data-testid="pairing-address">
+            {addressOf(issued)}
+          </code>
+        </span>
         {issued.link !== undefined && (
           <ComputerLink link={issued.link} relayed={issued.relay !== undefined} />
         )}
@@ -383,8 +425,10 @@ export function IssuedCodeView(props: {
       {props.qr !== undefined && (
         <img
           className="pair-qr"
-          alt={`A QR code that opens ${issued.url}`}
+          alt="A QR code a phone's camera opens in Chips"
           src={`data:image/svg+xml;utf8,${encodeURIComponent(props.qr)}`}
+          data-testid="pairing-qr"
+          data-link={issued.appUrl ?? issued.url}
         />
       )}
     </div>

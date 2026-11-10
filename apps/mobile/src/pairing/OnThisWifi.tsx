@@ -34,7 +34,7 @@ export interface HeldServer {
   readonly workspace: string;
 }
 
-type State =
+export type State =
   | { readonly kind: "looking" }
   | { readonly kind: "found"; readonly servers: readonly FoundServer[] }
   /** Another server than the one held: a person says so first (SEC-8). */
@@ -55,7 +55,28 @@ export function OnThisWifi({
    */
   readonly foot?: boolean;
 }) {
-  const palette = usePalette();
+  const finder = useFinder(held, onPaired);
+  return <FinderView finder={finder} held={held} foot={foot} />;
+}
+
+/** What the finder knows and does: held by a screen whose layout moves the view (`FinderView`). */
+export interface Finder {
+  readonly state: State;
+  readonly look: () => void;
+  readonly ask: (server: FoundServer) => void;
+  readonly proceed: (server: FoundServer) => void;
+  readonly cancel: () => void;
+}
+
+/**
+ * The looking and the asking, apart from where they are drawn: an iPad turned on its side moves the
+ * finder to the column beside the film, and an ask held in the view was cancelled by the turn and
+ * began again at looking (the onboarding audit, Part 2, item 11).
+ */
+export function useFinder(
+  held: HeldServer | undefined,
+  onPaired: (device: Device) => void,
+): Finder {
   const [state, setState] = useState<State>({ kind: "looking" });
   const stop = useRef<AbortController | undefined>(undefined);
   const look = useCallback(() => {
@@ -69,6 +90,31 @@ export function OnThisWifi({
     if (canFind()) look();
     return () => stop.current?.abort();
   }, [look]);
+  // The first look runs as the screen comes up, often while iOS's Local Network alert is still on
+  // it, and finds nothing however soon it is allowed. So while nothing has answered, it looks again
+  // a few times, quietly: what it finds slides in, and nothing found changes nothing on screen
+  // (the onboarding audit, Part 2, item 3).
+  const [looked, setLooked] = useState(0);
+  const nothing = state.kind === "found" && state.servers.length === 0;
+  useEffect(() => {
+    if (!nothing || looked >= LOOKS_AGAIN) return;
+    let gone = false;
+    const timer = setTimeout(() => {
+      const found = (servers: readonly FoundServer[]) => {
+        if (gone) return;
+        setLooked((count) => count + 1);
+        if (servers.length === 0) return;
+        setState((now) =>
+          now.kind === "found" && now.servers.length === 0 ? { kind: "found", servers } : now,
+        );
+      };
+      void findServers(3).then(found, () => found([]));
+    }, LOOK_AGAIN_MS);
+    return () => {
+      gone = true;
+      clearTimeout(timer);
+    };
+  }, [nothing, looked]);
   const ask = (server: FoundServer) => {
     if (held !== undefined && isElsewhere(held.serverUrl, server.url)) {
       setState({ kind: "confirming", server });
@@ -90,6 +136,25 @@ export function OnThisWifi({
       if (!asking.signal.aborted) setState({ kind: "failed", server, why: pairingFailure(error) });
     });
   };
+  const cancel = () => {
+    stop.current?.abort();
+    look();
+  };
+  return { state, look, ask, proceed, cancel };
+}
+
+/** The finder drawn: what answered, the ask, and what went wrong. */
+export function FinderView({
+  finder,
+  held,
+  foot = false,
+}: {
+  readonly finder: Finder;
+  readonly held?: HeldServer | undefined;
+  readonly foot?: boolean;
+}) {
+  const palette = usePalette();
+  const { state, look, ask, proceed } = finder;
   if (!canFind() || (foot && quietIn(state))) return null;
   return (
     <AtFoot foot={foot}>
@@ -137,14 +202,7 @@ export function OnThisWifi({
           </Card>
         ) : null}
         {state.kind === "asking" ? (
-          <Asking
-            server={state.server}
-            code={state.code}
-            onCancel={() => {
-              stop.current?.abort();
-              look();
-            }}
-          />
+          <Asking server={state.server} code={state.code} onCancel={finder.cancel} />
         ) : null}
         {state.kind === "failed" ? (
           <View style={styles.gap}>
@@ -156,6 +214,10 @@ export function OnThisWifi({
     </AtFoot>
   );
 }
+
+/** How many times, and how far apart, a first screen that found nothing looks again. */
+const LOOKS_AGAIN = 4;
+const LOOK_AGAIN_MS = 5000;
 
 /** Looking still, or nothing found: what the foot of the first screen shows nothing for. */
 function quietIn(state: State): boolean {
@@ -259,7 +321,7 @@ function Asking({
         </Text>
       )}
       <Text style={[styles.words, { color: palette.ink3 }]}>
-        {`Chips on ${server.name} shows the same code. Allow it there, and ${thisDevice()} is in.`}
+        {`Chips on ${server.name} asks about ${thisDevice()}: type this code there and allow it, and ${thisDevice()} is in.`}
       </Text>
       <Link label="Cancel" onPress={onCancel} />
     </Card>

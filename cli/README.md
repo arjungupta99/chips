@@ -1,21 +1,25 @@
 # `chips`
 
-The command line. One binary, and no state of its own beyond a device key and a note of what it
-connected. From the checkout it is `pnpm chips …`.
+The command line. One program, and no state of its own beyond a device key and a note of what it
+connected. From a release it is `chips`; from the checkout it is `pnpm chips …`. `chips help`
+lists every command and flag; these are the ones a person meets first.
 
 ```
-chips serve                     run the server, print a pairing code, advertise it
-chips pair <code>               pair this machine with a running server
+chips up                        start Chips, open it in your browser, show the phone's code
+chips down                      stop the login service `chips up` installed
+chips uninstall                 remove an installed Chips (your workspace is kept unless you say)
+chips pair <code>               pair this machine with a running server (--server <address>)
 chips pair --issue              a code for another device, from this one
-chips connect <harness>         point a harness at this workspace
-chips disconnect <harness>      undo what connect wrote
-chips remove <harness>          remove a harness from the workspace; its history stays
+chips connect <id>              connect a harness from its card in Chips
+chips connect --update          bring each bridge here up to date
+chips disconnect <id>           stop a harness's bridge and remove it
 chips doctor                    check everything, and say what to do about it
-chips conformance <adapter>     walk an adapter through the golden scenario; print the checklist
-chips project clone <room>      the room's project, cloned here: your pushes show in the room
+chips project clone <space>     the space's project, cloned here: your pushes show in the space
 chips export <folder>           write this workspace to a folder
 chips import <folder>           read a workspace folder into an empty database
 ```
+
+Flags take their value after a space or an `=`, and a flag `chips` doesn't know is refused.
 
 ## What it holds, and where
 
@@ -24,7 +28,7 @@ chips import <folder>           read a workspace folder into an empty database
 | The device key | `~/.config/chips/device.json`, `0600` | Node has no non-extractable key store, so this is a real difference from the browser, where the key cannot be read back at all. `doctor` says which you have. |
 | A harness's token | The login keychain on macOS, else `~/.config/chips/secrets.json`, `0600` | A token is a credential; the key is not a credential the server would accept on its own. |
 | What was connected | `~/.config/chips/connections.json` | Ordinary reading: which harness, which server, which keychain account. Never a token. |
-| The workspace | Wherever `CHIPS_DATA_DIR` says, `./.chips` by default | It is the thing you back up, export and move. The CLI's own files are not part of it. |
+| The workspace | `~/Library/Application Support/Chips` on a Mac, `~/.local/share/chips` on Linux, or wherever `CHIPS_DATA_DIR` says (`./.chips` in a checkout) | It is the thing you back up, export and move. The CLI's own files are not part of it. |
 
 ## Invariants
 
@@ -52,6 +56,5 @@ chips import <folder>           read a workspace folder into an empty database
 ## Packaging
 
 `packaging/install.sh` is the curl installer: no sudo, everything under `~/.local`, and it names
-its four steps before it takes them. `packaging/chips.rb` is the Homebrew formula, a draft until
-there is a release to point it at. `packaging/launchd/` holds the launch agent template for
+its four steps before it takes them. `packaging/launchd/` holds the launch agent template for
 `chips serve`, with four placeholders the docs' one-line `sed` fills in.

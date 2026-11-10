@@ -103,9 +103,14 @@ describe("the relay's invite page", () => {
     );
   });
 
-  it("names no store and no test, and says so when the link has run out", () => {
+  it("says where to get Chips, names no test, and says so when the link has run out", () => {
     const body = relayPage("GET", "/join")?.body ?? "";
-    expect(body).not.toMatch(/testing|TestFlight|App Store/i);
+    expect(body).not.toMatch(/testing|TestFlight/i);
+    // Chips is on the App Store (the onboarding audit, item 3).
+    expect(body).toContain(
+      '<a href="https://apps.apple.com/app/id6824148802">Get it on the App Store</a>',
+    );
+    expect(body).toContain('<a href="https://chipschat.ai/download">Chips for Mac</a>');
     expect(body).toContain("This link has run out");
   });
 
@@ -119,7 +124,10 @@ describe("the relay's invite page", () => {
     expect(policy).toContain(`script-src 'sha256-${sha(script)}'`);
     expect(policy).toContain(`style-src 'sha256-${sha(style)}'`);
     expect(policy).toContain("frame-ancestors 'none'");
-    expect(page?.body).not.toMatch(/<(img|link|iframe)\b|src=|https?:\/\/(?!www\.w3)/);
+    // Nothing is fetched: the only addresses are the two a person may go to, Chips's own.
+    expect(page?.body).not.toMatch(
+      /<(img|link|iframe)\b|src=|https?:\/\/(?!www\.w3|apps\.apple\.com\/app\/id6824148802"|chipschat\.ai\/download")/,
+    );
     expect(page?.headers["referrer-policy"]).toBe("no-referrer");
   });
 

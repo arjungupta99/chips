@@ -90,7 +90,7 @@ signatures redacted.
 
 ```sh
 launchctl print gui/$(id -u)/chat.chips.serve      # is it running, and with what
-launchctl kickstart -k gui/$(id -u)/chat.chips.serve   # restart it, after an update
+launchctl kickstart -k gui/$(id -u)/chat.chips.serve   # restart it
 chips down                                         # stop it, until chips up again
 ```
 
@@ -193,10 +193,12 @@ reach the phone through the Chips push relay, with nothing to set
 
 ```sh
 curl -fsSL https://chipschat.ai/install | sh
-launchctl kickstart -k gui/$(id -u)/chat.chips.serve
+chips up
 ```
 
 The install keeps the version before beside the new one and moves `current`, which the launch
-agent runs from, and brings each harness's bridge up to date.
+agent runs from, and brings each harness's bridge up to date. The server keeps running the old
+version until `chips up`, which finds it older than itself and starts it again on the new one,
+as [Install](/start/install/#updating) says.
 
 Migrations run on start. The app reconnects on its own when the server comes back.

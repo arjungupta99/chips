@@ -27,7 +27,8 @@ import { useLeave } from "../device/leave";
 import { thisDevice } from "../device/word";
 import { PasteAction } from "../pairing/PasteAction";
 import { ScanSheet } from "../pairing/ScanSheet";
-import { NO_INVITE, NOT_AN_INVITE, usePasteInvite } from "../pairing/usePasteInvite";
+import { useJoin } from "../pairing/useJoin";
+import { NO_INVITE, usePasteInvite } from "../pairing/usePasteInvite";
 import { useChips } from "../store/provider";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -282,9 +283,11 @@ export function WorkspacesSheet({
 
 /**
  * The camera, from Scan a QR code: an invite on the screen of somebody beside you opens its join
- * sheet, as one pasted does, and any other code says it is not one. A new one each time the camera
- * opens, since a code once opened is not opened again by the same reading (`usePasteInvite`), and
- * a join backed out of may be scanned again.
+ * sheet, as one pasted does. A computer's pairing code pairs, as on the first screen: it was
+ * refused as not an invite, though it is how a second Chips of your own is joined (the onboarding
+ * audit, Part 2, item 19). A new one each time the camera opens, since a code once opened is not
+ * opened again by the same reading (`usePasteInvite`), and a join backed out of may be scanned
+ * again.
  */
 function InviteScan({
   visible,
@@ -293,15 +296,14 @@ function InviteScan({
   readonly visible: boolean;
   readonly onClose: () => void;
 }) {
-  const invites = usePasteInvite();
-  const [other, setOther] = useState(false);
+  const join = useJoin(undefined, onClose);
   return (
     <ScanSheet
       visible={visible}
       reader={{
-        working: false,
-        failure: other ? NOT_AN_INVITE : invites.problem,
-        scanned: (text) => setOther(!invites.scanned(text)),
+        working: join.working,
+        failure: join.failure ?? join.invites.problem,
+        scanned: join.scanned,
       }}
       onClose={onClose}
     />

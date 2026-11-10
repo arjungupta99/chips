@@ -80,7 +80,7 @@ test("P2: a link whose code has run out says so at the relay", async ({ page, br
   try {
     await computer.goto(ranOut.toString());
     await expect(computer.getByRole("heading", { name: "This code has run out" })).toBeVisible();
-    await expect(computer.getByText(/send a new link/)).toBeVisible();
+    await expect(computer.getByText(/Make a new one where this came from/)).toBeVisible();
     await expect(computer.getByRole("link", { name: "Open in Chips" })).toBeHidden();
   } finally {
     await elsewhere.close();

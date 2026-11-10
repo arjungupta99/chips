@@ -68,7 +68,12 @@ import {
   withdrawLeaving,
   workspaceLabel,
 } from "@chipschat/core";
-import { type AutonomyLevel, appPairingUrl, type Connector, pairingUrl } from "@chipschat/protocol";
+import {
+  type AutonomyLevel,
+  type Connector,
+  pairingUrl,
+  phonePairingUrl,
+} from "@chipschat/protocol";
 import { ChipMark, Icon } from "@chipschat/ui";
 import {
   type ReactNode,
@@ -1195,7 +1200,11 @@ function MiddlePane(p: MiddlePaneProps) {
           expiresAt: issued.expiresAt,
           relay: issued.relay,
           url: pairingUrl(base, issued.code, { relay: issued.relay, key: issued.serverKey }),
-          appUrl: appPairingUrl(base, issued.code, { relay: issued.relay, key: issued.serverKey }),
+          appUrl: phonePairingUrl(base, issued.code, {
+            relay: issued.relay,
+            key: issued.serverKey,
+          }),
+          server: base.replace(/\/$/, ""),
           link: issued.link,
         };
       },

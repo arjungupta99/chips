@@ -89,6 +89,20 @@ describe("the relay switch on the client", () => {
     expect(relayNotConnectedWords(relayFactsOf({ ...view, on: true }))).toBeUndefined();
   });
 
+  it("lists no terminal, which never keeps a connection to list (the onboarding audit, item 34)", () => {
+    const cli = {
+      deviceId: "dev_cli",
+      participantId: "usr_arjun",
+      name: "chips CLI",
+      now: undefined,
+      lastVia: undefined,
+      lastViaAt: undefined,
+      directAt: undefined,
+    };
+    const lists = relayLists([...facts.devices, cli]);
+    expect(lists.away.map((each) => each.deviceId)).toEqual(["dev_mac", "dev_old"]);
+  });
+
   it("lists devices by the way they go now, and who would be cut off", () => {
     const lists = relayLists(facts.devices);
     expect(lists.relayed.map((each) => each.deviceId)).toEqual(["dev_natalie"]);

@@ -18,6 +18,7 @@ import { ConnectProvider } from "../src/harnesses/Connect";
 import { NewSpaceProvider } from "../src/newSpace/NewSpace";
 import { loadRemembered } from "../src/newSpace/remembered";
 import { PairElsewhereSheet } from "../src/pairing/PairElsewhereSheet";
+import { PairingNow } from "../src/pairing/PairingNow";
 import { usePairingLink } from "../src/pairing/usePairingLink";
 import { WaitingForAllow } from "../src/pairing/WaitingForAllow";
 import { AskForPush } from "../src/push/AskForPush";
@@ -216,6 +217,7 @@ function Links() {
   usePushSetup();
   return (
     <>
+      <PairingNow />
       {elsewhere === undefined ? null : <PairElsewhereSheet ask={elsewhere} />}
       {paired === undefined ? null : (
         <Pushes key={paired.device.deviceId} store={paired.store} device={paired.device} />

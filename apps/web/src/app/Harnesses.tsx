@@ -437,8 +437,14 @@ export function Harnesses(props: HarnessesProps) {
       directory={directory}
       selfId={props.selfId ?? ""}
       agents={agents}
-      add={<HeaderAdd setUp={setUp} onPress={(from) => connect?.(from)} />}
-      onConnect={connect}
+      add={
+        <HeaderAdd
+          may={unlessGuest(model, props.selfId, connect) !== undefined}
+          setUp={setUp}
+          onPress={(from) => connect?.(from)}
+        />
+      }
+      onConnect={unlessGuest(model, props.selfId, connect)}
       waitsOn={requestOf(waiting, props.joins)}
       connectors={galleryCards(props)}
       cards={cards()}
@@ -927,11 +933,26 @@ function AgentsHome({
  * The header's Connect a harness, where the page has no shelf to end with it, or in the demo the
  * line in its place.
  */
+/**
+ * Connect a harness, for anybody but a guest of the workspace: the server refuses a guest's add (the
+ * onboarding audit, Part 2, item 16).
+ */
+function unlessGuest<T>(
+  model: WorkspaceModel,
+  selfId: string | undefined,
+  connect: T,
+): T | undefined {
+  return myRole(model, selfId ?? "") === "guest" ? undefined : connect;
+}
+
 function HeaderAdd(props: {
+  /** Whether this person may connect one: nobody but a guest. */
+  readonly may: boolean;
   readonly setUp: ReturnType<typeof useNotInDemo>;
   readonly onPress: (from: HTMLElement) => void;
 }) {
   if (props.setUp !== undefined) return <NotInDemo onSetUp={props.setUp} />;
+  if (!props.may) return null;
   return (
     <Button onClick={(event) => props.onPress(event.currentTarget)} aria-haspopup="dialog">
       Connect a harness

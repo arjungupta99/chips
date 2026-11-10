@@ -1,6 +1,6 @@
 [package]
 name = "chips-desktop"
-version = "1.2.1"
+version = "1.2.2"
 description = "Chips on the desktop: the web app in a native shell that can find a server, notify you, and be decided from."
 authors = ["Chips"]
 license = "FSL-1.1-ALv2"

@@ -67,8 +67,13 @@ export interface IssuedCode {
   readonly code: string;
   readonly expiresAt: string;
   readonly url: string;
-  /** The same code as the app's own link, sent to a phone that is not here and pasted there. */
+  /**
+   * The same code as the phone's chipschat.ai/p link (the install plan, §3.2): what its QR draws,
+   * and what is sent to a phone that is not here, where a tap opens it in Chips.
+   */
   readonly appUrl?: string | undefined;
+  /** The server's address, typed beside the code on a phone's "Have a pairing code?" page. */
+  readonly server?: string | undefined;
   /** The relay a phone reaches the server through from anywhere, when the server has one. */
   readonly relay: string | undefined;
   /**

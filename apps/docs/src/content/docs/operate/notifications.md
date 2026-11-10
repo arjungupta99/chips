@@ -54,7 +54,7 @@ day, so one device raises it.
 - **Chips for Mac**: the notification centre, with Approve and Deny on a decision, and a plain
   banner for a digest.
 - **A browser**: the browser's own notifications, once you allow them from **You →
-  Notifications → Allow banners here**, which takes effect at once. A tab that has allowed nothing shows nothing, and the
+  Notifications → Banners in this browser**, which takes effect at once. A tab that has allowed nothing shows nothing, and the
   queue and the menu bar badge still count everything.
 - **A phone**: a push to the lock screen, with Approve (which asks for Face ID) and Deny on it.
   Turn it on in **You → Notifications → Notify me on this phone**. The server claims the

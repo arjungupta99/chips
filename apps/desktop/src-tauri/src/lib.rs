@@ -78,13 +78,17 @@ async fn run_here(app: AppHandle, reach: String) -> Result<String, String> {
         .map_err(|error| error.to_string())?
 }
 
-/// `~/.local/bin/chips` linked to the carried one, from a copy that stays where it is.
+/// `~/.local/bin/chips` linked to the carried one, from a copy that stays where it is, and
+/// `~/.local/bin` put on the PATH a new terminal has (`here::add_to_path`).
 fn link_here(app: &AppHandle, program: &std::path::Path) {
     if here::translocated(program) {
         return;
     }
     if let Ok(home) = app.path().home_dir() {
-        let _ = here::link_command(&home, program);
+        if here::link_command(&home, program).is_ok() {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+            let _ = here::add_to_path(&home, &shell);
+        }
     }
 }
 
@@ -103,8 +107,10 @@ const CONNECT_LINE: &str = "chips://connect-line";
 
 /// Connect a bridge's card on this Mac (ADR 0218, phase 5): the carried `chips connect <id>
 /// --json`, the link and the card's name as the sheet showed it in its environment, each line said
-/// to the page as it comes, then its end.
-#[tauri::command]
+/// to the page as it comes, then its end. Off the main thread: finding the PATH a Terminal has can
+/// wait on a login shell for seconds, and the window would hang meanwhile (the onboarding audit,
+/// Part 2, item 8).
+#[tauri::command(async)]
 fn connect_here(
     app: AppHandle,
     runs: State<'_, connect::Runs>,

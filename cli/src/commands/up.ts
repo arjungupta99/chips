@@ -23,7 +23,7 @@ import {
   type Machine,
   reachableUrl,
 } from "@chipschat/platform";
-import { appPairingUrl, type PairingOffer, pairingUrl } from "@chipschat/protocol";
+import { type PairingOffer, pairingUrl, phonePairingUrl } from "@chipschat/protocol";
 import { operatorTokenPath, sqlitePathFrom } from "@chipschat/server";
 import type { Console } from "../output.js";
 import {
@@ -509,17 +509,24 @@ async function showLinks(
   const phoneLink =
     isLoopbackUrl(phone.url) && relay === undefined
       ? undefined
-      : appPairingUrl(phone.url, phone.code, phone.offer);
+      : phonePairingUrl(phone.url, phone.code, phone.offer);
   if (phoneLink === undefined) {
     say(started.noPhone);
   } else {
-    // The QR is `chips://pair`, which only the app opens: a phone's camera does nothing with it.
+    // The QR is chipschat.ai/p (the install plan, §3.2): the iPhone's camera opens it, in Chips when
+    // it is installed, and at the page that says where to get it when it is not.
     say(
       relay === undefined
-        ? "\n  In the Chips app, scan this\n"
-        : `\n  In the Chips app, scan this. It reaches Chips from anywhere, through the relay\n  at ${hostOf(relay)}.\n`,
+        ? "\n  Get Chips on your phone: scan this with its camera\n"
+        : `\n  Get Chips on your phone: scan this with its camera. It reaches Chips from anywhere,\n  through the relay at ${hostOf(relay)}.\n`,
     );
     say(await qr(phoneLink));
+    say("  No Chips on it yet? The code leads to the App Store first.");
+    // A typed code carries no relay, so only an address the phone can reach is worth typing.
+    if (!isLoopbackUrl(phone.url)) {
+      say(`  Or type it in Chips: the code ${phone.code}, the address ${phone.url}`);
+    }
+    say("");
   }
   say("  Next: add an agent in the browser. Something not right? `chips doctor`\n");
   return { pairLink, phoneLink };
@@ -605,6 +612,7 @@ async function startService(
 function failed(command: Command, output: string): string {
   const said = `\`${command.join(" ")}\` failed:`;
   const printed = output.trim();
+  if (command[0] === "launchctl") return launchctlFailed(said, printed);
   const noSession =
     /Failed to connect to (user scope )?bus|DBUS_SESSION_BUS_ADDRESS|not been booted with systemd/;
   if (command[0] !== "systemctl" || (printed !== "" && !noSession.test(printed))) {
@@ -615,6 +623,22 @@ function failed(command: Command, output: string): string {
     "This shell has no systemd user session, so Chips can't run as a service from it. Run",
     "`chips up --no-service` to run Chips in this terminal, or log in as this user over SSH or at",
     "the desktop and run `chips up` there.",
+  ].join("\n");
+}
+
+/**
+ * `launchctl` refusing a login service: over SSH to a Mac nobody is logged in to at its screen there
+ * is no session to start one in, and it says only "Bootstrap failed: 125" or that it found no
+ * domain (the onboarding audit, Part 2, item 12).
+ */
+function launchctlFailed(said: string, printed: string): string {
+  const noSession = /Bootstrap failed: (5|125)|Domain does not support|Could not find domain/;
+  if (!noSession.test(printed)) return `${said}\n${printed}`;
+  return [
+    `${said} ${printed.split("\n")[0] ?? ""}`.trimEnd(),
+    "Nobody is logged in to this Mac at its screen, so Chips can't run as a login service from",
+    "here. Log in at the Mac and run `chips up` again, or run `chips up --no-service` to run Chips",
+    "in this terminal.",
   ].join("\n");
 }
 
@@ -733,10 +757,13 @@ function foundService(options: UpOptions, contents: string | undefined, health: 
   const state = stateOf(contents);
   const existing = state === "ours" ? serviceEnvironment(contents) : undefined;
   const carried = carriedSettings(deps.machine.environment, existing);
-  if (existing === undefined || health !== "chips" || flags.reach !== undefined) {
+  if (existing === undefined || flags.reach !== undefined) {
     return { state, carried, kept: undefined, changes: [] };
   }
+  // A service `chips down` stopped keeps its file, and so its answer: started again, it is asked
+  // nothing (the onboarding audit, item 36). Only a running one can have settings to change.
   const kept = keptAnswer(existing);
+  if (health !== "chips") return { state, carried, kept, changes: [] };
   const next = serviceSettings(config, kept, carried);
   const names = new Set([...Object.keys(existing), ...Object.keys(next)]);
   const changes = [...names].filter((name) => existing[name] !== next[name]).sort();

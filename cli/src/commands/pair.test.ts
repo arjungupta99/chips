@@ -8,9 +8,15 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { CliDevice } from "../device.js";
+import { type CliDevice, PairingError } from "../device.js";
 import { scriptedConsole } from "../output.js";
-import { issuePairingCode, requestPairingCode } from "./pair.js";
+import {
+  issuePairingCode,
+  PAIR_DEFAULT_SERVER,
+  pairingAsked,
+  pairingFailed,
+  requestPairingCode,
+} from "./pair.js";
 
 const key = generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" });
 
@@ -254,5 +260,86 @@ describe("from the machine that runs the server", () => {
         operator: { serverUrl: "http://127.0.0.1:4431", tokenPath: tokenFile(false) },
       }),
     ).rejects.toThrow(/not valid here/);
+  });
+});
+
+describe("a code only this machine can use (the onboarding audit, item 29)", () => {
+  it("draws no QR for a phone when the server answers this machine alone, and says how to let one in", async () => {
+    vi.stubGlobal("fetch", server(Date.now(), { server_url: "http://127.0.0.1:4431" }).fetch);
+    const out = scriptedConsole(true);
+    await issuePairingCode({ console: out, device: device("http://127.0.0.1:4431") });
+    const printed = out.lines.join("\n");
+    expect(printed).toContain("code       ABC-DEF");
+    expect(printed).toContain(
+      "Only this machine can reach this Chips, so a phone can't use the code.",
+    );
+    expect(printed).toContain("`chips up --reach lan`");
+    expect(printed).not.toContain("█");
+  });
+
+  it("draws the phone's QR when a relay reaches it from anywhere", async () => {
+    vi.stubGlobal(
+      "fetch",
+      server(Date.now(), {
+        server_url: "http://127.0.0.1:4431",
+        relay: "wss://relay.example",
+        server_key: "k".repeat(43),
+      }).fetch,
+    );
+    const out = scriptedConsole(true);
+    await issuePairingCode({ console: out, device: device("http://127.0.0.1:4431") });
+    const printed = out.lines.join("\n");
+    expect(printed).toContain("On a phone, scan this with its camera.");
+    expect(printed).toContain("█");
+  });
+});
+
+describe("chips pair <code> (the onboarding audit, item 6)", () => {
+  it("finds the code wherever it stands, as the guides put --server first", () => {
+    expect(pairingAsked(["ABC-234"], "http://mini.local:4431")).toEqual({
+      ok: true,
+      code: "ABC-234",
+      server: "http://mini.local:4431",
+    });
+    expect(pairingAsked(["abc234"], undefined)).toEqual({
+      ok: true,
+      code: "ABC-234",
+      server: PAIR_DEFAULT_SERVER,
+    });
+    expect(pairingAsked(["http://192.168.1.20:4431/", "ABC-234"], undefined)).toEqual({
+      ok: true,
+      code: "ABC-234",
+      server: "http://192.168.1.20:4431",
+    });
+  });
+
+  it("gives an address without its http:// one", () => {
+    expect(pairingAsked(["ABC-234"], "192.168.1.20:4431")).toMatchObject({
+      server: "http://192.168.1.20:4431",
+    });
+  });
+
+  it("says what is missing or wrong instead of sending it", () => {
+    expect(pairingAsked([], undefined)).toMatchObject({ ok: false });
+    expect(pairingAsked(["hello"], undefined)).toMatchObject({
+      ok: false,
+      problem: expect.stringContaining("isn't a pairing code"),
+    });
+    expect(pairingAsked(["ABC-234"], "ftp://x")).toMatchObject({
+      ok: false,
+      problem: expect.stringContaining("isn't a server's address"),
+    });
+  });
+
+  it("says a failure in words: the server's own, or that nothing answered", () => {
+    expect(pairingFailed(new PairingError("That pairing code is not valid."), "http://x:1")).toBe(
+      "That pairing code is not valid.",
+    );
+    expect(pairingFailed(new TypeError("fetch failed"), PAIR_DEFAULT_SERVER)).toContain(
+      "Chips isn't running on this machine: `chips up` starts it",
+    );
+    expect(pairingFailed(new TypeError("fetch failed"), "http://mini.local:4431")).toBe(
+      "Nothing answered at http://mini.local:4431. Check the address, and that Chips is running there and this machine is on its network.",
+    );
   });
 });

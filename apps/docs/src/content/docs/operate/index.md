@@ -59,7 +59,7 @@ harnesses. See [Configuration](/start/install/#configuration). Under the attachm
 an owner or an admin caps photos, videos and files separately from **You → Attachments** in
 the app, on the desktop or on the phone; that is the workspace's own setting, kept in the log.
 
-:::note[Phase 6]
-Postgres, the Prometheus exporter, several gateway processes behind one address, and a runbook
-per failure mode arrive in Phase 6.
+:::note[Not yet]
+Chips runs on SQLite, one gateway process per server. Postgres, a Prometheus exporter, several
+gateway processes behind one address, and a runbook per failure mode are not built yet.
 :::

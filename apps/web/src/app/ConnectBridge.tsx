@@ -32,6 +32,7 @@ import {
   hereNote,
   hereSentence,
   hereSteps,
+  isFoundHere,
   type JoinCard,
   type JoinRequest,
   type JoinStall,
@@ -47,6 +48,7 @@ import type { Connector } from "@chipschat/protocol";
 import { Button } from "@chipschat/ui";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { type ConnectingHere, type Desktop, desktop } from "../native.ts";
+import { useFoundHere } from "./firstRun.ts";
 
 /** The shell's way to run a card's line here. */
 export type ConnectHere = NonNullable<Desktop["connectHere"]>;
@@ -376,6 +378,36 @@ function HereGo(props: {
   );
 }
 
+/** Connect, or in its place where the link's card has stopped, the stall and its one thing to do. */
+function HereAction(props: {
+  readonly name: string;
+  readonly stalled: JoinStall | undefined;
+  readonly request: JoinRequest | undefined;
+  readonly state: "ready" | "running" | "stopped";
+  readonly disabled: boolean;
+  readonly onGo: () => void;
+}) {
+  if (props.stalled !== undefined) {
+    return (
+      <StallBox
+        stall={props.stalled}
+        name={props.request?.name}
+        testId="join-here-stall"
+        onRenew={props.onGo}
+      />
+    );
+  }
+  return (
+    <HereGo name={props.name} state={props.state} disabled={props.disabled} onGo={props.onGo} />
+  );
+}
+
+/** Whether Chips for Mac found the card's agent here (ADR 0288), unknown until it says. */
+function useHereFound(card: Connector): boolean | undefined {
+  const { found } = useFoundHere([card]);
+  return found === undefined || card.program === undefined ? undefined : isFoundHere(card, found);
+}
+
 /**
  * On this Mac: what Connect does, its four steps, and Connect, which runs the card's line here
  * (`connectHere`) with the link the page made; where the bridge stops, its words and Try again.
@@ -391,6 +423,12 @@ export function OnThisMac(props: {
   readonly request: JoinRequest | undefined;
   /** Where the link's card has stopped, if it has. */
   readonly stall?: JoinStall | undefined;
+  /**
+   * The harness has said hello. The dialog then shows its arrival in place of all this; the
+   * welcome has none, so Connect gives way to Open its space below it rather than spinning on as
+   * long as the bridge runs (the onboarding audit, item 7).
+   */
+  readonly arrived?: boolean | undefined;
   /** The link can't be used any more: Try again makes another first. */
   readonly spent: boolean;
   readonly nowMs: number;
@@ -408,24 +446,20 @@ export function OnThisMac(props: {
   // Connected, it waits for the hello, which the arrival follows, unless the card stops there.
   const stalled = steps.connected && !running ? props.stall : undefined;
   const busy = running || steps.connected;
+  const here = useHereFound(card);
   return (
     <>
-      <p className="join-lede">{hereSentence(card.name)}</p>
+      <p className="join-lede">{hereSentence(card.name, here)}</p>
       <StepList label={STEPS_LABEL.here} steps={steps.steps} testId="join-here-steps" />
       {stop === undefined ? null : <StopBox stop={stop} />}
-      {stalled === undefined ? (
-        <HereGo
+      {props.arrived === true && !running ? null : (
+        <HereAction
           name={card.name}
+          stalled={stalled}
+          request={props.request}
           state={busy ? "running" : stop === undefined ? "ready" : "stopped"}
           disabled={props.link === undefined}
           onGo={() => void start()}
-        />
-      ) : (
-        <StallBox
-          stall={stalled}
-          name={props.request?.name}
-          testId="join-here-stall"
-          onRenew={() => void start()}
         />
       )}
       <HereNote
@@ -478,6 +512,7 @@ export function BridgeWays(props: {
           link={props.link}
           request={request}
           stall={props.joinCard?.stall}
+          arrived={props.joinCard !== undefined && props.joinCard.done >= 5}
           spent={request?.state !== "allowed" || props.joinCard?.stall !== undefined}
           nowMs={props.nowMs}
           onNewLink={props.onNewLink}

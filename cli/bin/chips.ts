@@ -27,6 +27,7 @@ import {
   operatorTokenPath,
   sqlitePathFrom,
 } from "@chipschat/server";
+import { type Flags, readArgs } from "../src/args.js";
 import { NPM_REGISTRY } from "../src/bridges.js";
 import {
   type BridgeCard,
@@ -75,6 +76,8 @@ import {
   joinChips,
   loadDevice,
   pairDevice,
+  pairingAsked,
+  pairingFailed,
   readConnections,
   readFolder,
   relay,
@@ -182,92 +185,32 @@ function usage(harnesses: string): string {
     "  --json        with `up`: one line of JSON with the links and places",
     "  --remove-data with `uninstall`: remove the workspace too",
     "",
-    "Configuration comes from the environment: https://chipschat.ai/operate/cli/",
+    "Configuration comes from the environment: https://chipschat.ai/start/install/#configuration",
   ].join("\n");
 }
 
-interface Flags {
-  readonly yes: boolean;
-  readonly noService: boolean;
-  readonly noOpen: boolean;
-  readonly removeData: boolean;
-  readonly reach: string | undefined;
-  readonly issue: boolean;
-  readonly rotate: boolean;
-  readonly noDial: boolean;
-  readonly json: boolean;
-  readonly update: boolean;
-  readonly name: string | undefined;
-  readonly server: string | undefined;
-  readonly port: number | undefined;
-  readonly timeout: number | undefined;
-  readonly capabilities: readonly string[] | undefined;
-}
-
-function readFlags(argv: readonly string[]): Flags {
-  const value = (flag: string): string | undefined => {
-    const at = argv.indexOf(flag);
-    return at === -1 ? undefined : argv[at + 1];
-  };
-  return {
-    yes: argv.includes("--yes") || argv.includes("-y"),
-    noService: argv.includes("--no-service"),
-    noOpen: argv.includes("--no-open"),
-    removeData: argv.includes("--remove-data"),
-    reach: value("--reach"),
-    issue: argv.includes("--issue"),
-    rotate: argv.includes("--rotate"),
-    noDial: argv.includes("--no-dial"),
-    json: argv.includes("--json"),
-    update: argv.includes("--update"),
-    name: value("--name"),
-    server: value("--server"),
-    port: numberOf(value("--port")),
-    timeout: numberOf(value("--timeout")),
-    capabilities: listOf(value("--capabilities")),
-  };
-}
-
-/** The flags that take the word after them. */
-const VALUED = new Set(["--reach", "--name", "--server", "--port", "--timeout", "--capabilities"]);
-
-/** The words after the command that are not flags or a flag's value: `<id>` and `<link>`. */
-function positionals(argv: readonly string[]): string[] {
-  const words: string[] = [];
-  for (let at = 1; at < argv.length; at += 1) {
-    const word = argv[at] ?? "";
-    if (VALUED.has(word)) at += 1;
-    else if (!word.startsWith("-")) words.push(word);
-  }
-  return words;
-}
-
-/** `a,b, c` as `["a", "b", "c"]`; nothing when the flag was not given. */
-function listOf(raw: string | undefined): readonly string[] | undefined {
-  if (raw === undefined) return undefined;
-  return raw
-    .split(",")
-    .map((each) => each.trim())
-    .filter((each) => each !== "");
-}
-
-function numberOf(raw: string | undefined): number | undefined {
-  if (raw === undefined) return undefined;
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 && parsed < 65_536 ? parsed : undefined;
+/** `chips --help` and `chips --version` as the commands they are, `help` and `version`. */
+function asCommand(argv: readonly string[]): readonly string[] {
+  const first = argv[0];
+  if (first === "--help" || first === "-h") return ["help", ...argv.slice(1)];
+  if (first === "--version" || first === "-v") return ["version", ...argv.slice(1)];
+  return argv;
 }
 
 async function main(): Promise<number> {
   const out = systemConsole();
-  const argv = process.argv.slice(2);
-  const command = argv[0] ?? "help";
-  const flags = readFlags(argv);
+  const args = readArgs(asCommand(process.argv.slice(2)));
+  if (!args.ok) {
+    out.err(args.problem);
+    return 1;
+  }
+  const { command, flags, words } = args;
 
-  if (command === "help" || command === "--help" || command === "-h") {
+  if (command === "help" || flags.help) {
     out.out(usage(await harnessesHere(command, flags)));
     return 0;
   }
-  if (command === "--version" || command === "-v" || command === "version") {
+  if (command === "version") {
     out.out(versionLine(RELEASE));
     return 0;
   }
@@ -312,35 +255,40 @@ async function main(): Promise<number> {
       return await new Promise<number>(() => {});
 
     case "pair":
-      return await pair(argv[1], flags, out, config.value);
+      return await pair(words, flags, out, config.value);
 
     case "join":
-      return await joinChips({ target: argv[1], name: flags.name, console: out, env: environment });
+      return await joinChips({
+        target: words[0],
+        name: flags.name,
+        console: out,
+        env: environment,
+      });
 
     case "connect":
-      return await connectTo(positionals(argv), flags, out, config.value, machine);
+      return await connectTo(words, flags, out, config.value, machine);
 
     case "disconnect":
-      return await disconnectFrom(argv[1], flags, out, config.value, machine);
+      return await disconnectFrom(words[0], flags, out, config.value, machine);
 
     case "remove":
-      return await removeHarness(argv[1], flags, out);
+      return await removeHarness(words[0], flags, out);
 
     case "declare":
-      return await declareFor(argv.slice(1), out);
+      return await declareFor(words, out);
 
     case "doctor":
       return report(out, await doctor({ console: out, here: hereFor(config.value, machine) }));
 
     case "conformance":
-      return await conform(argv[1], flags, out);
+      return await conform(words[0], flags, out);
 
     case "project":
-      return await project(positionals(argv), out);
+      return await project(words, out);
 
     case "export":
     case "import": {
-      const folder = argv[1];
+      const folder = words[0];
       if (folder === undefined) {
         out.err(`Give a folder: \`chips ${command} ./my-workspace\`.`);
         return 1;
@@ -554,34 +502,45 @@ async function upHere(
 }
 
 async function pair(
-  code: string | undefined,
+  words: readonly string[],
   flags: Flags,
   out: ReturnType<typeof systemConsole>,
   config: ChipsConfig,
 ): Promise<number> {
   if (flags.issue) {
-    await issuePairingCode({ console: out, operator: serverHere(config) });
-    return 0;
+    try {
+      await issuePairingCode({ console: out, operator: serverHere(config) });
+      return 0;
+    } catch (failure) {
+      out.err(failure instanceof Error ? failure.message : String(failure));
+      return 1;
+    }
   }
-  if (code === undefined) {
-    out.err("Give the pairing code: `chips pair ABC-DEF`, or `chips pair --issue` for one.");
+  const asked = pairingAsked(words, flags.server);
+  if (!asked.ok) {
+    out.err(asked.problem);
     return 1;
   }
-  const device = await pairDevice({
-    serverUrl: flags.server ?? "http://127.0.0.1:4431",
-    code,
-    name: "chips CLI",
-  });
-  out.out(heading("Paired"));
-  out.out(
-    facts([
-      ["you", `${device.displayName} (${device.participantId})`],
-      ["workspace", device.workspaceId],
-      ["server", device.serverUrl],
-    ]),
-  );
-  out.out("");
-  return 0;
+  try {
+    const device = await pairDevice({
+      serverUrl: asked.server,
+      code: asked.code,
+      name: "chips CLI",
+    });
+    out.out(heading("Paired"));
+    out.out(
+      facts([
+        ["you", `${device.displayName} (${device.participantId})`],
+        ["workspace", device.workspaceId],
+        ["server", device.serverUrl],
+      ]),
+    );
+    out.out("");
+    return 0;
+  } catch (failure) {
+    out.err(pairingFailed(failure, asked.server));
+    return 1;
+  }
 }
 
 /**
@@ -857,4 +816,15 @@ function dirnameOf(databaseUrl: string): string {
   return path === ":memory:" ? "." : join(path, "..");
 }
 
-process.exitCode = await main();
+/**
+ * A failure no command caught, said as its words rather than Node's stack (the onboarding audit,
+ * item 6). `CHIPS_DEBUG=true` prints the stack too.
+ */
+process.exitCode = await main().catch((failure: unknown) => {
+  const words = failure instanceof Error ? failure.message : String(failure);
+  process.stderr.write(`${words}\n`);
+  if (processEnvironment()["CHIPS_DEBUG"] === "true" && failure instanceof Error) {
+    process.stderr.write(`${failure.stack ?? ""}\n`);
+  }
+  return 1;
+});

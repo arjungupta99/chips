@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appPairingUrl,
+  isPhonePairingLink,
   PAIRING_VERSION,
   pairingCodeTyped,
   pairingFromLink,
@@ -13,6 +14,7 @@ import {
   pairingPayload,
   pairingUrl,
   pairRelayUrl,
+  phonePairingUrl,
 } from "./pairing.js";
 
 const KEY = "k".repeat(43);
@@ -116,6 +118,38 @@ describe("the same payload as a link the app opens", () => {
       lan: "http://mini.local:4431",
     });
     expect(pairingFromUrl(new URL(text))?.lan).toBe("http://mini.local:4431");
+  });
+});
+
+describe("the phone's QR (the install plan, §3.2)", () => {
+  it("opens chipschat.ai/p with the payload in its fragment, the server named in it", () => {
+    const text = phonePairingUrl("http://192.168.1.20:4431/", "ABC-234", {
+      relay: "wss://relay.example",
+      key: KEY,
+    });
+    expect(text).toBe(
+      `https://chipschat.ai/p#pair=ABC-234&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431&relay=wss%3A%2F%2Frelay.example&key=${KEY}`,
+    );
+    expect(isPhonePairingLink(text)).toBe(true);
+  });
+
+  it("reads as the server's payload, not chipschat.ai's, as an app from before it reads it", () => {
+    const text = phonePairingUrl("http://100.64.0.7:4431", "ABC-234");
+    const url = new URL(text);
+    expect(pairingFromUrl({ origin: url.origin, search: url.search, hash: url.hash })).toEqual({
+      v: PAIRING_VERSION,
+      code: "ABC-234",
+      lan: "http://100.64.0.7:4431",
+      candidates: [],
+    });
+    expect(pairingFromLink(text)?.lan).toBe("http://100.64.0.7:4431");
+  });
+
+  it("is told apart from every other link", () => {
+    expect(isPhonePairingLink("https://chipschat.ai/p")).toBe(true);
+    expect(isPhonePairingLink("https://chipschat.ai/pricing")).toBe(false);
+    expect(isPhonePairingLink("https://relay.chipschat.ai/pair#pair=ABC-234")).toBe(false);
+    expect(isPhonePairingLink("chips://pair?pair=ABC-234")).toBe(false);
   });
 });
 

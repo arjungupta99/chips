@@ -16,7 +16,7 @@ import * as Clipboard from "expo-clipboard";
 import { type ReactElement, type ReactNode, useState } from "react";
 import { Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { NO_INVITE, NOT_AN_INVITE } from "../pairing/usePasteInvite";
+import { NO_INVITE } from "../pairing/usePasteInvite";
 import { Group } from "../ui/Group";
 import { Screen } from "../ui/Screen";
 import { useWorkspaceTitle, WorkspacesSheet } from "./Switcher";
@@ -103,11 +103,30 @@ jest.mock("../store/provider", () => ({
     },
     switchTo: mockSwitchTo,
     mute: jest.fn(async () => undefined),
+    began: mockBegan,
   }),
 }));
+const mockBegan = jest.fn();
 const mockPushed: unknown[] = [];
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: (to: unknown) => mockPushed.push(to), replace: jest.fn() }),
+  useRouter: () => ({
+    push: (to: unknown) => mockPushed.push(to),
+    replace: jest.fn(),
+    canDismiss: () => false,
+  }),
+}));
+/** A computer's pairing code, scanned: what the phone pairs with, handed back once it is in. */
+const mockPaired: string[] = [];
+jest.mock("../pairing/usePairing", () => ({
+  ...jest.requireActual("../pairing/usePairing"),
+  usePairing: (onPaired: (device: unknown) => void) => ({
+    working: false,
+    failure: undefined,
+    pair: (text: string) => {
+      mockPaired.push(text);
+      onPaired({ deviceId: "dev_second" });
+    },
+  }),
 }));
 /** What the camera shows, allowed: a test reads a code into it with `read`. */
 const mockCamera: { read: ((data: string) => void) | undefined } = { read: undefined };
@@ -127,6 +146,8 @@ afterEach(() => {
   mockArriving = undefined;
   mockLive = undefined;
   mockPushed.length = 0;
+  mockPaired.length = 0;
+  mockBegan.mockClear();
   mockCamera.read = undefined;
   mockSwitchTo.mockClear();
   mockRename.mockReset();
@@ -250,19 +271,26 @@ describe("Join another workspace, by a code scanned", () => {
     expect(screen.queryByText("Type a pairing code instead")).toBeNull();
   });
 
-  it("says a code that is not an invite is not one, and opens one that is", async () => {
+  it("opens an invite, and pairs with a computer's code as the first screen does", async () => {
     await render(<Spaces />);
     await userEvent.press(screen.getByTestId("workspace-title"));
     await userEvent.press(await screen.findByTestId("workspace-scan"));
     await screen.findByTestId("scan-sheet");
-    await act(async () => mockCamera.read?.("http://192.168.1.20:4431/#pair=ABC-234"));
-    expect(screen.getByText(NOT_AN_INVITE)).toBeOnTheScreen();
-    expect(mockPushed).toEqual([]);
-
     await act(async () => mockCamera.read?.(invite));
     expect(mockPushed).toEqual([opened]);
+    expect(mockPaired).toEqual([]);
     // The join sheet opens over Spaces, not under the camera.
     expect(screen.queryByTestId("scan-sheet")).toBeNull();
+
+    // A second Chips of your own: its computer's code pairs, and the camera goes as it is in.
+    await userEvent.press(screen.getByTestId("workspace-title"));
+    await userEvent.press(await screen.findByTestId("workspace-scan"));
+    await screen.findByTestId("scan-sheet");
+    const code = "https://chipschat.ai/p#pair=ABC-234&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431";
+    await act(async () => mockCamera.read?.(code));
+    expect(mockPaired).toEqual([code]);
+    expect(mockBegan).toHaveBeenCalledWith({ deviceId: "dev_second" });
+    await waitFor(() => expect(screen.queryByTestId("scan-sheet")).toBeNull());
   });
 
   it("opens the same invite again when it is scanned after a join backed out of", async () => {

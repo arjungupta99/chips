@@ -98,7 +98,16 @@ describe("chips doctor", () => {
     expect(bad(findings)).toEqual([]);
     const out = scriptedConsole(true);
     expect(report(out, findings)).toBe(0);
-    expect(out.lines.join("\n")).toContain("Everything checks out");
+    // Scout has never connected, which is worth a word but nothing to fix.
+    expect(out.lines.join("\n")).toContain("Nothing to fix, one thing worth knowing");
+    const quiet = scriptedConsole(true);
+    expect(
+      report(
+        quiet,
+        findings.filter((each) => each.health === "ok"),
+      ),
+    ).toBe(0);
+    expect(quiet.lines.join("\n")).toContain("Everything checks out");
   });
 
   it("names who a harness speaks as: its agents, the Lead first (ADR 0087)", async () => {
@@ -502,7 +511,9 @@ describe("chips doctor", () => {
     ];
     expect(report(out, findings)).toBe(0);
     const printed = out.lines.join("\n");
-    expect(printed).toContain("Everything checks out");
+    // Not "Everything checks out" over a warning (the onboarding audit, item 35).
+    expect(printed).not.toContain("Everything checks out");
+    expect(printed).toContain("Nothing to fix, one thing worth knowing");
     expect(printed).toContain("video: Install ffmpeg.");
   });
 

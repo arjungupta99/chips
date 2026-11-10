@@ -37,13 +37,14 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { EndCard, type EndWays, EndWords, WaysIn } from "../src/demo/EndCard";
+import { EndCard, type EndWays, EndWords, ForAComputer, WaysIn } from "../src/demo/EndCard";
 import { Fades } from "../src/demo/FilmMotion";
 import { type Film, FilmBar, FilmFace, moreThan, Skip, useFilm } from "../src/demo/FilmPlayer";
-import { useLookAround } from "../src/demo/home";
+import { useLookAround, WAYS_IN } from "../src/demo/home";
 import { VIDEOS, videoNamed } from "../src/demo/videos";
+import { thisDevice } from "../src/device/word";
 import { Big } from "../src/pairing/JoinCard";
-import { type HeldServer, OnThisWifi } from "../src/pairing/OnThisWifi";
+import { FinderView, type HeldServer, OnThisWifi, useFinder } from "../src/pairing/OnThisWifi";
 import { ScanSheet } from "../src/pairing/ScanSheet";
 import { type Join, useJoin } from "../src/pairing/useJoin";
 import { useChips } from "../src/store/provider";
@@ -77,7 +78,7 @@ export default function PairScreen() {
     return (
       <PairingCode
         join={join}
-        onBack={() => (router.canGoBack() ? router.back() : router.replace("/pair"))}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace(WAYS_IN))}
       />
     );
   }
@@ -345,7 +346,9 @@ function WideFilm({
     </View>
   );
   const waysIn = <WaysIn ways={ways} more={moreThan(video)} invites={join.invites} split={!side} />;
-  const wifi = <OnThisWifi foot held={held} onPaired={onPaired} />;
+  // Held here, over the turn between the two layouts, which draw it in different places.
+  const finder = useFinder(held, onPaired);
+  const wifi = <FinderView foot finder={finder} held={held} />;
   if (side) {
     return (
       <>
@@ -444,7 +447,7 @@ function PairingCode({ join, onBack }: { readonly join: Join; readonly onBack: (
   const addressField = useRef<TextInput>(null);
   const pair = () => join.pair(code, address);
   return (
-    <Screen title="Pair this phone">
+    <Screen title={`Pair ${thisDevice()}`}>
       {/* The code and the address are the last things on the page, where the keys come up: the
           page scrolls the field being typed into above them, and what follows it (the address, or
           Pair) into sight with it, on Android as on iOS. */}
@@ -471,6 +474,7 @@ function PairingCode({ join, onBack }: { readonly join: Join; readonly onBack: (
           </Text>
           . Type the code and the address it shows.
         </Text>
+        <ForAComputer />
         <View style={styles.form}>
           <Field
             label="Pairing code"

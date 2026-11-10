@@ -92,3 +92,27 @@ it("asks first when a found server is not the one this phone holds, and asks at 
   expect(askToJoin).toHaveBeenCalledTimes(1);
   expect(screen.queryByTestId("asking-elsewhere")).toBeNull();
 });
+
+it("looks again while nothing has answered, so a Chips allowed late still slides in", async () => {
+  jest.useFakeTimers();
+  try {
+    jest.mocked(canFind).mockReturnValue(true);
+    jest.mocked(findServers).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    jest.mocked(findServers).mockResolvedValue([MINI]);
+    await render(<OnThisWifi foot onPaired={jest.fn()} />);
+    await act(async () => undefined);
+    expect(screen.queryByText("Arjun's Mac mini")).toBeNull();
+
+    await act(async () => jest.advanceTimersByTime(5000));
+    expect(screen.queryByText("Arjun's Mac mini")).toBeNull();
+    await act(async () => jest.advanceTimersByTime(5000));
+    expect(screen.getByText("Arjun's Mac mini")).toBeTruthy();
+    expect(findServers).toHaveBeenCalledTimes(3);
+
+    // Once something answered, it stops looking.
+    await act(async () => jest.advanceTimersByTime(30_000));
+    expect(findServers).toHaveBeenCalledTimes(3);
+  } finally {
+    jest.useRealTimers();
+  }
+});

@@ -288,6 +288,22 @@ describe("the join sheet, on a phone in a workspace", () => {
     expect(core.joinByInvite.mock.calls.map((call) => call[1])).toEqual(["Priya Nair", "Priya N."]);
   });
 
+  it("from Look around, asks for a name first, since the demo calls everybody You (the onboarding audit, item 27)", async () => {
+    const { DEMO_DEVICE_ID } = jest.requireActual("@chipschat/core");
+    const demo = paired("ws_bakehouse");
+    const inDemo = { ...demo, device: { ...demo.device, deviceId: DEMO_DEVICE_ID } };
+    const done = jest.fn();
+    await render(<JoinSheet offer={OFFER} paired={inDemo} onDone={done} />);
+    expect(await screen.findByText("Join Demo too?")).toBeOnTheScreen();
+    const field = screen.getByTestId("join-sheet-name");
+    expect(field).toHaveDisplayValue("");
+    expect(screen.queryByText(/You join as/)).toBeNull();
+    await userEvent.type(field, "Sam");
+    await userEvent.press(screen.getByRole("button", { name: "Join Demo" }));
+    await waitFor(() => expect(done).toHaveBeenCalledWith(JOINED, undefined));
+    expect(core.joinByInvite.mock.calls[0]?.[1]).toBe("Sam");
+  });
+
   it("asks for no name when the join is refused for anything else", async () => {
     const { PairingError } = jest.requireActual("@chipschat/core");
     core.joinByInvite.mockRejectedValueOnce(new PairingError("That device is paired already."));

@@ -190,6 +190,7 @@ export function App({
       onWatching={setWatching}
       toPairing={toPairing}
       lookAround={lookAround}
+      setsUp={setsUpOwn(desktop, current)}
     />
   );
   const watchFilm = () => setWatching(FIRST_FILM);
@@ -247,18 +248,23 @@ export function App({
 /**
  * The film's video over the page while one is watched (ADR 0217). Leave is back to the page as it
  * was; the end card's Set up and invite go to the pairing page on that way in, and Look around
- * makes the demo and puts it in front.
+ * makes the demo and puts it in front. A browser paired with a real workspace has no Set up: its
+ * pairing page would ask for a code for the Chips it is paired with already (the onboarding audit,
+ * Part 2, item 14).
  */
 function FilmOver({
   watching,
   onWatching,
   toPairing,
   lookAround,
+  setsUp,
 }: {
   readonly watching: string | undefined;
   readonly onWatching: (film: string | undefined) => void;
   readonly toPairing: (way: Way) => void;
   readonly lookAround: () => Promise<void>;
+  /** Whether the end card offers Set up my own Chips: from the demo, nothing, or the Mac. */
+  readonly setsUp: boolean;
 }) {
   if (watching === undefined) return null;
   const film = videoNamed(watching) ?? VIDEOS[0];
@@ -273,7 +279,7 @@ function FilmOver({
       video={film}
       ways={{
         onLeave: off(() => undefined),
-        onSetUp: off(() => toPairing("own")),
+        onSetUp: setsUp ? off(() => toPairing("own")) : undefined,
         onInvite: off(() => toPairing("invite")),
         onFilm: onWatching,
         onLookAround: off(() => void lookAround()),
@@ -317,6 +323,14 @@ function pairsAnother(
   pair: () => void,
 ): (() => void) | undefined {
   return desktop !== undefined || isDemo(current) ? pair : undefined;
+}
+
+/**
+ * Whether the film's end card offers Set up my own Chips: with nothing paired, from the demo, and in
+ * Chips for Mac, which pairs another; not in a browser paired with a real workspace already.
+ */
+function setsUpOwn(desktop: Desktop | undefined, current: Device | undefined): boolean {
+  return current === undefined || desktop !== undefined || isDemo(current);
 }
 
 /** The workspace in front at launch: the demo when it was kept in front or is all there is. */

@@ -7,7 +7,8 @@ sidebar:
 
 One command, and everything it does says what it is about to change to your machine before it
 changes it. From a checkout it is `pnpm chips …`; once installed, `chips …`
-([Install](/start/install/)).
+([Install](/start/install/)). A flag takes its value after a space or an `=`, as in
+`--server=http://mini.local:4431`, and a flag `chips` doesn't know is refused rather than ignored.
 
 ```
 chips up                        start Chips, open it in your browser, show the phone's code
@@ -66,7 +67,9 @@ anywhere. If you lose it, `chips pair --issue` prints another.
 ## `chips pair <code>`
 
 Gives this machine a credential of its own, against a server somewhere else — `--server
-http://mini.local:4431` when it is not on this machine. It generates an Ed25519 key, sends the
+http://mini.local:4431` when it is not on this machine, before or after the code; an address
+without `http://` gets it. A wrong code, one that has run out, or a server that doesn't answer is
+said in a line. It generates an Ed25519 key, sends the
 public half with the code, and keeps the private half in `~/.config/chips/device.json` with
 owner-only permissions.
 
@@ -78,8 +81,10 @@ equivalent store. `chips doctor` tells you which you have.
 
 From a machine that is paired, a code for the next device: the desktop app on a laptop, a phone,
 another CLI. It asks the server for one — good for fifteen minutes, once, and for the person
-this machine is paired as, since that is who the new device will speak as — and prints it, with a
-QR that carries the server's network address when the server is here. A harness's token cannot
+this machine is paired as, since that is who the new device will speak as — and prints it, with the
+phone's QR, which carries the server's network address when the server is here. Where only this
+machine can reach the server, it draws no QR, since no phone could use it, and says how to let one
+in. A harness's token cannot
 issue one: a token is not a person.
 
 On the machine that runs the server there is a second door. The server leaves an operator token

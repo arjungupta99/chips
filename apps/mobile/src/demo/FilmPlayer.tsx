@@ -38,7 +38,7 @@ import { useVideoPlayer, type VideoPlayer, VideoView } from "expo-video";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { type GestureResponderEvent, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { PasteInvite } from "../pairing/usePasteInvite";
+import type { JoinInvites } from "../pairing/useJoin";
 import { GOLD_PRESSED, ON_GOLD } from "../ui/Button";
 import { alpha } from "../ui/glassDial";
 import { Icon } from "../ui/Icon";
@@ -309,7 +309,7 @@ export function FilmPlayer({
 }: {
   readonly video: FilmVideo;
   readonly ways: FilmWays;
-  readonly invites: PasteInvite;
+  readonly invites: JoinInvites;
 }) {
   const film = useFilm(video);
   const reduced = useReduceMotion();

@@ -62,6 +62,22 @@ function stepSaid(deps: BridgeDeps, step: BridgeStep): void {
   if (deps.json === true) deps.console.out(JSON.stringify(step));
 }
 
+/**
+ * A step's few words in a terminal, once each: what a sheet shows under its steps, which a bridge
+ * says only as steps (`Getting what Codex needs from npm, a large download`). Without them a
+ * terminal sat silent through a download of minutes (the onboarding audit, Part 2, item 7).
+ */
+function detailSaid(deps: BridgeDeps, said: Set<string>): (step: BridgeStep) => void {
+  return (step) => {
+    const detail = step["detail"];
+    if (deps.json === true || typeof detail !== "string" || detail === "" || said.has(detail)) {
+      return;
+    }
+    said.add(detail);
+    deps.console.out(`  ${detail}${/[.…!?]$/.test(detail) ? "" : "…"}`);
+  };
+}
+
 /** A failure Chips found before the bridge could say anything, said either way. */
 function failed(deps: BridgeDeps, sentence: string, code = 1): number {
   if (deps.json === true) deps.console.out(JSON.stringify({ step: "failed", sentence, code }));
@@ -224,6 +240,7 @@ export async function connectBridge(
   stepSaid(deps, { step: "checking" });
   let label: string | undefined;
   let stopped: BridgeStep | undefined;
+  const inTerminal = detailSaid(deps, new Set());
   const ran = await runBridge({
     node: deps.node,
     main,
@@ -232,12 +249,14 @@ export async function connectBridge(
     onStep: (step) => {
       if (step.step === "keeping" && typeof step["label"] === "string") label = step["label"];
       // Where it stopped, in its words for a sheet: said once, with its sentence, as it ends.
-      if (step.step === "failed") stopped = step;
-      else
-        stepSaid(
-          deps,
-          link === undefined && step.step === "joining" ? { ...step, detail: KEY_KEPT } : step,
-        );
+      if (step.step === "failed") {
+        stopped = step;
+        return;
+      }
+      const shown =
+        link === undefined && step.step === "joining" ? { ...step, detail: KEY_KEPT } : step;
+      stepSaid(deps, shown);
+      inTerminal(shown);
     },
     onLine: passOn(deps),
   });

@@ -174,7 +174,7 @@ describe("what the connect page copies", () => {
       needs: "Claude Code installed and signed in",
     };
     expect(connectNote(claude, "http://127.0.0.1:4431/j/chips_j_0123456789abcdefghijkl")).toBe(
-      "The link in it works once, for 15 minutes. It works only on the computer Chips runs on, so run it there. That computer needs Claude Code installed and signed in.",
+      "The link in it works once, for 15 minutes. It works only on the computer Chips runs on, so run it there, where nothing needs installing. That computer needs Claude Code installed and signed in.",
     );
     expect(connectNote(claude, "http://192.168.1.20:4431/j/chips_j_0123456789abcdefghijkl")).toBe(
       "The link in it works once, for 15 minutes. That computer has to reach Chips at http://192.168.1.20:4431: on the same network, on its tailnet, or at an address it can reach. That computer needs Claude Code installed and signed in.",
@@ -372,7 +372,7 @@ describe("a bridge's card (ADR 0218, phase 5)", () => {
     // The phone copies the same line.
     expect(copyOf(HERMES, link, false)).toBe(line);
     expect(connectHead(HERMES, false).sub).toBe(
-      "This goes on the computer where Hermes runs, and installs Chips there if it needs to.",
+      "This goes on the computer where Hermes runs, and installs Chips there first if that computer has none.",
     );
     expect(alreadyThere(HERMES, link)).toEqual({
       before: "If Chips is already on that computer, ",
@@ -417,6 +417,10 @@ describe("a bridge's card (ADR 0218, phase 5)", () => {
   it("says on this Mac what Connect does, and what it needs first", () => {
     expect(hereSentence("Hermes")).toBe(
       "Hermes runs on this Mac, so Chips can connect it for you. It gets the Hermes bridge and keeps it running after you log in.",
+    );
+    expect(hereSentence("Hermes", true)).toBe(hereSentence("Hermes"));
+    expect(hereSentence("Hermes", false)).toBe(
+      "Chips didn't find Hermes on this Mac. Connect gets the Hermes bridge, then says what to run to install Hermes if it's still missing.",
     );
     expect(hereButton("Hermes", "ready")).toBe("Connect Hermes");
     expect(hereButton("Hermes", "running")).toBe("Connecting…");

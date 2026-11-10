@@ -3,7 +3,7 @@
     "name": "Chips",
     "slug": "chips",
     "scheme": "chips",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,7 +13,7 @@
       "bundleIdentifier": "chat.chips.app",
       "appleTeamId": "W9K648WB82",
       "supportsTablet": true,
-      "associatedDomains": ["applinks:relay.chipschat.ai"],
+      "associatedDomains": ["applinks:relay.chipschat.ai", "applinks:chipschat.ai"],
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true

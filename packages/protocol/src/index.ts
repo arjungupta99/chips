@@ -452,8 +452,12 @@ export {
 export { HTML_POLICY, PAGE_HEADER_POLICY, PAGE_SANDBOX } from "./pages.js";
 export type { PairingOffer, PairingPayload } from "./pairing.js";
 export {
+  APP_STORE_LINK,
   appPairingUrl,
+  isPhonePairingLink,
+  MAC_DOWNLOAD,
   PAIRING_VERSION,
+  PHONE_PAIR_PAGE,
   pairingCode,
   pairingCodeTyped,
   pairingFromLink,
@@ -461,6 +465,7 @@ export {
   pairingPayload,
   pairingUrl,
   pairRelayUrl,
+  phonePairingUrl,
   RELAY_PAIR_PATH,
   serverKey,
 } from "./pairing.js";

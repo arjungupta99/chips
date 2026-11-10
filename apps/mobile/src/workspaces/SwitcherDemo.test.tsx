@@ -162,7 +162,9 @@ describe("Chips demo in the switcher", () => {
     await render(<Spaces />);
     await userEvent.press(screen.getByTestId("workspace-title"));
     await userEvent.press(await screen.findByTestId("workspace-remove-demo"));
-    await waitFor(() => expect(mockRouter.replace).toHaveBeenCalledWith("/pair"));
+    await waitFor(() =>
+      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/pair", params: { ways: "1" } }),
+    );
   });
 
   it("is removed from the switcher while another is in front, too", async () => {

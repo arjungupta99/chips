@@ -8,7 +8,7 @@ gets made in a queue at a coffee shop; the same decision waiting for a laptop ge
 later, or not at all. So the phone app is the whole product, not a viewer: the spaces, the fleet,
 and the two buttons that matter.
 
-The app is on TestFlight until it is in the App Store. [Get Chips on your
+The app is on the App Store for iPhone and iPad. [Get Chips on your
 iPhone](/start/iphone/) is the short way in: installing it, the code `chips up` shows, and the
 relay for away from home. This page is everything after that. To build the app yourself from a
 checkout, on your own phone or a simulator, see [Building the phone app](/contribute/phone/).
@@ -17,17 +17,20 @@ checkout, on your own phone or a simulator, see [Building the phone app](/contri
 
 On the computer that runs Chips, `chips up` shows a QR code for the phone, and running it again
 shows a new one. On a computer already paired, **You → Devices → Pair another device…** shows one,
-and `chips pair --issue` prints one in a terminal on the server's machine. In the app, tap **Scan a
-QR code** on the first screen and point the camera at it. That is the whole of it, because the QR
+and `chips pair --issue` prints one in a terminal on the server's machine. Point the iPhone's camera
+at it, or tap **Scan a QR code** on the app's first screen. That is the whole of it, because the QR
 carries the server's address and the code, and, when the relay is on, the relay and the key to ask
 for there.
 
-Scan it from inside the app, not with the Camera app. A QR shown in a browser is a web address,
-and the Camera opens it in Safari, where a plain-HTTP page cannot pair: a browser makes its device
-key only on a secure address, and your server's address on a home network or a tailnet is not one.
-The page says so, and offers the code to the Chips app instead. The same is true of a browser on a
-laptop: open Chips at `http://127.0.0.1:4431` on the machine that runs it, or put the server behind
-HTTPS, which [Tailscale Serve](/operate/tailscale/) does in one command.
+The QR is a link to `chipschat.ai/p` with all of that in the part after `#`, which a browser never
+sends anywhere. With Chips installed, iOS opens the link in Chips. Without it, the page there says
+where to get Chips and, once it is installed, hands the code to it with **Open in Chips**. The page
+reads nothing from the link and sends nothing.
+
+A browser can't pair from a phone's QR: a browser makes its device key only on a secure address,
+and your server's address on a home network or a tailnet is not one. On a laptop, open Chips at
+`http://127.0.0.1:4431` on the machine that runs it, or put the server behind HTTPS, which
+[Tailscale Serve](/operate/tailscale/) does in one command.
 
 The address in that QR comes from the server, not from the browser drawing it. A browser only
 knows the origin it loaded from, which is `127.0.0.1` on the machine chipsd runs on, or a dev
@@ -101,8 +104,7 @@ far side to reach. See [when your machine sleeps](/operate/mac-mini/).
 ## Getting around
 
 Four tabs at the foot of the screen: **Spaces**, **Agents**, **Search** and **You**, with the **+**
-for a new space beside them. The app opens on Spaces. (There was a fourth, **For you**, a queue of everything waiting on you across every
-space; it was withdrawn on 22 September 2026, and an ask is answered in its space.) The bar is the
+for a new space beside them. The app opens on Spaces, and an ask is answered in its space. The bar is the
 phone's own, so it shrinks out
 of the way as a list goes up and comes back as it comes down, and a press feels like every other
 tab bar on the phone. A development build has a fourth tab, **Runtime**, which is a report and not
@@ -456,8 +458,6 @@ It says what is wrong rather than failing quietly:
   line goes once one gets through. A decision the phone missed comes up on your computer instead.
 
 ## What is not there yet
-
-**The App Store.** The app is on TestFlight for now ([Get Chips on your iPhone](/start/iphone/)).
 
 **Android.** The app has been walked on an Android emulator, not on a phone, and push on Android
 waits for a Firebase project for Expo's service to send through. [Building the phone

@@ -152,6 +152,8 @@ describe("an invite link", () => {
       fireEvent.click(screen.getByRole("button", { name: "Join" }));
     });
     await waitFor(() => expect(onPaired).toHaveBeenCalledWith(DEVICE, undefined));
+    // Named on the way in, and not the one whose Chips it is: no owner's welcome after it.
+    expect(localStorage.getItem("chips.firstRun.welcomed.dev_1")).toBe("1");
     // The page's own server, reached as the page is: no relay in a browser (ADR 0164).
     expect(core.joinByInvite).toHaveBeenCalledWith(
       "chips_inv_abc1",
@@ -460,6 +462,41 @@ describe("an invite, handed to the app (ADR 0164)", () => {
         key: KEY,
       }),
     );
+  });
+
+  it("says where to get Chips beside the app's link: the App Store on an iPhone, the Mac's download on a Mac", async () => {
+    agent("Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15");
+    history.replaceState(null, "", "/#invite=chips_inv_store");
+    core.peekInvite.mockResolvedValueOnce(NORTHWIND);
+    const phone = render(<Pair onPaired={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Join Northwind" });
+    expect(screen.getByTestId("join-get-chips").getAttribute("href")).toBe(
+      "https://apps.apple.com/app/id6824148802",
+    );
+    phone.unmount();
+    agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15");
+    history.replaceState(null, "", "/#invite=chips_inv_on_a_mac");
+    core.peekInvite.mockResolvedValueOnce(NORTHWIND);
+    render(<Pair onPaired={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Join Northwind" });
+    expect(screen.getByTestId("join-get-chips").getAttribute("href")).toBe(
+      "https://chipschat.ai/download",
+    );
+  });
+
+  it("says before a name is typed that a plain-HTTP page can't join, and holds Join (the onboarding audit, item 3)", async () => {
+    vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      history.replaceState(null, "", "/#invite=chips_inv_http");
+      core.peekInvite.mockResolvedValueOnce(NORTHWIND);
+      render(<Pair onPaired={vi.fn()} />);
+      await screen.findByRole("heading", { name: "Join Northwind" });
+      expect(screen.getByTestId("join-keyless").textContent).toContain("so it can't join here");
+      expect(screen.getByLabelText("Your name")).toHaveProperty("disabled", true);
+      expect(screen.getByRole("button", { name: "Join" })).toHaveProperty("disabled", true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("offers nothing of the sort on a computer that can't have the app", async () => {

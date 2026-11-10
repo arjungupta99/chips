@@ -41,6 +41,7 @@ import { type ConnectionState, type LinkKind, lostWords } from "@chipschat/core"
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { WAYS_IN } from "../demo/home";
 import { deviceWord, thisDevice } from "../device/word";
 import { Button } from "./Button";
 import { ChipPulse } from "./ChipPulse";
@@ -534,7 +535,7 @@ export function ConnectionMark({
                       return;
                     }
                     setUp(false);
-                    router.push("/pair");
+                    router.push(WAYS_IN);
                   }}
                 />
               </View>

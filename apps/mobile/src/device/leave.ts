@@ -10,6 +10,7 @@
 import { type Device, isDemo } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
+import { WAYS_IN } from "../demo/home";
 import { forgetDrafts } from "../spaces/Composer";
 import { useChips } from "../store/provider";
 import { forgetHere } from "./forget";
@@ -23,14 +24,14 @@ export function useLeave(): (device: Device, spaceIds: readonly string[]) => Pro
         forgetDrafts(spaceIds);
         const next = demo.remove();
         if (router.canDismiss()) router.dismissAll();
-        router.replace(next === undefined ? "/pair" : "/");
+        router.replace(next === undefined ? WAYS_IN : "/");
         return;
       }
       const next = await forgetHere(device.deviceId);
       // The last one: every draft goes with it, as before there could be several.
       forgetDrafts(next === undefined ? undefined : spaceIds);
       ended(next);
-      router.replace(next === undefined ? "/pair" : "/");
+      router.replace(next === undefined ? WAYS_IN : "/");
     },
     [ended, demo, router],
   );

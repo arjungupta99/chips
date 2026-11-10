@@ -137,7 +137,7 @@ function Code({
             variant="primary"
             onPress={() =>
               void shareText(
-                `${replacing === undefined ? "Your Chips, on your new phone" : "Your Chips, back on your phone"}: copy this message, open Chips, and tap Paste.\n\n${issued.link}`,
+                `${replacing === undefined ? "Your Chips, on your new phone" : "Your Chips, back on your phone"}: copy this message, open Chips, and paste it as an invite link.\n\n${issued.link}`,
               )
             }
           />

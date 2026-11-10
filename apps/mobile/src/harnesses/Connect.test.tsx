@@ -223,7 +223,7 @@ describe("Connect a harness on the phone", () => {
     expect(screen.getByTestId("connect-line-run")).toHaveTextContent(/Run in Terminal$/);
     expect(
       screen.getByText(
-        "This goes on the computer where OpenClaw runs, and installs Chips there if it needs to.",
+        "This goes on the computer where OpenClaw runs, and installs Chips there first if that computer has none.",
       ),
     ).toBeTruthy();
     await userEvent.press(screen.getByLabelText("Copy"));

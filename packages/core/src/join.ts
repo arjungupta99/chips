@@ -326,6 +326,8 @@ export type JoinStall =
   | { readonly kind: "denied"; readonly by?: string | undefined }
   | { readonly kind: "unreachable"; readonly from: string; readonly url: string }
   | { readonly kind: "revoked" }
+  /** It took its key, and nothing of it has been connected for a while since. */
+  | { readonly kind: "unstarted" }
   | { readonly kind: "silent" };
 
 export interface JoinCard {
@@ -439,7 +441,14 @@ export function joinCardState(input: JoinCardInput): JoinCard {
   if (request.state !== "redeemed") return asked;
   if (input.removed === true) return { done: 3, stall: { kind: "revoked" } };
   if (hello) return { done: 5 };
-  if (!connectedSince(state, request)) return { done: 3 };
+  if (!connectedSince(state, request)) {
+    // Took its key and isn't connected: said once that has lasted, rather than spinning on
+    // "starting up" for ever (the onboarding audit, Part 2, item 9).
+    const seen = input.state;
+    const away =
+      seen !== undefined && !seen.connected && nowMs - Date.parse(seen.since) >= SILENT_AFTER_MS;
+    return away ? { done: 3, stall: { kind: "unstarted" } } : { done: 3 };
+  }
   const quiet = nowMs - Date.parse(state.since) >= SILENT_AFTER_MS;
   return quiet ? { done: 4, stall: { kind: "silent" } } : { done: 4 };
 }
@@ -452,19 +461,31 @@ export function stallWords(stall: JoinStall, name = "It"): { says: string; doing
     case "denied":
       return { says: "Somebody said no, or the link was withdrawn.", doing: "Make a new link" };
     case "unreachable":
+      // A running server is asked nothing by `chips up`; `--reach` is what changes it (the
+      // onboarding audit, item 32).
       return {
         says: `${name} asked from ${stall.from}, but Chips can't be reached from there at ${stall.url}.`,
-        doing: "Run chips up and choose Tailscale or this Wi-Fi",
+        doing:
+          "On the computer Chips runs on, run chips up --reach lan to let this Wi-Fi in, or chips up --reach tailnet for Tailscale",
       };
     case "revoked":
       return {
         says: `${name} was removed, so the key it holds is no good.`,
         doing: "Make a new link",
       };
+    case "unstarted":
+      return {
+        says: `${name} took its key but isn't connected.`,
+        doing:
+          "Check it on the computer it runs on: its bridge may have stopped, and its log says why",
+      };
     case "silent":
+      // There is no checklist to open from here (item 32). A harness of one's own has no hello
+      // of its own: it speaks when it first sends a message.
       return {
         says: `${name} connected but hasn't said anything yet.`,
-        doing: "Open the checklist",
+        doing:
+          "Check on its computer that it's running and signed in. A harness of your own speaks when it first sends a message",
       };
   }
 }

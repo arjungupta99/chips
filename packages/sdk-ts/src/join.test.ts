@@ -4,7 +4,7 @@
  */
 
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { networkInterfaces, tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
 import { joinLink } from "@chipschat/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -226,6 +226,84 @@ describe("the key a harness would join with, with no link", () => {
     });
     expect(keptJoin("OpenCode", { keep, env })).toEqual({ url: "https://chips.example.ts.net" });
     expect(keptJoin("Hermes", { keep, env: { CHIPS_CONFIG_HOME: home } })).toEqual({});
+  });
+});
+
+/** One of this machine's own addresses that is not its loopback one, as its Wi-Fi's would be. */
+const lanAddress = Object.values(networkInterfaces())
+  .flat()
+  .find((each) => each !== undefined && each.family === "IPv4" && !each.internal)?.address;
+
+describe("a server on this very machine (the onboarding audit, Part 2, item 2)", () => {
+  it.skipIf(lanAddress === undefined)(
+    "is joined, handed back and kept at its own address, not the network's, which changes",
+    async () => {
+      writeFileSync(joinPath(home, "server.json"), JSON.stringify({ url: server.url }));
+      const port = new URL(server.url).port;
+      const made = await server.gateway.deps.joinRequests.makeLink({
+        principal: server.person,
+        capabilities: ["autonomy"],
+        url: `http://${lanAddress}:${port}`,
+      });
+      if (!made.ok) throw new Error(made.error.message);
+      const keep = memory();
+      const env = { CHIPS_CONFIG_HOME: home };
+      const me = await join({
+        link: joinLink(made.value.request.url, made.value.secret),
+        name: "Tide",
+        keep,
+        env,
+      });
+      expect(me.url).toBe(server.url);
+      expect([...keep.kept.keys()]).toEqual([`harness:Tide@${server.url}`]);
+      // And `chips connect <id>` with no link finds it where chips up says the server is.
+      expect(keptJoin("Tide", { keep, env }).joined?.token).toBe(me.token);
+    },
+  );
+
+  it.skipIf(lanAddress === undefined)(
+    "points a key kept at the machine's network address at its own address, and keeps it so",
+    async () => {
+      writeFileSync(
+        joinPath(home, "server.json"),
+        JSON.stringify({ url: "http://127.0.0.1:4450" }),
+      );
+      const old = `http://${lanAddress}:4450`;
+      const keep = memory();
+      keep.set(
+        `harness:Hermes@${old}`,
+        JSON.stringify({ url: old, harnessId: "hrn_1", token: "chips_h_1", hello: "said" }),
+      );
+      const env = { CHIPS_CONFIG_HOME: home };
+      // `chips connect <id>` with no link: found under the old address, handed back at the new.
+      expect(keptJoin("Hermes", { keep, env })).toMatchObject({
+        url: "http://127.0.0.1:4450",
+        joined: { url: "http://127.0.0.1:4450", harnessId: "hrn_1" },
+      });
+      // A kept bridge whose service still says the old address: the record now names the new one.
+      expect(JSON.parse(keep.kept.get(`harness:Hermes@${old}`) ?? "{}")).toMatchObject({
+        url: "http://127.0.0.1:4450",
+        hello: "said",
+      });
+      const again = await join({
+        name: "Hermes",
+        keep,
+        env: { ...env, CHIPS_URL: old },
+        fetch: () => Promise.reject(new Error("asked again")),
+      });
+      expect(again.url).toBe("http://127.0.0.1:4450");
+    },
+  );
+
+  it("leaves a server on another machine as it is", () => {
+    writeFileSync(joinPath(home, "server.json"), JSON.stringify({ url: "http://127.0.0.1:4450" }));
+    const env = { CHIPS_CONFIG_HOME: home };
+    expect(
+      findServer({ link: "http://192.0.2.7:4450/j/chips_j_0123456789abcdefghijkl" }, env),
+    ).toEqual({
+      url: "http://192.0.2.7:4450",
+      secret: "chips_j_0123456789abcdefghijkl",
+    });
   });
 });
 

@@ -442,8 +442,10 @@ describe("Invite someone", () => {
     expect(made).toEqual([{ role: "guest", singleUse: true }]);
     expect(await screen.findByTestId("invite-url")).toHaveTextContent(/#invite=chips_inv_new/);
     await userEvent.press(screen.getByRole("button", { name: "Share…" }));
-    // The link alone: a tap opens it in Chips (ADR 0207).
-    expect(mockShared).toEqual(["https://adas-mac-mini.tail2f9c1e.ts.net/#invite=chips_inv_new"]);
+    // How to get Chips first, then the link, which a tap opens in Chips (ADR 0207).
+    expect(mockShared).toEqual([
+      "No Chips yet? Get it on the App Store for iPhone or iPad: https://apps.apple.com/app/id6824148802\n\nThen tap this link to join:\n\nhttps://adas-mac-mini.tail2f9c1e.ts.net/#invite=chips_inv_new",
+    ]);
     await userEvent.press(screen.getByRole("button", { name: "Copy" }));
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
       "https://adas-mac-mini.tail2f9c1e.ts.net/#invite=chips_inv_new",

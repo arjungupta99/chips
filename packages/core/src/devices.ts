@@ -12,24 +12,10 @@
 
 import type { PairedDeviceRecord, Store } from "./store.js";
 
-export type DeviceKind = "phone" | "tablet" | "computer" | "browser" | "terminal" | "other";
+export { type DeviceKind, deviceKind } from "./deviceKind.js";
 
 /** Not seen for this long, and a device goes under the fold. */
 export const STALE_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
-
-/**
- * The kind a device's name says it is. A browser before a phone or a computer, since "Safari on
- * iPhone" is a browser that happens to be on one.
- */
-export function deviceKind(name: string): DeviceKind {
-  if (/\bCLI\b|terminal/i.test(name)) return "terminal";
-  if (/browser|Safari|Chrome|Firefox|Edge|Arc\b|Opera|Brave/i.test(name)) return "browser";
-  // An iPad was a phone until 16 October 2026, and its own row in Devices wore a handset (ADR 0177).
-  if (/iPad|tablet/i.test(name)) return "tablet";
-  if (/iPhone|Android|Pixel|Galaxy|sdk_gphone|phone/i.test(name)) return "phone";
-  if (/Mac|Windows|Linux|desktop|computer|laptop/i.test(name)) return "computer";
-  return "other";
-}
 
 /** When a device was last heard from: its last request, or its pairing if it never made one. */
 export function lastSeenOf(device: PairedDeviceRecord): string {

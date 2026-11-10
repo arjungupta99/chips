@@ -237,21 +237,35 @@ if [ -n "$WAS" ] && [ "$WAS" != "$VERSION" ]; then
   "$LIB/current/bin/chips" connect --update < /dev/null || say "! A bridge didn't update: the lines above say which."
 fi
 
+# What to type for `chips` in this terminal: its name when the PATH finds it, else where it is,
+# since a profile's new line reaches only a terminal opened after it (the onboarding audit, item 4).
+RUN=chips
 case ":$PATH:" in
   *":$BIN:"*) ;;
   *)
+    case "$BIN" in
+      "$HOME"/*) RUN="~${BIN#"$HOME"}/chips" ;;
+      *) RUN="$BIN/chips" ;;
+    esac
     case "${SHELL:-}" in
       */zsh) PROFILE="$HOME/.zshrc" ;;
       */bash) [ "$OS" = darwin ] && PROFILE="$HOME/.bash_profile" || PROFILE="$HOME/.bashrc" ;;
       *) PROFILE="" ;;
     esac
     LINE="export PATH=\"$BIN:\$PATH\""
+    # Run again from the same terminal, the PATH still lacks it: the line written last time is
+    # found, not written twice (item 38).
+    if [ -n "$PROFILE" ] && [ -f "$PROFILE" ] && grep -qsF "$LINE" "$PROFILE"; then
+      PATH_EDIT=already
+    fi
     if [ "$PATH_EDIT" = ask ] && [ -n "$PROFILE" ] && [ -r /dev/tty ]; then
       printf '  %s is not on your PATH. Add it to %s? [Y/n] ' "$BIN" "$PROFILE"
       read -r ANSWER < /dev/tty || ANSWER=n
       case "$ANSWER" in [nN]*) PATH_EDIT=no ;; *) PATH_EDIT=yes ;; esac
     fi
-    if [ "$PATH_EDIT" = yes ] && [ -n "$PROFILE" ]; then
+    if [ "$PATH_EDIT" = already ]; then
+      say "✓ $PROFILE already adds $BIN to your PATH (in a new terminal)"
+    elif [ "$PATH_EDIT" = yes ] && [ -n "$PROFILE" ]; then
       printf '\n# Chips\n%s\n' "$LINE" >> "$PROFILE"
       say "✓ Added $BIN to your PATH in $PROFILE (open a new terminal for it)"
     else
@@ -269,7 +283,7 @@ fi
 # An upgrade leaves a server that was running on the release before until it starts again, which
 # `chips up` does when it finds one older than itself.
 if [ -n "$WAS" ] && [ "$WAS" != "$VERSION" ]; then
-  printf '\n  Next: chips up, which starts a server running here again on %s\n\n' "$VERSION"
+  printf '\n  Next: %s up, which starts a server running here again on %s\n\n' "$RUN" "$VERSION"
 else
-  printf '\n  Next: chips up\n\n'
+  printf '\n  Next: %s up\n\n' "$RUN"
 fi

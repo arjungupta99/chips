@@ -1,8 +1,9 @@
 /**
  * The page a pairing link opens at (ADR 0210): `/pair#pair=…&v=1&lan=…&relay=…&key=…&until=…`.
  *
- * You → Pair a computer on a phone sends this link (`pairRelayUrl` in `@chipschat/protocol`), and
- * the computer opens it in a browser, on whatever network it is on. The page shows the code again,
+ * You → Pair a computer on a phone sends this link (`pairRelayUrl` in `@chipschat/protocol`), as
+ * does Pair another device on the web and the Mac, and the computer opens it in a browser, on
+ * whatever network it is on. The page shows the code again,
  * so the person can see it is the one on their phone, and offers two ways on: Chips for Mac, by the
  * `chips://pair?…` link it already takes, which reaches the server through the relay when the
  * server's network is out of reach; and the server's own page, for a browser on that network. It
@@ -13,6 +14,7 @@
  * not pair the phone. Everything the page knows is in the fragment, as for `/join`.
  */
 
+import { MAC_DOWNLOAD } from "@chipschat/protocol";
 import { relayHtml } from "./page-parts.js";
 
 /**
@@ -99,11 +101,11 @@ export const PAIR = relayHtml({
   main: `  <section id="ready" hidden>
     <p id="ahead" class="ahead" hidden>This link is for a computer. Send it to the one you want to pair.</p>
     <h1>Pair this computer</h1>
-    <p>Your phone made this link to pair a computer with your Chips. It works on any network.</p>
-    <div class="code"><code id="code"></code><span>The code your phone shows · <span id="life"></span></span></div>
+    <p>This link pairs a computer with your Chips. It works on any network.</p>
+    <div class="code"><code id="code"></code><span>The code where the link was made · <span id="life"></span></span></div>
     <div id="on-computer" hidden>
       <a id="open" class="open" href="#">Open in Chips</a>
-      <p class="note">No Chips on this computer? Chips for Mac is in testing. Ask whoever runs your Chips for a copy.</p>
+      <p class="note">No Chips on this computer? <a href="${MAC_DOWNLOAD}">Get Chips for Mac</a>, then open this link again.</p>
       <p class="note"><a id="browser" href="#">Pair in this browser</a> instead. It opens only on the same network as your server.</p>
     </div>
     <div id="on-phone" hidden>
@@ -114,11 +116,11 @@ export const PAIR = relayHtml({
   </section>
   <section id="ranout" hidden>
     <h1>This code has run out</h1>
-    <p>It was good until <span id="until"></span>. On your phone, open You → Pair a computer and send a new link.</p>
+    <p>It was good until <span id="until"></span>. Make a new one where this came from: You → Pair a computer on a phone, or You → Devices → Pair another device on a computer.</p>
   </section>
   <section id="none" hidden>
     <h1>Pair this computer</h1>
-    <p>This link lost its code on the way. Open the whole link from the message it came in, or send a new one from your phone.</p>
+    <p>This link lost its code on the way. Open the whole link from the message it came in, or make a new one.</p>
   </section>
   <noscript><h1>Pair this computer</h1><p>This page needs JavaScript to read the code in its link.</p></noscript>`,
   script: SCRIPT,

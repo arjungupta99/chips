@@ -12,26 +12,39 @@ import { pairingLinkIn } from "./scanned";
 import { type Pairing, usePairing } from "./usePairing";
 import { type PasteInvite, usePasteInvite } from "./usePasteInvite";
 
+/**
+ * What the ways in paste through: an invite link, or a new phone's pairing link (ADR 0206), and how
+ * that pairing is going. A pasted pairing link said nothing while it paired or when it failed: those
+ * were the code page's alone (the onboarding audit, Part 2, item 21).
+ */
+export type JoinInvites = Pick<PasteInvite, "paste" | "pasted" | "problem"> & {
+  readonly pairing?: Pick<Pairing, "working" | "failure"> | undefined;
+};
+
 export interface Join extends Pairing {
   /** Paste an invite link, or a new phone's pairing link (ADR 0206), which pastes where one does. */
-  readonly invites: PasteInvite;
+  readonly invites: PasteInvite & JoinInvites;
   /** A scanned code: an invite opens its join card, and anything else is tried as a pairing code. */
   readonly scanned: (text: string) => void;
 }
 
-/** `firstFailure`: what a pairing link that did not work has to say (`usePairingLink`). */
-export function useJoin(firstFailure?: string): Join {
+/**
+ * `firstFailure`: what a pairing link that did not work has to say (`usePairingLink`). `onPaired`:
+ * anything of the caller's to put away once the phone is in, as a camera over Spaces is.
+ */
+export function useJoin(firstFailure?: string, onPaired?: () => void): Join {
   const { began } = useChips();
   const router = useRouter();
   const pairing = usePairing(
     useCallback(
       (device) => {
+        onPaired?.();
         began(device);
         // The pairing code page stands over the first screen: both go, film and all.
         if (router.canDismiss()) router.dismissAll();
         router.replace("/");
       },
-      [began, router],
+      [began, router, onPaired],
     ),
     firstFailure,
   );
@@ -53,5 +66,6 @@ export function useJoin(firstFailure?: string): Join {
     },
     [openInvite, pair],
   );
-  return { ...pairing, invites, scanned };
+  const { working, failure } = pairing;
+  return { ...pairing, invites: { ...invites, pairing: { working, failure } }, scanned };
 }

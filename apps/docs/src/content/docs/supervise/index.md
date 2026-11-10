@@ -32,8 +32,7 @@ queue trustworthy: nothing quietly reclassifies itself.
 
 The tiers decide how each thing reaches you — a banner at once, an hourly digest, a daily one —
 not where you answer it. You answer an ask in its space, on the card at its foot; the Spaces list
-marks a space waiting on a yes. There was a queue across every space, *For you*, until 22 September
-2026; it was withdrawn, and the space is the one place an ask is answered.
+marks a space waiting on a yes. The space is the one place an ask is answered.
 
 ## Moving the dial
 
@@ -62,6 +61,6 @@ you *can* look, not that you must.
   write is what it sends.
 - **Turn the dial.** The run panel's autonomy dial sets the harness's level in that space,
   capped by the workspace; the change is an event the harness hears.
-- **Read the audit.** The Audit tab lists who decided what and when — a person, or Chips on
+- **Read the log.** **You → Workspace log**, for an owner or an admin, lists who decided what and when — a person, or Chips on
   their behalf by policy or by an expiry. It is a read of the event log, so it cannot disagree
   with what happened. See [Audit event](/concepts/audit-event/).

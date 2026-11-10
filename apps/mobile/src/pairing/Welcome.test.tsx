@@ -56,12 +56,22 @@ jest.mock("../store/provider", () => ({
   useChips: () => ({ began: jest.fn(), paired: undefined, demo: { lookAround: mockLookAround } }),
 }));
 const mockPair = jest.fn();
+/** How the pairing is going, as `usePairing` says. */
+let mockPairing: { working: boolean; failure: string | undefined } = {
+  working: false,
+  failure: undefined,
+};
 jest.mock("./usePairing", () => ({
-  usePairing: () => ({ pair: mockPair, working: false, failure: undefined }),
+  usePairing: () => ({ pair: mockPair, ...mockPairing }),
   phoneName: () => "iPhone 17 Pro",
 }));
 jest.mock("./finder", () => ({ canFind: jest.fn(() => false), findServers: jest.fn() }));
 jest.mock("../device/storage", () => ({ deviceStorage: {} }));
+const mockAskToJoin = jest.fn();
+jest.mock("@chipschat/core", () => ({
+  ...jest.requireActual("@chipschat/core"),
+  askToJoin: (...args: unknown[]) => mockAskToJoin(...args),
+}));
 
 /** The fake player of the film playing, newest last (`jest.setup.js`). */
 interface FakePlayer {
@@ -97,6 +107,7 @@ const INVITE = `https://host.example/#invite=chips_inv_5&key=${"k".repeat(43)}`;
 
 afterEach(() => {
   mockParams = {};
+  mockPairing = { working: false, failure: undefined };
   mockCamera.granted = false;
   mockCamera.read = undefined;
   jest.clearAllMocks();
@@ -202,6 +213,23 @@ describe("the first screen", () => {
     );
   });
 
+  it("says under Paste that a pasted pairing link is pairing, and what went wrong (Part 2, item 21)", async () => {
+    const link =
+      "https://relay.chipschat.ai/pair#pair=ABC-234&v=1&lan=http%3A%2F%2F192.168.1.20%3A4431";
+    jest.mocked(Clipboard.getStringAsync).mockResolvedValueOnce(link);
+    const { rerender } = await render(<PairScreen />);
+    await skip();
+    await userEvent.press(screen.getByRole("button", { name: "Paste an invite link" }));
+    await waitFor(() => expect(mockPair).toHaveBeenCalled());
+
+    mockPairing = { working: true, failure: undefined };
+    await rerender(<PairScreen />);
+    expect(screen.getByTestId("paste-pairing")).toHaveTextContent("Pairing…");
+    mockPairing = { working: false, failure: "That code has expired." };
+    await rerender(<PairScreen />);
+    expect(screen.getByTestId("paste-problem")).toHaveTextContent("That code has expired.");
+  });
+
   it("opens the pairing code page from Have a pairing code?, and from the camera", async () => {
     await render(<PairScreen />);
     await skip();
@@ -236,7 +264,7 @@ describe("the first screen", () => {
     await render(<PairScreen />);
     expect(screen.getByLabelText("Pairing code")).toBeOnTheScreen();
     await userEvent.press(screen.getByRole("button", { name: "Back" }));
-    expect(mockRouter.replace).toHaveBeenCalledWith("/pair");
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/pair", params: { ways: "1" } });
   });
 
   it("makes the demo for Look around and opens its Spaces", async () => {
@@ -333,6 +361,33 @@ describe("the first screen on an iPad (ADR 0256)", () => {
     // Over them, in the page's order: the film gives it the room, and the ways keep the foot.
     const order = testIDsOf(screen.toJSON());
     expect(order.indexOf("on-this-wifi")).toBeLessThan(order.indexOf("welcome-ways"));
+  });
+
+  it("keeps an ask going when it turns on its side, rather than starting it again (Part 2, item 11)", async () => {
+    onA(UPRIGHT);
+    jest.mocked(canFind).mockReturnValue(true);
+    jest.mocked(findServers).mockResolvedValue([MINI]);
+    let signal: AbortSignal | undefined;
+    mockAskToJoin.mockImplementation(
+      (input: {
+        signal: AbortSignal;
+        onWaiting: (waiting: { code: string; expiresAt: number }) => void;
+      }) => {
+        signal = input.signal;
+        input.onWaiting({ code: "ABC-234", expiresAt: 0 });
+        return new Promise(() => undefined);
+      },
+    );
+    await render(<PairScreen />);
+    await act(async () => undefined);
+    await userEvent.press(screen.getByTestId("found-0"));
+    expect(screen.getByTestId("join-code")).toHaveTextContent("ABC-234");
+
+    await act(async () => onA(SIDE));
+    const ways = within(screen.getByTestId("welcome-ways"));
+    expect(ways.getByTestId("join-code")).toHaveTextContent("ABC-234");
+    expect(signal?.aborted).toBe(false);
+    expect(mockAskToJoin).toHaveBeenCalledTimes(1);
   });
 
   it("opens the camera from the ways beside the film, which waits under it", async () => {

@@ -96,9 +96,15 @@ describe("the relay's pairing page", () => {
     expect(policy).toContain(`script-src 'sha256-${sha(script)}'`);
     expect(policy).toContain(`style-src 'sha256-${sha(style)}'`);
     expect(policy).toContain("frame-ancestors 'none'");
-    expect(served?.body).not.toMatch(/<(img|link|iframe)\b|src=|https?:\/\/(?!www\.w3)/);
+    // Nothing is fetched: the one address is where to get Chips for Mac.
+    expect(served?.body).not.toMatch(
+      /<(img|link|iframe)\b|src=|https?:\/\/(?!www\.w3|chipschat\.ai\/download")/,
+    );
     expect(served?.headers["referrer-policy"]).toBe("no-referrer");
     expect(served?.body).toContain("<title>Pair a computer with Chips</title>");
+    // Chips for Mac is out (the onboarding audit, item 13), and the web makes this link too.
+    expect(served?.body).not.toMatch(/in testing|Your phone made/);
+    expect(served?.body).toContain('<a href="https://chipschat.ai/download">Get Chips for Mac</a>');
   });
 
   it("is served only for GET and HEAD at its own path", () => {

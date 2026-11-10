@@ -92,6 +92,15 @@ describe("offerFrom", () => {
     });
   });
 
+  it("takes a code typed without its dash and an address without http:// (the onboarding audit, Part 2, item 20)", () => {
+    expect(offerFrom("abc234", "192.168.1.20:4431/")).toEqual({
+      ok: true,
+      code: "ABC-234",
+      lan: "http://192.168.1.20:4431",
+    });
+    expect(offerFrom("ABC 234", "mini.local:4431")).toMatchObject({ ok: true, code: "ABC-234" });
+  });
+
   it("asks for an address rather than pairing with nowhere", () => {
     expect(offerFrom("ABC-234")).toEqual({
       ok: false,

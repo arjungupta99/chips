@@ -45,7 +45,8 @@ import { SOURCES, VIDEOS } from "./videos.ts";
 /** What the player does with a click on its chrome; Watch again is its own. */
 export interface FilmWays {
   readonly onLeave: () => void;
-  readonly onSetUp: () => void;
+  /** Set up my own Chips; none in a browser already paired, where there is nothing to set up. */
+  readonly onSetUp?: (() => void) | undefined;
   readonly onInvite: () => void;
   readonly onFilm: (film: string) => void;
   readonly onLookAround: () => void;

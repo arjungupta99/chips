@@ -862,12 +862,13 @@ function NewPhone(props: {
       {pairing.issued !== undefined && <IssuedCodeView issued={pairing.issued} qr={pairing.qr} />}
       <p className="you-card-note">
         {replacing === undefined
-          ? `On ${props.name}'s phone, open Chips and choose Scan a QR code. ${props.name} comes back as ${props.name}, in every space they were in.`
+          ? `Scan the QR with ${props.name}'s phone's camera. ${props.name} comes back as ${props.name}, in every space they were in.`
           : reconnectWords(props.name, replacing.name)}
       </p>
       {appUrl !== undefined && (
         <p className="you-card-note">
-          Not beside you? Send them this link, to paste on Chips's first screen:{" "}
+          Not beside you? Send them this link. Tapped on their phone, it opens Chips, or the App
+          Store first if Chips isn't on it yet:{" "}
           <code className="pair-issued-url" data-testid="new-phone-link">
             {appUrl}
           </code>
@@ -899,7 +900,7 @@ function NewPhone(props: {
 
 /** What to do with a reconnect code, and what the phone that uses it takes over (ADR 0236). */
 function reconnectWords(name: string, phone: string): string {
-  return `Chips deleted from it, or the phone reset? On it, open Chips and choose Scan a QR code. It takes this ${phone}'s place, with every space and everything ${name} said, and the old one is signed out.`;
+  return `Chips deleted from it, or the phone reset? Scan the QR with its camera. It takes this ${phone}'s place, with every space and everything ${name} said, and the old one is signed out.`;
 }
 
 const USES = [

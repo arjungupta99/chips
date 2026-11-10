@@ -93,7 +93,7 @@ describe("the phone card", () => {
       />,
     );
     const qr = await screen.findByRole("img");
-    expect(qr.dataset["link"]).toMatch(/^chips:\/\/pair\?pair=QRS-789/);
+    expect(qr.dataset["link"]).toMatch(/^https:\/\/chipschat\.ai\/p#pair=QRS-789/);
   });
 });
 

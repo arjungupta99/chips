@@ -19,12 +19,15 @@
  * so a command run again as it was first written still starts.
  *
  * The server is found from the link, then `url`, then `CHIPS_URL`, then the `server.json` that
- * `chips up` writes on its own machine.
+ * `chips up` writes on its own machine. A link to the server on this very machine is taken up at the
+ * address `server.json` gives, its loopback one, and that is the address handed back and kept: the
+ * address in the link is the machine's on its Wi-Fi, which changes with the network, and a harness
+ * that kept it would go quiet the next time it did (the onboarding audit, Part 2, item 2).
  */
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { hostname } from "node:os";
+import { hostname, networkInterfaces } from "node:os";
 import { join as joinPath } from "node:path";
 import {
   HARNESS_CAPABILITIES,
@@ -94,6 +97,63 @@ function serverJsonUrl(env: Environment): string | undefined {
   }
 }
 
+/** The server `chips up` runs on this machine: its own address, and the hosts that are this machine. */
+function serverHere(
+  env: Environment,
+):
+  | { readonly url: string; readonly port: string; readonly hosts: ReadonlySet<string> }
+  | undefined {
+  const url = serverJsonUrl(env);
+  if (url === undefined) return undefined;
+  let port: string;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:") return undefined;
+    port = parsed.port;
+  } catch {
+    return undefined;
+  }
+  const hosts = new Set(["localhost", "127.0.0.1", "[::1]", hostname().toLowerCase()]);
+  for (const each of Object.values(networkInterfaces()).flat()) {
+    if (each === undefined) continue;
+    hosts.add(each.family === "IPv6" ? `[${each.address}]` : each.address);
+  }
+  return { url: url.replace(/\/$/, ""), port, hosts };
+}
+
+/**
+ * The address to reach a server at from here, when `url` is the server on this machine at another of
+ * its addresses (its Wi-Fi one, say): `server.json`'s, which stays the same whatever network the
+ * machine is on. Nothing when `url` is somewhere else.
+ */
+export function hereInstead(url: string, env: Environment): string | undefined {
+  const here = serverHere(env);
+  if (here === undefined) return undefined;
+  try {
+    const parsed = new URL(url);
+    const same =
+      parsed.protocol === "http:" &&
+      parsed.port === here.port &&
+      here.hosts.has(parsed.hostname.toLowerCase());
+    return same ? here.url : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The accounts a key for the server on this machine may be kept under, after `url`'s own: one at
+ * each of the machine's addresses, where a harness joined from a link before links to this machine
+ * were taken up at its loopback address.
+ */
+function accountsHere(url: string, name: string, env: Environment): readonly string[] {
+  const here = serverHere(env);
+  if (here === undefined || here.url !== url.replace(/\/$/, "")) return [];
+  return [...here.hosts]
+    .filter((host) => /^\d+\.\d+\.\d+\.\d+$/.test(host) && host !== "127.0.0.1")
+    .map((host) => accountOf(`http://${host}${here.port === "" ? "" : `:${here.port}`}`, name));
+}
+
 /** The server, and the link's secret when there is one. */
 export function findServer(
   options: Pick<JoinOptions, "link" | "url">,
@@ -107,7 +167,8 @@ export function findServer(
         "That is not a join link: it looks like <address>/j/<secret>.",
       );
     }
-    return parsed;
+    const here = hereInstead(parsed.url, env);
+    return here === undefined ? parsed : { url: here, secret: parsed.secret };
   }
   const url = options.url ?? env["CHIPS_URL"] ?? serverJsonUrl(env);
   if (url === undefined || url === "") {
@@ -143,6 +204,42 @@ interface Kept {
 /** A link's secret as it is kept beside the key: hashed, since a key store is no place for it. */
 function linkHash(secret: string): string {
   return createHash("sha256").update(secret).digest("base64url");
+}
+
+/** The first of `accounts` a key is kept under, and which. */
+function keptAtAny(
+  store: KeyStore | false,
+  accounts: readonly string[],
+): { readonly account: string; readonly kept: Kept } | undefined {
+  for (const account of accounts) {
+    const kept = keptAt(store, account);
+    if (kept !== undefined) return { account, kept };
+  }
+  return undefined;
+}
+
+/**
+ * A kept key whose server is this machine at an address that changes with the network, pointed at
+ * the machine's own address instead, and kept so: a bridge whose service still names the old address
+ * (`CHIPS_URL`) finds a key that reaches its server wherever the machine is.
+ */
+function rehomed(
+  store: KeyStore | false,
+  account: string,
+  joined: Joined,
+  env: Environment,
+): Joined {
+  const here = hereInstead(joined.url, env);
+  if (here === undefined || here === joined.url) return joined;
+  if (store !== false) {
+    try {
+      const record = JSON.parse(store.get(account) ?? "{}") as Record<string, unknown>;
+      store.set(account, JSON.stringify({ ...record, url: here }));
+    } catch {
+      // Kept as it was: the address comes back changed all the same.
+    }
+  }
+  return { ...joined, url: here };
 }
 
 function keptAt(store: KeyStore | false, account: string): Kept | undefined {
@@ -183,8 +280,10 @@ export function keptJoin(
   } catch {
     return {};
   }
-  const kept = keptAt(options.keep ?? openKeyStore(env), accountOf(url, name));
-  return kept === undefined ? { url } : { url, joined: kept.joined };
+  const store = options.keep ?? openKeyStore(env);
+  const found = keptAtAny(store, [accountOf(url, name), ...accountsHere(url, name, env)]);
+  if (found === undefined) return { url };
+  return { url, joined: rehomed(store, found.account, found.kept.joined, env) };
 }
 
 /** The refusals that mean a link was already taken up or has lapsed: the kept key still stands. */
@@ -319,19 +418,22 @@ export async function join(options: JoinOptions): Promise<Joined> {
   const server = findServer(options, env);
   const store = options.keep ?? openKeyStore(env);
   const account = accountOf(server.url, options.name);
-  const kept = keptAt(store, account);
+  const found = keptAtAny(store, [account, ...accountsHere(server.url, options.name, env)]);
   const from = server.secret === undefined ? undefined : linkHash(server.secret);
   // No link, or the very link it was handed this key by: the key, and nothing asked.
-  if (kept !== undefined && (from === undefined || kept.from === from)) return kept.joined;
+  if (found !== undefined && (from === undefined || found.kept.from === from))
+    return rehomed(store, found.account, found.kept.joined, env);
 
   let answer: JoinedHarness;
   try {
     answer = await askOrRedeem(server, options);
   } catch (error) {
-    if (kept !== undefined && usedUp(error)) return kept.joined;
+    if (found !== undefined && usedUp(error))
+      return rehomed(store, found.account, found.kept.joined, env);
     throw error;
   }
-  const joined = joinedOf(answer);
+  const answered = joinedOf(answer);
+  const joined = { ...answered, url: hereInstead(answered.url, env) ?? answered.url };
   // Handed over now, so its first words are due (`helloOnce`).
   if (store !== false) store.set(account, JSON.stringify({ ...joined, from, hello: "due" }));
   return joined;

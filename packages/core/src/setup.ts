@@ -62,6 +62,12 @@ export interface SetupFacts {
   readonly directory: Directory;
   /** Whether this device will be told when an agent needs this person. */
   readonly notifications: boolean;
+  /**
+   * Whether this browser has refused them for the page: asking again does nothing and says
+   * nothing, so the step says where to turn them on instead of offering a button that can't (the
+   * onboarding audit, item 28).
+   */
+  readonly notificationsRefused?: boolean | undefined;
 }
 
 /** The agent whose line came first, in any room: the hello the card is waiting for. */
@@ -132,7 +138,16 @@ function pairedOf(devices: readonly PairedDeviceRecord[], kinds: readonly Device
  * Notifications: this device's own, done once they are on. A phone's come from its server, and a
  * server that can't push (ADR 0244) leaves them undone however the phone is set, and says so.
  */
-function notifyStep(on: boolean, pushes: ServerFacts["pushes"]): SetupStep {
+function notifyStep(on: boolean, refused: boolean, pushes: ServerFacts["pushes"]): SetupStep {
+  if (!on && refused) {
+    return {
+      id: "notify",
+      title: "Notifications",
+      detail: "turned off for this page in your browser's settings",
+      done: false,
+      blocked: true,
+    };
+  }
   if (!serverCantPush(pushes)) return { id: "notify", title: "Notifications", done: on };
   return {
     id: "notify",
@@ -173,7 +188,11 @@ export function setupSteps(facts: SetupFacts): SetupStep[] {
       detail: handHere ? undefined : phone?.name,
       done: handHere || phone !== undefined,
     },
-    notifyStep(facts.notifications, handHere ? server?.pushes : undefined),
+    notifyStep(
+      facts.notifications,
+      facts.notificationsRefused === true,
+      handHere ? server?.pushes : undefined,
+    ),
     { id: "away", title: "Away from home", detail: away, done: away !== undefined },
   ];
 }

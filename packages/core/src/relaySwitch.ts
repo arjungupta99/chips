@@ -6,6 +6,7 @@
 
 import { FIRST_PERSON_NAME, inviteFromLink } from "@chipschat/protocol";
 import { agoWords, clockOf } from "./agents.js";
+import { deviceKind } from "./deviceKind.js";
 import { type Directory, nameOf } from "./events.js";
 import { tailnetOf } from "./wayWords.js";
 
@@ -97,7 +98,10 @@ export function relayFactsOf(view: RelayView): RelayFacts {
 }
 
 /** The Relay page's three lists: through the relay now, direct now, and not connected. */
-export function relayLists(devices: readonly RelayDevice[]) {
+export function relayLists(all: readonly RelayDevice[]) {
+  // A terminal's `chips` asks its server directly and never keeps a connection open, so it is in
+  // no list here: it read "not seen yet" beside You's "Seen 2m ago" (the onboarding audit, item 34).
+  const devices = all.filter((device) => deviceKind(device.name) !== "terminal");
   return {
     relayed: devices.filter((device) => device.now === "relay"),
     direct: devices.filter((device) => device.now !== undefined && device.now !== "relay"),

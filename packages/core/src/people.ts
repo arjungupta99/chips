@@ -7,7 +7,7 @@
  * same people as the door allows, in the same words.
  */
 
-import { FIRST_PERSON_NAME } from "@chipschat/protocol";
+import { APP_STORE_LINK, FIRST_PERSON_NAME } from "@chipschat/protocol";
 import { type Directory, harnessOf, nameOf } from "./events.js";
 import type { PersonModel, Space, WorkspaceModel, WorkspaceRole } from "./model.js";
 import { administers, myRole, spaceTitle } from "./model.js";
@@ -114,25 +114,13 @@ export function inviteUseWords(invite: Pick<Invite, "singleUse" | "uses">): stri
 }
 
 /**
- * Chips for iPhone, from TestFlight's public link for the Friends group, for somebody invited
- * who has no Chips yet. Nothing until that link is turned on in App Store Connect, and Share then
- * sends the link alone.
+ * What Share sends with a link: how to get Chips first, then the link (the guest walk, 18 October
+ * 2026; the onboarding audit, items 1 and 41). With a relay the link is the relay's page, which on
+ * an iPhone with Chips opens the app at the invite (ADR 0207), and without Chips says where to get
+ * it too. The store's link holds no `invite=`, so Paste still finds the invite in the words.
  */
-export const TESTFLIGHT_LINK: string | undefined = undefined;
-
-/**
- * What Share sends with a link. The link alone: with a relay it is the relay's page, which opens
- * from anywhere, and on an iPhone with Chips opens the app at the invite (ADR 0207), so there is
- * nothing to say about pasting it, as there was while it opened the server's page (ADR 0164's
- * addendum). Where the TestFlight link is known, how to get Chips comes first (the guest walk,
- * 18 October 2026); it holds no `invite=`, so Paste still finds the invite in the words.
- */
-export function inviteShareWords(
-  url: string,
-  testflight: string | undefined = TESTFLIGHT_LINK,
-): string {
-  if (testflight === undefined) return url;
-  return `No Chips yet? Get it for iPhone: ${testflight}\n\nThen tap this link to join:\n\n${url}`;
+export function inviteShareWords(url: string, store: string = APP_STORE_LINK): string {
+  return `No Chips yet? Get it on the App Store for iPhone or iPad: ${store}\n\nThen tap this link to join:\n\n${url}`;
 }
 
 /** Everyone in the workspace, the longest here first. */

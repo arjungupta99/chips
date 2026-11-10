@@ -56,6 +56,13 @@ describe("what the router is given of a link the app is opened with", () => {
     ).toBe("/join?invite=chips_inv_1&lan=http%3A%2F%2Fa");
   });
 
+  it("is the pairing screen for a phone's QR at chipschat.ai/p, whose link the screen follows itself", () => {
+    expect(routerPathFor("https://chipschat.ai/p#pair=ABC-234&v=1&lan=http%3A%2F%2Fa")).toBe(
+      "/pair",
+    );
+    expect(routerPathFor("https://chipschat.ai/pricing")).toBe("https://chipschat.ai/pricing");
+  });
+
   it("is the link as it came for anything else", () => {
     expect(routerPathFor("chips://you")).toBe("chips://you");
     expect(routerPathFor("chips://join?invite=chips_inv_1")).toBe(

@@ -173,8 +173,12 @@ describe("chips up", () => {
     expect(printed).toContain(
       "✓ Opened in your browser, already paired:\n    http://127.0.0.1:4431/#pair=CODE-1&v=1",
     );
-    // The QR is `chips://pair`, which only the app opens.
-    expect(printed).toContain("In the Chips app, scan this");
+    // The QR is chipschat.ai/p, which the camera opens: in Chips, or at where to get it.
+    expect(printed).toContain("Get Chips on your phone: scan this with its camera");
+    expect(printed).toContain("No Chips on it yet? The code leads to the App Store first.");
+    expect(printed).toContain(
+      "Or type it in Chips: the code CODE-2, the address http://100.64.0.7:4431",
+    );
   });
 
   it("carries the settings it was given into the service, under what it decides itself", async () => {
@@ -290,7 +294,7 @@ describe("chips up", () => {
     expect(JSON.parse(out.lines[0] ?? "")).toEqual({
       url: "http://127.0.0.1:4431",
       pair_link: "http://127.0.0.1:4431/#pair=CODE-1&v=1",
-      phone_link: "chips://pair?pair=CODE-2&v=1&lan=http%3A%2F%2F100.64.0.7%3A4431",
+      phone_link: "https://chipschat.ai/p#pair=CODE-2&v=1&lan=http%3A%2F%2F100.64.0.7%3A4431",
       data_dir: DATA,
       log_file: `${HOME}/Library/Logs/Chips/chips.log`,
       service: "launchd",
@@ -495,8 +499,10 @@ describe("chips up", () => {
     expect(printed).toContain("Reachable directly from this machine only");
     expect(printed).not.toContain("no code for a phone");
     expect(printed).toContain(
-      "In the Chips app, scan this. It reaches Chips from anywhere, through the relay\n  at relay.chipschat.ai.",
+      "Get Chips on your phone: scan this with its camera. It reaches Chips from anywhere,\n  through the relay at relay.chipschat.ai.",
     );
+    // The address is this machine's own: typed on a phone, it would reach nothing.
+    expect(printed).not.toContain("Or type it in Chips");
 
     const json = scriptedConsole(true);
     await up({
@@ -506,7 +512,7 @@ describe("chips up", () => {
       deps: world({ answers: ["chips"], requestCode: here.deps.requestCode }).deps,
     });
     const phoneLink = String(JSON.parse(json.lines[0] ?? "")["phone_link"]);
-    expect(new URL(phoneLink).searchParams.get("relay")).toBe(relay);
+    expect(new URLSearchParams(new URL(phoneLink).hash.slice(1)).get("relay")).toBe(relay);
   });
 
   it("asks with the relay in mind: only this machine is not all that reaches it", async () => {
@@ -556,6 +562,22 @@ describe("the settings a service keeps (the new-person sweep's finding 6)", () =
     expect(here.ran).toEqual([]);
     expect(here.asked).toEqual([]);
     expect(out.lines.join("\n")).toContain("Chips is already running");
+  });
+
+  it("stopped by `chips down`, starts its service again with the answer it has, asking nothing", async () => {
+    const before = written({ CHIPS_PUSH_ACCESS_TOKEN: "push-token" });
+    const here = world({ answers: ["none", "chips"], files: { [PLIST]: before } });
+    const out = scriptedConsole(true);
+    const result = await up({
+      config,
+      console: out,
+      flags: flags({ interactive: true }),
+      deps: here.deps,
+    });
+    expect(result.ok).toBe(true);
+    expect(here.asked).toEqual([]);
+    expect(here.ran.map((command) => command[1])).toEqual(["enable", "bootout", "bootstrap"]);
+    expect(serviceEnvironment(here.files[PLIST])).toEqual(serviceEnvironment(before));
   });
 
   it("run again with a setting exported, writes it in and restarts, asking nothing", async () => {
@@ -917,5 +939,29 @@ describe("on a VPS (the new-person sweep's findings 17 and 23)", () => {
       "`systemctl --user daemon-reload` failed: Failed to connect to bus: No medium found\nThis shell has no systemd user session",
     );
     expect(printed).toContain("`chips up --no-service` to run Chips in this terminal");
+  });
+
+  it("over SSH to a Mac nobody is logged in to, says so rather than launchctl's number", async () => {
+    const here = world({
+      machine: { platform: "darwin", home: "/Users/ada", environment: {} },
+      run: async (command) =>
+        command[0] === "launchctl" && command[1] === "bootstrap"
+          ? {
+              ok: false,
+              output: "Bootstrap failed: 125: Domain does not support specified action\n",
+            }
+          : { ok: true, output: "" },
+    });
+    const out = scriptedConsole(true);
+    const result = await up({
+      config,
+      console: out,
+      flags: flags({ reach: "local" }),
+      deps: here.deps,
+    });
+    expect(result.ok).toBe(false);
+    const printed = out.lines.join("\n");
+    expect(printed).toContain("Nobody is logged in to this Mac at its screen");
+    expect(printed).toContain("`chips up --no-service`");
   });
 });

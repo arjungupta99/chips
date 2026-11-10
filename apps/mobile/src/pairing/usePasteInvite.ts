@@ -19,9 +19,6 @@ import { joinParams } from "./inviteLink";
 export const NO_INVITE =
   "There's no Chips invite on the clipboard. Copy the link from the message it came in, then paste it here.";
 export const NO_SERVER = "That link doesn't say where its server is. Ask for a new one.";
-/** A code scanned from the Workspaces sheet that is not an invite (ADR 0197's addendum of 26 October). */
-export const NOT_AN_INVITE =
-  "That code isn't a Chips invite. Ask them for the one in Invite someone.";
 
 export interface PasteInvite {
   /** Read the clipboard and open the invite on it. */

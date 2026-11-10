@@ -9,8 +9,9 @@ type — approvals, questions, receipts, handoffs and summaries are structured m
 prose a harness happens to write — which makes them tappable on a phone, routable to a
 teammate, and auditable later.
 
-> **Status:** Chips 1.0. The server, the `chips` command, the web, Mac and phone apps and the relay
-> work, and they still change often.
+> **Status:** released, the newest on [Releases](https://github.com/arjungupta99/chips/releases). The
+> server, the `chips` command, the web, Mac and phone apps and the relay work, and they still change
+> often.
 
 ## Try it
 

@@ -1932,7 +1932,7 @@ describe("a list with no rooms to show (ADR 0131)", () => {
     await render(<List store={fakeStore(snapshot)} snapshot={snapshot} />);
     expect(screen.getByText("This phone isn't paired anymore")).toBeTruthy();
     await userEvent.press(screen.getByLabelText("Pair again"));
-    expect(pushed).toEqual(["/pair"]);
+    expect(pushed).toEqual([{ pathname: "/pair", params: { ways: "1" } }]);
   });
 
   it("says its person was removed, in place of the rooms it still holds, and offers no pairing (ADR 0160)", async () => {

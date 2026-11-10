@@ -35,6 +35,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import { WAYS_IN } from "../demo/home";
 import { useLeave } from "../device/leave";
 import { thisDevice } from "../device/word";
 import { useNewSpace } from "../newSpace/NewSpace";
@@ -212,7 +213,7 @@ export function Telling({
   const press = () => {
     if (act?.does === "retry") onRetry();
     else if (act?.does === "forget") forget();
-    else router.push("/pair");
+    else router.push(WAYS_IN);
   };
   return (
     <Centred

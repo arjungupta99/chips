@@ -84,6 +84,21 @@ describe("setupSteps", () => {
     expect(setupDoneCount(steps)).toBe(4);
   });
 
+  it("in a browser that refused banners, says where to turn them on and offers no button (the onboarding audit, item 28)", () => {
+    const refused = setupSteps(
+      facts({ here: "browser", notifications: false, notificationsRefused: true }),
+    );
+    expect(refused.find((step) => step.id === "notify")).toEqual({
+      id: "notify",
+      title: "Notifications",
+      detail: "turned off for this page in your browser's settings",
+      done: false,
+      blocked: true,
+    });
+    const asked = setupSteps(facts({ here: "browser", notifications: false }));
+    expect(asked.find((step) => step.id === "notify")?.blocked).toBeUndefined();
+  });
+
   it("on a phone, leaves Notifications undone when the server can't push, and says so (ADR 0244)", () => {
     const cannot = { ...server, pushes: "no_access_token" as const };
     const phone = setupSteps(facts({ here: "phone", server: cannot, notifications: true }));
