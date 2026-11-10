@@ -120,8 +120,12 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
   "apps/web/src/app/Waits.tsx": { count: 2, why: OUTLINE },
   "apps/web/src/app/you/Notifications.tsx": { count: 1, why: SHAPE },
   "apps/web/src/app/Join.tsx": {
-    count: 10,
-    why: `a harness asking to join, which has no agent yet (ADR 0122), told from a link's request (ADR 0232), the gallery's ways and the docs' cards (ADR 0171), the same on the empty Agents page (ADR 0261), the harness landing on the arrival (ADR 0190), and the harness here already, before a second is made (ADR 0248); ${SHAPE}`,
+    count: 11,
+    why: `a harness asking to join, which has no agent yet (ADR 0122), told from a link's request (ADR 0232), the gallery's ways and the docs' cards (ADR 0171), the same on the empty Agents page (ADR 0261), the harness landing on the arrival (ADR 0190), the harness here already, before a second is made (ADR 0248), and I don't have one yet (ADR 0290); ${SHAPE}`,
+  },
+  "apps/web/src/app/StartSteps.tsx": {
+    count: 3,
+    why: `the cards an answer leads to, and I don't have one yet, before any harness is here (ADR 0290); ${SHAPE}`,
   },
   "apps/mobile/src/harnesses/AskingMotion.tsx": {
     count: 2,

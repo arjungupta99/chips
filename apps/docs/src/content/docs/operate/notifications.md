@@ -64,8 +64,8 @@ day, so one device raises it.
 
   A push carries three ids and two fixed sentences, and nothing about the ask: not the action,
   the preview, the harness or the space. Chips holds no Apple or Google push credentials, so
-  the message passes through Expo's service, and first through the Chips push relay when your
-  server has no Expo access token ([ADR 0246](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0246-chips-sends-pushes-for-any-server-through-its-relay.md)).
+  the message passes through the Chips push relay and then Expo's service: Expo takes the Chips
+  app's pushes only with the app's access token, which the relay holds ([ADR 0246](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0246-chips-sends-pushes-for-any-server-through-its-relay.md)).
   What they are handed is worth nothing to them
   ([ADR 0045](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0045-a-push-is-a-claim-the-server-makes-for-the-phone-and-carries-no-words.md)).
   The cost is that a Chips notification cannot be triaged from the lock screen: it tells you

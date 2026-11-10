@@ -63,6 +63,15 @@ A card can say three more things about the agent itself
 marks it On this Mac. `whose` says who makes the agent and where what a person sends it goes,
 beside its way in, and `terms` is a link to its maker's terms or licence.
 
+A card can also carry `start`, the written steps for somebody with no agent yet
+([ADR 0290](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0290-somebody-with-no-agent-is-asked-what-they-have-and-shown-the-makers-steps.md)).
+The gallery then shows **I don't have one yet**, which asks what they already have. `answer` is
+what they say ("I pay for Claude") and `suggest` is what Chips says back. `steps` are the maker's
+own lines, each a sentence with a `line` to run in Terminal or a page to `open`, which the person
+runs themselves before pressing Connect. One card's `none` is the answer for somebody with none of
+the others, with `first` steps, such as making an account, before its own. The same steps are on
+[chipschat.ai/setup](https://chipschat.ai/setup/).
+
 ## Getting a connector on this page
 
 1. Run `chips conformance custom --capabilities <what it declares>` against it, and say what the

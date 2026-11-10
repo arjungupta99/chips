@@ -1349,6 +1349,18 @@ export {
   spentWords,
   typedCeiling,
 } from "./spend.js";
+export type { StartAnswer } from "./startSteps.js";
+export {
+  isNoneAnswer,
+  NO_AGENT_YET,
+  openWords,
+  START_PAGE,
+  START_QUESTION,
+  startAnswers,
+  startConnect,
+  startTitle,
+  startWhere,
+} from "./startSteps.js";
 export type {
   AddedHarness,
   AddHarnessInput,

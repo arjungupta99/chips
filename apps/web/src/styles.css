@@ -14392,6 +14392,141 @@ button.jobs-day:focus-visible {
   align-items: center;
 }
 
+/* The written steps (ADR 0290): the gallery's I don't have one yet, the question, and the maker's
+   steps, as option A of the "Chips From Zero" mock. A row that leads on carries a chevron, which
+   slides a little on hover; the answers rise one after another, and so do the steps. Flat. */
+.join-card.none {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  transition:
+    background-color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
+}
+.join-card-go {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  color: var(--ink-4);
+  transition:
+    transform var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
+}
+.join-card.none:hover .join-card-go {
+  transform: translateX(3px);
+  color: var(--ink-2);
+}
+.start-question,
+.start-guide {
+  display: grid;
+  gap: 12px;
+}
+.start-question h2,
+.start-question .join-lede {
+  margin: 0;
+  text-align: center;
+}
+.start-question h2 {
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.start-answers {
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+.start-answers > *,
+.start-steps > li {
+  animation: first-run-in 320ms var(--ease) both;
+}
+.start-answers > :nth-child(2),
+.start-steps > :nth-child(2) {
+  animation-delay: 50ms;
+}
+.start-answers > :nth-child(3),
+.start-steps > :nth-child(3) {
+  animation-delay: 100ms;
+}
+.start-answers > :nth-child(n + 4),
+.start-steps > :nth-child(n + 4) {
+  animation-delay: 150ms;
+}
+.start-answers .join-card {
+  padding: 14px;
+}
+.start-where {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.start-steps {
+  display: grid;
+  gap: 14px;
+  margin: 4px 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.start-steps > li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
+}
+.start-step-no {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.start-step {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.start-step > b {
+  padding-top: 2px;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.start-open {
+  justify-self: start;
+  padding: 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+.start-open:hover {
+  background: var(--surface-2);
+}
+.start-guide > .ui-button {
+  justify-self: stretch;
+  height: 44px;
+}
+.start-fine {
+  margin: 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+/* "Its terms" stays one link on one line. */
+.start-guide .join-note a {
+  white-space: nowrap;
+}
+.start-question > .join-link,
+.start-guide > .join-link {
+  justify-self: center;
+  font-size: 14px;
+}
+
 .phone-offer {
   position: fixed;
   bottom: 88px;
@@ -14625,12 +14760,15 @@ button.jobs-day:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .first-run,
   .first-run-col > *,
+  .start-answers > *,
+  .start-steps > li,
   .phone-offer,
   .phone-offer-ok,
   .setup-tick {
     animation: none;
   }
-  .setup-fold {
+  .setup-fold,
+  .join-card-go {
     transition: none;
   }
 }

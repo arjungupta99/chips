@@ -55,6 +55,7 @@ import {
   linkStarts,
   mayAskFromPage,
   myRole,
+  NO_AGENT_YET,
   nameOf,
   nextJoinAsk,
   OFFERED,
@@ -65,6 +66,7 @@ import {
   sayOf,
   sdkLines,
   shellLine,
+  startAnswers,
   switchesFor,
   type WorkspaceModel,
 } from "@chipschat/core";
@@ -141,9 +143,15 @@ export function Gallery(props: {
   readonly connected?: ReadonlySet<string> | undefined;
   /** The card whose page stands beside it, by `choiceKey` (ADR 0284's addendum): it is chosen. */
   readonly chosen?: string | undefined;
+  /**
+   * I don't have one yet, after the docs' cards, where some card has written steps (ADR 0290).
+   * Absent, there is no such row.
+   */
+  readonly onNone?: (() => void) | undefined;
 }) {
   const { found, order } = useFoundHere(props.cards);
   const cards = foundFirst(props.cards ?? [], order);
+  const none = props.onNone !== undefined && startAnswers(props.cards).length > 0;
   const chosen = (choice: Choice) =>
     choiceKey(choice) === props.chosen
       ? ({ "data-chosen": "true", "aria-current": "page" } as const)
@@ -184,6 +192,19 @@ export function Gallery(props: {
               </button>
             );
           })}
+          {none && (
+            <button
+              type="button"
+              className="join-card none"
+              data-testid="join-none"
+              onClick={props.onNone}
+            >
+              <Avatar name={NO_AGENT_YET.name} kind="harness" icon={NO_AGENT_YET.face} size="sm" />
+              <b>{NO_AGENT_YET.name}</b>
+              <small>{NO_AGENT_YET.sub}</small>
+              <Icon name="next" size={14} className="join-card-go" />
+            </button>
+          )}
         </div>
       )}
       <h3 className="agents-h">{ownWayHeading(cards.length)}</h3>

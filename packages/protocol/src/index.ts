@@ -128,11 +128,19 @@ export {
   startOf,
   startsWith,
 } from "./commands.js";
-export type { Connector, ConnectorKind, ConnectorsAnswer, ServerFacts } from "./connectors.js";
+export type {
+  Connector,
+  ConnectorKind,
+  ConnectorStart,
+  ConnectorsAnswer,
+  ServerFacts,
+  StartStep,
+} from "./connectors.js";
 export {
   CONNECTORS_MAX,
   connector,
   connectorKind,
+  connectorStart,
   connectorsAnswer,
   fillLink,
   LINK_SLOT,

@@ -33,6 +33,24 @@
       "program": "claude",
       "whose": "Claude Code is made by Anthropic and has its own terms. What you send it goes to Anthropic.",
       "terms": "https://code.claude.com/docs/en/legal-and-compliance",
+      "start": {
+        "answer": "I pay for Claude",
+        "suggest": "We'd suggest Claude Code, Anthropic's coding agent.",
+        "steps": [
+          {
+            "says": "Install Claude Code.",
+            "line": "curl -fsSL https://claude.ai/install.sh | bash"
+          },
+          {
+            "says": "Sign in. Your browser opens with Anthropic's sign-in.",
+            "line": "claude auth login"
+          },
+          {
+            "says": "Install the adapter Chips reaches Claude Code through. It needs npm, which comes with Node.js from nodejs.org.",
+            "line": "npm install -g @agentclientprotocol/claude-agent-acp"
+          }
+        ]
+      },
       "kind": "one-line",
       "command": "chips connect claude-code '{link}'",
       "package": "@chipschat/acp@1",
@@ -57,6 +75,30 @@
       "program": "codex",
       "whose": "Codex is made by OpenAI and has its own terms. What you send it goes to OpenAI.",
       "terms": "https://openai.com/policies/terms-of-use/",
+      "start": {
+        "answer": "I use ChatGPT",
+        "suggest": "We'd suggest Codex, OpenAI's coding agent.",
+        "steps": [
+          {
+            "says": "Install Codex.",
+            "line": "curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+          },
+          {
+            "says": "Sign in with your ChatGPT account. Your browser opens with OpenAI's sign-in.",
+            "line": "codex login"
+          }
+        ],
+        "none": {
+          "answer": "Neither of those",
+          "suggest": "You'll need an account with one of the makers. We'd suggest a free ChatGPT account, which includes Codex.",
+          "first": [
+            {
+              "says": "Make a ChatGPT account on OpenAI's site. OpenAI's free plan includes Codex.",
+              "open": "https://chatgpt.com/"
+            }
+          ]
+        }
+      },
       "kind": "one-line",
       "command": "chips connect codex '{link}'",
       "package": "@chipschat/acp@1",

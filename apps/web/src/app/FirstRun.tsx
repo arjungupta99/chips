@@ -24,6 +24,7 @@ import {
   placeOf,
   relayTurnOnAsk,
   type Snapshot,
+  type StartAnswer,
   type Store,
   setupSteps,
   showsWelcome,
@@ -49,18 +50,25 @@ import {
 } from "./firstRun.ts";
 import { type Choice, ConnectPage, Gallery, type JoinService } from "./Join.tsx";
 import { type SetupActions, SetupRail } from "./SetupCard.tsx";
+import { StartGuide, StartQuestion } from "./StartSteps.tsx";
 import { browserPermission, PERMISSION_ANSWERED } from "./useNotifications.ts";
 
 type Stage =
   | { readonly kind: "name" }
   | { readonly kind: "gallery" }
-  | { readonly kind: "connect"; readonly way: Choice };
+  /** Somebody with no agent yet: what they already have (ADR 0290). */
+  | { readonly kind: "start" }
+  | { readonly kind: "steps"; readonly answer: StartAnswer }
+  /** A card's page; Back goes where it came from, the gallery or the steps. */
+  | { readonly kind: "connect"; readonly way: Choice; readonly from?: Stage };
 
 /**
  * A card's link put away unused as the welcome goes Back (the onboarding audit, Part 2, item 34):
  * withdrawn, rather than left working for its fifteen minutes. One already used, or ended, stays as
  * it is; one not heard of yet was just made, and is withdrawn too.
  */
+const GALLERY: Stage = { kind: "gallery" };
+
 export function withdrawUnused(
   join: Pick<JoinService, "deny">,
   joins: ReadonlyMap<string, JoinRequest> | undefined,
@@ -79,6 +87,8 @@ export function FirstRun(props: {
   readonly machine: string | undefined;
   readonly cards: readonly Connector[] | undefined;
   readonly join: JoinService;
+  /** Chips for Mac, where the written steps run in this Mac's Terminal. */
+  readonly onMac?: boolean;
   /** Where it starts: the setup card's "Add" opens it at the gallery. */
   readonly from?: "name" | "gallery";
   /** Through it, or skipped: the room to open when an agent's hello brought it to an end. */
@@ -92,7 +102,7 @@ export function FirstRun(props: {
   const back = () => {
     withdrawUnused(props.join, joins, made.current);
     made.current = undefined;
-    setStage({ kind: "gallery" });
+    setStage(stage.kind === "connect" && stage.from !== undefined ? stage.from : GALLERY);
   };
   const total = props.from === "gallery" ? undefined : 3;
   // Asked from the first step, so the gallery opens already in order.
@@ -127,6 +137,7 @@ export function FirstRun(props: {
               title="Bring your first agent"
               lede={firstRunLede(props.cards, found)}
               onPick={(way) => setStage({ kind: "connect", way })}
+              onNone={() => setStage({ kind: "start" })}
             />
             <button
               type="button"
@@ -137,6 +148,27 @@ export function FirstRun(props: {
               Skip for now
             </button>
           </>
+        )}
+        {stage.kind === "start" && (
+          <>
+            {total !== undefined && <span className="first-run-step">2 of {total}</span>}
+            <StartQuestion
+              titleId={titleId}
+              cards={props.cards}
+              onAnswer={(answer) => setStage({ kind: "steps", answer })}
+              onBack={() => setStage(GALLERY)}
+            />
+          </>
+        )}
+        {stage.kind === "steps" && (
+          <StartGuide
+            key={stage.answer.key}
+            titleId={titleId}
+            answer={stage.answer}
+            onMac={props.onMac === true}
+            onConnect={(card) => setStage({ kind: "connect", way: card, from: stage })}
+            onBack={() => setStage({ kind: "start" })}
+          />
         )}
         {stage.kind === "connect" && (
           <ConnectPage
@@ -154,7 +186,7 @@ export function FirstRun(props: {
             }}
             onCancelled={() => {
               made.current = undefined;
-              setStage({ kind: "gallery" });
+              setStage(GALLERY);
             }}
             footer={
               <button
@@ -683,6 +715,7 @@ export function useFirstRun(input: {
         machine={facts?.machine}
         cards={cards}
         join={input.join}
+        onMac={input.desktop}
         from={welcome === "gallery" ? "gallery" : "name"}
         onDone={done}
       />

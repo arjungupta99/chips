@@ -403,9 +403,9 @@ which is which.
 
 Three ids and two fixed sentences: *A decision is waiting* / *Approve or deny from here.* It does
 **not** carry the action, the preview, the risk classes, the harness's name or the space's title.
-Chips has no Apple or Google push credentials of its own, so a push goes through Expo's service
-on the way to your phone, and through the Chips push relay before that when your server has no
-Expo access token. What they are handed is a token, those two sentences and an opaque
+Chips has no Apple or Google push credentials of its own, so a push goes from your server through
+the Chips push relay, which holds the Chips app's Expo access token, then through Expo's service
+on the way to your phone. What they are handed is a token, those two sentences and an opaque
 identifier. The words appear only when you open the card, over your phone's own
 authenticated connection. [ADR 0045](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0045-a-push-is-a-claim-the-server-makes-for-the-phone-and-carries-no-words.md)
 records the reasoning.

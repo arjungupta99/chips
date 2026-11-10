@@ -54,6 +54,32 @@ describe("a card with a bridge (ADR 0218)", () => {
   });
 });
 
+describe("a card's written steps (ADR 0290)", () => {
+  const start = {
+    answer: "I use ChatGPT",
+    suggest: "We'd suggest Codex.",
+    steps: [{ says: "Install Codex.", line: "curl -fsSL https://example.com/i.sh | sh" }],
+    none: {
+      answer: "Neither of those",
+      suggest: "Make an account.",
+      first: [{ says: "Make an account.", open: "https://chatgpt.com/" }],
+    },
+  };
+
+  it("reads with its answer, its steps and the answer for somebody with none", () => {
+    expect(connector.parse({ ...CARD, start })).toEqual({ ...CARD, start });
+  });
+
+  it("is read without a step to run nowhere, or a page that isn't https", () => {
+    expect(connector.safeParse({ ...CARD, start: { ...start, steps: [] } }).success).toBe(false);
+    const plain = {
+      ...start,
+      none: { ...start.none, first: [{ says: "x", open: "http://a.b/" }] },
+    };
+    expect(connector.safeParse({ ...CARD, start: plain }).success).toBe(false);
+  });
+});
+
 describe("fillLink", () => {
   it("puts the link wherever {link} is", () => {
     expect(fillLink("CHIPS_JOIN_LINK='{link}' npx a; echo {link}", "https://x/j/s")).toBe(

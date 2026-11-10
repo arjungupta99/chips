@@ -27,6 +27,46 @@ export function fillLink(template: string, link: string): string {
 
 const words = (most: number) => z.string().trim().min(1).max(most);
 
+/** One thing a person does to get an agent, as its maker says it (ADR 0290). */
+export const startStep = z
+  .object({
+    says: words(200).describe("What they do, as a sentence: `Install Claude Code.`"),
+    line: words(400)
+      .optional()
+      .describe("The line for it, run in Terminal: the maker's own installer or sign-in."),
+    open: z
+      .url({ protocol: /^https$/ })
+      .optional()
+      .describe("A page of the maker's to open for it: where to make an account."),
+  })
+  .describe("A step of the written steps, run by the person, never by Chips.");
+export type StartStep = z.infer<typeof startStep>;
+
+/**
+ * How somebody with no agent yet gets this one (ADR 0290): the answer they give to "Which of these
+ * do you already have?", what Chips suggests to them, and the maker's steps, which they run.
+ */
+export const connectorStart = z
+  .object({
+    answer: words(60).describe("What a person who has this says: `I pay for Claude`."),
+    suggest: words(200).describe("What Chips suggests to them, in a sentence."),
+    steps: z.array(startStep).min(1).max(6),
+    none: z
+      .object({
+        answer: words(60).describe("`Neither of those`."),
+        suggest: words(200),
+        first: z
+          .array(startStep)
+          .min(1)
+          .max(3)
+          .describe("What they do before this card's steps: make an account with its maker."),
+      })
+      .optional()
+      .describe("This card is the one suggested to somebody who has none of the others."),
+  })
+  .describe("The written steps for somebody with no agent yet.");
+export type ConnectorStart = z.infer<typeof connectorStart>;
+
 /** How a connector is brought in, which decides what its card offers. */
 export const connectorKind = z
   .enum(["one-line", "sdk", "http", "guide"])
@@ -64,6 +104,7 @@ export const connector = z
       .url({ protocol: /^https?$/ })
       .optional()
       .describe("Its maker's own terms or licence."),
+    start: connectorStart.optional(),
     kind: connectorKind,
     command: words(400)
       .optional()

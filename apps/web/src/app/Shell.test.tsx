@@ -8991,6 +8991,81 @@ describe("the first run (ADR 0170)", () => {
     expect(store.joinsDenied).toEqual([first]);
   });
 
+  it("takes somebody with no agent from I don't have one yet to the maker's steps and on to Connect, and Back retraces it (ADR 0290)", async () => {
+    forget();
+    onTestFinished(forget);
+    const store = fakeStore(snapshotOf([], { directory: OWNER, awaiting: 0 }));
+    const codex: Connector = {
+      id: "codex",
+      name: "Codex",
+      line: "OpenAI's coding agent",
+      whose: "Codex is made by OpenAI and has its own terms. What you send it goes to OpenAI.",
+      terms: "https://openai.com/policies/terms-of-use/",
+      kind: "one-line",
+      command: "chips connect codex '{link}'",
+      start: {
+        answer: "I use ChatGPT",
+        suggest: "We'd suggest Codex, OpenAI's coding agent.",
+        steps: [
+          { says: "Install Codex.", line: "curl -fsSL https://chatgpt.com/codex/install.sh | sh" },
+          { says: "Sign in.", line: "codex login" },
+        ],
+        none: {
+          answer: "Neither of those",
+          suggest: "We'd suggest a free ChatGPT account.",
+          first: [{ says: "Make a ChatGPT account.", open: "https://chatgpt.com/" }],
+        },
+      },
+    };
+    store.connectorCards = [CLAW, codex];
+    render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
+    fireEvent.click(await screen.findByTestId("first-run-continue"));
+
+    fireEvent.click(await screen.findByTestId("join-none"));
+    expect(screen.getByText("Which of these do you already have?")).toBeTruthy();
+    // One answer for the card with steps, then the one for somebody with neither.
+    expect(screen.getByTestId("start-answer-codex").textContent).toContain("I use ChatGPT");
+    fireEvent.click(screen.getByTestId("start-answer-codex:none"));
+
+    // Neither: the account first, then the maker's install and sign-in, each to run in Terminal.
+    const guide = screen.getByTestId("start-guide");
+    expect(guide.textContent).toContain("Get Codex, then come back");
+    expect(guide.textContent).toContain("in a terminal on the computer you'll run the agent on");
+    expect(screen.getByTestId("start-open-0").getAttribute("href")).toBe("https://chatgpt.com/");
+    expect(screen.getByTestId("start-step-1").textContent).toBe(
+      "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
+    );
+    expect(screen.getByTestId("start-step-1-run").textContent).toContain("Run in Terminal");
+    expect(screen.getByTestId("start-step-2").textContent).toBe("codex login");
+    expect(guide.textContent).toContain("What you send it goes to OpenAI.");
+
+    fireEvent.click(screen.getByTestId("start-connect"));
+    const page = await screen.findByTestId("join-connect");
+    expect(page.getAttribute("data-way")).toBe("codex");
+    const made = [...(store.getSnapshot().joins?.keys() ?? [])][0];
+
+    // Back from the card's page goes to the steps, withdrawing the link it made.
+    fireEvent.click(screen.getByTestId("first-run-back"));
+    expect((await screen.findByTestId("start-guide")).textContent).toContain(
+      "Make a ChatGPT account.",
+    );
+    await waitFor(() => expect(store.joinsDenied).toEqual([made]));
+    fireEvent.click(screen.getByTestId("start-guide-back"));
+    fireEvent.click(await screen.findByTestId("start-question-back"));
+    expect(await screen.findByTestId("join-card-openclaw")).toBeTruthy();
+  });
+
+  it("shows no I don't have one yet when no card has written steps", async () => {
+    forget();
+    onTestFinished(forget);
+    const store = fakeStore(snapshotOf([], { directory: OWNER, awaiting: 0 }));
+    store.connectorCards = [CLAW];
+    render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
+    fireEvent.click(await screen.findByTestId("first-run-continue"));
+    await screen.findByTestId("join-card-openclaw");
+    expect(screen.queryByTestId("join-none")).toBeNull();
+  });
+
   it("walks the owner of a workspace no agent has joined: name, the docs' gallery, the sentence, the room, the phone", async () => {
     forget();
     onTestFinished(forget);

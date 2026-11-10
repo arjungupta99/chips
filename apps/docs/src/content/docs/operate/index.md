@@ -19,7 +19,7 @@ and an object store. The Mac mini setup and the cloud setup are the same softwar
 - [Your own domain](/operate/own-domain/): your server at a name you own, over HTTPS from anywhere, with Caddy on the Mac or Cloudflare Tunnel, and what that puts on the internet.
 - [Chips on your phone](/operate/mobile/): approve, deny and steer from a phone, over your own network or through the relay.
 - [Install](/start/install/): how to run it, and every configuration variable.
-- [What Chips counts](/operate/what-chips-counts/): your server and the apps send us nothing; the hosted relay keeps a count for each day, never who.
+- [What Chips counts](/operate/what-chips-counts/): your server and the apps send us no analytics; the hosted relay keeps a count for each day, never who.
 
 ## What to watch
 
