@@ -55,6 +55,7 @@ export function PageView({
   onReady,
   onFailed,
   onFile,
+  onAddress,
 }: {
   readonly html: string;
   readonly title: string;
@@ -69,6 +70,12 @@ export function PageView({
   readonly onFailed: (why: string) => void;
   /** A tapped link to a file of the room's project (ADR 0227); without it, such a link does nothing. */
   readonly onFile?: ((path: string) => void) | undefined;
+  /**
+   * A tapped link to a web address or mail, handed over rather than opened: Universe asks first when
+   * the address may need the space's program running (ADR 0227's addendum of 9 November 2026).
+   * Without it, the platform's browser or mail opens it.
+   */
+  readonly onAddress?: ((url: string) => void) | undefined;
 }) {
   const platform = Platform.OS === "android" ? "android" : "ios";
   const ios = platform === "ios";
@@ -91,7 +98,10 @@ export function PageView({
       onShouldStartLoadWithRequest={(request) => {
         const decision = pageLoad(request, platform);
         if (decision === "ground") setSaid(groundOfLink(request.url) ?? said);
-        if (decision === "outside") void Linking.openURL(request.url).catch(() => undefined);
+        if (decision === "outside") {
+          if (onAddress !== undefined) onAddress(request.url);
+          else void Linking.openURL(request.url).catch(() => undefined);
+        }
         const file = decision === "file" ? fileOfLink(request.url) : undefined;
         if (file !== undefined) onFile?.(file);
         return decision === "load";

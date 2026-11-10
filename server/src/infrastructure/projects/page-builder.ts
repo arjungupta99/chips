@@ -146,6 +146,8 @@ class Build {
   readonly bundledStyles: string[] = [];
   /** How many links to files of the project the page has, made `chips-file:` links. */
   links = 0;
+  /** How many links to web addresses it has, which its window may ask about first. */
+  addresses = 0;
 
   constructor(
     private readonly read: (path: string) => Promise<Uint8Array | undefined>,
@@ -391,8 +393,21 @@ async function foldStyle(build: Build, element: Element, page: string): Promise<
 const FILE_LINK_SCRIPT =
   'document.addEventListener("click",function(e){var a=e.target instanceof Element?e.target.closest("a[data-chips-file]"):null;if(!a||window.parent===window)return;e.preventDefault();window.parent.postMessage({chipsFile:a.getAttribute("data-chips-file")},"*")},true);';
 
+/**
+ * In a frame, a click on a link to a web address goes on to its window when the window has said it
+ * asks about them (ADR 0227's addendum of 9 November 2026): every one while the person's program
+ * isn't running, so the banner over the page can ask to run it first; only localhost in a browser
+ * that isn't on the Mac. Until the window says so, and in a window that never does, the link opens
+ * a window as it would. The window is told the address; whether anything opens is its person's.
+ */
+const ADDRESS_SCRIPT =
+  '(function(){if(window.parent===window)return;var asks="none";window.addEventListener("message",function(e){if(e.source!==window.parent)return;var m=e.data&&e.data.chipsAsks;if(m==="every"||m==="own"||m==="none")asks=m});document.addEventListener("click",function(e){if(asks==="none")return;var a=e.target instanceof Element?e.target.closest("[data-chips-address]"):null;if(!a||!a.href)return;var h=a.hostname.toLowerCase();var own=h==="localhost"||/\\.localhost$/.test(h)||/^127(\\.\\d{1,3}){3}$/.test(h)||h==="[::1]"||h==="0.0.0.0";if(asks==="own"&&!own)return;e.preventDefault();window.parent.postMessage({chipsAddress:a.href},"*")},true)})();';
+
 /** What a person's browser or mail opens, and a page's frame may not go to. */
 const ADDRESS = /^\s*(https?|mailto):/i;
+
+/** A web address, which may need the space's program running. */
+const WEB = /^\s*https?:/i;
 
 /**
  * A link to another file of the project, as a `chips-file:` link (ADR 0227); a link to an address,
@@ -404,6 +419,10 @@ function foldLink(build: Build, element: Element, page: string): void {
   if (href === undefined || href.trim().startsWith("#")) return;
   if (ADDRESS.test(href)) {
     setAttr(element, "target", "_blank");
+    if (WEB.test(href)) {
+      setAttr(element, "data-chips-address", "");
+      build.addresses += 1;
+    }
     return;
   }
   const path = inProject(href, page);
@@ -438,9 +457,13 @@ async function folded(build: Build, words: string, path: string): Promise<string
     if (head !== undefined) defaultTreeAdapter.appendChild(head, style);
   }
   const body = elementsIn(document).find((element) => element.tagName === "body");
-  if (build.links > 0 && body !== undefined) {
+  const lines = [
+    build.links > 0 ? FILE_LINK_SCRIPT : "",
+    build.addresses > 0 ? ADDRESS_SCRIPT : "",
+  ].join("");
+  if (lines !== "" && body !== undefined) {
     const script = defaultTreeAdapter.createElement("script", html.NS.HTML, []);
-    defaultTreeAdapter.insertText(script, FILE_LINK_SCRIPT);
+    defaultTreeAdapter.insertText(script, lines);
     defaultTreeAdapter.appendChild(body, script);
   }
   return serialize(document);

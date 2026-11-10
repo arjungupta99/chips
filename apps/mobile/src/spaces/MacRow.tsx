@@ -19,17 +19,13 @@ import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { Moves, Squeeze } from "./MacMotion";
 
 /** How a row's mark is drawn: what it is, or how a program is going. */
-export type MarkKind = "ready" | "plain" | "quiet" | "starting" | "running" | "failed";
+/** `off`: a program that isn't running, a grey dot where a lit one goes (the banner over a page). */
+export type MarkKind = "ready" | "plain" | "quiet" | "off" | "starting" | "running" | "failed";
 
 /** The row's mark: a tile with an icon, or with a lit dot while a program starts or runs. */
 export function RowMark({ kind, icon }: { readonly kind: MarkKind; readonly icon: IconName }) {
   const palette = usePalette();
-  const lit =
-    kind === "running"
-      ? { tile: palette.greenSoft, dot: palette.green }
-      : kind === "starting"
-        ? { tile: palette.goldSoft, dot: palette.gold }
-        : undefined;
+  const lit = litOf(kind, palette);
   if (lit !== undefined) {
     return (
       <Swap swapKey={kind}>
@@ -52,6 +48,17 @@ export function RowMark({ kind, icon }: { readonly kind: MarkKind; readonly icon
       </View>
     </Swap>
   );
+}
+
+/** A mark drawn as a dot on its tile: green running, gold starting, grey off; nothing for an icon. */
+function litOf(
+  kind: MarkKind,
+  palette: ReturnType<typeof usePalette>,
+): { readonly tile: string; readonly dot: string } | undefined {
+  if (kind === "running") return { tile: palette.greenSoft, dot: palette.green };
+  if (kind === "starting") return { tile: palette.goldSoft, dot: palette.gold };
+  if (kind === "off") return { tile: palette.surface3, dot: palette.ink4 };
+  return undefined;
 }
 
 /** What a row says under its name, and in which voice: as it is, heard, or gone wrong. */
@@ -135,7 +142,8 @@ export function MacRow({
 /**
  * The button at a row's right: gold for what the space made, Run and the page's Open (his "open for
  * files should be yellow as well"), and a blue tint, Send's blue, for the folder's Open (his "A · Blue
- * tint", 24 October 2026).
+ * tint", 24 October 2026). Stop on the banner over a page is the Desktop tab's Stop: red on its soft
+ * red.
  */
 export function RowButton({
   label,
@@ -149,7 +157,7 @@ export function RowButton({
 }: {
   readonly label: string;
   readonly icon?: IconName | undefined;
-  readonly tone: "gold" | "blue";
+  readonly tone: "gold" | "blue" | "stop";
   /** Asking the Mac: it says so, and takes no more presses until it has heard. */
   readonly busy?: boolean;
   readonly disabled?: boolean;
@@ -162,7 +170,12 @@ export function RowButton({
   const scheme = useScheme();
   const off = disabled || busy;
   const gold = tone === "gold";
-  const ink = gold ? ON_GOLD : palette.blueInk;
+  const ink = gold ? ON_GOLD : tone === "stop" ? palette.redInk : palette.blueInk;
+  const ground = gold
+    ? palette.gold
+    : tone === "stop"
+      ? palette.redSoft
+      : alpha(palette.blue, BLUE_TINT[scheme]);
   return (
     <Squeeze
       accessibilityRole="button"
@@ -171,11 +184,7 @@ export function RowButton({
       disabled={off}
       hitSlop={HIT}
       onPress={onPress}
-      style={[
-        styles.button,
-        { backgroundColor: gold ? palette.gold : alpha(palette.blue, BLUE_TINT[scheme]) },
-        disabled ? styles.off : null,
-      ]}
+      style={[styles.button, { backgroundColor: ground }, disabled ? styles.off : null]}
       testID={testID}
     >
       {busy ? (

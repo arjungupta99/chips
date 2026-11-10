@@ -85,16 +85,25 @@ export function PageSheet(
     readonly version?: string | undefined;
     /** A tapped link to a file of the room's project (ADR 0227). */
     readonly onFile?: ((path: string) => void) | undefined;
+    /** A tapped link to a web address, for Universe to open or ask about first (`PageView`). */
+    readonly onAddress?: ((url: string) => void) | undefined;
     readonly onClose: () => void;
   },
 ) {
-  const { version, onClose, onFile } = props;
+  const { version, onClose, onFile, onAddress } = props;
   const project = "page" in props;
   const source = project ? props.page : attachmentPage(props.attachment, props.files);
   // The source is read once for the sheet's life, as the attachment it was made from was.
   const [page] = useState(source);
   return (
-    <PageSheetOf page={page} orbit={project} version={version} onFile={onFile} onClose={onClose} />
+    <PageSheetOf
+      page={page}
+      orbit={project}
+      version={version}
+      onFile={onFile}
+      onAddress={onAddress}
+      onClose={onClose}
+    />
   );
 }
 
@@ -103,6 +112,7 @@ function PageSheetOf({
   orbit,
   version,
   onFile,
+  onAddress,
   onClose,
 }: {
   readonly page: PageSource;
@@ -110,6 +120,7 @@ function PageSheetOf({
   readonly orbit: boolean;
   readonly version?: string | undefined;
   readonly onFile?: ((path: string) => void) | undefined;
+  readonly onAddress?: ((url: string) => void) | undefined;
   readonly onClose: () => void;
 }) {
   const palette = usePalette();
@@ -233,6 +244,7 @@ function PageSheetOf({
                     onReady={draw}
                     onFailed={(why) => setRead({ state: "failed", why })}
                     onFile={onFile}
+                    onAddress={onAddress}
                   />
                 </Suspense>
               )}

@@ -8,6 +8,10 @@
  * In the Mac app a page has Open in browser beside the close (Arjun, 24 October 2026: "add a
  * button to open page in browser"): the room's folder, brought up to `main`, opens the file as
  * Finder would, in the Mac's browser, where it reloads and its links work as files.
+ *
+ * Over a page of a space with a program, the program's banner (`PageProgram`, ADR 0227's addendum
+ * of 9 November 2026): Run and Stop, and the question a link to its address asks while it isn't
+ * running.
  */
 
 import { documentKind, fileNameOf, markdownPage, withHtmlPolicy } from "@chipschat/core";
@@ -16,11 +20,12 @@ import { Button, Icon } from "@chipschat/ui";
 import { useEffect, useRef, useState } from "react";
 import type { FileService } from "../files.ts";
 import { inkNow, PageDialog } from "../PageView.tsx";
+import { PageProgram, type PageProgramProject } from "./PageProgram.tsx";
 import { UniverseArrival } from "./UniverseMark.tsx";
 import { useYes } from "./useYes.ts";
 
-/** What the dialog reads of the project. */
-export interface ProjectDocuments {
+/** What the dialog reads of the project, and the program's banner over a page. */
+export interface ProjectDocuments extends PageProgramProject {
   readonly file: (path: string) => Promise<{ readonly bytes: Uint8Array; readonly type: string }>;
   readonly page: (path: string) => Promise<string>;
   readonly pageUrl: (path: string) => Promise<string | undefined>;
@@ -145,6 +150,9 @@ export function ProjectDocument({
       acts={<OpenInBrowser path={path} browse={project.browse} here={project.onTheMac} />}
       onClose={onClose}
     >
+      {documentKind(path) === "page" && (
+        <PageProgram project={project} frame={frame} loaded={loaded} />
+      )}
       {(reading.state === "opening" || reading.state === "url" || reading.state === "words") && (
         <UniverseArrival ready={loaded} words="Opening…">
           {(reading.state === "url" || reading.state === "words") && (

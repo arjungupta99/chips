@@ -223,3 +223,66 @@ phone was right all along: it hands a tapped address to the platform's browser.
   in the builder, so an agent's page needs no such attribute of its own.
 - **What a frame may reach is unchanged.** A page still has no network and cannot leave by itself
   (decision 7); only a person's tap on a link goes out.
+
+## Addendum, 9 November 2026: the program's banner, and a link that asks first
+
+Arjun, on the Health space's start page on the phone: its links open the app the space's program
+serves, "These pages only open when the server is running", and the Phone tab never said whether it
+was. He chose from running mocks: "Banner shows up for program. the bottom sheet only shows up if the
+program is not running", "also show stop button on the banner when the program is running", "All
+transitions must be smooth and polished".
+
+- **A banner over the page, for a space with a program.** On the Phone (iPad) tab, over the start
+  page or the list, a row as the Desktop tab draws one, on a card of its own: *Program isn't
+  running* and Run; *Starting on your Mac* and Stop; *Running on your Mac* and Stop. How long it
+  has run is the Desktop tab's to say: beside Stop, at a phone's width, it wrapped the title. Its
+  words are core's `programBanner`, said from the run bar's (`runBar`), so the banner and the
+  Desktop tab never disagree, and Universe holds one run for both (`useRunOnMac`). Who changed the
+  files since the person last ran it (SEC-40) is said over Run in amber, as the bar says it. A run
+  that has just started says *Links here open now* for three seconds, then the banner folds to one
+  row. It shows once the run has been read, so it never says "isn't running" of a program that is.
+  A space whose only thing is a program keeps its card pointing to Desktop.
+- **A link tapped while it isn't running asks first.** The page view hands a tapped address to
+  Universe (`onAddress`) rather than to Safari, in the tab and full screen. Core's `linkTap` says
+  what it does: mail and anything but a web address open as anywhere; while the program runs, the
+  page opens at once; while it doesn't, a sheet rises with the address, *Run and open* and *Open
+  anyway*. Run and open asks the Mac, waits for it to say the program runs, then asks the address
+  until it answers, for up to 20 seconds (`answers.ts`; any answer counts, an error page included),
+  and opens it. The Mac says running as soon as the program starts, which can be a moment before
+  it listens; opened then, Safari would show an error. No answer in time, the sheet says so and
+  offers Open anyway; no Mac heard, or the run stopped, it says why. The sheet is the app's own
+  (`Sheet`): on an iPad a card in the middle, standing over the window (`OverWindow`) even where
+  Universe stands in the third column.
+- **Localhost never opens on a phone.** On a phone, localhost is the phone. A link to it, running
+  or not, opens nothing, and the banner says *localhost opens only on your Mac* for three seconds.
+- **Somebody else in the space.** A run is kept per person, so a member's Chips can't see the
+  owner's (ADR 0231). Their banner says *Runs on Arjun's Mac*, with no Run or Stop, and their taps
+  open as they did.
+- **Motion.** The banner's words crossfade, its button crossfades between Run and Stop, and the
+  banner, its card and the page under it move to their new heights on one clock (`MacMotion.tsx`).
+  The sheet rises and is pulled away as every sheet is, and its words and buttons change in place.
+- **The Mac and the web: the banner asks** (Arjun, the same evening, of the desktop mock's three
+  ways: "this looks good to build", his pick B). The page window (`ProjectDocument`) carries the
+  same banner under its bar (`PageProgram.tsx`), wherever it opens: Open page in Universe and in
+  Project, and the page the phone's Desktop tab asked the Mac to open (`AskedPage`). There is no
+  popup over a window that is itself over the room: a link handed over turns the banner gold and
+  it asks, with the address, *Run and open*, *Open anyway* and ✕.
+  - *How the window hears a click.* The page runs in a frame, and a link to an address leaves it
+    for a new window. The page builder marks each web address (`data-chips-address`) and adds a
+    few lines that hand a click on one to the window instead, but only once the window has said
+    which to hand over (`frameAsks`): every address while the owner's program isn't running; only
+    localhost while it runs in a browser that isn't on the Mac; otherwise none. Until it says, and
+    in a client that never does, the link opens a window as it did. Checked in a WKWebView and in
+    Chromium with the page's sandbox and policy.
+  - *Opening.* On the Mac, Run runs it from the room's folder, the banner waits for the address to
+    answer (the Mac app's policy lets it ask any address) and opens it in the Mac's browser
+    (`open_link`). A browser's policy lets it ask only its own server, and it opens a window only
+    on a press, so there the banner offers *Open* once the program runs. A press that fails on the
+    Mac says *It didn't start*; one no Mac heard from a browser says so.
+  - *localhost.* On the Mac it is the Mac, and asks as any address does. In a browser elsewhere it
+    isn't, and the banner says *localhost opens only on your Mac*.
+  - *Anybody else* reads *Runs on Arjun's Mac*, and their links open as anywhere.
+  - *Motion.* The banner comes down into place, its words and buttons cross over as they change,
+    its dot changes colour, and its ground turns gold and back. Reduce Motion keeps it still.
+  - The phone's Desktop tab needs neither: its Run bar is the banner already, and its Open opens the
+    start page, which needs no program; the links on that page are asked about on the Mac.

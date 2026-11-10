@@ -285,14 +285,20 @@ function checkTeam() {
     "-p",
     `${process.env.HOME}/Library/Preferences/com.apple.dt.Xcode.plist`,
   ]).out;
-  const team = teamOf(prefs, provisioningProfiles());
+  const team = teamOf(prefs, provisioningProfiles(), IDENTITY.team);
   if (team === undefined) {
     report("warn", "Development team", "Xcode lists none; the build will ask for one");
     return { id: undefined, free: true };
   }
-  report("ok", "Development team", `${team.label ?? team.id}${team.free ? ", free" : ", paid"}`);
+  const listed = teamIds(prefs);
+  const kind = `${team.label ?? team.id}${team.free ? ", free" : ", paid"}`;
+  if (listed.length === 0) {
+    report("ok", "Development team", `${kind}, by its profiles here; Xcode lists no account`);
+    return team;
+  }
+  report("ok", "Development team", kind);
   // The build is signed as the config's team (`app.config.js`), which is Chips' own until set.
-  if (!teamIds(prefs).includes(IDENTITY.team)) {
+  if (!listed.includes(IDENTITY.team)) {
     report(
       "warn",
       "Signing team",

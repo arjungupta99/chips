@@ -114,6 +114,15 @@ export function useSplitSide(): Side | undefined {
 }
 
 /**
+ * A sheet inside it rises over the window wherever it was opened, rather than taking the third
+ * column: Universe's sheet for a tapped link asks about the page Universe shows, so it must not take
+ * Universe's place where Universe itself stands in the detail (ADR 0227's addendum of 9 November 2026).
+ */
+export function OverWindow({ children }: { readonly children: ReactNode }) {
+  return <ThirdHostContext.Provider value={undefined}>{children}</ThirdHostContext.Provider>;
+}
+
+/**
  * What stands in a column of 420 of its own: a sheet docked beside a room or standing in the third
  * column (`Sheet`). It lays out as the third column's pages do, at the column's width.
  */

@@ -4081,6 +4081,165 @@
   border: 0;
   background: #fff;
 }
+/* The program's banner over a room's page (ADR 0227's addendum of 9 November 2026): under the
+   window's bar, Run or Stop at its right, and gold while it asks about a link. It comes down into
+   place; its words cross over as they change; its ground turns gold and back. */
+.page-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 10px 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  transition: background-color 220ms ease;
+  animation: page-banner-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.page-banner[data-asking] {
+  background: var(--gold-soft);
+}
+.page-banner-mark {
+  flex: none;
+  inline-size: 9px;
+  block-size: 9px;
+  margin-inline: 4px;
+  border-radius: 50%;
+  background: var(--ink-4);
+  box-shadow: 0 0 0 4px var(--raised);
+  transition:
+    background-color 220ms ease,
+    box-shadow 220ms ease;
+}
+.page-banner-mark[data-mark="starting"] {
+  background: var(--gold);
+  box-shadow: 0 0 0 4px var(--gold-soft);
+  animation: run-bar-beat 1.6s ease-in-out infinite;
+}
+.page-banner[data-asking] .page-banner-mark[data-mark="starting"] {
+  box-shadow: 0 0 0 4px var(--surface);
+}
+.page-banner-mark[data-mark="running"] {
+  background: var(--green);
+  box-shadow: 0 0 0 4px var(--green-soft);
+  animation: run-bar-beat 1.6s ease-in-out infinite;
+}
+.page-banner-mark[data-mark="bad"] {
+  background: var(--red-ink);
+  box-shadow: 0 0 0 4px var(--red-soft);
+}
+.page-banner-words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 1px;
+  animation: page-banner-cross 200ms ease;
+}
+.page-banner-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.page-banner-body {
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink-3);
+}
+.page-banner-body[data-tone="bad"] {
+  color: var(--red-ink);
+}
+.page-banner-body[data-tone="changed"] {
+  color: var(--amber-ink);
+}
+.page-banner-address {
+  flex-basis: 100%;
+  min-width: 0;
+  font:
+    var(--text-xs) / 1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page-banner-acts {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  animation: page-banner-cross 200ms ease;
+}
+.page-banner-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--gold);
+  color: #231a00;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    opacity 160ms ease;
+}
+.page-banner-go[data-tone="stop"] {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.page-banner-go:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+.page-banner-go:focus-visible {
+  outline: 2px solid var(--gold-deep);
+  outline-offset: 2px;
+}
+.page-banner-ring {
+  inline-size: 12px;
+  block-size: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: page-banner-spin 0.8s linear infinite;
+}
+@keyframes page-banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes page-banner-cross {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes page-banner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-banner,
+  .page-banner-words,
+  .page-banner-acts,
+  .page-banner-mark[data-mark] {
+    animation: none;
+  }
+  .page-banner-ring {
+    animation-duration: 2.4s;
+  }
+}
 /* A picture of the room's project, opened from Universe (ADR 0227): whole, on the dialog's ground. */
 .page-view-picture {
   flex: 1;

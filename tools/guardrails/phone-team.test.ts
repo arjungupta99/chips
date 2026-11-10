@@ -78,8 +78,22 @@ describe("the team Xcode signs with", () => {
     expect(teamOf(PREFS.replace("=> true", "=> false"), [])?.free).toBe(false);
   });
 
-  it("is nothing when Xcode lists no team", () => {
+  it("is nothing when Xcode lists no team and the build names none", () => {
     expect(teamOf("", [PAID])).toBeUndefined();
+  });
+
+  it("is the build's team, judged by its profiles, when Xcode lists none", () => {
+    expect(teamOf("", [PAID], "W9K648WB82")).toEqual({
+      id: "W9K648WB82",
+      label: "Arjun Gupta",
+      free: false,
+    });
+    expect(teamOf("", [FREE], "W9K648WB82")?.free).toBe(true);
+    expect(teamOf("", [PAID], "AAAAAAAAAA")).toBeUndefined();
+  });
+
+  it("goes by Xcode's team over the build's when Xcode lists one", () => {
+    expect(teamOf(PREFS, [FREE], "AAAAAAAAAA")?.id).toBe("W9K648WB82");
   });
 });
 

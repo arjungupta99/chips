@@ -38,6 +38,7 @@ import {
   messageRoute,
   myRole,
   newSpaceHarnesses,
+  ownerNameOf,
   parseCommand,
   passkeysSupported,
   patientEmpty,
@@ -1772,6 +1773,19 @@ function projectMade(
         selfId,
       );
     },
+    room: () => {
+      const { model, directory } = store.getSnapshot();
+      const space = model.spaces.find((each) => each.id === spaceId);
+      return { id: spaceId, title: space === undefined ? "" : spaceTitle(space, directory) };
+    },
+    ownerName: () => {
+      const { model, directory } = store.getSnapshot();
+      return ownerNameOf(model, directory);
+    },
+    // An address a page's banner opens (ADR 0227): the Mac's browser, or a tab of this one.
+    openLink: inDesktop()
+      ? (url) => void desktop().then((shell) => shell?.openLink?.(url))
+      : (url) => void window.open(url, "_blank", "noopener,noreferrer"),
     // A browser asks the person's Mac (ADR 0225, ADR 0226); the Mac app opens and runs its own,
     // and opens a page in its browser from the room's folder.
     ...(inDesktop()

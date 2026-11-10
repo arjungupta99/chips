@@ -30,7 +30,7 @@ import type {
 import { Icon } from "@chipschat/ui";
 import { useEffect, useState } from "react";
 import type { FileService } from "../files.ts";
-import type { Folders } from "../folders.ts";
+import type { Folders, Room } from "../folders.ts";
 import { ProjectDocument } from "./ProjectDocument.tsx";
 import { Back, Chev, Failed, Group, Heading, Row, Tile } from "./parts.tsx";
 import type { RunOnMac } from "./RunBar.tsx";
@@ -77,6 +77,12 @@ export interface ProjectActions {
   readonly changedSince?: ((commit: string | undefined) => readonly string[]) | undefined;
   /** Whether the person sends changes from Your folder: anybody in the room but a guest (SEC-40). */
   readonly sends?: (() => boolean) | undefined;
+  /** The room, by its name now: what a run on this Mac is for, its folder named after it. */
+  readonly room?: (() => Room) | undefined;
+  /** The workspace's owner by name, for the banner somebody else reads over a page (ADR 0231). */
+  readonly ownerName?: (() => string | undefined) | undefined;
+  /** An address opened outside Chips: the Mac's browser from the Mac app, a new tab in a browser. */
+  readonly openLink?: ((url: string) => void) | undefined;
 }
 
 interface PageProps {

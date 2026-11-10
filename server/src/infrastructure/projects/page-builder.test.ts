@@ -133,13 +133,32 @@ describe("a page of the project", () => {
       "index.html":
         '<a href="http://localhost:4173/home.html">App</a><a href="https://example.com" target="_self">Out</a><a href="mailto:a@example.com">Mail</a><area href="https://example.com/map"><a href="#top">Top</a>',
     });
-    expect(html).toContain('<a href="http://localhost:4173/home.html" target="_blank">App</a>');
-    expect(html).toContain('<a href="https://example.com" target="_blank">Out</a>');
+    expect(html).toContain(
+      '<a href="http://localhost:4173/home.html" target="_blank" data-chips-address="">App</a>',
+    );
+    expect(html).toContain('<a href="https://example.com" target="_blank" data-chips-address="">');
     expect(html).toContain('<a href="mailto:a@example.com" target="_blank">Mail</a>');
-    expect(html).toContain('<area href="https://example.com/map" target="_blank">');
+    expect(html).toContain(
+      '<area href="https://example.com/map" target="_blank" data-chips-address="">',
+    );
     expect(html).toContain('<a href="#top">Top</a>');
-    // Going out needs no script of the builder's.
     expect(html).not.toContain("chipsFile");
+  });
+
+  it("lets the window ask about a web address before it opens, once the window says it asks (ADR 0227)", async () => {
+    const html = await built({ "index.html": '<a href="https://example.com/labs">Labs</a>' });
+    const lines = /<script>([\s\S]*)<\/script>/.exec(html)?.[1] ?? "";
+    // The window says which it asks about, and only the window's word is heard.
+    expect(lines).toContain("e.source!==window.parent");
+    expect(lines).toContain('m==="every"||m==="own"||m==="none"');
+    // Until it says, nothing is held back: the link opens a window as it would.
+    expect(lines).toContain('var asks="none"');
+    expect(lines).toContain("window.parent.postMessage({chipsAddress:a.href}");
+    expect(() => new Function(lines)).not.toThrow();
+    // Mail, and a page with no web address, need none of it.
+    expect(await built({ "index.html": '<a href="mailto:a@example.com">Mail</a>' })).not.toContain(
+      "<script>",
+    );
   });
 
   it("keeps a script's words from closing the element they stand in", async () => {

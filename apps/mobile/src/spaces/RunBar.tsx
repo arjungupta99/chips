@@ -50,23 +50,44 @@ function useNow(running: boolean): number {
   return running ? Math.max(now, Date.now()) : Date.now();
 }
 
-/** The bar: the press to the person's Mac, and its word back, as the list's first row. */
-export function PhoneRun({
-  runs,
-  recipe,
-}: {
-  readonly runs: RunOnMac;
-  readonly recipe: RecipeRead;
-}) {
+/** A press to the person's Mac: run the program as the recipe says, or stop it. */
+export type MacAsk = Parameters<RunOnMac["ask"]>[0];
+
+/**
+ * How the person's run of the room stands, as their Mac last said, and the press that asks it to
+ * run or stop. The Desktop tab's bar holds one; Universe holds one for the banner over the page and
+ * the sheet a link brings up (ADR 0227's addendum of 9 November 2026), and hands it to the bar.
+ */
+export interface RunHeld {
+  readonly run: HeldRun | undefined;
+  /** After a press: how many Macs heard it. */
+  readonly macs: number | undefined;
+  /** And whether the server opened Chips for Mac for it first (ADR 0227's second addendum). */
+  readonly openedApp: boolean;
+  /** Why the press didn't reach the server. */
+  readonly failed: string | undefined;
+  /** Asking, or waiting on what the Mac that heard it says. */
+  readonly busy: boolean;
+  /** The first read has answered: until then what the run is isn't known, not "not running". */
+  readonly known: boolean;
+  /** Ask the Mac; what came of it, or why the ask itself failed. */
+  readonly press: (ask: MacAsk) => Promise<MacsHeard | { readonly failed: string }>;
+}
+
+/**
+ * The person's run of the room, read once and heard as their Mac says more; nothing is read or
+ * heard while `live` is off (a space with no program, or a Universe put away).
+ */
+export function useRunOnMac(runs: RunOnMac, live = true): RunHeld {
   const [run, setRun] = useState<HeldRun | undefined>();
   const [macs, setMacs] = useState<number | undefined>();
-  // The server opened Chips for Mac for the press (ADR 0227's second addendum).
   const [openedApp, setOpenedApp] = useState(false);
   const [asking, setAsking] = useState(false);
   // A Mac heard the press: the button waits on what that Mac says, so Run isn't offered again for
   // the moment before it says it is starting, nor Stop before it says it stopped.
   const [waiting, setWaiting] = useState(false);
   const [failed, setFailed] = useState<string | undefined>();
+  const [known, setKnown] = useState(false);
   useEffect(() => {
     if (!waiting) return;
     const given = setTimeout(() => setWaiting(false), HEARD_WAIT_MS);
@@ -74,23 +95,29 @@ export function PhoneRun({
   }, [waiting]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: read and heard once for the room; `runs` is made anew as the page draws.
   useEffect(() => {
-    let live = true;
+    if (!live) return;
+    let still = true;
     runs.read().then(
-      (answer) => live && setRun((was) => was ?? answer.run),
-      () => undefined,
+      (answer) => {
+        if (!still) return;
+        setRun((was) => was ?? answer.run);
+        setKnown(true);
+      },
+      () => still && setKnown(true),
     );
     const unhear = runs.heard((heard) => {
+      setKnown(true);
       setRun(heard);
       setMacs(undefined);
       setOpenedApp(false);
       setWaiting(false);
     });
     return () => {
-      live = false;
+      still = false;
       unhear();
     };
-  }, [runs.room]);
-  const press = async (ask: Parameters<RunOnMac["ask"]>[0]) => {
+  }, [runs.room, live]);
+  const press = async (ask: MacAsk): Promise<MacsHeard | { readonly failed: string }> => {
     setAsking(true);
     setFailed(undefined);
     try {
@@ -98,28 +125,78 @@ export function PhoneRun({
       setMacs(heard.macs);
       setOpenedApp(heard.opened_app === true);
       setWaiting(heard.macs > 0);
+      return heard;
     } catch (error) {
-      setFailed(error instanceof Error ? error.message : String(error));
+      const why = error instanceof Error ? error.message : String(error);
+      setFailed(why);
+      return { failed: why };
     } finally {
       setAsking(false);
     }
   };
-  const now = useNow(run?.state === "running");
+  return { run, macs, openedApp, failed, busy: asking || waiting, known, press };
+}
+
+/** The bar's words for a held run, kept current while it runs: the Desktop tab's and the banner's. */
+export function useRunBar(
+  held: RunHeld,
+  runs: RunOnMac,
+  recipe: RecipeRead,
+  /** How long it has run, kept current; the banner doesn't say it, so it needn't redraw for it. */
+  ticks = true,
+): RunBar {
+  const { run } = held;
+  const now = useNow(ticks && run?.state === "running");
+  return runBar({
+    recipe,
+    run,
+    macs: held.macs,
+    openedApp: held.openedApp,
+    why: held.failed,
+    changedBy: runs.changedSince?.(run?.commit),
+    now,
+  });
+}
+
+/** The bar: the press to the person's Mac, and its word back, as the list's first row. */
+export function PhoneRun({
+  runs,
+  recipe,
+  held,
+}: {
+  readonly runs: RunOnMac;
+  readonly recipe: RecipeRead;
+  /** The run as Universe already holds it; without it the bar holds its own. */
+  readonly held?: RunHeld | undefined;
+}) {
+  return held === undefined ? (
+    <OwnRun runs={runs} recipe={recipe} />
+  ) : (
+    <HeldBar runs={runs} recipe={recipe} held={held} />
+  );
+}
+
+function OwnRun({ runs, recipe }: { readonly runs: RunOnMac; readonly recipe: RecipeRead }) {
+  return <HeldBar runs={runs} recipe={recipe} held={useRunOnMac(runs)} />;
+}
+
+function HeldBar({
+  runs,
+  recipe,
+  held,
+}: {
+  readonly runs: RunOnMac;
+  readonly recipe: RecipeRead;
+  readonly held: RunHeld;
+}) {
+  const bar = useRunBar(held, runs, recipe);
   const ready = recipe !== undefined && !("why" in recipe);
   return (
     <RunBarView
-      bar={runBar({
-        recipe,
-        run,
-        macs,
-        openedApp,
-        why: failed,
-        changedBy: runs.changedSince?.(run?.commit),
-        now,
-      })}
-      busy={asking || waiting}
-      onRun={ready ? () => void press({ op: "run", command: commandOf(recipe) }) : undefined}
-      onStop={() => void press({ op: "stop" })}
+      bar={bar}
+      busy={held.busy}
+      onRun={ready ? () => void held.press({ op: "run", command: commandOf(recipe) }) : undefined}
+      onStop={() => void held.press({ op: "stop" })}
     />
   );
 }

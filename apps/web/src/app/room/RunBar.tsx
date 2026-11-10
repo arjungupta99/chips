@@ -13,7 +13,7 @@ import {
   type RecipeRead,
   runBar,
 } from "@chipschat/core";
-import type { HeldRun, ProjectRunAnswer } from "@chipschat/protocol";
+import type { HeldRun, ProjectRun, ProjectRunAnswer } from "@chipschat/protocol";
 import { Icon } from "@chipschat/ui";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Folders, Room } from "../folders.ts";
@@ -27,6 +27,24 @@ export interface RunOnMac {
   ) => Promise<MacsHeard>;
   readonly read: () => Promise<ProjectRunAnswer>;
   readonly heard: (listen: (run: HeldRun) => void) => () => void;
+}
+
+/** Run or Stop, as either asks it. */
+export type RunAsk = Parameters<RunOnMac["ask"]>[0];
+
+/**
+ * The person's run of the room's program as this client holds it, and its presses: the Programs
+ * card's bar and the banner over the room's page (ADR 0227's addendum of 9 November 2026) read
+ * the one.
+ */
+export interface RunHere {
+  readonly bar: Bar;
+  readonly run: ProjectRun | undefined;
+  readonly busy: boolean;
+  /** The run file says how to run it. */
+  readonly ready: boolean;
+  /** Run or Stop: how many Macs heard it, or why nothing went. */
+  readonly press: (ask: RunAsk) => Promise<MacsHeard | { readonly failed: string }>;
 }
 
 /** The time a running run's minutes are counted from, kept current while it runs. */
@@ -43,6 +61,34 @@ function useNow(running: boolean): number {
 /** Who changed the files since a run at this commit, when anybody but the person did (SEC-40). */
 export type ChangedSince = (commit: string | undefined) => readonly string[];
 
+/** The run on this Mac, kept in the Mac's folders: Run and Stop run here. */
+export function useMacRun(props: {
+  readonly room: Room;
+  readonly folders: Folders;
+  readonly recipe: RecipeRead;
+  readonly where?: string | undefined;
+  readonly changedSince?: ChangedSince | undefined;
+  /** How long it has run, kept current; the page's banner doesn't say it. */
+  readonly ticks?: boolean | undefined;
+}): RunHere {
+  const { room, folders, recipe } = props;
+  const state = useSyncExternalStore(folders.subscribe, () => folders.state(room.id));
+  const now = useNow(props.ticks !== false && state.run?.state === "running");
+  const changedBy = props.changedSince?.(state.run?.commit);
+  const bar = runBar({ recipe, run: state.run, where: props.where, changedBy, now });
+  return {
+    bar,
+    run: state.run,
+    busy: state.busy === "run" || state.busy === "stop",
+    ready: recipe !== undefined && !("why" in recipe),
+    press: async (ask) => {
+      await folders.run(room, ask.op, ask.op === "run" ? { command: ask.command } : undefined);
+      const failed = folders.state(room.id).failed;
+      return failed === undefined ? { macs: 1 } : { failed };
+    },
+  };
+}
+
 /** The bar on the Mac's Your folder card: Run and Stop run here. */
 export function MacRun(props: {
   readonly room: Room;
@@ -51,30 +97,30 @@ export function MacRun(props: {
   readonly where: string;
   readonly changedSince?: ChangedSince | undefined;
 }) {
-  const { room, folders, recipe } = props;
-  const state = useSyncExternalStore(folders.subscribe, () => folders.state(room.id));
-  const now = useNow(state.run?.state === "running");
-  const changedBy = props.changedSince?.(state.run?.commit);
-  const bar = runBar({ recipe, run: state.run, where: props.where, changedBy, now });
-  const ready = recipe !== undefined && !("why" in recipe);
+  return <HeldBar here={useMacRun(props)} recipe={props.recipe} />;
+}
+
+/** The bar as a run held here draws it: Run, or how it is going and Stop. */
+function HeldBar({ here, recipe }: { readonly here: RunHere; readonly recipe: RecipeRead }) {
+  const command = recipe !== undefined && !("why" in recipe) ? commandOf(recipe) : undefined;
   return (
     <RunBarView
-      bar={bar}
-      busy={state.busy === "run" || state.busy === "stop"}
-      onRun={
-        ready ? () => void folders.run(room, "run", { command: commandOf(recipe) }) : undefined
-      }
-      onStop={() => void folders.run(room, "stop")}
+      bar={here.bar}
+      busy={here.busy}
+      onRun={command === undefined ? undefined : () => void here.press({ op: "run", command })}
+      onStop={() => void here.press({ op: "stop" })}
     />
   );
 }
 
-/** The bar in a browser: the press goes to the person's Mac, and its word comes back. */
-export function AwayRun(props: {
+/** The run in a browser: the press goes to the person's Mac, and its word comes back. */
+export function useAwayRun(props: {
   readonly runs: RunOnMac;
   readonly recipe: RecipeRead;
   readonly changedSince?: ChangedSince | undefined;
-}) {
+  /** How long it has run, kept current; the page's banner doesn't say it. */
+  readonly ticks?: boolean | undefined;
+}): RunHere {
   const { runs, recipe } = props;
   const [run, setRun] = useState<HeldRun | undefined>();
   const [macs, setMacs] = useState<number | undefined>();
@@ -99,31 +145,41 @@ export function AwayRun(props: {
       unhear();
     };
   }, [runs.room]);
-  const press = async (ask: Parameters<RunOnMac["ask"]>[0]) => {
+  const press = async (ask: RunAsk): Promise<MacsHeard | { readonly failed: string }> => {
     setAsking(true);
     setFailed(undefined);
     try {
       const heard = await runs.ask(ask);
       setMacs(heard.macs);
       setOpenedApp(heard.opened_app === true);
+      return heard;
     } catch (error) {
-      setFailed(error instanceof Error ? error.message : String(error));
+      const why = error instanceof Error ? error.message : String(error);
+      setFailed(why);
+      return { failed: why };
     } finally {
       setAsking(false);
     }
   };
-  const now = useNow(run?.state === "running");
+  const now = useNow(props.ticks !== false && run?.state === "running");
   const changedBy = props.changedSince?.(run?.commit);
   const bar = runBar({ recipe, run, macs, openedApp, why: failed, changedBy, now });
-  const ready = recipe !== undefined && !("why" in recipe);
-  return (
-    <RunBarView
-      bar={bar}
-      busy={asking}
-      onRun={ready ? () => void press({ op: "run", command: commandOf(recipe) }) : undefined}
-      onStop={() => void press({ op: "stop" })}
-    />
-  );
+  return {
+    bar,
+    run,
+    busy: asking,
+    ready: recipe !== undefined && !("why" in recipe),
+    press,
+  };
+}
+
+/** The bar in a browser: the press goes to the person's Mac, and its word comes back. */
+export function AwayRun(props: {
+  readonly runs: RunOnMac;
+  readonly recipe: RecipeRead;
+  readonly changedSince?: ChangedSince | undefined;
+}) {
+  return <HeldBar here={useAwayRun(props)} recipe={props.recipe} />;
 }
 
 interface ViewProps {

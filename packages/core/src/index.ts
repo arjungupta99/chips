@@ -1029,6 +1029,32 @@ export {
   whyNotPicked,
   whyNotPickedAgent,
 } from "./picking.js";
+export type {
+  AskKind,
+  BannerKind,
+  FrameAsks,
+  LinkAsk,
+  LinkTap,
+  ProgramBanner,
+} from "./programBanner.js";
+export {
+  ANSWER_WAIT_MS,
+  addressShown,
+  askAfterNews,
+  askUnheard,
+  frameAsks,
+  HERE_ONLY_MS,
+  isOwnAddress,
+  linkAsk,
+  linkTap,
+  memberBanner,
+  OPEN_ANYWAY,
+  ownerNameOf,
+  PROGRAM_BANNER,
+  programBanner,
+  RUN_AND_OPEN,
+  SETTLES_MS,
+} from "./programBanner.js";
 export {
   changeLines,
   changeOf,

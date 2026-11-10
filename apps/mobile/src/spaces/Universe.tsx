@@ -20,6 +20,7 @@
  */
 
 import {
+  commandOf,
   documentKind,
   fileNameOf,
   folderOnMacWords,
@@ -27,11 +28,15 @@ import {
   type MacsHeard,
   markdownPage,
   mayUseMac,
+  memberBanner,
   noStartPageWords,
+  ownerNameOf,
   PROGRAMS_ON_MAC,
   PROGRAMS_ON_OWNERS_MAC,
   pageOnMacWords,
   pageRowWords,
+  programBanner,
+  type RecipeRead,
   readUniverse,
   type Space,
   type Store,
@@ -63,12 +68,13 @@ import { usePalette, useScheme } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { UniverseMark, UniverseReading } from "../ui/UniverseMark";
 import { previewBytes } from "./local";
-import { Moves } from "./MacMotion";
+import { Moves, Opening } from "./MacMotion";
 import { MacRow, RowButton, RowMark } from "./MacRow";
 import { PageSheet } from "./PageSheet";
+import { LinkAskSheet, ProgramBannerView, useLinkAsk } from "./ProgramBanner";
 import { PAGE_WAITS_MS } from "./pages";
 import { type ProjectActions, projectActions } from "./RoomProject";
-import { PhoneRun } from "./RunBar";
+import { PhoneRun, type RunHeld, useRunBar, useRunOnMac } from "./RunBar";
 
 // Required only once a page is drawn, for the reason `pages.ts` gives.
 const PageView = lazy(async () => ({
@@ -168,6 +174,8 @@ function UniverseOf({
   // biome-ignore lint/correctness/useExhaustiveDependencies: what was read is the project's at `head`.
   const kept = useMemo<Kept>(() => new Map(), [space.id, head]);
   const { paged, setPaged, failed, setFailed, openFile } = useOpening(project);
+  const owner = toDesktop !== undefined;
+  const ran = useProgram(store, project, read.value, owner, open);
   return (
     <Sheet
       open={open}
@@ -176,6 +184,7 @@ function UniverseOf({
         setTab("phone");
         setPaged(undefined);
         setFailed(undefined);
+        ran.links.close();
       }}
       sizing="full"
       wide
@@ -203,11 +212,13 @@ function UniverseOf({
                 project={project}
                 kept={kept}
                 live={open}
+                banner={ran.banner}
                 onFile={openFile}
+                onAddress={ran.onAddress}
                 onDesktop={toDesktop}
               />
             ) : (
-              <DesktopTab universe={read.value} project={project} />
+              <DesktopTab universe={read.value} project={project} held={ran.held} />
             )}
           </Arrival>
         )}
@@ -217,11 +228,67 @@ function UniverseOf({
           key={paged}
           page={pageOf(paged, project, kept)}
           onFile={openFile}
+          onAddress={ran.onAddress}
           onClose={() => setPaged(undefined)}
         />
       )}
+      {ran.program ? (
+        <LinkAskSheet
+          asked={ran.links.asked}
+          open={ran.links.open}
+          onGo={ran.links.go}
+          onAnyway={ran.links.anyway}
+          onClose={ran.links.close}
+          onGone={ran.links.gone}
+        />
+      ) : null}
     </Sheet>
   );
+}
+
+/**
+ * The space's program, where Universe shows a page (ADR 0227's addendum of 9 November 2026): the
+ * person's run of it, read and heard while Universe is up, the banner over the page, and what a
+ * tapped link does. The Desktop tab's bar is handed the same run, so the two never disagree.
+ */
+function useProgram(
+  store: Store,
+  project: ProjectActions,
+  universe: Universe | undefined,
+  owner: boolean,
+  open: boolean,
+) {
+  const recipe: RecipeRead =
+    universe?.program ?? (universe?.why === undefined ? undefined : { why: universe.why });
+  const program = universe?.program !== undefined;
+  const held = useRunOnMac(project.runs, open && owner && program);
+  const bar = useRunBar(held, project.runs, recipe, false);
+  const ownerName = useSyncExternalStore(store.subscribe, () => {
+    const { model, directory } = store.getSnapshot();
+    return ownerNameOf(model, directory);
+  });
+  const banner = owner ? programBanner(bar) : memberBanner(ownerName);
+  const links = useLinkAsk({ held, banner, recipe, program, owner });
+  const usable = recipe !== undefined && !("why" in recipe) ? recipe : undefined;
+  // Until the first read answers, whether it runs isn't known: no banner says it doesn't.
+  const shown = program && (!owner || held.known);
+  return {
+    program,
+    held: program && owner ? held : undefined,
+    links,
+    onAddress: program ? links.tap : undefined,
+    banner: shown ? (
+      <ProgramBannerView
+        banner={banner}
+        busy={held.busy}
+        hereOnly={links.hereOnly}
+        onRun={() => {
+          if (usable !== undefined) void held.press({ op: "run", command: commandOf(usable) });
+        }}
+        onStop={() => void held.press({ op: "stop" })}
+      />
+    ) : null,
+  };
 }
 
 /**
@@ -420,7 +487,9 @@ function PhoneTab({
   project,
   kept,
   live,
+  banner,
   onFile,
+  onAddress,
   onDesktop,
 }: {
   readonly universe: Universe;
@@ -429,25 +498,60 @@ function PhoneTab({
   /** The sheet is up: its document is read, and given up on when it closes. */
   readonly live: boolean;
   readonly onFile: (path: string) => void;
+  /** The program's banner, over what the tab shows, where the space has a program. */
+  readonly banner: ReactNode;
+  /** A tapped link to a web address, for Universe to open or ask about first. */
+  readonly onAddress: ((url: string) => void) | undefined;
   /** Desktop, for an owner; nobody else has it (ADR 0231). */
   readonly onDesktop: (() => void) | undefined;
 }) {
   const { documents } = universe;
   if (documents !== undefined && "start" in documents) {
     return (
-      <Start path={documents.start} project={project} kept={kept} live={live} onFile={onFile} />
+      <Bannered banner={banner}>
+        <Start
+          path={documents.start}
+          project={project}
+          kept={kept}
+          live={live}
+          onFile={onFile}
+          onAddress={onAddress}
+        />
+      </Bannered>
     );
   }
   if (documents !== undefined) {
     return (
-      <SheetScroll style={styles.scroll} contentContainerStyle={styles.content}>
-        <Said words={noStartPageWords(documents.list.length)} />
-        <Rows paths={documents.list} onFile={onFile} />
-      </SheetScroll>
+      <Bannered banner={banner}>
+        <SheetScroll style={styles.scroll} contentContainerStyle={styles.content}>
+          <Said words={noStartPageWords(documents.list.length)} />
+          <Rows paths={documents.list} onFile={onFile} />
+        </SheetScroll>
+      </Bannered>
     );
   }
   if (universe.program !== undefined) return <ProgramsOnMac onDesktop={onDesktop} />;
   return <Said words={`Nothing here opens on the ${HERE === "iPad" ? "iPad" : "phone"} yet.`} />;
+}
+
+/**
+ * What the tab shows, with the program's banner over it where the space has one: the banner opens
+ * as it comes, and what is under it moves to its new place as the banner grows and folds.
+ */
+function Bannered({
+  banner,
+  children,
+}: {
+  readonly banner: ReactNode;
+  readonly children: ReactNode;
+}) {
+  if (banner === null) return <>{children}</>;
+  return (
+    <View style={styles.bannered}>
+      <Opening>{banner}</Opening>
+      <Moves style={styles.bannerUnder}>{children}</Moves>
+    </View>
+  );
 }
 
 /** The start page, or the one document, as the phone draws it. */
@@ -457,12 +561,14 @@ function Start({
   kept,
   live,
   onFile,
+  onAddress,
 }: {
   readonly path: string;
   readonly project: ProjectActions;
   readonly kept: Kept;
   readonly live: boolean;
   readonly onFile: (path: string) => void;
+  readonly onAddress: ((url: string) => void) | undefined;
 }) {
   const kind = documentKind(path);
   if (kind === "page" || kind === "markdown") {
@@ -473,6 +579,7 @@ function Start({
         kept={kept}
         live={live}
         onFile={onFile}
+        onAddress={onAddress}
         markdown={kind === "markdown"}
       />
     );
@@ -492,6 +599,7 @@ function Drawn({
   kept,
   live,
   onFile,
+  onAddress,
   markdown,
 }: {
   readonly path: string;
@@ -499,6 +607,7 @@ function Drawn({
   readonly kept: Kept;
   readonly live: boolean;
   readonly onFile: (path: string) => void;
+  readonly onAddress: ((url: string) => void) | undefined;
   readonly markdown: boolean;
 }) {
   const palette = usePalette();
@@ -532,6 +641,7 @@ function Drawn({
               onReady={() => setDrawn(true)}
               onFailed={setFailed}
               onFile={onFile}
+              onAddress={onAddress}
             />
           </Suspense>
         )}
@@ -645,9 +755,12 @@ type Heard = { readonly words: string; readonly heard: boolean } | undefined;
 function DesktopTab({
   universe,
   project,
+  held,
 }: {
   readonly universe: Universe;
   readonly project: ProjectActions;
+  /** The run as Universe holds it for the banner, so the bar says the same. */
+  readonly held: RunHeld | undefined;
 }) {
   const palette = usePalette();
   const on = useGround();
@@ -660,7 +773,9 @@ function DesktopTab({
       ) : null}
       <Opens>
         <Moves style={[styles.card, { backgroundColor: on.fill }]}>
-          {runs ? <PhoneRun runs={project.runs} recipe={program ?? { why: why ?? "" }} /> : null}
+          {runs ? (
+            <PhoneRun runs={project.runs} recipe={program ?? { why: why ?? "" }} held={held} />
+          ) : null}
           {documents === undefined ? null : (
             <PageRow documents={documents} project={project} parted={runs} />
           )}
@@ -864,6 +979,9 @@ const styles = StyleSheet.create({
   },
   programsTitle: { fontSize: TEXT.body, fontWeight: "700", textAlign: "center" },
   programsBody: { fontSize: TEXT.sm, lineHeight: 19, textAlign: "center" },
+  // The banner over the page, and the page under it taking what is left.
+  bannered: { flex: 1, minHeight: 0, gap: SPACE.sm },
+  bannerUnder: { flex: 1, minHeight: 0 },
   // The line under the Desktop tab's list, on its words' edge.
   note: { lineHeight: 18, marginHorizontal: SPACE.xs },
 });

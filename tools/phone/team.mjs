@@ -54,19 +54,27 @@ export function teamIds(prefsText) {
 }
 
 /**
- * The team, and whether it is free: `{ id, label, free }`, or nothing when Xcode lists none.
+ * The team, and whether it is free: `{ id, label, free }`, or nothing when there is none to go by.
  * Xcode's preferences say which team; its profiles, when there are any, say what it is called now
  * and whether it is paid — the preferences' "(Personal Team)" is as old as their flag.
+ *
+ * When Xcode lists no team, the team the build is signed as (`signedAs`, the config's) is judged by
+ * its profiles here alone. Xcode has dropped the Apple ID more than once since 26 October 2026 while
+ * builds went on signing with an App Store Connect key; on 9 November its emptied preferences made
+ * a paid team read as free, so a phone build took push out and TestFlight refused.
  */
-export function teamOf(prefsText, profileXmls) {
-  const id = /"teamID"\s*=>\s*"([^"]+)"/.exec(prefsText)?.[1];
+export function teamOf(prefsText, profileXmls, signedAs) {
+  const listed = /"teamID"\s*=>\s*"([^"]+)"/.exec(prefsText)?.[1];
+  const id = listed ?? signedAs;
   if (id === undefined) return undefined;
-  const label = /"teamName"\s*=>\s*"([^"]+)"/.exec(prefsText)?.[1];
+  const label =
+    listed === undefined ? undefined : /"teamName"\s*=>\s*"([^"]+)"/.exec(prefsText)?.[1];
   const ours = profileXmls.map(profileFacts).filter((facts) => facts?.team === id);
   if (ours.length > 0) {
     const free = ours.every((facts) => facts.days <= FREE_PROFILE_DAYS);
     return { id, label: ours.find((facts) => facts.name)?.name ?? label, free };
   }
+  if (listed === undefined) return undefined;
   const free = /"isFreeProvisioningTeam"\s*=>\s*(1|true)/.test(prefsText);
   return { id, label, free };
 }
