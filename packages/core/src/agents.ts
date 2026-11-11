@@ -16,6 +16,13 @@ import type { Line, Space } from "./model/types.js";
 /** How long a message may wait on an agent that seems fine before the room says it does. */
 export const WATCH_MS = 30_000;
 
+/**
+ * How long the room says an agent's hand-off waits on another agent (ADR 0291): the hour in which
+ * Chips looks for it and hands it on. After that it is the room's history, as every such message
+ * was before, and as it stays with a Chips too old to hand anything on.
+ */
+export const HAND_OFF_WATCH_MS = 60 * 60 * 1000;
+
 /** Why an agent can't answer now. */
 export interface CantAnswer {
   readonly kind: "offline" | "trouble" | "restarting";
@@ -63,36 +70,47 @@ export function cantAnswerWords(count: number): string | undefined {
 
 /** A message an agent hasn't picked up yet. */
 export interface Waiting {
-  /** The message: a person's newest to the agent. */
+  /** The message: the newest to the agent, a person's or another agent's (ADR 0291). */
   readonly lineId: string;
   readonly harnessId: string;
   /** When it was sent. */
   readonly since: string;
+  /** Another agent sent it, not a person: the room says it waits for an hour, and no longer. */
+  readonly byAgent?: true | undefined;
 }
 
 /**
- * The messages the room's agents haven't picked up: for each agent, a person's newest message
- * addressed to it, when nothing from the agent in the room follows it: no line of its, no run
- * of its whose last event is later, and no turn it passed with `NO_REPLY` (ADR 0105). The newest
- * message only, so a room never shows a column of them; and only a message the server has, since
- * the wait starts when it arrives.
+ * The messages the room's agents haven't picked up: for each agent, the newest message addressed
+ * to it, when nothing from the agent in the room follows it: no line of its, no run of its whose
+ * last event is later, and no turn it passed with `NO_REPLY` (ADR 0105). The newest message only,
+ * so a room never shows a column of them; and only a message the server has, since the wait
+ * starts when it arrives.
+ *
+ * A person's message, and since ADR 0291 another agent's too: work an agent handed to one whose
+ * harness was down sat in the room with nothing to say so. Once Chips has handed such a message
+ * on (`passedOn`), the room no longer waits on that agent for it: its line says who took it.
  */
 export function waitingOn(space: Space, directory: Directory): Waiting[] {
   return harnessesIn(space, directory).flatMap((harnessId) => {
     const asked = space.lines.findLast((line) => askedOf(line, harnessId));
     if (asked === undefined) return [];
     const heard =
+      asked.passedOn?.includes(harnessId) === true ||
       space.lines.some((line) => line.authorId === harnessId && line.seq > asked.seq) ||
       space.runs.some((run) => run.harnessId === harnessId && run.lastSeq > asked.seq) ||
       (space.passed?.[harnessId] ?? 0) > asked.seq;
-    return heard ? [] : [{ lineId: asked.id, harnessId, since: asked.ts }];
+    if (heard) return [];
+    const byAgent = asked.authorKind === "person" ? {} : { byAgent: true as const };
+    return [{ lineId: asked.id, harnessId, since: asked.ts, ...byAgent }];
   });
 }
 
 function askedOf(line: Line, harnessId: string): boolean {
   return (
     line.kind === "text" &&
-    line.authorKind === "person" &&
+    // Chips's own lines and an agent's held words are for nobody.
+    (line.authorKind === "person" ||
+      (line.authorKind !== "system" && line.authorId !== harnessId && line.held !== true)) &&
     line.pending !== true &&
     (line.addressedTo ?? []).includes(harnessId)
   );
@@ -121,6 +139,8 @@ export function waitWords(
 ): WaitWords | undefined {
   const name = nameOf(directory, wait.harnessId);
   const why = cantAnswer(directory, wait.harnessId);
+  // An agent's hand-off from long ago is the room's history, not something it still waits on.
+  if (wait.byAgent === true && now - Date.parse(wait.since) > HAND_OFF_WATCH_MS) return undefined;
   if (why !== undefined) {
     return { title: `${name} can't answer yet`, why: whyWords(why, now, clock), known: true };
   }

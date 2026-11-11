@@ -53,12 +53,17 @@ export type ServerExtension = (typeof SERVER_EXTENSIONS)[number];
  * dropped in silence, so a client offers a person only what the server says it keeps. `held_yes`
  * is a yes that holds on: `for_minutes` and `until_stopped` on `approval.resolved`. `held_start` is
  * that yes given from an agent's page, with no ask to answer: `approval.held_started`. `banners` is
- * what a person wants of the gold banner, at `/v1/me/banners` (ADR 0286).
+ * what a person wants of the gold banner, at `/v1/me/banners` (ADR 0286). `spend_no_cap` is a
+ * room's Spend per job taken off (`usd: "none"`) or set past $100, to $1,000, at
+ * `/v1/spaces/:id/spend-ceiling` (ADR 0292); an older server refuses both. `spend_jobs` is a
+ * room's jobs a page at a time, at `/v1/spaces/:id/spend/jobs` (ADR 0292, 11 November addendum).
  */
 export const HELD_YES = "held_yes";
 export const HELD_START = "held_start";
 export const BANNERS = "banners";
-export const SERVER_TAKES = [HELD_YES, HELD_START, BANNERS] as const;
+export const SPEND_NO_CAP = "spend_no_cap";
+export const SPEND_JOBS = "spend_jobs";
+export const SERVER_TAKES = [HELD_YES, HELD_START, BANNERS, SPEND_NO_CAP, SPEND_JOBS] as const;
 export type ServerTake = (typeof SERVER_TAKES)[number];
 
 export const clientHelloFrame = z

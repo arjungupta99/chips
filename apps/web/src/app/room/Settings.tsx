@@ -5,35 +5,51 @@
  *
  * Spend per job says what began the present job and lists the jobs before it that spent, each
  * going to its reply, with what every job here has spent (ADR 0282). Opened from the banner's
- * Raise the limit, it starts on the next amount up and its Save lets the agents carry on too.
+ * Raise the limit, it starts on the next amount up and its Save lets the agents carry on too. No
+ * cap, across the foot of the amounts, is for a room that lasts (ADR 0292).
  */
 
 import {
   ALL_JOBS,
   allJobsWords,
   ceilingOfChoice,
+  ceilingWords,
   type Directory,
   HELD_WORD,
   harnessOf,
+  JOBS_BEFORE,
+  JOBS_SHOWN,
+  jobRowsOf,
   jobStartWords,
+  NO_CAP,
+  NO_CAP_UNDER,
   nameOf,
   raisedChoice,
   roomAgents,
   roomLeadOf,
+  SEE_ALL,
   SPEND_HELP,
   SPEND_PRESETS,
-  SPEND_RANGE_WORDS,
   type Space,
   type SpendChoice,
   type SpentJobRow,
-  saveAndCarryOnWords,
   spendCeilingOf,
   spendChoiceOf,
+  spendSave,
   spentJobRows,
+  typedHint,
 } from "@chipschat/core";
-import { DEFAULT_SPEND_CEILING_USD, dollars, type RoomSpend } from "@chipschat/protocol";
+import {
+  DEFAULT_SPEND_CEILING_USD,
+  dollars,
+  NO_SPEND_CEILING,
+  type RoomSpend,
+  type SpendCeilingSetting,
+  type SpentJob,
+  type SpentJobsPage,
+} from "@chipschat/protocol";
 import { Icon } from "@chipschat/ui";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Back, Face, Group, type Pick, Row, Tile } from "./parts.tsx";
 
 /**
@@ -110,8 +126,9 @@ function Picked() {
 }
 
 /**
- * What the room allows a job: five amounts and Other, the default among them, with what the job
- * has spent so far against the one picked, and Save. Other opens a field for an exact amount.
+ * What the room allows a job: five amounts and Other, the default among them, and No cap across
+ * their foot (ADR 0292), with what the job has spent so far against the one picked, and Save.
+ * Other opens a field for an exact amount, which says when the amount is not one it takes.
  */
 export function SpendPage(props: {
   readonly titleId: string;
@@ -122,27 +139,43 @@ export function SpendPage(props: {
   readonly selfId: string;
   /** Opened from Raise the limit: Save lets the agents carry on too, the amount kept or not. */
   readonly carryOn?: boolean | undefined;
+  /**
+   * Whether the server takes No cap and amounts past $100 (ADR 0292); an older one is offered
+   * neither. Absent is yes.
+   */
+  readonly noCap?: boolean | undefined;
   readonly onBack: () => void;
-  /** An amount, or `null` to follow the default again. */
-  readonly onSave: (usd: number | null) => void;
+  /**
+   * An amount, `null` to follow the default again, or `"none"` for No cap. Resolves true once the
+   * server has it; the page stays, its Save saying Saved.
+   */
+  readonly onSave: (usd: SpendCeilingSetting) => Promise<boolean>;
   /** A job's row: the room, at the reply that closed its run. */
   readonly onGoTo?: ((lineId: string) => void) | undefined;
+  /** See all: every job before this one, on a page of its own; nothing to offer, none. */
+  readonly onSeeAll?: (() => void) | undefined;
 }) {
   const { space, busy } = props;
   const carryOn = props.carryOn === true;
   const [choice, setChoice] = useState<SpendChoice>(() =>
     carryOn ? raisedChoice(space) : spendChoiceOf(space),
   );
-  const [typed, setTyped] = useState(() =>
-    choice === "other" ? spendCeilingOf(space).toFixed(2) : "",
-  );
+  const [typed, setTyped] = useState(() => {
+    const now = spendCeilingOf(space);
+    return choice === "other" && typeof now === "number" ? now.toFixed(2) : "";
+  });
   const field = useRef<HTMLInputElement>(null);
-  const target = ceilingOfChoice(choice, typed);
-  // Carrying on, the room's own amount saves nothing new and still lets them go on.
-  const ready =
-    target !== undefined && (carryOn || target !== (space.spendCeiling ?? null)) && !busy;
+  const noCap = props.noCap !== false;
+  const target = ceilingOfChoice(choice, typed, noCap);
+  const hint = typedHint(typed, noCap);
+  const [saved, setSaved] = useState<{ readonly usd: SpendCeilingSetting } | undefined>();
+  const { ready, words } = spendSave({ space, target, carryOn, busy, saved });
   const save = () => {
-    if (ready) props.onSave(target);
+    if (!ready || target === undefined) return;
+    const usd = target;
+    void props.onSave(usd).then((done) => {
+      if (done) setSaved({ usd });
+    });
   };
   const pick = (value: SpendChoice) => {
     setChoice(value);
@@ -183,6 +216,16 @@ export function SpendPage(props: {
             on={on("other")}
             onPick={pick}
           />
+          {noCap && (
+            <Amount
+              value={NO_SPEND_CEILING}
+              label={NO_CAP}
+              under={NO_CAP_UNDER}
+              on={on(NO_SPEND_CEILING)}
+              onPick={pick}
+              wide
+            />
+          )}
         </fieldset>
         {choice === "other" && (
           <>
@@ -194,12 +237,21 @@ export function SpendPage(props: {
                 data-testid="spend-amount"
                 inputMode="decimal"
                 value={typed}
-                maxLength={7}
+                maxLength={8}
                 placeholder="7.50"
+                aria-invalid={hint.wrong ? true : undefined}
+                aria-describedby="spend-amount-hint"
                 onChange={(event) => setTyped(event.target.value)}
               />
             </label>
-            <p className="sheet-hint sheet-field-hint">{SPEND_RANGE_WORDS}</p>
+            <p
+              id="spend-amount-hint"
+              className="sheet-hint sheet-field-hint"
+              data-wrong={hint.wrong ? "true" : undefined}
+              data-testid="spend-amount-hint"
+            >
+              {hint.words}
+            </p>
           </>
         )}
         <SoFar
@@ -211,12 +263,13 @@ export function SpendPage(props: {
           since={jobStartWords(props.spend, props.directory, props.selfId)}
         />
         <button type="submit" className="sheet-go" disabled={!ready} data-testid="spend-save">
-          {carryOn ? saveAndCarryOnWords(space, target) : "Save"}
+          {words}
         </button>
         <Jobs
           rows={spentJobRows(props.spend, space, props.directory)}
           total={allJobsWords(props.spend)}
           onGoTo={props.onGoTo}
+          onSeeAll={props.onSeeAll}
         />
       </div>
     </form>
@@ -224,52 +277,39 @@ export function SpendPage(props: {
 }
 
 /**
- * The jobs before this one that spent, newest first, each with whose runs, when, its steps and
- * what it came to, and Held where Chips held the agents at the ceiling; a click goes to its reply.
+ * The jobs before this one that spent, newest first, the first `JOBS_SHOWN` of them, each with
+ * whose runs, when, its steps and what it came to, and Held where Chips held the agents at the
+ * ceiling; a click goes to its reply. See all, by the heading, opens the rest (ADR 0292 addendum).
  * Then what every job here has spent. Nothing for a room whose only job is this one.
  */
 function Jobs(props: {
   readonly rows: readonly SpentJobRow[];
   readonly total: string | undefined;
   readonly onGoTo: ((lineId: string) => void) | undefined;
+  readonly onSeeAll: (() => void) | undefined;
 }) {
   if (props.rows.length === 0) return null;
-  const { onGoTo } = props;
+  const { onGoTo, onSeeAll } = props;
   return (
-    <section className="sheet-jobs" data-testid="spend-jobs" aria-label="Jobs before this one">
-      <h4 className="sheet-jobs-head">Jobs before this one</h4>
+    <section className="sheet-jobs" data-testid="spend-jobs" aria-label={JOBS_BEFORE}>
+      <div className="sheet-jobs-headline">
+        <h4 className="sheet-jobs-head">{JOBS_BEFORE}</h4>
+        {onSeeAll !== undefined && (
+          <button
+            type="button"
+            className="sheet-jobs-all"
+            aria-label={`${SEE_ALL}, ${JOBS_BEFORE}`}
+            data-testid="spend-see-all"
+            onClick={onSeeAll}
+          >
+            {SEE_ALL}
+          </button>
+        )}
+      </div>
       <ul className="ctx-group sheet-group">
-        {props.rows.map((row) => {
-          const { lineId } = row;
-          const body = (
-            <>
-              <span className="sheet-job-words">
-                <span className="sheet-job-title">
-                  <b>{row.title}</b>
-                  {row.held && <span className="sheet-job-held">{HELD_WORD}</span>}
-                </span>
-                <small>{row.when}</small>
-              </span>
-              <b className="sheet-job-amount">{row.amount}</b>
-            </>
-          );
-          return (
-            <li key={row.key} className="sheet-li" data-testid={`spend-job-${row.key}`}>
-              {lineId === undefined || onGoTo === undefined ? (
-                <div className="sheet-job">{body}</div>
-              ) : (
-                <button
-                  type="button"
-                  className="sheet-job ctx-row"
-                  aria-label={row.label}
-                  onClick={() => onGoTo(lineId)}
-                >
-                  {body}
-                </button>
-              )}
-            </li>
-          );
-        })}
+        {props.rows.slice(0, JOBS_SHOWN).map((row) => (
+          <JobRow key={row.key} row={row} onGoTo={onGoTo} />
+        ))}
       </ul>
       {props.total !== undefined && (
         <div className="sheet-jobs-total" data-testid="spend-total">
@@ -281,16 +321,151 @@ function Jobs(props: {
   );
 }
 
-/** One of the amounts, Default under the default's; the one picked is ink. */
+/** One job before this one, as the list and See all's page draw it. */
+function JobRow(props: {
+  readonly row: SpentJobRow;
+  readonly onGoTo: ((lineId: string) => void) | undefined;
+}) {
+  const { row, onGoTo } = props;
+  const { lineId } = row;
+  const body = (
+    <>
+      <span className="sheet-job-words">
+        <span className="sheet-job-title">
+          <b>{row.title}</b>
+          {row.held && <span className="sheet-job-held">{HELD_WORD}</span>}
+        </span>
+        <small>{row.when}</small>
+      </span>
+      <b className="sheet-job-amount">{row.amount}</b>
+    </>
+  );
+  return (
+    <li className="sheet-li" data-testid={`spend-job-${row.key}`}>
+      {lineId === undefined || onGoTo === undefined ? (
+        <div className="sheet-job">{body}</div>
+      ) : (
+        <button
+          type="button"
+          className="sheet-job ctx-row"
+          aria-label={row.label}
+          onClick={() => onGoTo(lineId)}
+        >
+          {body}
+        </button>
+      )}
+    </li>
+  );
+}
+
+/**
+ * Every job before this one, newest first, from See all (ADR 0292 addendum): read from the server
+ * a page at a time as the list's foot scrolls near, so a room that has run for months is never read
+ * whole. A read that fails says so, with Try again.
+ */
+export function AllJobsPage(props: {
+  readonly titleId: string;
+  readonly space: Space;
+  readonly directory: Directory;
+  readonly read: (before?: number) => Promise<SpentJobsPage>;
+  readonly onBack: () => void;
+  readonly onGoTo?: ((lineId: string) => void) | undefined;
+}) {
+  const { space, directory, read } = props;
+  const [jobs, setJobs] = useState<readonly SpentJob[]>([]);
+  // The `before` of the page still to read; `null` once the last has come.
+  const [next, setNext] = useState<number | null | undefined>(undefined);
+  const [failed, setFailed] = useState<string | undefined>(undefined);
+  const reading = useRef(false);
+  const foot = useRef<HTMLDivElement>(null);
+  const page = useCallback(
+    async (before: number | undefined) => {
+      if (reading.current) return;
+      reading.current = true;
+      setFailed(undefined);
+      try {
+        const got = await read(before);
+        setJobs((now) => (before === undefined ? got.jobs : [...now, ...got.jobs]));
+        setNext(got.next ?? null);
+      } catch (error) {
+        setFailed(error instanceof Error ? error.message : "The server would not say.");
+      } finally {
+        reading.current = false;
+      }
+    },
+    [read],
+  );
+  useEffect(() => {
+    void page(undefined);
+  }, [page]);
+  // The foot in sight, or near it, reads the next page.
+  useEffect(() => {
+    const at = foot.current;
+    if (at === null || typeof next !== "number" || typeof IntersectionObserver === "undefined") {
+      return;
+    }
+    const seen = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void page(next);
+      },
+      { rootMargin: "240px" },
+    );
+    seen.observe(at);
+    return () => seen.disconnect();
+  }, [next, page]);
+  const rows = useMemo(() => jobRowsOf(jobs, space, directory), [jobs, space, directory]);
+  return (
+    <>
+      <Back titleId={props.titleId} title={JOBS_BEFORE} onBack={props.onBack} />
+      <div className="sheet-scroll sheet-spend" data-testid="jobs-page">
+        {rows.length > 0 && (
+          <ul className="ctx-group sheet-group">
+            {rows.map((row) => (
+              <JobRow key={row.key} row={row} onGoTo={props.onGoTo} />
+            ))}
+          </ul>
+        )}
+        <div ref={foot} className="sheet-jobs-foot" data-testid="jobs-foot">
+          {failed !== undefined ? (
+            <button
+              type="button"
+              className="sheet-jobs-all"
+              onClick={() => void page(typeof next === "number" ? next : undefined)}
+            >
+              {failed} Try again
+            </button>
+          ) : next !== null ? (
+            typeof next === "number" ? (
+              <button type="button" className="sheet-jobs-all" onClick={() => void page(next)}>
+                More
+              </button>
+            ) : (
+              "…"
+            )
+          ) : rows.length === 0 ? (
+            "No jobs before this one."
+          ) : null}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** One of the amounts, Default under the default's; the one picked is ink. No cap is wide. */
 function Amount(props: {
   readonly value: SpendChoice;
   readonly label: string;
   readonly under?: string;
   readonly on: boolean;
   readonly onPick: (value: SpendChoice) => void;
+  readonly wide?: boolean;
 }) {
   return (
-    <label className="sheet-amount" data-on={props.on ? "true" : undefined}>
+    <label
+      className="sheet-amount"
+      data-on={props.on ? "true" : undefined}
+      data-wide={props.wide === true ? "true" : undefined}
+    >
       <input
         type="radio"
         name="spend"
@@ -313,22 +488,32 @@ function SoFar({
   since,
 }: {
   readonly spend: RoomSpend | undefined;
-  readonly against: number;
+  /** The amount picked, or No cap, against which nothing is measured (ADR 0292). */
+  readonly against: number | typeof NO_SPEND_CEILING;
   /** What began the job (ADR 0282). */
   readonly since?: string | undefined;
 }) {
   const spent = spend?.spent_usd;
-  const share = spent === undefined ? 0 : Math.min(100, (100 * spent) / against);
+  const capped = against !== NO_SPEND_CEILING;
+  const share = spent === undefined || !capped ? 0 : Math.min(100, (100 * spent) / against);
   const uncounted = spend?.uncounted_runs ?? 0;
   return (
     <div className="sheet-sofar" data-testid="spend-so-far">
       <div className="sheet-sofar-line">
         <span>This job so far</span>
-        <b>{spent === undefined ? "…" : `${dollars(spent)} of ${dollars(against)}`}</b>
+        <b>
+          {spent === undefined
+            ? "…"
+            : capped
+              ? `${dollars(spent)} of ${ceilingWords(against)}`
+              : dollars(spent)}
+        </b>
       </div>
-      <div className="sheet-meter" aria-hidden="true">
-        <i style={{ width: `${share}%` }} />
-      </div>
+      {capped && (
+        <div className="sheet-meter" aria-hidden="true">
+          <i style={{ width: `${share}%` }} />
+        </div>
+      )}
       {since !== undefined && (
         <p className="sheet-hint sheet-field-hint" data-testid="spend-since">
           {since}

@@ -238,23 +238,31 @@ describe("the room pane on an iPad (ADR 0256)", () => {
         </ChromeProvider>,
       );
       const lines = () => screen.getByTestId("room-held");
+      // Whether the list draws past its own frame: only while the lines glide, since a list that
+      // does is measured as if it had to fit the glass, and stopped short of the room's first line.
+      const past = () => screen.getByTestId("space-lines").props["drawsPast"];
       const room = 1376 - 340;
       expect(lines()).not.toHaveStyle({ width: room });
       expect(screen.queryByTestId("room-words")).toBeNull();
+      expect(past()).toBe(false);
 
       // The column sets off; the lines hold the room's width while their words go.
       await fireEvent.press(screen.getByRole("button", { name: "Show details" }));
       expect(screen.getByTestId("room-sheet")).toHaveStyle({ width: THIRD });
       expect(lines()).toHaveStyle({ width: room });
       expect(screen.getByTestId("room-words")).toBeTruthy();
+      expect(past()).toBe(false);
 
-      // Gone: laid out once at the room beside the details, which they glide to.
+      // Gone: laid out once at the room beside the details, which they glide to, drawn whole on
+      // the way.
       await act(() => jest.advanceTimersByTime(WORDS_WAIT + WORDS_OUT));
       expect(lines()).toHaveStyle({ width: room - THIRD });
+      expect(past()).toBe(true);
 
-      // Landed: the room's own width again. Then the words are back.
+      // Landed: the room's own width again, inside its frame. Then the words are back.
       await act(() => jest.advanceTimersByTime(LET_GO));
       expect(lines()).not.toHaveStyle({ width: room - THIRD });
+      expect(past()).toBe(false);
       await act(() => jest.advanceTimersByTime(WORDS_IN));
       expect(screen.queryByTestId("room-words")).toBeNull();
       await screen.unmount();

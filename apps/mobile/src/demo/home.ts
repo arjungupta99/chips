@@ -18,10 +18,10 @@ import { useChips } from "../store/provider";
 export const WAYS_IN = { pathname: "/pair", params: { ways: "1" } } as const;
 
 /** Go home once the demo has been left, `next` the workspace now in front, if any. */
-export function useHome(): (next: unknown, at?: "ways" | "code") => void {
+export function useHome(): (next: unknown, at?: "ways" | "code" | "setup") => void {
   const router = useRouter();
   return useCallback(
-    (next: unknown, at?: "ways" | "code") => {
+    (next: unknown, at?: "ways" | "code" | "setup") => {
       if (router.canDismiss()) router.dismissAll();
       const there =
         at === undefined ? undefined : { pathname: "/pair" as const, params: { [at]: "1" } };

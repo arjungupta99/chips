@@ -95,6 +95,11 @@ export interface Desktop {
    * a shell built before it could say.
    */
   readonly programsHere?: ((names: readonly string[]) => Promise<string[] | undefined>) | undefined;
+  /**
+   * Whether the agent of the card with this id is signed in with its maker, as its own status
+   * command says (ADR 0290's addendum); nothing where Chips can't ask, or from an older shell.
+   */
+  readonly signedInHere?: ((card: string) => Promise<boolean | undefined>) | undefined;
   /** Run Chips on this Mac from that copy: its `chips up`, and the line it printed. */
   readonly runHere?: ((reach: Reach) => Promise<UpAnswer>) | undefined;
   /**
@@ -157,12 +162,28 @@ export interface Desktop {
   readonly onMenu?: ((listen: (id: string) => void) => Promise<() => void>) | undefined;
   /** Hand a web or mail link to the browser, from no click on the page (Help's Send Feedback…). */
   readonly openLink?: ((url: string) => Promise<void>) | undefined;
+  /**
+   * What this Mac sees of a link only some devices reach (ADR 0227's addendum of 10 November
+   * 2026): whether `host` is found, its tunnels, and whether Tailscale is installed. With no host,
+   * only the tunnels. A shell built before it has none.
+   */
+  readonly linkReach?: ((host: string | undefined) => Promise<MacSees>) | undefined;
+  /** Tailscale brought up so the person can turn it on, or its download page (`get`). */
+  readonly openTailscale?: ((get: boolean) => Promise<void>) | undefined;
   /** How large the page is drawn (⌘+, ⌘−), now and each time that changes: 1 is actual size. */
   readonly onZoom?: ((listen: (zoom: number) => void) => Promise<() => void>) | undefined;
   /** Whether the window fills the screen, now and each time that changes. */
   readonly onFullScreen?: ((listen: (full: boolean) => void) => Promise<() => void>) | undefined;
   /** The page is drawn: a window waiting for it is shown now (ADR 0274). */
   readonly drawn?: (() => Promise<void>) | undefined;
+}
+
+/** What the Mac sees of a link, as the shell says it (`reach.rs`). */
+export interface MacSees {
+  readonly found?: boolean | undefined;
+  readonly tailscale: boolean;
+  readonly otherVpn: boolean;
+  readonly installed: boolean;
 }
 
 /** One of the menus' commands as the shell takes it (ADR 0267): its id, its name now, and whether it can be done. */
@@ -203,6 +224,11 @@ export function desktopWith(api: TauriApi): Desktop {
     canRunHere: () => api.invoke<boolean>("can_run_here").catch(() => false),
     programsHere: (names) =>
       api.invoke<string[]>("programs_here", { names }).catch(() => undefined),
+    signedInHere: (card) =>
+      api
+        .invoke<boolean | null>("signed_in_here", { card })
+        .then((said) => said ?? undefined)
+        .catch(() => undefined),
     runHere: async (reach) =>
       JSON.parse(await api.invoke<string>("run_here", { reach })) as UpAnswer,
     connectHere: (card, link, onLine) => connectHereWith(api, card, link, onLine),
@@ -228,6 +254,16 @@ export function desktopWith(api: TauriApi): Desktop {
     setMenu: (standing) => api.invoke<void>("set_menu", { standing }),
     onMenu: (listen) => api.listen<string>("chips://menu", (message) => listen(message.payload)),
     openLink: (url) => api.invoke<void>("open_link", { url }),
+    linkReach: (host) =>
+      api
+        .invoke<{
+          found: boolean | null;
+          tailscale: boolean;
+          otherVpn: boolean;
+          installed: boolean;
+        }>("link_reach", { host: host ?? null })
+        .then((seen) => ({ ...seen, found: seen.found ?? undefined })),
+    openTailscale: (get) => api.invoke<void>("open_tailscale", { get }),
     onZoom: async (listen) => {
       const stop = await api.listen<number>("chips://zoom", (message) => listen(message.payload));
       listen(await api.invoke<number>("page_zoom").catch(() => 1));

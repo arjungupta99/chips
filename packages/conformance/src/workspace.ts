@@ -73,6 +73,13 @@ import { exchangeInLog, type FakeExchange, heldInLog } from "./exchange.js";
 import { fileVersionsInLog, madeFromInLog, roomFilesInLog } from "./room-files.js";
 import { spendInLog } from "./spend.js";
 
+/** What changes who is in a room: after each, a room with two agents and no lead is given one (ADR 0291). */
+const MEMBERSHIP_MOVES: ReadonlySet<string> = new Set([
+  "membership.added",
+  "membership.removed",
+  "membership.replaced",
+]);
+
 /**
  * What a sender is told of its message held from the agents it named (ADR 0097), if it was: the
  * count, and the workspace's hold (ADR 0187) where it has one.
@@ -2286,6 +2293,33 @@ export class Workspace {
     },
   };
 
+  /**
+   * A room with two or more agents has a lead, unless a person said nobody leads it (ADR 0291):
+   * the agent there longest, named after anybody comes into the room or goes, as the real server
+   * names it.
+   */
+  private ensureLead(event: StoredEvent): void {
+    const spaceId = event.space_id;
+    if (spaceId === null || !MEMBERSHIP_MOVES.has(event.type)) return;
+    const space = this.spaces.get(spaceId);
+    if (space === undefined || space.state !== "open") return;
+    // In the order they joined: the first is the one there longest.
+    const agents = [...space.members.keys()].filter((id) => this.agents.has(id));
+    const [longest] = agents;
+    if (longest === undefined || agents.length < 2 || this.leadOf(spaceId) !== undefined) return;
+    // A person who said nobody leads meant it; a lead they chose that has since left did not.
+    const chosen = this.log.findLast(
+      (each) => each.type === "space.lead_set" && each.space_id === spaceId,
+    );
+    if (chosen?.actor.kind === "person" && chosen.payload["agent_id"] === null) return;
+    this.appendOnce({
+      type: "space.lead_set",
+      space_id: spaceId,
+      idempotency_key: `lead-longest-${spaceId}-at-${event.seq}`,
+      agent_id: longest,
+    });
+  }
+
   private react(event: StoredEvent): void {
     // A lane's run ended: its lead is told once the event that ended it has gone out. Told from
     // inside the projection, the news went out first, and a socket, which takes events in order,
@@ -2293,6 +2327,7 @@ export class Workspace {
     const run = event.run_id === null ? undefined : this.runs.get(event.run_id);
     if (run !== undefined) this.tellLead(event, run);
     this.reactions[event.type]?.(event);
+    this.ensureLead(event);
     this.handOver(event);
     this.holdAtCeiling(event);
   }
@@ -2301,11 +2336,13 @@ export class Workspace {
    * A room's job weighed against its ceiling after each cost reported there (ADR 0118), as the
    * real `hold-at-ceiling`: from 80% a warning to the room, and at the ceiling the agents paused by
    * Chips, saying why, unless they are paused already, then the pause's warning. Once each per job.
+   * Nothing in a room with no cap (ADR 0292).
    */
   private holdAtCeiling(event: StoredEvent): void {
     const spaceId = event.space_id;
     if (event.type !== "usage" || spaceId === null) return;
     const spend = spendInLog(this.log, spaceId, event.seq);
+    if (spend === undefined) return;
     const stage = spendStage(spend);
     if (stage === "within") return;
     const job = `spend-${spaceId}-${spend.since_seq}`;
@@ -2417,15 +2454,21 @@ export class Workspace {
       : undefined;
   }
 
-  /** A person sets what a room allows a job, or sets it back to the default (ADR 0117). */
-  setSpendCeiling(spaceId: string, usd: number | null, by: string): StoredEvent {
-    return this.appendSystem({
-      type: "space.spend_ceiling_set",
+  /**
+   * A person sets what a room allows a job, sets it back to the default (ADR 0117), or takes the
+   * cap off with `"none"` (ADR 0292).
+   */
+  setSpendCeiling(spaceId: string, usd: number | null | "none", by: string): StoredEvent {
+    const set = {
       space_id: spaceId,
       actor: { kind: "person", id: by },
       idempotency_key: `spend-ceiling-${spaceId}-${usd ?? "default"}-at-${this.seq}`,
-      usd,
-    });
+    } as const;
+    return this.appendSystem(
+      usd === "none"
+        ? { ...set, type: "space.spend_ceiling_lifted" }
+        : { ...set, type: "space.spend_ceiling_set", usd },
+    );
   }
 
   /**
@@ -2433,7 +2476,7 @@ export class Workspace {
    * Chips works it out: from the last person's act or brief handed in, what the room's `usage`
    * reports said since, a run's own report being its total so far.
    */
-  spendOf(spaceId: string, upto: number): JobSpend {
+  spendOf(spaceId: string, upto: number): JobSpend | undefined {
     return spendInLog(this.log, spaceId, upto);
   }
 

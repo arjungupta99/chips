@@ -10,7 +10,9 @@
  */
 
 import {
+  type AgentState,
   budgetOf,
+  cappedSpend,
   clientFrame,
   type ErrorCode,
   isId,
@@ -20,6 +22,7 @@ import {
   negotiateProtocol,
   ONE_ROOM_REFUSALS,
   PROTOCOL_VERSION,
+  type RoomAway,
   type RoomContext,
   roomNoteFor,
   SERVER_TAKES,
@@ -28,6 +31,7 @@ import {
   type TakerNews,
   takersOf,
   toEveryAgent,
+  type UnpickedWhy,
   type Who,
   yoursWithoutAt,
 } from "@chipschat/protocol";
@@ -165,6 +169,11 @@ export interface SessionOptions {
    * the note then says where people open it. Absent, and it says nothing of a project.
    */
   readonly hasProject?: (spaceId: string) => Promise<boolean>;
+  /**
+   * What Chips knows now of a harness (ADR 0083): the room note says which of the room's agents
+   * can't answer (ADR 0291). Absent, and it says nothing of that.
+   */
+  readonly stateOf?: (workspaceId: string, harnessId: string) => AgentState | undefined;
   readonly onLog?: (
     level: "info" | "warn",
     message: string,
@@ -197,21 +206,45 @@ function deliveredEnvelope(event: StoredEvent, type: "message.new" | "message.ov
   };
 }
 
+/** A message that reaches its taker this long after it was said says so in the note (ADR 0291). */
+export const LATE_AFTER_MS = 60 * 1000;
+
+/** Why a message is handed to the one taking the turn, for its note. */
+interface Handed {
+  /** What was nobody's turn, handed to the lead (ADR 0104). */
+  readonly nobodys?: TakerNews["nobodys"];
+  /** What another agent did not pick up (ADR 0291). */
+  readonly unpicked?: TakerNews["unpicked"];
+  /** Who it is handed to, when that may be the agent that said it. */
+  readonly to?: string;
+}
+
+/** What a turn's note is told beside who is in the room. */
+interface TurnFacts {
+  readonly nobodys?: TakerNews["nobodys"];
+  readonly unpicked?: TakerNews["unpicked"];
+  readonly late?: TakerNews["late"];
+  readonly cut?: TakerNews["cut"];
+}
+
 /**
- * What one turn adds to a taker's news: why what was nobody's turn is the lead's (ADR 0104); that
- * a message with no @ for the taker is its (ADR 0104 addendum), that one for every agent is in
- * every agent's hands (ADR 0249), or that a person's for several is, and who organises it (ADR
- * 0287), each said by `sender`; and that older lines were left out (ADR 0105).
+ * What one turn adds to a taker's news: why what was nobody's turn is the lead's (ADR 0104), or
+ * who did not pick the message up (ADR 0291); that a message with no @ for the taker is its (ADR
+ * 0104 addendum), that one for every agent is in every agent's hands (ADR 0249), or that a
+ * person's for several is, and who organises it (ADR 0287), each said by `sender`; that it reaches
+ * the taker late (ADR 0291); and that older lines were left out (ADR 0105).
  */
 function turnNews(
   payload: Readonly<Record<string, unknown>>,
   taker: string,
-  turn: { readonly nobodys?: TakerNews["nobodys"]; readonly cut?: TakerNews["cut"] },
+  turn: TurnFacts,
   sender: { readonly saidBy: string } | undefined,
   several: ReturnType<typeof severalAsked>,
 ): TakerNews {
   return {
     ...(turn.nobodys === undefined ? {} : { nobodys: turn.nobodys }),
+    ...(turn.unpicked === undefined ? {} : { unpicked: turn.unpicked }),
+    ...(turn.late === undefined ? {} : { late: turn.late }),
     ...(sender === undefined || !yoursWithoutAt(payload, taker) ? {} : { yours: sender }),
     ...(sender === undefined || !toEveryAgent(payload) ? {} : { toAll: sender }),
     ...(sender === undefined || several === undefined
@@ -646,12 +679,12 @@ export class Session {
    */
   private async asHeard(
     event: StoredEvent,
-    nobodys?: TakerNews["nobodys"],
+    handed?: Handed,
     spendAt?: number,
   ): Promise<Readonly<Record<string, unknown>>> {
     const own = this.selves().has(event.actor.id);
     const addressed = addressedTo(event);
-    const takers = await this.takersFor(event, own);
+    const takers = await this.takersFor(event, own, handed?.to);
     const working = await this.workingTurnsOf(event, takers);
     // A harness that has not declared agents knows them all as itself: nothing of its own is a turn.
     if (own && (takers.length === 0 || this.sight.legacy !== undefined)) {
@@ -660,7 +693,7 @@ export class Session {
     const type = addressed === undefined || takers.length > 0 ? "message.new" : "message.overheard";
     const attachments = this.signedFiles(event.payload);
     const turn =
-      type === "message.new" ? await this.withTheTurn(event, takers, nobodys, spendAt) : {};
+      type === "message.new" ? await this.withTheTurn(event, takers, handed, spendAt) : {};
     const replying = await this.replyingOf(event, turn.context);
     return {
       ...deliveredEnvelope(event, type),
@@ -743,7 +776,9 @@ export class Session {
    * every one of its own in the room; never the one who said it (ADR 0101). Nobody: it is
    * overheard, or its own words.
    */
-  private async takersFor(event: StoredEvent, own: boolean): Promise<string[]> {
+  private async takersFor(event: StoredEvent, own: boolean, handedTo?: string): Promise<string[]> {
+    // Handed by Chips, a message is its taker's turn even when the taker said it (ADR 0291).
+    if (handedTo !== undefined) return [handedTo];
     const addressed = addressedTo(event);
     const ownInRoom = addressed === undefined && !own ? await this.ownIn(event) : [];
     return takersOf(addressed, this.selves(), ownInRoom, event.actor.id);
@@ -771,12 +806,14 @@ export class Session {
     // What was nobody's turn, handed to the room's lead once the room went still (ADR 0104): its
     // note says who said it, and which person to tell when the work is done or stuck.
     const toLead = event.payload["lead"] === true;
-    const nobodys = toLead ? await this.nobodysOf(original) : undefined;
     const delivered = await this.asHeard(
       { ...original, payload: { ...original.payload, addressed_to: [agentId] } },
-      nobodys,
+      await this.whyHanded(event, original, agentId),
       event.seq,
     );
+    // A harness that knows its agents only as itself takes no turn on its own words: it is told
+    // of the hand-over as everybody is, and not sent its message again.
+    if (delivered["type"] !== "message.new") return event.payload;
     // Handed later, so no turn going now is to hear it as said (ADR 0106).
     const { exchange: _talk, working_turns: _working, ...words } = delivered;
     return {
@@ -789,12 +826,29 @@ export class Session {
   }
 
   /**
+   * Why Chips hands a message to an agent, for its note: the agent it was for did not pick it up
+   * (ADR 0291), to the lead or back to who said it; or it was nobody's turn and goes to the lead
+   * (ADR 0104). Nothing for one the referee held, whose note says nothing more.
+   */
+  private async whyHanded(handed: StoredEvent, original: StoredEvent, to: string): Promise<Handed> {
+    const unpicked = await this.unpickedOf(handed, original, to);
+    if (unpicked !== undefined) return { unpicked, to };
+    return handed.payload["lead"] === true ? { nobodys: await this.nobodysOf(original) } : {};
+  }
+
+  /**
    * Who said what was nobody's turn, and the person the lead tells when the work is done or stuck:
    * the last one to speak in the room, else its first person (ADR 0104).
    */
   private async nobodysOf(original: StoredEvent): Promise<NonNullable<TakerNews["nobodys"]>> {
     const saidBy = (await this.who(original.actor.id))?.name ?? "An agent";
-    if (original.space_id === null) return { saidBy };
+    const tell = await this.personToTell(original);
+    return { saidBy, ...(tell === undefined ? {} : { tell }) };
+  }
+
+  /** The person an agent tells when work is done or stuck: the last to speak in the room, else its first. */
+  private async personToTell(original: StoredEvent): Promise<string | undefined> {
+    if (original.space_id === null) return undefined;
     const { readModels, principal } = this.options;
     const spoke = await readModels.lastPost(principal.workspaceId, original.space_id, {
       byPerson: true,
@@ -804,8 +858,49 @@ export class Session {
       (await readModels.membersOf(principal.workspaceId, original.space_id)).find(
         (member) => member.kind === "person" && member.removed !== true,
       )?.participant_id;
-    const tell = person === undefined ? undefined : (await this.who(person))?.name;
-    return { saidBy, ...(tell === undefined ? {} : { tell }) };
+    return person === undefined ? undefined : (await this.who(person))?.name;
+  }
+
+  /**
+   * What the one a message is handed to is told when the agent it was for did not pick it up (ADR
+   * 0291): who that is and why, how long the message had waited when Chips handed it on, who said
+   * it, or that the taker did, and which person to tell. Nothing for any other hand-over.
+   */
+  private async unpickedOf(
+    handed: StoredEvent,
+    original: StoredEvent,
+    to: string,
+  ): Promise<TakerNews["unpicked"]> {
+    const unanswered = handed.payload["unanswered_by"];
+    if (typeof unanswered !== "string") return undefined;
+    const why = handed.payload["why"];
+    const reason = handed.payload["reason"];
+    const waited = Date.parse(handed.ts) - Date.parse(original.ts);
+    const tell = await this.personToTell(original);
+    const yours = original.actor.id === to;
+    const here =
+      original.space_id === null
+        ? []
+        : await this.options.readModels.membersOf(
+            this.options.principal.workspaceId,
+            original.space_id,
+          );
+    // By the name the room knows each by, as its note lists them.
+    const nameOf = async (id: string): Promise<string | undefined> => {
+      const member = here.find((each) => each.participant_id === id);
+      return member?.held_name ?? member?.display_name ?? (await this.who(id))?.name;
+    };
+    return {
+      by: (await nameOf(unanswered)) ?? "An agent",
+      why: (typeof why === "string" ? why : "silent") as UnpickedWhy,
+      ...(typeof reason === "string" ? { reason } : {}),
+      minutes: Number.isNaN(waited) ? 0 : Math.max(0, Math.floor(waited / 60_000)),
+      ...(yours
+        ? { yours: true }
+        : { saidBy: (await nameOf(original.actor.id)) ?? "another agent" }),
+      ...(handed.payload["lead"] === true ? { lead: true } : {}),
+      ...(tell === undefined ? {} : { tell }),
+    };
   }
 
   /** `agent.attached` for one of this harness's own agents, with the room's last lines. */
@@ -853,7 +948,7 @@ export class Session {
   private async withTheTurn(
     event: StoredEvent,
     takers: readonly string[],
-    nobodys?: TakerNews["nobodys"],
+    handed?: Handed,
     spendAt: number = event.seq,
   ) {
     const said = await this.contextOf(event, takers);
@@ -861,20 +956,24 @@ export class Session {
     // Older lines left out to fit the budget are said in the note (ADR 0105).
     const cut = said?.truncated === true ? { shown: said.lines.length } : undefined;
     // What the job has spent, as of the message — or of its hand-over, for words Chips held: in
-    // numbers with what was said, in words in the note (ADR 0117).
+    // numbers with what was said, in words in the note (ADR 0117). Nothing in a room with no cap
+    // (ADR 0292), where there is no ceiling to tell of.
     const spend =
       event.space_id === null
         ? undefined
-        : await roomSpendFor({
-            readModels: this.options.readModels,
-            workspaceId: this.options.principal.workspaceId,
-            spaceId: event.space_id,
-            uptoSeq: spendAt,
-          });
+        : cappedSpend(
+            await roomSpendFor({
+              readModels: this.options.readModels,
+              workspaceId: this.options.principal.workspaceId,
+              spaceId: event.space_id,
+              uptoSeq: spendAt,
+            }),
+          );
     const context = said === undefined || spend === undefined ? said : { ...said, spend };
     const room = await this.roomOf(event, takers, {
       files,
-      ...(nobodys === undefined ? {} : { nobodys }),
+      ...(handed?.nobodys === undefined ? {} : { nobodys: handed.nobodys }),
+      ...(handed?.unpicked === undefined ? {} : { unpicked: handed.unpicked }),
       ...(cut === undefined ? {} : { cut }),
       ...(spend === undefined ? {} : { spend }),
     });
@@ -909,6 +1008,7 @@ export class Session {
     turn: {
       readonly files: boolean;
       readonly nobodys?: TakerNews["nobodys"];
+      readonly unpicked?: TakerNews["unpicked"];
       readonly cut?: TakerNews["cut"];
       readonly spend?: JobSpend;
     },
@@ -946,7 +1046,17 @@ export class Session {
     const now =
       agents.length < 2
         ? undefined
-        : await roomNowFor({ readModels, workspaceId, spaceId, agents, nowMs });
+        : {
+            ...(await roomNowFor({ readModels, workspaceId, spaceId, agents, nowMs })),
+            away: this.awayIn(members, nowMs),
+          };
+    // Said long ago and only now on its way (ADR 0291): its harness was down, and the room moved on.
+    // What Chips hands on says why in words of its own.
+    const waited = nowMs - Date.parse(event.ts);
+    const late =
+      turn.nobodys === undefined && turn.unpicked === undefined && waited >= LATE_AFTER_MS
+        ? { minutes: Math.floor(waited / 60_000) }
+        : undefined;
     const news = await takerNewsFor({
       readModels,
       workspaceId,
@@ -970,7 +1080,14 @@ export class Session {
       event.actor.kind === "person" && turn.nobodys === undefined
         ? severalAsked(event.payload, here, (id) => claimed.get(id) ?? id)
         : undefined;
-    await this.withTurnNews(news, event, who, here, turn, several);
+    await this.withTurnNews(
+      news,
+      event,
+      who,
+      here,
+      { ...turn, ...(late === undefined ? {} : { late }) },
+      several,
+    );
     const project = (await this.options.hasProject?.(spaceId)) === true;
     return roomNoteFor(here, who, now, news, turn.spend, new Date(nowMs).toISOString(), project);
   }
@@ -986,11 +1103,12 @@ export class Session {
     event: StoredEvent,
     who: readonly string[],
     here: readonly NoteMember[],
-    turn: { readonly nobodys?: TakerNews["nobodys"]; readonly cut?: TakerNews["cut"] },
+    turn: TurnFacts,
     several: ReturnType<typeof severalAsked>,
   ): Promise<void> {
+    // What Chips hands on is the taker's by Chips's word, said in the note's first lines.
     const sender =
-      turn.nobodys === undefined
+      turn.nobodys === undefined && turn.unpicked === undefined
         ? await this.namedSender(event, who, here, several !== undefined)
         : undefined;
     for (const taker of who) {
@@ -1018,6 +1136,39 @@ export class Session {
       here.find((member) => member.id === event.actor.id)?.name ??
       (await this.who(event.actor.id))?.name;
     return { saidBy: name ?? "Someone" };
+  }
+
+  /**
+   * Which of a room's agents can't answer now (ADR 0291): its harness has no connection open, or
+   * says something is wrong on its side (ADR 0083). Nothing where the server gave no way to ask.
+   */
+  private awayIn(members: readonly MemberView[], nowMs: number): RoomAway[] {
+    const { stateOf, principal } = this.options;
+    if (stateOf === undefined) return [];
+    const minutes = (since: string): number => {
+      const then = Date.parse(since);
+      return Number.isNaN(then) ? 0 : Math.max(0, Math.floor((nowMs - then) / 60_000));
+    };
+    return members.flatMap((member): RoomAway[] => {
+      if (member.kind === "person") return [];
+      const state = stateOf(principal.workspaceId, member.harness_id ?? member.participant_id);
+      if (state === undefined) return [];
+      if (!state.connected) {
+        return [
+          { participant_id: member.participant_id, why: "offline", minutes: minutes(state.since) },
+        ];
+      }
+      if (state.trouble === undefined) return [];
+      const reason = state.trouble.reason.trim().slice(0, 200);
+      return [
+        {
+          participant_id: member.participant_id,
+          why: "trouble",
+          ...(reason === "" ? {} : { reason }),
+          minutes: minutes(state.trouble.since),
+        },
+      ];
+    });
   }
 
   /** The ids this connection answers to: the harness, and its agents (ADR 0087). */

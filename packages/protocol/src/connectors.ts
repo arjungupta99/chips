@@ -38,6 +38,24 @@ export const startStep = z
       .url({ protocol: /^https$/ })
       .optional()
       .describe("A page of the maker's to open for it: where to make an account."),
+    done: z
+      .object({
+        program: z
+          .string()
+          .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/)
+          .optional()
+          .describe("A command the step puts on the PATH: the step is done once it is there."),
+        signedIn: z
+          .literal(true)
+          .optional()
+          .describe(
+            "The step is done once the card's agent says it is signed in, which Chips for Mac asks its own status command, by the card, from a list of its own.",
+          ),
+      })
+      .optional()
+      .describe(
+        "How Chips for Mac sees the step done, so the steps tick themselves off (ADR 0290's addendum). Chips only looks: it never runs a step.",
+      ),
   })
   .describe("A step of the written steps, run by the person, never by Chips.");
 export type StartStep = z.infer<typeof startStep>;

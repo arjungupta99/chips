@@ -10,15 +10,7 @@
  */
 
 import { expect, type Page, test } from "@playwright/test";
-import {
-  demo,
-  Harness,
-  newApprovalId,
-  newRunId,
-  pair,
-  registerSpecialist,
-  runPanel,
-} from "./support.ts";
+import { demo, Harness, newApprovalId, newRunId, pair, registerSpecialist } from "./support.ts";
 
 /** The newest approval card in the room. */
 const card = (page: Page) => page.getByRole("article", { name: /Approval/ }).last();
@@ -74,12 +66,11 @@ test("an Always shows under Allowed always, switches off and on, and goes into d
   try {
     await harness.send("run.started", { goal: "Tend the beds.", plan: [] });
     await page.getByTestId("space-list").locator(`[data-space="${thistle.space}"]`).click();
-    // At L1, where a smaller ask waits for an answer: a new harness starts there.
-    const l1 = runPanel(page)
-      .getByRole("group", { name: /Autonomy for/ })
-      .getByLabel("L1 · Ask first");
-    // Where a new harness starts; the dial reads L2 only until the run's policy has come.
-    await expect(l1).toBeChecked();
+    // At L1, where a new harness starts, a smaller ask waits for an answer. The dial that showed
+    // it beside the room went with the Run panel (ADR 0293); the room open is what is waited for.
+    await expect(
+      page.getByTestId("space-list").locator(`[data-space="${thistle.space}"][data-active="true"]`),
+    ).toBeVisible();
 
     // An ask that matters: no Always on its card, and the harness may not settle it.
     const payment = newApprovalId();
@@ -194,11 +185,11 @@ test("a command's Always remembers how each part starts, and lets through only c
   try {
     await harness.send("run.started", { goal: "Check the beds.", plan: [] });
     await page.getByTestId("space-list").locator(`[data-space="${bramble.space}"]`).click();
-    const l1 = runPanel(page)
-      .getByRole("group", { name: /Autonomy for/ })
-      .getByLabel("L1 · Ask first");
-    // Where a new harness starts; the dial reads L2 only until the run's policy has come.
-    await expect(l1).toBeChecked();
+    // At L1, where a new harness starts, a smaller ask waits for an answer. The dial that showed
+    // it beside the room went with the Run panel (ADR 0293); the room open is what is waited for.
+    await expect(
+      page.getByTestId("space-list").locator(`[data-space="${bramble.space}"][data-active="true"]`),
+    ).toBeVisible();
 
     // One that uses rm keeps no Always, and a line says why; the hour still reaches it (ADR 0281).
     const remove = await run("ls beds && rm -rf beds/old");
@@ -276,11 +267,11 @@ test("the dots open every ask, and an ask whole opens its space (ADR 0255)", asy
   try {
     await harness.send("run.started", { goal: "Weed the beds.", plan: [] });
     await page.getByTestId("space-list").locator(`[data-space="${sorrel.space}"]`).click();
-    const l1 = runPanel(page)
-      .getByRole("group", { name: /Autonomy for/ })
-      .getByLabel("L1 · Ask first");
-    // Where a new harness starts; the dial reads L2 only until the run's policy has come.
-    await expect(l1).toBeChecked();
+    // At L1, where a new harness starts, a smaller ask waits for an answer. The dial that showed
+    // it beside the room went with the Run panel (ADR 0293); the room open is what is waited for.
+    await expect(
+      page.getByTestId("space-list").locator(`[data-space="${sorrel.space}"][data-active="true"]`),
+    ).toBeVisible();
     const yes = await ask("garden.weed", "Pull the weeds in `bed 4`?");
     await card(page).getByRole("button", { name: "Approve" }).click();
     await harness.waitFor((frame) => answered(frame, yes), "the yes");

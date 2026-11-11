@@ -188,6 +188,52 @@ describe("keeping it running", () => {
     ]);
   });
 
+  it("says why, rather than throwing, when launchd won't load it over SSH, and leaves no file to start at login (audit Part 2, item 9)", () => {
+    const said: string[] = [];
+    const nobody = (command: Command) => {
+      run(command);
+      if (command[1] === "bootstrap") {
+        throw Object.assign(new Error("Command failed"), {
+          stderr: "Bootstrap failed: 125: Domain does not support specified action\n",
+        });
+      }
+    };
+    const kept = keepRunning(spec, {
+      ...mac(),
+      run: nobody,
+      retryMs: 1,
+      say: (line) => void said.push(line),
+    });
+    expect(kept).toEqual({
+      state: "failed",
+      why: "Nobody is logged in to this Mac at its screen, so it can't be kept running from here",
+    });
+    expect(said).toEqual([
+      "Nobody is logged in to this Mac at its screen, so it can't be kept running from here. It runs here instead, while this terminal is open.",
+    ]);
+    expect(() => statSync(join(home, "Library/LaunchAgents/chat.chips.hermes.plist"))).toThrow();
+  });
+
+  it("says a shell with no systemd user session plainly, and anything else with what it printed", () => {
+    const said: string[] = [];
+    const linux = (stderr: string) => ({
+      machine: { platform: "linux", home, env: {} },
+      run: (command: Command) => {
+        if (command[1] === "--user") throw Object.assign(new Error("Command failed"), { stderr });
+        return "";
+      },
+      uid: 1000,
+      say: (line: string) => void said.push(line),
+    });
+    expect(keepRunning(spec, linux("Failed to connect to bus: No medium found\n")).why).toBe(
+      "This shell has no systemd user session, so it can't be kept running from here",
+    );
+    expect(keepRunning(spec, linux("Unit file is masked.\n")).why).toBe(
+      "It couldn't be kept running: `systemctl --user daemon-reload` failed (Unit file is masked.)",
+    );
+    expect(said).toHaveLength(2);
+  });
+
   it("writes nothing and runs nothing with CHIPS_KEEP=off, as a test of a card's line sets", () => {
     const off = {
       machine: { platform: "darwin", home, env: { CHIPS_KEEP: "off" } },

@@ -10,6 +10,11 @@
  * the ask to once), and a part on the never list (`rm`). Protocol's reader stays the one that
  * decides (`commandParts`, the door, the engine); this one only draws, and never fails: a command
  * the reader can't follow is still drawn, part by part, as best its words allow.
+ *
+ * A shell's ask whose input is the command line itself, as Jacobian sends one (`jacobian.shell.shell`
+ * with the words as its input, not `{ command }`), is drawn on the plate too. It was a paragraph of
+ * body text under "shell · shell" (Luis's ask, 10 November 2026). Protocol's reader takes it as the
+ * command (ADR 0239, addendum of 10 November 2026), so what the plate draws is what a yes keeps.
  */
 
 import {
@@ -51,9 +56,17 @@ export interface Plate {
   readonly writesTo?: string | undefined;
 }
 
+/** What an ask is, as far as its plate goes: its input, and the kind of action it asks for. */
+type Asked = Pick<Approval, "input"> & { readonly actionKind?: string | undefined };
+
+/** The command an ask carries, as protocol's reader takes it from the action. */
+function commandOf(approval: Asked): string | readonly string[] | undefined {
+  return askedCommand({ kind: approval.actionKind, input: approval.input });
+}
+
 /** The command an ask carries, as the plate draws it; nothing for an ask with no command. */
-export function commandPlate(approval: Pick<Approval, "input">): Plate | undefined {
-  const command = askedCommand(approval.input);
+export function commandPlate(approval: Asked): Plate | undefined {
+  const command = commandOf(approval);
   if (command === undefined) return undefined;
   const scanned =
     typeof command === "string"
@@ -84,7 +97,7 @@ export function commandPlate(approval: Pick<Approval, "input">): Plate | undefin
  */
 export function plateHeadline(approval: Approval): string {
   const headline = askHeadline(approval);
-  const command = askedCommand(approval.input);
+  const command = commandOf(approval);
   if (command === undefined) return headline;
   const quoted = /^(.*\S)\s*`([^`]+)`\s*$/.exec(headline);
   if (quoted === null) return headline;
@@ -114,9 +127,9 @@ export function plateCaption(plate: Plate): string | undefined {
  * the command, then a JSON dump of it, then the plate's three lines of choices).
  */
 export function plateTakesPreview(
-  approval: Pick<Approval, "input" | "preview" | "previewFormat">,
+  approval: Asked & Pick<Approval, "preview" | "previewFormat">,
 ): boolean {
-  const command = askedCommand(approval.input);
+  const command = commandOf(approval);
   if (command === undefined) return false;
   const preview = approval.preview;
   if (preview === undefined || approval.previewFormat === "json") return true;

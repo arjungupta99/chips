@@ -10,9 +10,11 @@
  *
  * Every room allows a job a **ceiling**: `DEFAULT_SPEND_CEILING_USD` until the workspace's owner,
  * in the room, sets another (`space.spend_ceiling_set`, ADR 0196), from `SPEND_CEILING_MIN` to
- * `SPEND_CEILING_MAX` in steps of `SPEND_CEILING_STEP`. Chips works the spend out and hands it to
- * every harness with the message that gives a turn (`context.spend`), and to the agent in the
- * room's note (`spendWords`).
+ * `SPEND_CEILING_MAX` in steps of `SPEND_CEILING_STEP`, or takes the cap off
+ * (`space.spend_ceiling_lifted`, ADR 0292) so that Chips holds no job there for what it spends.
+ * Chips works the spend out and hands it to every harness with the message that gives a turn
+ * (`context.spend`), and to the agent in the room's note (`spendWords`); a room with no cap hands
+ * neither.
  *
  * At `SPEND_WARN_AT` of the ceiling Chips warns the room's harnesses, and at the ceiling it holds
  * the agents until a person acts (ADR 0118): `spendStage` says which.
@@ -24,8 +26,8 @@ import { z } from "zod";
 export const DEFAULT_SPEND_CEILING_USD = 3;
 /** The least a room may allow a job. */
 export const SPEND_CEILING_MIN = 0.25;
-/** The most a room may allow a job. */
-export const SPEND_CEILING_MAX = 100;
+/** The most a room may allow a job as an amount; past it, a room takes the cap off (ADR 0292). */
+export const SPEND_CEILING_MAX = 1000;
 /** A ceiling is a whole number of these. */
 export const SPEND_CEILING_STEP = 0.25;
 /** The share of the ceiling at which Chips warns the room's harnesses (ADR 0118). */
@@ -36,6 +38,16 @@ export function isSpendCeiling(usd: number): boolean {
   if (!Number.isFinite(usd) || usd < SPEND_CEILING_MIN || usd > SPEND_CEILING_MAX) return false;
   return Number.isInteger(Math.round(usd * 1e6) / (SPEND_CEILING_STEP * 1e6));
 }
+
+/** What a person sets a room to for No cap: Chips holds no job there for what it spends. */
+export const NO_SPEND_CEILING = "none";
+
+/**
+ * What a person sets a room's ceiling to (ADR 0292): an amount, `null` for the default, or
+ * `NO_SPEND_CEILING`. The first two are `space.spend_ceiling_set`, the last
+ * `space.spend_ceiling_lifted`.
+ */
+export type SpendCeilingSetting = number | null | typeof NO_SPEND_CEILING;
 
 /** A ceiling as a room sets it: an amount, or `null` for the default. */
 export const spendCeiling = z
@@ -102,20 +114,59 @@ export interface SpentJob {
  * it, the jobs before it that spent, newest first and at most `SPENT_JOBS_SHOWN`, and what every
  * job in the room has spent together. A server from before ADR 0282 says the job alone.
  */
-export interface RoomSpend extends JobSpend {
+export interface RoomSpend extends RoomJob {
   readonly started?:
     | { readonly at: string; readonly by?: string | undefined; readonly act: JobStart }
     | undefined;
   readonly jobs?: readonly SpentJob[] | undefined;
   readonly total_usd?: number | undefined;
+  /**
+   * How many jobs before this one there are in all, of which `jobs` is the newest
+   * `SPENT_JOBS_SHOWN`; the rest are read a page at a time (`SpentJobsPage`). From 11 November
+   * 2026 (ADR 0292 addendum).
+   */
+  readonly jobs_count?: number | undefined;
+}
+
+/**
+ * `GET /v1/spaces/:id/spend/jobs?before=<since_seq>&limit=<n>` (ADR 0292 addendum): a room's jobs
+ * before its present one, newest first, a page at a time: those that began before `before`, at
+ * most `limit` (`SPENT_JOBS_PAGE` when not said, `SPENT_JOBS_PAGE_MAX` at most). `next` is the
+ * `before` of the page after, and absent on the last.
+ */
+export interface SpentJobsPage {
+  readonly space_id: string;
+  readonly jobs: readonly SpentJob[];
+  readonly next?: number | undefined;
+}
+
+/** A page of a room's jobs, when its read does not say how many. */
+export const SPENT_JOBS_PAGE = 30;
+/** The most jobs one page of them holds. */
+export const SPENT_JOBS_PAGE_MAX = 100;
+
+/**
+ * A room's job as Chips reads it: what it has spent against the room's ceiling, which is `null`
+ * in a room with no cap (ADR 0292).
+ */
+export type RoomJob = Omit<JobSpend, "ceiling_usd"> & { readonly ceiling_usd: number | null };
+
+/**
+ * The room's job as a harness is handed it, and as Chips holds the agents by it: nothing in a room
+ * with no cap (ADR 0292), which hands a harness no spend and holds nobody.
+ */
+export function cappedSpend(job: RoomJob): JobSpend | undefined {
+  const { ceiling_usd, spent_usd, since_seq, uncounted_runs } = job;
+  return ceiling_usd === null ? undefined : { ceiling_usd, spent_usd, since_seq, uncounted_runs };
 }
 
 /** How many of a room's jobs before the present one the spend read lists. */
 export const SPENT_JOBS_SHOWN = 30;
 
-/** An amount as the room's words say it: "$3.00", "$0.25". */
+/** An amount as the room's words say it: "$3.00", "$0.25", "$1,000.00". */
 export function dollars(usd: number): string {
-  return `$${usd.toFixed(2)}`;
+  const [whole = "0", cents = "00"] = usd.toFixed(2).split(".");
+  return `$${whole.replace(/\B(?=(\d{3})+$)/g, ",")}.${cents}`;
 }
 
 /**

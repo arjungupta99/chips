@@ -19,7 +19,9 @@ mod menu;
 mod menubar;
 mod notify;
 mod page;
+mod reach;
 mod shell_path;
+mod signed_in;
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
@@ -65,6 +67,16 @@ async fn programs_here(names: Vec<String>) -> Vec<String> {
     })
     .await
     .unwrap_or_default()
+}
+
+/// Whether the agent of the card `card` is signed in with its maker, as its own status command says
+/// (ADR 0290's addendum): nothing when Chips can't ask.
+#[tauri::command]
+async fn signed_in_here(card: String) -> Option<bool> {
+    tauri::async_runtime::spawn_blocking(move || signed_in::ask(&card, &shell_path::for_bridges()))
+        .await
+        .ok()
+        .flatten()
 }
 
 /// Run Chips on this Mac from the copy the app carries: `chips up`'s line of JSON, or what it said.
@@ -500,6 +512,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             can_run_here,
             programs_here,
+            signed_in_here,
             run_here,
             connect_here,
             cancel_connect,
@@ -514,6 +527,8 @@ pub fn run() {
             come_forward,
             set_menu,
             open_link,
+            reach::link_reach,
+            reach::open_tailscale,
             page_zoom,
             drawn
         ])

@@ -86,7 +86,7 @@ export function PageSheet(
     /** A tapped link to a file of the room's project (ADR 0227). */
     readonly onFile?: ((path: string) => void) | undefined;
     /** A tapped link to a web address, for Universe to open or ask about first (`PageView`). */
-    readonly onAddress?: ((url: string) => void) | undefined;
+    readonly onAddress?: ((url: string, html?: string) => void) | undefined;
     readonly onClose: () => void;
   },
 ) {
@@ -120,7 +120,7 @@ function PageSheetOf({
   readonly orbit: boolean;
   readonly version?: string | undefined;
   readonly onFile?: ((path: string) => void) | undefined;
-  readonly onAddress?: ((url: string) => void) | undefined;
+  readonly onAddress?: ((url: string, html?: string) => void) | undefined;
   readonly onClose: () => void;
 }) {
   const palette = usePalette();

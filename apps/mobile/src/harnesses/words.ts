@@ -28,6 +28,7 @@ export function statusOf(entry: FleetHarness | undefined): HarnessStatus {
     queued: "thinking",
     running: "working",
     waiting: "waiting",
+    paused: "waiting",
     done: "done",
     failed: "failed",
     cancelled: "idle",

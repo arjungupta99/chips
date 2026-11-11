@@ -6,23 +6,37 @@ import {
   allJobsWords,
   carryOnWords,
   ceilingOfChoice,
+  ceilingWords,
   jobStartWords,
   lastJobWords,
+  offersAllJobs,
   raisedChoice,
   saveAndCarryOnWords,
   spendChoiceOf,
+  spendSave,
   spentJobRows,
   spentWords,
   typedCeiling,
+  typedHint,
 } from "./spend.js";
 
-const room = (spendCeiling?: number) => ({ spendCeiling }) as unknown as Space;
+const room = (spendCeiling?: number | "none") => ({ spendCeiling }) as unknown as Space;
 
 describe("what a room allows a job, as a person picks it (ADR 0117)", () => {
   it("is the default until set, a preset, or Other", () => {
     expect(spendChoiceOf(room())).toBe("default");
     expect(spendChoiceOf(room(10))).toBe(10);
     expect(spendChoiceOf(room(7.5))).toBe("other");
+    expect(spendChoiceOf(room(500))).toBe("other");
+    expect(spendChoiceOf(room("none"))).toBe("none");
+  });
+
+  it("sets No cap as none, and says it in words (ADR 0292)", () => {
+    expect(ceilingOfChoice("none", "")).toBe("none");
+    expect(ceilingOfChoice("none", "40")).toBe("none");
+    expect(ceilingWords("none")).toBe("No cap");
+    expect(ceilingWords(25)).toBe("$25.00");
+    expect(ceilingWords(1000)).toBe("$1,000.00");
   });
 
   it("sets the default as null, the $3 preset included, and Other's amount when a room may have it", () => {
@@ -36,9 +50,43 @@ describe("what a room allows a job, as a person picks it (ADR 0117)", () => {
   it("reads Other's amount in dollars, to the cent, in range", () => {
     expect(typedCeiling("10")).toBe(10);
     expect(typedCeiling(" $ 0.25 ")).toBe(0.25);
-    for (const typed of ["", "0", "0.1", "100.25", "abc", "1.255", "-1"]) {
+    expect(typedCeiling("1000.00")).toBe(1000);
+    expect(typedCeiling("1,000")).toBe(1000);
+    expect(typedCeiling("$100.25")).toBe(100.25);
+    for (const typed of ["", "0", "0.1", "1000.25", "1001", "abc", "1.255", "-1"]) {
       expect(typedCeiling(typed), typed).toBeUndefined();
     }
+  });
+
+  it("says under Other when its amount is not one, and past the most that No cap is the way (ADR 0292)", () => {
+    const range = { words: "From $0.25 to $1,000.00, in steps of 25¢.", wrong: false };
+    expect(typedHint("")).toEqual(range);
+    expect(typedHint("100.00")).toEqual(range);
+    expect(typedHint("1000.00")).toEqual(range);
+    // Half typed is not wrong yet.
+    expect(typedHint("7.")).toEqual(range);
+    expect(typedHint("10000.00")).toEqual({
+      words: "Other goes up to $1,000.00. For more, pick No cap.",
+      wrong: true,
+    });
+    expect(typedHint("7.30")).toEqual({ ...range, wrong: true });
+    expect(typedHint("0.1")).toEqual({ ...range, wrong: true });
+    expect(typedHint("abc")).toEqual({ ...range, wrong: true });
+  });
+
+  it("takes up to $100 and offers no No cap from a server older than it (ADR 0292)", () => {
+    expect(typedCeiling("100", false)).toBe(100);
+    expect(typedCeiling("100.25", false)).toBeUndefined();
+    expect(ceilingOfChoice("other", "500", false)).toBeUndefined();
+    expect(ceilingOfChoice("other", "500")).toBe(500);
+    expect(typedHint("", false)).toEqual({
+      words: "From $0.25 to $100.00, in steps of 25¢.",
+      wrong: false,
+    });
+    expect(typedHint("1000.00", false)).toEqual({
+      words: "Other goes up to $100.00.",
+      wrong: true,
+    });
   });
 
   it("says what the job has spent so far, and how many runs said no cost", () => {
@@ -162,6 +210,58 @@ describe("what a room has spent job by job, and raising its ceiling from the hol
     expect(saveAndCarryOnWords(room(), null)).toBe("Carry on at $3.00");
     expect(saveAndCarryOnWords(room(10), null)).toBe("Save $3.00 and carry on");
     expect(saveAndCarryOnWords(room(), undefined)).toBe("Save and carry on");
+  });
+
+  it("keeps Save grey and saying Saved once what is picked was just saved, and the page stays", () => {
+    const at = (target: number | null | "none" | undefined, saved?: number | null | "none") =>
+      spendSave({
+        space: room(),
+        target,
+        carryOn: false,
+        busy: false,
+        saved: saved === undefined ? undefined : { usd: saved },
+      });
+    expect(at(null)).toEqual({ ready: false, words: "Save" });
+    expect(at(10)).toEqual({ ready: true, words: "Save" });
+    expect(at(10, 10)).toEqual({ ready: false, words: "Saved" });
+    expect(at(25, 10)).toEqual({ ready: true, words: "Save" });
+    expect(at("none", "none")).toEqual({ ready: false, words: "Saved" });
+    expect(at(undefined, 10)).toEqual({ ready: false, words: "Save" });
+    // Busy, nothing goes twice.
+    expect(
+      spendSave({ space: room(), target: 10, carryOn: false, busy: true, saved: undefined }),
+    ).toEqual({ ready: false, words: "Save" });
+    // From Raise the limit, the room's own amount still carries on.
+    expect(
+      spendSave({ space: room(), target: null, carryOn: true, busy: false, saved: undefined }),
+    ).toEqual({ ready: true, words: "Carry on at $3.00" });
+  });
+
+  it("offers See all past ten jobs, from a server that reads them a page at a time (ADR 0292 addendum)", () => {
+    const spend = (count: number, said = true) =>
+      ({
+        ceiling_usd: 3,
+        spent_usd: 0,
+        since_seq: 1,
+        uncounted_runs: 0,
+        jobs: Array.from({ length: Math.min(count, 30) }, () => ({})),
+        ...(said ? { jobs_count: count } : {}),
+      }) as unknown as RoomSpend;
+    expect(offersAllJobs(spend(10), true)).toBe(false);
+    expect(offersAllJobs(spend(11), true)).toBe(true);
+    expect(offersAllJobs(spend(500), undefined)).toBe(true);
+    expect(offersAllJobs(spend(500), false)).toBe(false);
+    // A server from before says no count, and reads no pages.
+    expect(offersAllJobs(spend(30, false), undefined)).toBe(false);
+    expect(offersAllJobs(undefined, true)).toBe(false);
+  });
+
+  it("carries on with no cap once the room has none, and opens Raise the limit on it (ADR 0292)", () => {
+    expect(raisedChoice(room("none"))).toBe("none");
+    expect(carryOnWords(room("none"))).toBe("Carry on with no cap");
+    expect(saveAndCarryOnWords(room(25), "none")).toBe("Carry on with no cap");
+    expect(saveAndCarryOnWords(room("none"), "none")).toBe("Carry on with no cap");
+    expect(saveAndCarryOnWords(room("none"), 500)).toBe("Save $500.00 and carry on");
   });
 });
 

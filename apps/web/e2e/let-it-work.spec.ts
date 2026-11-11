@@ -10,7 +10,7 @@
  */
 
 import { expect, type Page, test } from "@playwright/test";
-import { Harness, newApprovalId, newRunId, pair, registerSpecialist, runPanel } from "./support.ts";
+import { Harness, newApprovalId, newRunId, pair, registerSpecialist } from "./support.ts";
 
 /** The newest approval card in the room. */
 const card = (page: Page) => page.getByRole("article", { name: /Approval/ }).last();
@@ -50,11 +50,11 @@ test("a yes until stopped lets the agent work without asking, and Stop brings it
   try {
     await harness.send("run.started", { goal: "Read the bridge notes.", plan: [] });
     await page.getByTestId("space-list").locator(`[data-space="${juniper.space}"]`).click();
-    const l1 = runPanel(page)
-      .getByRole("group", { name: /Autonomy for/ })
-      .getByLabel("L1 · Ask first");
-    // Where a new harness starts; the dial reads L2 only until the run's policy has come.
-    await expect(l1).toBeChecked();
+    // At L1, where a new harness starts, a smaller ask waits for an answer. The dial that showed
+    // it beside the room went with the Run panel (ADR 0293); the room open is what is waited for.
+    await expect(
+      page.getByTestId("space-list").locator(`[data-space="${juniper.space}"][data-active="true"]`),
+    ).toBeVisible();
 
     // A loop Chips can't read: no Always, but the hour and the switch are there.
     const loop = await run("for r in acp hermes; do head -30 $r/README.md; done");

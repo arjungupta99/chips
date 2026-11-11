@@ -1,7 +1,8 @@
 /**
  * What a room allows a job, as a person sets it (ADR 0117, Arjun's C): five amounts and Other,
- * the default among them, and what the job has spent so far against the one picked. In core so
- * the phone's room sheet and the desktop's (ADR 0151) offer the same amounts in the same words.
+ * the default among them, and No cap for a room that lasts (ADR 0292), and what the job has spent
+ * so far against the one picked. In core so the phone's room sheet and the desktop's (ADR 0151)
+ * offer the same amounts in the same words.
  *
  * And what the room has spent job by job (ADR 0282, Arjun's C of the mock "Spend in Chips
  * explain", 6 November 2026): the last job on the tile, the jobs before this one on the page with
@@ -13,9 +14,11 @@ import {
   dollars,
   isSpendCeiling,
   type JobSpend,
+  NO_SPEND_CEILING,
   type RoomSpend,
   SPEND_CEILING_MAX,
   SPEND_CEILING_MIN,
+  type SpendCeilingSetting,
   type SpentJob,
 } from "@chipschat/protocol";
 import { askDay, askTime } from "./asksSoFar.js";
@@ -25,36 +28,91 @@ import type { Run, Space } from "./model/types.js";
 /** The amounts offered at a tap, the default among them; Other takes any other. */
 export const SPEND_PRESETS: readonly number[] = [1, DEFAULT_SPEND_CEILING_USD, 5, 10, 25];
 
-/** What is picked: the default, one of the presets, or another amount typed in. */
-export type SpendChoice = "default" | number | "other";
+/** What is picked: the default, one of the presets, another amount typed in, or No cap. */
+export type SpendChoice = "default" | number | "other" | typeof NO_SPEND_CEILING;
 
 /** What the room's ceiling is picked as now: the default when nobody set one. */
 export function spendChoiceOf(space: Space): SpendChoice {
   const usd = space.spendCeiling;
   if (usd === undefined) return "default";
+  if (usd === NO_SPEND_CEILING) return NO_SPEND_CEILING;
   return SPEND_PRESETS.includes(usd) ? usd : "other";
 }
 
-/** An amount typed into Other, when it is one a room may have: "$7.50", "7.5", "10". */
-export function typedCeiling(typed: string): number | undefined {
-  const bare = typed.replace(/[$\s,]/g, "");
-  if (!/^\d+(\.\d{1,2})?$/.test(bare)) return undefined;
-  const usd = Number(bare);
-  return isSpendCeiling(usd) ? usd : undefined;
+/** No cap's name on its tile and the room's, and what it means under it (ADR 0292). */
+export const NO_CAP = "No cap";
+export const NO_CAP_UNDER = "Chips never holds them";
+
+/** A room's ceiling in words: "$3.00", or "No cap". */
+export function ceilingWords(ceiling: number | typeof NO_SPEND_CEILING): string {
+  return ceiling === NO_SPEND_CEILING ? NO_CAP : dollars(ceiling);
 }
 
 /**
- * What a choice sets the room to: an amount, `null` for the default, or nothing when Other's
- * amount is not one a room may have. The default's own amount, picked, is the default.
+ * The most an older server allows a job, one that takes no No cap (ADR 0292): its hello says no
+ * `spend_no_cap`, and it refuses an amount past this.
  */
-export function ceilingOfChoice(choice: SpendChoice, typed: string): number | null | undefined {
+const OLDER_SPEND_CEILING_MAX = 100;
+
+/** The most Other takes from this server: $1,000, or $100 from one older than No cap. */
+function mostOf(noCap: boolean): number {
+  return noCap ? SPEND_CEILING_MAX : OLDER_SPEND_CEILING_MAX;
+}
+
+/**
+ * An amount typed into Other, when it is one a room may have: "$7.50", "7.5", "10", "1,000". Up to
+ * $100 only, for a server that takes no No cap.
+ */
+export function typedCeiling(typed: string, noCap = true): number | undefined {
+  const bare = typed.replace(/[$\s,]/g, "");
+  if (!/^\d+(\.\d{1,2})?$/.test(bare)) return undefined;
+  const usd = Number(bare);
+  return isSpendCeiling(usd) && usd <= mostOf(noCap) ? usd : undefined;
+}
+
+/**
+ * What a choice sets the room to: an amount, `null` for the default, `"none"` for No cap, or
+ * nothing when Other's amount is not one a room may have. The default's own amount, picked, is the
+ * default.
+ */
+export function ceilingOfChoice(
+  choice: SpendChoice,
+  typed: string,
+  noCap = true,
+): SpendCeilingSetting | undefined {
   if (choice === "default" || choice === DEFAULT_SPEND_CEILING_USD) return null;
-  if (choice === "other") return typedCeiling(typed);
+  if (choice === "other") return typedCeiling(typed, noCap);
   return choice;
 }
 
+/** What Other's field says it takes, from a server that takes No cap or one older. */
+export function spendRangeWords(noCap = true): string {
+  return `From ${dollars(SPEND_CEILING_MIN)} to ${dollars(mostOf(noCap))}, in steps of 25¢.`;
+}
+
 /** What Other's field says it takes. */
-export const SPEND_RANGE_WORDS = `From ${dollars(SPEND_CEILING_MIN)} to ${dollars(SPEND_CEILING_MAX)}, in steps of 25¢.`;
+export const SPEND_RANGE_WORDS = spendRangeWords();
+
+/**
+ * What Other's field says under it: what it takes, and, once the amount typed is not one, that it
+ * is not, so that Save greyed out is never left to explain itself. Past the most, the way to more
+ * is No cap (ADR 0292), where the server takes it. An amount half typed ("7.") is not wrong yet.
+ */
+export function typedHint(
+  typed: string,
+  noCap = true,
+): { readonly words: string; readonly wrong: boolean } {
+  const range = spendRangeWords(noCap);
+  const bare = typed.replace(/[$\s,]/g, "");
+  if (bare === "" || /^\d+\.$/.test(bare) || typedCeiling(typed, noCap) !== undefined) {
+    return { words: range, wrong: false };
+  }
+  const usd = Number(bare);
+  const most = mostOf(noCap);
+  if (!Number.isFinite(usd) || usd <= most) return { words: range, wrong: true };
+  const more = noCap ? ` For more, pick ${NO_CAP}.` : "";
+  return { words: `Other goes up to ${dollars(most)}.${more}`, wrong: true };
+}
 
 /** What the setting does, said on its page (ADR 0118: Chips holds the agents at it). */
 export const SPEND_HELP =
@@ -66,7 +124,7 @@ export const SPEND_HELP =
  * this job so far: $1.23".
  */
 export function spentWords(
-  spend: JobSpend | undefined,
+  spend: Pick<JobSpend, "spent_usd" | "uncounted_runs"> | undefined,
   setBy?: string | undefined,
 ): string | undefined {
   const sets = setBy === undefined ? undefined : `${setBy} sets it`;
@@ -79,9 +137,15 @@ export function spentWords(
 /** The banner's way to a higher ceiling, for whoever may set one (ADR 0282). */
 export const RAISE_LIMIT = "Raise the limit";
 
-/** The banner's way on at the ceiling there is: "Carry on at $3.00" (ADR 0282). */
+const NO_CAP_CARRY_ON = "Carry on with no cap";
+
+/**
+ * The banner's way on at the ceiling there is: "Carry on at $3.00" (ADR 0282), or "Carry on with
+ * no cap" once somebody took it off while the agents were held (ADR 0292).
+ */
 export function carryOnWords(space: Space): string {
-  return `Carry on at ${dollars(space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD)}`;
+  const ceiling = space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD;
+  return ceiling === NO_SPEND_CEILING ? NO_CAP_CARRY_ON : `Carry on at ${dollars(ceiling)}`;
 }
 
 /**
@@ -90,6 +154,7 @@ export function carryOnWords(space: Space): string {
  */
 export function raisedChoice(space: Space): SpendChoice {
   const now = space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD;
+  if (now === NO_SPEND_CEILING) return NO_SPEND_CEILING;
   const next = SPEND_PRESETS.find((usd) => usd > now);
   if (next === undefined) return spendChoiceOf(space);
   return next === DEFAULT_SPEND_CEILING_USD ? "default" : next;
@@ -97,12 +162,45 @@ export function raisedChoice(space: Space): SpendChoice {
 
 /**
  * Save's words on the page Raise the limit opened, which lets the agents carry on too: "Save $5.00
- * and carry on", or "Carry on at $3.00" with the room's own amount picked.
+ * and carry on", "Carry on at $3.00" with the room's own amount picked, or "Carry on with no cap".
  */
-export function saveAndCarryOnWords(space: Space, target: number | null | undefined): string {
+export function saveAndCarryOnWords(space: Space, target: SpendCeilingSetting | undefined): string {
   if (target === undefined) return "Save and carry on";
+  if (target === NO_SPEND_CEILING) return NO_CAP_CARRY_ON;
   if (target === (space.spendCeiling ?? null)) return carryOnWords(space);
   return `Save ${dollars(target ?? DEFAULT_SPEND_CEILING_USD)} and carry on`;
+}
+
+/** Save's word once what is picked is what was just saved. */
+export const SAVED_WORD = "Saved";
+
+/** Save on Spend per job: whether it may be pressed, and its words. */
+export interface SpendSave {
+  readonly ready: boolean;
+  readonly words: string;
+}
+
+/**
+ * Save on Spend per job, which stays open once saved (ADR 0292, 11 November addendum): ready while
+ * what is picked is an amount the room may have and not what the room has, and "Saved", grey, once
+ * it is what was just saved, until something else is picked. From Raise the limit the room's own
+ * amount still lets the agents carry on, and the words say so.
+ */
+export function spendSave(input: {
+  readonly space: Space;
+  readonly target: SpendCeilingSetting | undefined;
+  readonly carryOn: boolean;
+  readonly busy: boolean;
+  /** What this page saved last, when it has. */
+  readonly saved: { readonly usd: SpendCeilingSetting } | undefined;
+}): SpendSave {
+  const { space, target, carryOn, busy, saved } = input;
+  if (carryOn) {
+    return { ready: target !== undefined && !busy, words: saveAndCarryOnWords(space, target) };
+  }
+  const justSaved = saved !== undefined && target === saved.usd;
+  const changes = target !== undefined && target !== (space.spendCeiling ?? null);
+  return { ready: changes && !busy && !justSaved, words: justSaved ? SAVED_WORD : "Save" };
 }
 
 /** "Last job $3.10" on the room's Spend per job tile, once a job before this one spent. */
@@ -169,6 +267,23 @@ export interface SpentJobRow {
 /** The held mark on a job's row, and what it means. */
 export const HELD_WORD = "Held";
 
+/**
+ * How many of the jobs before this one Spend per job lists (Arjun, 11 November 2026: "truncate it
+ * after 10"); See all opens the rest on a page of their own, read a page at a time.
+ */
+export const JOBS_SHOWN = 10;
+/** The list's heading, and the page See all (`SEE_ALL`, the asks' own word) opens. */
+export const JOBS_BEFORE = "Jobs before this one";
+
+/**
+ * Whether Spend per job offers See all: more jobs before this one than it lists, and a server that
+ * reads them a page at a time. Absent until a hello has said, as for the others.
+ */
+export function offersAllJobs(spend: RoomSpend | undefined, keeps: boolean | undefined): boolean {
+  const count = spend?.jobs_count ?? spend?.jobs?.length ?? 0;
+  return count > JOBS_SHOWN && keeps !== false && spend?.jobs_count !== undefined;
+}
+
 /** The jobs before this one that spent, newest first, as rows. */
 export function spentJobRows(
   spend: RoomSpend | undefined,
@@ -176,7 +291,17 @@ export function spentJobRows(
   directory: Directory,
   now: number = Date.now(),
 ): readonly SpentJobRow[] {
-  return (spend?.jobs ?? []).map((job) => spentJobRow(job, space, directory, now));
+  return jobRowsOf(spend?.jobs ?? [], space, directory, now);
+}
+
+/** Jobs as rows: the list's, or a page of them that See all read (ADR 0292 addendum). */
+export function jobRowsOf(
+  jobs: readonly SpentJob[],
+  space: Space,
+  directory: Directory,
+  now: number = Date.now(),
+): readonly SpentJobRow[] {
+  return jobs.map((job) => spentJobRow(job, space, directory, now));
 }
 
 function spentJobRow(job: SpentJob, space: Space, directory: Directory, now: number): SpentJobRow {

@@ -529,6 +529,60 @@ describe("who an ask can be handed to", () => {
   });
 });
 
+describe("Luis's ask, polished (10 November 2026)", () => {
+  const LUIS = "pkill -f old ; sleep 1; rm -rf /tmp/luis; ls -d /tmp/luis 2>&1 | wc -l";
+  const luis = {
+    actionKind: "jacobian.shell.shell",
+    input: LUIS,
+    question: "Run this command?",
+    lasts: "once" as const,
+    preview: LUIS,
+    previewFormat: "plain" as const,
+    previewTitle: "shell · shell",
+    risk: ["destructive"],
+    // The server marks a destructive ask as one that matters (ADR 0195); the fixture says so.
+    matters: true,
+    editable: false,
+  };
+
+  it("draws a shell command sent as bare words on its plate, not as words under shell · shell", async () => {
+    await render(view(luis).element);
+    expect(screen.getAllByTestId("plate-part")).toHaveLength(5);
+    expect(screen.queryByText("shell · shell")).toBeNull();
+    expect(screen.queryByText(LUIS)).toBeNull();
+    // Answered once, as an ask that matters is, with the never words marked in the tray's line.
+    expect(screen.getByTestId("once-dot")).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: "Always" })).toBeNull();
+  });
+
+  it("puts its tags in one row: the risk, then that it waits for you", async () => {
+    await render(view(luis).element);
+    expect(screen.getByTestId("ask-tags")).toHaveTextContent("DestructiveWaits for you");
+  });
+
+  it("offers Hand to… and Open the space as rows of one group", async () => {
+    const opened: number[] = [];
+    const { element, handed } = view(luis, {
+      spaceName: "Health",
+      onOpenSpace: () => opened.push(1),
+    });
+    await render(element);
+    const ways = screen.getByTestId("ask-ways");
+    expect(ways).toHaveTextContent(/Hand to….*Open the space.*Health/);
+    await userEvent.press(screen.getByRole("button", { name: "Open the space" }));
+    expect(opened).toEqual([1]);
+    await userEvent.press(screen.getByRole("button", { name: "Hand to…" }));
+    await userEvent.press(screen.getByRole("radio", { name: "Dana Ruiz" }));
+    await userEvent.press(screen.getByRole("button", { name: "Hand on" }));
+    expect(handed).toEqual([{ to: "per_dana", reason: undefined }]);
+  });
+
+  it("draws no group where there is nowhere else to go", async () => {
+    await render(view(luis, { handTo: [] }).element);
+    expect(screen.queryByTestId("ask-ways")).toBeNull();
+  });
+});
+
 describe("the answer, in the hand", () => {
   it("feels the same here as it does on the card in the room", async () => {
     await render(view().element);

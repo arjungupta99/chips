@@ -262,9 +262,11 @@ export function createSessionHub(options: SessionHubOptions): SessionHub {
    */
   const lookupsAt = (
     arrivedAt: string | undefined,
-  ): Pick<SessionOptions, "attachmentUrl" | "zonesOf" | "hasProject"> => {
+  ): Pick<SessionOptions, "attachmentUrl" | "zonesOf" | "hasProject" | "stateOf"> => {
     const signs = options.attachmentUrl;
     return {
+      // Which of a room's agents can't answer, for the room note (ADR 0291).
+      stateOf: (workspaceId, harnessId) => options.presence.stateOf(workspaceId, harnessId),
       ...(signs === undefined
         ? {}
         : { attachmentUrl: (attachmentId, tokenId) => signs(attachmentId, tokenId, arrivedAt) }),

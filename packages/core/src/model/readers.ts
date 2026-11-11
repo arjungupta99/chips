@@ -802,6 +802,8 @@ function ringStatus(run: Run | undefined): "idle" | "working" | "waiting" {
  */
 export function lastWords(space: Space, directory?: Directory): string {
   if (space.run?.state === "waiting") return "Needs a yes";
+  // A paused run holds the room's work until somebody resumes it (ADR 0293).
+  if (space.run?.state === "paused") return "Paused";
   const last = space.lines.at(-1);
   if (last === undefined) return "";
   if (last.fork !== undefined && directory !== undefined) {
@@ -859,6 +861,19 @@ function taskWords(task: TaskBubble): string {
 export function roomLeadOf(space: Space): string | undefined {
   const lead = space.lead ?? space.askedOf;
   return lead !== undefined && space.members.includes(lead) ? lead : undefined;
+}
+
+/**
+ * A quiet line's words with its agent's name before them, as the room draws it: "Scout read
+ * PO-4471.pdf". Where Chips handed on a message its agent did not pick up (ADR 0291), with that
+ * agent's name too: "Wynn took it as the lead: Hazel hadn't picked it up", "Wynn took it back:
+ * Hazel hadn't picked it up".
+ */
+export function marginWords(line: Line, directory: Directory): string {
+  const name = nameOf(directory, line.authorId);
+  if (line.unpicked === undefined) return `${name} ${line.text}`;
+  const how = line.unpicked.back ? "took it back" : "took it as the lead";
+  return `${name} ${how}: ${nameOf(directory, line.unpicked.by)} hadn't picked it up`;
 }
 
 /**

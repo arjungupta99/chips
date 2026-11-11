@@ -92,7 +92,7 @@ export const hello = defineEvent({
           .max(32)
           .optional()
           .describe(
-            "What this server keeps of what a person's client may send beyond the base set, by the names in `SERVER_TAKES`. `held_yes` is `for_minutes` and `until_stopped` on `approval.resolved`. A server older than the field says nothing, and drops those fields, so a client offers neither to it (ADR 0281).",
+            "What this server keeps of what a person's client may send beyond the base set, by the names in `SERVER_TAKES`. `held_yes` is `for_minutes` and `until_stopped` on `approval.resolved`. A server older than the field says nothing, and drops those fields, so a client offers neither to it (ADR 0281). `spend_no_cap` is No cap and amounts past $100 on a room's Spend per job (ADR 0292).",
           ),
       })
       .describe("Who the client is talking to."),

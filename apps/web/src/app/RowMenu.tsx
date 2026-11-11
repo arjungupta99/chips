@@ -19,6 +19,8 @@ import {
   type Directory,
   eraseAsking,
   notTakenWords,
+  type RoomRunItem,
+  roomRunItems,
   SPACE_ROW_ACT_WORDS,
   type Space,
   type SpaceRowAct,
@@ -28,6 +30,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
 import { moving } from "./roomMoves.ts";
+import { carryOutRunAct, type RunActs } from "./runActs.ts";
 
 /** What a row's acts are carried out through: the store's, handed down by the shell. */
 export interface RowActs {
@@ -37,6 +40,11 @@ export interface RowActs {
   readonly erase: (spaceId: string, options: { readonly deleteAgent: boolean }) => Promise<void>;
   /** The room, its sheet on the Icon page: no Change icon without it. */
   readonly icon?: ((spaceId: string) => void) | undefined;
+  /**
+   * Pause, Resume and Stop for each agent at work in the room, first in its menu (ADR 0293):
+   * "Pause Luis", "Stop Luis". Absent, the menu offers none.
+   */
+  readonly run?: RunActs | undefined;
 }
 
 /** What the menu offers: Change icon, and core's acts. */
@@ -137,6 +145,12 @@ export function useRowMenu({
       <RowMenu
         key={asks}
         ask={asked}
+        runs={acts?.run === undefined ? [] : roomRunItems(asked.space, directory)}
+        onRun={(item) => {
+          close();
+          if (acts?.run !== undefined)
+            carryOutRunAct(acts.run, item.act, asked.space.id, item.runId);
+        }}
         changesIcon={acts?.icon !== undefined}
         leaving={leaving}
         onGone={() => {
@@ -206,6 +220,8 @@ export function menuPoint(event: React.MouseEvent<HTMLElement>): { x: number; y:
 
 function RowMenu({
   ask,
+  runs,
+  onRun,
   changesIcon,
   leaving,
   onGone,
@@ -213,6 +229,9 @@ function RowMenu({
   onAct,
 }: {
   readonly ask: RowMenuAsk;
+  /** Each agent at work in the room: its Pause or Resume, and its Stop, above the rest. */
+  readonly runs: readonly RoomRunItem[];
+  readonly onRun: (item: RoomRunItem) => void;
   readonly changesIcon: boolean;
   readonly leaving: boolean;
   readonly onGone: () => void;
@@ -240,6 +259,21 @@ function RowMenu({
         walk(event);
       }}
     >
+      {runs.map((item, index) => (
+        <button
+          key={`${item.runId}-${item.act}`}
+          type="button"
+          role="menuitem"
+          className="line-menu-item"
+          data-testid={`row-run-${item.act}`}
+          data-danger={item.danger === true ? "true" : undefined}
+          ref={index === 0 ? focusFirst : undefined}
+          onClick={() => onRun(item)}
+        >
+          <span className="line-menu-label">{item.label}</span>
+        </button>
+      ))}
+      {runs.length > 0 && offered.length > 0 && <hr className="line-menu-rule" />}
       {offered.map((act, index) => {
         // Locked says why, under it, in the words a row that can't be picked says it in.
         const hint = act === "locked" ? whyNotPicked(ask.space, ask.title) : undefined;
@@ -251,7 +285,7 @@ function RowMenu({
             className="line-menu-item"
             data-testid={`row-act-${act}`}
             data-danger={act === "delete" ? "true" : undefined}
-            ref={index === 0 ? focusFirst : undefined}
+            ref={index === 0 && runs.length === 0 ? focusFirst : undefined}
             aria-describedby={hint === undefined ? undefined : `${id}-${act}`}
             onClick={() => onAct(act)}
           >

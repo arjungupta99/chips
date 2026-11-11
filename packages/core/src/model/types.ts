@@ -12,6 +12,7 @@
 import type {
   AttachmentCaps,
   ExchangeLimits,
+  NO_SPEND_CEILING,
   Preview,
   StepKind,
   WorkspaceRole,
@@ -20,7 +21,18 @@ import type { Attachment } from "../attachments.js";
 
 export type { WorkspaceRole } from "@chipschat/protocol";
 
-export type RunState = "queued" | "running" | "waiting" | "done" | "failed" | "cancelled";
+/**
+ * `paused` is a person's Pause, or Chips's at a budget (ADR 0293): the server keeps it as its own
+ * state, and so does a run here, so a paused run is never read as one waiting on somebody.
+ */
+export type RunState =
+  | "queued"
+  | "running"
+  | "waiting"
+  | "paused"
+  | "done"
+  | "failed"
+  | "cancelled";
 export type StepStatus = "planned" | "started" | "waiting" | "done" | "failed";
 
 /**
@@ -297,8 +309,16 @@ export interface Run {
   readonly state: RunState;
   /** The run's last event. A card in Needs you for a run that ended carries it. */
   readonly lastSeq: number;
-  /** A person paused it; the server calls that waiting, the panel says Paused. */
+  /** A person paused it, or Chips did; until a Resume it holds (ADR 0293). */
   readonly paused: boolean;
+  /** Its harness said a Pause holds it (`run.status` `pausable`, ADR 0293): Pause is offered. */
+  readonly pausable?: boolean | undefined;
+  /** When it was paused, while it is. */
+  readonly pausedAt?: string | undefined;
+  /** Who paused it, a person's id or `system`, while it is. */
+  readonly pausedBy?: string | undefined;
+  /** How long it has stood paused, Resumes included: its clock counts working time. */
+  readonly pausedMs?: number | undefined;
   readonly statusVerb?: string | undefined;
   /** What it last said it was at, never a bare `Writing…` (ADR 0147). */
   readonly thought?: Thought | undefined;
@@ -418,6 +438,16 @@ export interface Line {
   readonly held?: true | undefined;
   /** A held message handed to an agent it was for, once a person acted (ADR 0097). */
   readonly handed?: true | undefined;
+  /**
+   * The agents an agent's message was for that did not pick it up, once Chips handed it on to the
+   * lead or back to who said it (ADR 0291): the room stops saying it waits on them.
+   */
+  readonly passedOn?: readonly string[] | undefined;
+  /**
+   * On the quiet line of the agent Chips handed a message to (ADR 0291): the agent that had not
+   * picked it up, and whether the one it went to had said it (`back`) or took it as the lead.
+   */
+  readonly unpicked?: { readonly by: string; readonly back: boolean } | undefined;
   /**
    * An agent's check-in on its heartbeat (ADR 0143): it wrote on its own, with nobody asking, and
    * the room marks it so beside its name.
@@ -598,10 +628,11 @@ export interface Space {
    */
   readonly lead?: string | undefined;
   /**
-   * What the room allows a job, in US dollars, as a person there set it (ADR 0117). None follows
-   * the default; `spendCeilingOf` reads it with the default in.
+   * What the room allows a job, in US dollars, as a person there set it (ADR 0117), or `"none"`
+   * for No cap, where Chips holds no job for what it spends (ADR 0292). None follows the default;
+   * `spendCeilingOf` reads it with the default in.
    */
-  readonly spendCeiling?: number | undefined;
+  readonly spendCeiling?: number | typeof NO_SPEND_CEILING | undefined;
   /**
    * Whether a person in the room locked its changes (ADR 0156): while they are, nobody renames,
    * archives or deletes it. Absent for a room that never was, or was let go again.
@@ -714,6 +745,8 @@ export interface FleetHarness {
   readonly runId?: string | undefined;
   readonly status?: RunState | undefined;
   readonly paused: boolean;
+  /** Its harness said a Pause holds that run (ADR 0293): Pause is offered only then. */
+  readonly pausable?: boolean | undefined;
   readonly statusVerb?: string | undefined;
   readonly contextPercent?: number | undefined;
 }

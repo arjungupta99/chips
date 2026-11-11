@@ -204,6 +204,12 @@ export interface SpacesTable {
   /** What the room allows a job, in US dollars (0037, ADR 0117), or null for the default. */
   spend_ceiling_usd: Generated<number | null>;
   /**
+   * 1 while the room has no cap (0062, ADR 0292): Chips holds no job there for what it spends, and
+   * `spend_ceiling_usd` is null. Set by `space.spend_ceiling_lifted`, cleared by
+   * `space.spend_ceiling_set`.
+   */
+  spend_uncapped: Generated<number>;
+  /**
    * 1 while a person there has locked the room's changes (0045, ADR 0156): no person renames,
    * archives or deletes it. Set by `space.lock_set`.
    */

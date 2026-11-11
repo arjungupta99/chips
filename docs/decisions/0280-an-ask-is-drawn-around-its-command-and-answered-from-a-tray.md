@@ -108,3 +108,32 @@ landing under it. Now the foot of a room (`RoomAsks`) changes once for each thin
 Choosing For an hour or the switch still adds the words saying what it lets through, and the room
 glides once, by 34 to 57 pixels, to keep the card in view. The phone's ask is its own screen and is
 unchanged.
+
+## Addendum, 10 November 2026: Jacobian's commands on the plate, and the phone's screen tidied
+
+Arjun, of the phone's ask screen opened from a push: "please make this approval screen (opened
+from notification) more polished". It was one of Luis's asks in Health, through Jacobian, and it
+was drawn as everything this ADR set out to replace:
+
+- **The command was a paragraph.** Jacobian asks `jacobian.shell.shell` with the command line
+  itself as the input, where other bridges send `{ command }`. Protocol's reader found no command,
+  so there was no plate: the words wrapped as body text under the preview's own title, "shell ·
+  shell". Core's `shownCommand` now gives the plate a shell's bare words too, when the action kind
+  runs a shell (`shell`, `bash`, `exec`, `terminal` and the like as a part of the kind). That is
+  for drawing only. The plate says it is not read part by part (`readable` is false, so no caption
+  says Chips reads each part, and nothing lights), and what a yes keeps is still protocol's to say.
+  The plate takes the preview's place as it does for any command, so "shell · shell" goes with it.
+  The web and the Mac draw the same plate from the same core.
+- **Three tags took three lines.** "Just this once", the risk and "Waits for you" each stood on a
+  line of their own. They are one row now that wraps, the risk first. "Just this once" was already
+  not drawn under a plate.
+- **Hand to… and Open the space were two loose words** a few points apart, lined up with nothing.
+  They are rows of one inset group under the tags, each with its mark and a chevron, and Open the
+  space names the space at its right. The question's screen and a plain item's draw the same row.
+
+Not changed: an Always on one of Jacobian's shell asks is still kept for the whole kind, because
+protocol's reader, which the server uses, reads only `{ command }`. Reading bare words there too is
+a change to what a yes reaches, not to how the ask looks, and is left for its own decision.
+It was taken later the same day (ADR 0239, addendum of 10 November 2026, his "Build A"): protocol's
+reader takes a shell's bare input as its command, core's `shownCommand` is gone, and the plate
+lights what an Always keeps.

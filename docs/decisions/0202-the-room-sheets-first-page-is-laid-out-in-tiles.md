@@ -239,3 +239,36 @@ Sudoku mini's tiles, and the padlock turning gold when Lock changes was switched
 `RoomSheet.test.tsx` proves the four marks of a room with agents are the four colours and the shut
 padlock is the gold. Point 3 was walked the same way, Notifications' page and Lead's, and the tests
 prove each level is the red and No lead the violet.
+
+## Addendum, 10 November 2026: the web and the Mac lay out the tiles as the phone does
+
+The first addendum's point 4 put the desktop's tiles in one row because there were three at most.
+The Project tile (ADR 0222) made it four, and at the sheet's 420 pixels each tile was about 90 wide:
+on Arjun's Health room the Mac showed *$0.09 of …*, *Last job $0…*, *Spend per …* and *Lock
+chan…*, with Pin and Hide as two words under them. Arjun, with a screenshot of it: "please fix this
+compressed area. And check design on iPhone / ipad to match". The iPad's details column is the
+phone's own sheet at 420 across (ADR 0276), so the iPhone and the iPad already agreed; the desktop
+was the one that differed.
+
+1. **Two to a row, an odd last one taking its row** (`Tiles`, `.sheet-tiles-grid`), at every width.
+   The media query that switched at 452 pixels is gone.
+2. **Lock changes and Hide share a row of their own under the rest**, as the 23 October addendum's
+   point 5 has them on the phone (`room-sheet-tiles-foot`). Hide is a tile now, *Hide* over *Off
+   your list* with the shut eye (*Unhide* over *Back on your list*), with no chevron since it acts
+   at once; it says the phone's words to a hover. Its test ids stay `hide-space` and `unhide-space`.
+   Pin, Archive (or Unarchive) and Delete space… stay as words at the foot: the phone keeps them on
+   the Spaces swipe, which the desktop has no equivalent of.
+3. **Each mark wears the phone's colour** (the 23 October colour addendum's point 1), solid, with
+   the faces' ink (`--on-avatar`) on it: Project blue, Lead violet, Spend per job green, Lock
+   changes teal and ochre while shut, Hide pink. The indices are core's now (`ROOM_TILE_GROUNDS`),
+   which the phone's `MARK_GROUNDS` and the web's `groundVar` both read, so the two cannot drift.
+   The marks are 30 pixels with an 18-pixel drawing, as the phone's.
+
+A desktop room has no Notifications tile (ADR 0198, point 5), so a room with a project has five
+tiles, and Spend per job takes its row's width. Nothing changed on the wire, the server or the
+phone's drawing. Proved by `Shell.test.tsx` (the rows, each mark's ground, the shut padlock's
+ochre, Hide with no chevron) and `the-room-sheet.spec.ts` (two to a row at 1440 and at 390 wide,
+and no tile line cut short). Looked at in WebKit (a WKWebView, the Mac's engine) in light and dark,
+and in Chromium on a copy of Arjun's data, where Health showed Project and Lead, then Spend per job
+across, then Lock changes and Hide, nothing cut short; the phone's web build on the same copy drew
+the iPhone's sheet with the same rows.

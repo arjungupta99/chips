@@ -4,8 +4,8 @@
  * stands (ADR 0112), and who is here under it; *In this room* and how many, with Add at its right
  * (agents or people; never for a guest); who is in it, scrolling in what the page leaves it and
  * fading at its foot while there is more, Leave its last row; one Media & files card, which turns
- * to its page; Lead, Spend per job and Lock changes as tiles (ADR 0156); and at the foot Archive,
- * Delete and Done. While the room's changes are locked its name has no pen and the foot has no
+ * to its page; Project, Lead and Spend per job as tiles two to a row, Lock changes (ADR 0156) and
+ * Hide on a row of their own under them, as the phone's; and at the foot Pin, Archive and Delete. While the room's changes are locked its name has no pen and the foot has no
  * Archive or Delete, as core says; who is in it and the tiles but Lock are not locked. An agent's
  * row opens its page in Agents once the sheet has gone (ADR 0111's addendum); Remove stands beside
  * a row for whoever may take it out, where the phone swipes; for a person it asks first, as Leave
@@ -58,6 +58,7 @@ import { SharedTag } from "../SharedTag.tsx";
 import type { SpaceActions } from "./actions.ts";
 import { Chev, CloseX, Face, Group, Row } from "./parts.tsx";
 import {
+  HideTile,
   LeadTile,
   LockTile,
   MediaCard,
@@ -168,13 +169,7 @@ export function Who(props: {
         />
       )}
       <Settings {...props} />
-      <Foot
-        space={space}
-        actions={actions}
-        onPutAway={props.onPutAway}
-        onHide={props.onHide}
-        onPin={props.onPin}
-      />
+      <Foot space={space} actions={actions} onPutAway={props.onPutAway} onPin={props.onPin} />
     </>
   );
 }
@@ -405,61 +400,90 @@ function projectFiles(props: Parameters<typeof Who>[0]): number | undefined {
 }
 
 /**
- * The room's settings as tiles (ADR 0202), in the order the rows were: Lead where the room has no
- * Main agent to lead it and Spend per job, in a room with agents and for whoever may see it; Lock
- * changes for anybody but a guest. Nothing at all for a guest in a Main room.
+ * The room's settings as tiles (ADR 0202), in the order the rows were: the Project once it has had
+ * a change; Lead where the room has no Main agent to lead it and Spend per job, in a room with
+ * agents and for whoever may see it. Under them, on a row of their own as on the phone, Lock
+ * changes for anybody but a guest and Hide for whoever may hide the room. Nothing at all for a
+ * guest in a Main room.
  */
 function Settings(props: Parameters<typeof Who>[0]) {
+  const tiles = roomTiles(props);
+  const foot = footTiles(props);
+  if (tiles.length + foot.length === 0) return null;
+  return <Tiles foot={foot}>{tiles}</Tiles>;
+}
+
+/** The tiles above the foot: the Project, Lead and Spend per job, each where the room has it. */
+function roomTiles(props: Parameters<typeof Who>[0]): ReactNode[] {
   const { space, directory, selfId, model } = props;
   const agents = roomAgents(space, directory).here.length;
   const leads = roomLeadOf(space);
-  const mainRoom = leadOf(space, directory) !== undefined;
   const { chooses, sees, spends, setBy } = standingIn(space, directory, selfId, model);
-  const lead = !mainRoom && agents > 0;
-  const spend = agents > 0 && sees;
-  const lock = mayLock(space, selfId);
   const project = projectFiles(props);
-  if (!lead && !spend && !lock && project === undefined) return null;
-  return (
-    <Tiles>
-      {project === undefined ? null : (
-        <ProjectTile files={project} onClick={() => props.onPage("project")} />
-      )}
-      {lead && (
-        <LeadTile
-          leads={leads === undefined ? undefined : nameOf(directory, leads)}
-          onClick={chooses ? () => props.onPage("lead") : undefined}
-        />
-      )}
-      {spend && (
-        <SpendTile
-          ceiling={spendCeilingOf(space)}
-          spend={props.spend}
-          words={spentWords(props.spend, setBy)}
-          last={lastJobWords(props.spend)}
-          onClick={spends ? () => props.onPage("spend") : undefined}
-        />
-      )}
-      {lock && <LockTile locked={space.locked === true} busy={props.busy} onLock={props.onLock} />}
-    </Tiles>
-  );
+  const tiles: ReactNode[] = [];
+  if (project !== undefined) {
+    tiles.push(
+      <ProjectTile key="project" files={project} onClick={() => props.onPage("project")} />,
+    );
+  }
+  if (leadOf(space, directory) === undefined && agents > 0) {
+    tiles.push(
+      <LeadTile
+        key="lead"
+        leads={leads === undefined ? undefined : nameOf(directory, leads)}
+        onClick={chooses ? () => props.onPage("lead") : undefined}
+      />,
+    );
+  }
+  if (agents > 0 && sees) {
+    tiles.push(
+      <SpendTile
+        key="spend"
+        ceiling={spendCeilingOf(space)}
+        spend={props.spend}
+        words={spentWords(props.spend, setBy)}
+        last={lastJobWords(props.spend)}
+        onClick={spends ? () => props.onPage("spend") : undefined}
+      />,
+    );
+  }
+  return tiles;
+}
+
+/** The foot's tiles, as the phone's `footTiles`: Lock changes and Hide, each where it may be used. */
+function footTiles(props: Parameters<typeof Who>[0]): ReactNode[] {
+  const { space, selfId, actions } = props;
+  const foot: ReactNode[] = [];
+  if (mayLock(space, selfId)) {
+    foot.push(
+      <LockTile
+        key="lock"
+        locked={space.locked === true}
+        busy={props.busy}
+        onLock={props.onLock}
+      />,
+    );
+  }
+  if (actions.mayHide) {
+    foot.push(<HideTile key="hide" hidden={actions.hidden} onHide={props.onHide} />);
+  }
+  return foot;
 }
 
 /**
- * Pin or Unpin, Hide or Unhide, Archive or Unarchive, Delete, and Done. The phone keeps the first
- * four on the Spaces swipe; the desktop has no swipe, so they stand quietly at the sheet's foot,
- * and each but Pin, Hide, their undoing and Unarchive asks first in the phone's words. Pin and Hide
- * are the reader's own (ADRs 0240, 0205): pinned, the room stands at the top of their rail; hidden,
- * it goes into Hidden and is quiet; and nothing changes for anybody else. While the room's changes are locked core offers neither Archive nor
- * Delete, so Done stands alone, with Unarchive beside it for a locked room that was archived: that
- * only puts it back (ADR 0156). Leave stood here too until it became the members' last row (ADR
+ * Pin or Unpin, Archive or Unarchive, and Delete. The phone keeps them on the Spaces swipe; the
+ * desktop has no swipe, so they stand quietly at the sheet's foot, and each but Pin, its undoing
+ * and Unarchive asks first in the phone's words. Pin is the reader's own (ADR 0240): pinned, the
+ * room stands at the top of their rail, and nothing changes for anybody else. Hide, the reader's
+ * own too (ADR 0205), stood here until it became a tile beside Lock changes, as the phone's is.
+ * While the room's changes are locked core offers neither Archive nor Delete, so Pin stands alone,
+ * with Unarchive beside it for a locked room that was archived: that only puts it back (ADR 0156). Leave stood here too until it became the members' last row (ADR
  * 0202).
  */
 function Foot(props: {
   readonly space: Space;
   readonly actions: SpaceActions;
   readonly onPutAway: (asking: "archive" | "delete") => void;
-  readonly onHide: (hidden: boolean) => void;
   readonly onPin: (pinned: boolean) => void;
 }) {
   const { space, actions } = props;
@@ -474,16 +498,6 @@ function Foot(props: {
           data-testid={actions.pinned ? "unpin-space" : "pin-space"}
         >
           {actions.pinned ? "Unpin" : "Pin"}
-        </button>
-      )}
-      {actions.mayHide && (
-        <button
-          type="button"
-          className="sheet-quiet"
-          onClick={() => props.onHide(!actions.hidden)}
-          data-testid={actions.hidden ? "unhide-space" : "hide-space"}
-        >
-          {actions.hidden ? "Unhide" : "Hide"}
         </button>
       )}
       {actions.mayArchive &&

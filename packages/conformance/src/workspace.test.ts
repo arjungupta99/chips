@@ -1589,8 +1589,10 @@ describe("a room's lead (ADR 0104), as the real door has it", () => {
 
   it("is the agent last chosen while it is there, and the note marks it", () => {
     const scout = agent();
-    const other = tree();
     expect(ws.leadOf(space)).toBeUndefined();
+    const other = tree();
+    // A room's second agent gives it a lead, the one there longest (ADR 0291), until a person chooses.
+    expect(ws.leadOf(space)).toBe(scout);
     ws.setLead(space, other, OWNER.participantId);
     expect(ws.leadOf(space)).toBe(other);
     expect(ws.noteMembers(space).find((member) => member.id === other)?.lead).toBe(true);
@@ -1702,9 +1704,19 @@ describe("what a room's job has spent (ADR 0117), as the real door has it", () =
       uncounted_runs: 0,
     });
     ws.setSpendCeiling(space, 10, OWNER.participantId);
-    expect(ws.spendOf(space, ws.head()).ceiling_usd).toBe(10);
+    expect(ws.spendOf(space, ws.head())?.ceiling_usd).toBe(10);
     ws.setSpendCeiling(space, null, OWNER.participantId);
-    expect(ws.spendOf(space, ws.head()).ceiling_usd).toBe(3);
+    expect(ws.spendOf(space, ws.head())?.ceiling_usd).toBe(3);
+  });
+
+  it("says no spend in a room with no cap, until an amount is set again (ADR 0292)", () => {
+    start();
+    usage(0.5);
+    ws.setSpendCeiling(space, "none", OWNER.participantId);
+    expect(ws.log.at(-1)?.type).toBe("space.spend_ceiling_lifted");
+    expect(ws.spendOf(space, ws.head())).toBeUndefined();
+    ws.setSpendCeiling(space, 500, OWNER.participantId);
+    expect(ws.spendOf(space, ws.head())?.ceiling_usd).toBe(500);
   });
 
   it("tells apart a run that reported no cost", () => {
@@ -1771,6 +1783,16 @@ describe("a room's job at its ceiling (ADR 0118), as the real door has it", () =
     start();
     usage(undefined);
     usage(undefined);
+    expect(inRoom("budget.warning")).toEqual([]);
+    expect(inRoom("exchange.set")).toEqual([]);
+  });
+
+  it("never warns or holds a room with no cap, whatever its job spends (ADR 0292)", () => {
+    ws.setSpendCeiling(space, "none", OWNER.participantId);
+    ok(OWNER, { type: "message.post", space_id: space, text: "Go" });
+    start();
+    usage(50);
+    usage(1500);
     expect(inRoom("budget.warning")).toEqual([]);
     expect(inRoom("exchange.set")).toEqual([]);
   });

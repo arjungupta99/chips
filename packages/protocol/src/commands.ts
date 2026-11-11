@@ -4,7 +4,10 @@
  * the conformance kit's fake and the apps read a command the same way.
  *
  * A command is the ask's `input.command`: a string a shell runs, or an array of words a program
- * runs as given. A string is split into parts at `&&`, `||`, `;`, `|` and new lines outside
+ * runs as given. Or the input itself, when it is a string and the action runs a shell (addendum of
+ * 10 November 2026): Jacobian sends `jacobian.shell.shell` with the command line as its input, and
+ * an Always on it kept the whole kind, so one yes let every later command through. A string is
+ * split into parts at `&&`, `||`, `;`, `|` and new lines outside
  * quotes, and each part into words, quotes taken off. A command that does more than this reader
  * can follow is not read at all: a redirection (`>`, `<`), something run inside it (`$(`,
  * backticks, `$`, parentheses, braces), a part run in the background (`&`), a variable set before
@@ -23,8 +26,33 @@ export type CommandParts = readonly (readonly string[])[];
 /** Past this, a command is not read: a standing yes is for the commands a person reads. */
 const LONGEST = 10_000;
 
-/** What a command is, from an ask's input: its string or its words, or nothing. */
-export function askedCommand(input: unknown): string | readonly string[] | undefined {
+/** What an ask asks to do, as far as its command goes: the action's kind and its input. */
+export interface AskedAction {
+  readonly kind?: string | undefined;
+  readonly input?: unknown;
+}
+
+/**
+ * An action kind that runs a shell, by a word of its own between the dots: `shell.exec`,
+ * `jacobian.shell.shell`, `acp.bash`, `acp.execute`. Reading a string as a command only ever narrows what a yes
+ * keeps (its starts, or no Always), so a kind taken for a shell that isn't one loses nothing.
+ */
+const SHELL_KIND = /(?:^|\.)(?:shell|bash|zsh|sh|exec|execute|terminal)(?:\.|$)/;
+
+/** Whether an action kind runs a shell. */
+function runsShell(kind: string | undefined): boolean {
+  return kind !== undefined && SHELL_KIND.test(kind);
+}
+
+/**
+ * What a command is, from an ask's action: its `input.command`, a string or words; else the input
+ * itself, when it is a string and the action runs a shell; else nothing.
+ */
+export function askedCommand(action: AskedAction): string | readonly string[] | undefined {
+  const input = action.input;
+  if (typeof input === "string") {
+    return runsShell(action.kind) && input.trim() !== "" ? input : undefined;
+  }
   if (typeof input !== "object" || input === null) return undefined;
   const command = (input as Record<string, unknown>)["command"];
   if (typeof command === "string") return command.trim() === "" ? undefined : command;
@@ -381,8 +409,8 @@ export type StandingOffer =
   | { readonly kind: "unreadable" }
   | { readonly kind: "never"; readonly command: string };
 
-export function standingOffer(input: unknown): StandingOffer | undefined {
-  const command = askedCommand(input);
+export function standingOffer(action: AskedAction): StandingOffer | undefined {
+  const command = askedCommand(action);
   if (command === undefined) return undefined;
   const parts = commandParts(command);
   if (parts === undefined) return { kind: "unreadable" };

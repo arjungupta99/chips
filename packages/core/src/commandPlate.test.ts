@@ -149,4 +149,64 @@ describe("a command on the plate (ADR 0280)", () => {
     expect(of("Looks around the repo before the build.")).toBe(false);
     expect(plateTakesPreview({ input: { path: "a.md" }, preview: "x" })).toBe(false);
   });
+
+  it("draws a shell's command sent as bare words, and reads it as the command it is (10 November 2026)", () => {
+    // Luis's ask: Jacobian sends the command line itself as the input, titled "shell · shell".
+    const luis = {
+      ...ask(undefined, "Run this command?"),
+      actionKind: "jacobian.shell.shell",
+      input: "pkill -f old ; sleep 1; rm -rf /tmp/luis; ls -d /tmp/luis 2>&1 | wc -l",
+      preview: "pkill -f old ; sleep 1; rm -rf /tmp/luis; ls -d /tmp/luis 2>&1 | wc -l",
+      previewFormat: "plain",
+      previewTitle: "shell · shell",
+    } as Approval;
+    const plate = commandPlate(luis);
+    expect(lines(plate)).toEqual([
+      "first never:pkill never:-f word:old",
+      "then start:sleep word:1",
+      "then never:rm never:-rf word:/tmp/luis",
+      "then start:ls start:-d word:/tmp/luis dropped:2>&1",
+      "pipe start:wc start:-l",
+    ]);
+    // Read as protocol reads it (ADR 0239, addendum of 10 November 2026): it uses pkill and rm, so
+    // there is no Always for it; it was an Always for every shell command.
+    expect(plate?.readable).toBe(true);
+    expect(plate === undefined ? "none" : plateCaption(plate)).toBe(
+      "5 parts. Chips reads each one, and `2>&1` writes no file.",
+    );
+    expect(askStanding(luis)).toEqual({
+      kind: "once",
+      why: "There is no Always for asks that use pkill.",
+      holds: true,
+    });
+    expect(plateTakesPreview(luis)).toBe(true);
+    expect(plateHeadline(luis)).toBe("Run this command?");
+    // Bare words from an action that runs no shell stay a preview.
+    expect(commandPlate({ ...luis, actionKind: "jacobian.file.read" })).toBeUndefined();
+    expect(commandPlate({ ...luis, input: "   " })).toBeUndefined();
+  });
+
+  it("offers an Always for a Jacobian command's starts, lit where they stand (10 November 2026)", () => {
+    const jacobian = {
+      ...ask(undefined, "Run this command?"),
+      actionKind: "jacobian.shell.shell",
+      input: "git log --oneline | head -20",
+    } as Approval;
+    expect(lines(commandPlate(jacobian))).toEqual([
+      "first start:git start:log word:--oneline",
+      "pipe start:head word:-20",
+    ]);
+    expect(askStanding(jacobian)).toEqual({ kind: "starts", starts: ["git log …", "head …"] });
+    // One that writes into a file says so, and keeps no Always.
+    const writes = { ...jacobian, input: "git log --oneline > log.txt" } as Approval;
+    expect(commandPlate(writes)?.writesTo).toBe("log.txt");
+    expect(askStanding(writes)).toEqual({ kind: "once", why: writesWords("log.txt"), holds: true });
+    // A file the same agent asks to read is no command: its Always keeps the kind, as before.
+    const read = {
+      ...jacobian,
+      actionKind: "jacobian.filesystem.read",
+      input: "/tmp/a.md",
+    } as Approval;
+    expect(askStanding(read)).toEqual({ kind: "any" });
+  });
 });

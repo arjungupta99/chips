@@ -89,11 +89,10 @@ async function longRoom(
   const messages = page.getByTestId("messages");
   const row = (n: number) => messages.locator(".msg").filter({ hasText: words(n) });
   await expect(row(40)).toBeVisible();
-  // What Tide's run stands in the room — its thinking bubble under the lines, its panel beside them
-  // — comes the thinking beat after the run starts (ADR 0268 addendum): read the rows once it has,
-  // or its coming moves the room's end while they are read.
+  // What Tide's run stands in the room, its thinking bubble under the lines, comes the thinking
+  // beat after the run starts (ADR 0268 addendum): read the rows once it has, or its coming moves
+  // the room's end while they are read.
   await expect(page.getByTestId("doing")).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "Run" })).toBeVisible();
   return { harness, messages, row };
 }
 

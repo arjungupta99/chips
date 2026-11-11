@@ -3,8 +3,8 @@
  *
  * A real `chipsd`, a real browser generating an Ed25519 key and pairing with it, a real harness
  * on a real socket, and a person clicking Approve in the space. Nothing is stubbed. The
- * shell is the blueprint's desktop — a sidebar, the space, the run panel — so the loop
- * plays out where a person would actually see it. The harness is the demo's Scout on
+ * shell is the blueprint's desktop — a sidebar and the space, the run seen in it since the Run
+ * panel went (ADR 0293) — so the loop plays out where a person would actually see it. The harness is the demo's Scout on
  * `@chipschat/harness`, played in this process (`golden-run.ts`; the sample it used to be
  * was withdrawn, ADR 0188).
  */
@@ -14,7 +14,7 @@ import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import { connectDemoHarness, playGolden, SUMMARY } from "./golden-run.ts";
-import { pairingPage, settled } from "./support.ts";
+import { bubble, pairingPage, settled } from "./support.ts";
 
 const DATA_DIR = process.env["CHIPS_E2E_DATA_DIR"];
 if (DATA_DIR === undefined) throw new Error("run this through playwright.config.ts");
@@ -86,16 +86,12 @@ test("a person approves in the browser and the harness finishes", async ({ page 
 
 /** From the run's first event to its summary: the card, the person's yes, the run over. */
 async function approveAndFinish(page: Page): Promise<void> {
-  const runPanel = page.getByRole("complementary", { name: "Run" });
-  await expect(runPanel.getByRole("button", { name: "Pause" })).toBeDisabled({ timeout: 20_000 });
-  // The timeline shows two steps done and the third waiting on a person.
-  await expect(runPanel.locator('.ui-timeline__item[data-status="done"]')).toHaveCount(2);
-  await expect(runPanel.locator('.ui-timeline__item[data-status="now"]')).toHaveCount(1);
-
   // The approval card asks Scout's question and says what a yes does and for how long (ADR 0142),
-  // then carries the risk, the preview, the source and the injection flag.
+  // then carries the risk, the preview, the source and the injection flag. It stands where Scout's
+  // bubble was while it waits (ADR 0268); the steps done before it are counted on the receipt.
   const card = page.getByRole("article", { name: /Approval/ });
-  await expect(card).toBeVisible();
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await expect(bubble(page)).toHaveCount(0);
   await expect(card).toContainText("Send this email to dana@northwind.com?");
   await expect(card).toContainText("Scout asks");
   await expect(card).toContainText("An email can't be unsent.");
@@ -114,11 +110,11 @@ async function approveAndFinish(page: Page): Promise<void> {
   // 3. Approve.
   await card.getByRole("button", { name: "Approve" }).click();
 
-  // 4. The harness hears the decision and finishes.
-  // The run is over and its panel goes: the room has the width (ADR 0268).
-  await expect(runPanel).toHaveCount(0, { timeout: 20_000 });
+  // 4. The harness hears the decision and finishes: its summary closes the run, and no bubble
+  // is left working.
+  await expect(page.getByText(SUMMARY).first()).toBeVisible({ timeout: 20_000 });
   await expect(card).toHaveCount(0);
-  await expect(page.getByText(SUMMARY).first()).toBeVisible();
+  await expect(bubble(page)).toHaveCount(0);
   // What it did is asked of the line that closed it, as on the phone.
   await page
     .getByTestId("messages")

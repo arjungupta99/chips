@@ -22,6 +22,7 @@ const STATE_WORDS = {
   queued: "Queued",
   running: "Running",
   waiting: "Waiting",
+  paused: "Paused",
   done: "Done",
   failed: "Failed",
   cancelled: "Cancelled",

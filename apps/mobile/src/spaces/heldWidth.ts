@@ -119,6 +119,12 @@ export interface HeldWidth {
   readonly width: number | undefined;
   readonly edge: Edge | undefined;
   readonly words: Words;
+  /**
+   * Whether the lines are gliding to the new width: from the render that draws them at it until
+   * they let go of it. Their list draws past its own frame only then (`DrawsPast`, in
+   * `ScrollColours.tsx`).
+   */
+  readonly gliding: boolean;
   /** Each change of width the words are going for, counted: they say they have gone for each. */
   readonly change: number;
   /** The words have gone: the lines take the new width. */
@@ -214,7 +220,15 @@ export function useHeldWidth(
       clearTimeout(rest);
     };
   }, [gliding]);
-  return { width: held?.width, edge: held?.edge, words, change: change.count, gone, back };
+  return {
+    width: held?.width,
+    edge: held?.edge,
+    words,
+    gliding: held !== undefined && gliding,
+    change: change.count,
+    gone,
+    back,
+  };
 }
 
 /**

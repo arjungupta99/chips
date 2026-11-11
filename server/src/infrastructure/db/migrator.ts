@@ -68,6 +68,7 @@ import * as harnessJobs from "./migrations/0058-harness-jobs.js";
 import * as joinCheck from "./migrations/0059-join-check.js";
 import * as rulesForAWhile from "./migrations/0060-rules-for-a-while.js";
 import * as banners from "./migrations/0061-banners.js";
+import * as roomNoCap from "./migrations/0062-room-no-cap.js";
 import type { Database } from "./schema.js";
 
 /** A migration is written against the schema of its own moment, not today's `Database`. */
@@ -143,6 +144,7 @@ export const MIGRATIONS: readonly Migration[] = [
   joinCheck,
   rulesForAWhile,
   banners,
+  roomNoCap,
 ];
 
 export interface MigrationResult {

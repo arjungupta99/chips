@@ -31,7 +31,7 @@ Every event also carries the [envelope](/reference/envelope/).
 | `actor.kind` | yes | `"person" \| "harness" \| "agent" \| "system"` | Whether a person, a harness, one of a harness's agents or Chips itself acted. |
 | `actor.id` | yes | `string` | The participant id, or `system` for Chips. |
 | `actor.harness_id` | no | `string` | For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips. |
-| `usd` | yes | `unknown` | What the room allows a job now, in US dollars, from 0.25 to 100 in steps of 0.25; `null` for the default (3). |
+| `usd` | yes | `unknown` | What the room allows a job now, in US dollars, from 0.25 to 1000 in steps of 0.25; `null` for the default (3). |
 
 ## Example
 

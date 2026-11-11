@@ -48,6 +48,7 @@ import {
   DELETE_FOR_ME,
   heardWords,
   holdsTable,
+  marginWords,
   mayEdit,
   mayHide,
   mayReply,
@@ -257,9 +258,7 @@ function Margin({ line, directory, onOpenAgent }: LineProps) {
   const palette = usePalette();
   // Somebody coming or going is said whole, from where the reader stands (JR-5).
   const words =
-    line.kind === "system" && line.whole !== true
-      ? `${nameOf(directory, line.authorId)} ${line.text}`
-      : line.text;
+    line.kind === "system" && line.whole !== true ? marginWords(line, directory) : line.text;
   if (line.compacted !== undefined && onOpenAgent !== undefined) {
     return (
       <Pressable

@@ -40,6 +40,8 @@ export interface Drawn {
  */
 export interface FootRow {
   readonly foot: true;
+  /** The room: what a bubble's Pause, Resume and Stop are said about (ADR 0293). */
+  readonly spaceId: string;
   /** A bubble apiece, in the order they stand (`useThinking`); empty when nobody is at work. */
   readonly doing: readonly Doing[];
   readonly asks: readonly NeedsYouItem[];

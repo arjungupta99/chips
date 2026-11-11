@@ -8,7 +8,7 @@
 
 import { type Directory, type JoinRequest, kindWords, type WorkspaceModel } from "@chipschat/core";
 import type { Connector } from "@chipschat/protocol";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { type ConnectHere, OnThisMac } from "./ConnectBridge.tsx";
 import { ConnectPage, type JoinService } from "./Join.tsx";
@@ -105,7 +105,12 @@ const HERMES: Connector = {
 function bridgePage(
   request: JoinRequest,
   connectHere: ConnectHere | null,
-  within: { welcome?: boolean; onOpen?: (roomId: string) => void; directory?: Directory } = {},
+  within: {
+    welcome?: boolean;
+    onOpen?: (roomId: string) => void;
+    directory?: Directory;
+    startHere?: boolean;
+  } = {},
 ) {
   const join: JoinService = {
     makeLink: async () => ({ request, link: LINK }),
@@ -124,6 +129,7 @@ function bridgePage(
       onOpen={within.onOpen ?? (() => {})}
       {...(within.welcome === true ? {} : { onClose: () => {} })}
       connectHere={connectHere}
+      startHere={within.startHere}
     />,
   );
 }
@@ -206,6 +212,14 @@ describe("a bridge's card on Chips for Mac", () => {
       "You need Hermes running with its API server on.",
     );
     expect(screen.queryByTestId("join-open-room")).toBeNull();
+  });
+
+  it("connects by itself, once, when the written steps saw them all done (ADR 0290's addendum)", async () => {
+    const shell = shellSaying([], 0);
+    bridgePage(waiting(), shell.connectHere, { welcome: true, startHere: true });
+    await waitFor(() => expect(shell.runs).toEqual([{ id: "hermes", name: "Hermes", link: LINK }]));
+    await act(() => new Promise((done) => setTimeout(done, 50)));
+    expect(shell.runs).toHaveLength(1);
   });
 
   it("in the welcome, which has no arrival, opens its room once there is one", async () => {

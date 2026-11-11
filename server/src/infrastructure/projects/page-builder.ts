@@ -396,12 +396,15 @@ const FILE_LINK_SCRIPT =
 /**
  * In a frame, a click on a link to a web address goes on to its window when the window has said it
  * asks about them (ADR 0227's addendum of 9 November 2026): every one while the person's program
- * isn't running, so the banner over the page can ask to run it first; only localhost in a browser
- * that isn't on the Mac. Until the window says so, and in a window that never does, the link opens
- * a window as it would. The window is told the address; whether anything opens is its person's.
+ * isn't running, so the banner over the page can ask to run it first; every one in Chips for Mac,
+ * which looks at an address only some devices reach before it opens it (the addendum of 10
+ * November 2026); only localhost in a browser that isn't on the Mac. Until the window says so, and
+ * in a window that never does, the link opens a window as it would, and the window is told it
+ * opened, so a browser can say what the link needed. Either way the window hears the link's name,
+ * as `foldLink` read it. Whether anything opens is its person's.
  */
 const ADDRESS_SCRIPT =
-  '(function(){if(window.parent===window)return;var asks="none";window.addEventListener("message",function(e){if(e.source!==window.parent)return;var m=e.data&&e.data.chipsAsks;if(m==="every"||m==="own"||m==="none")asks=m});document.addEventListener("click",function(e){if(asks==="none")return;var a=e.target instanceof Element?e.target.closest("[data-chips-address]"):null;if(!a||!a.href)return;var h=a.hostname.toLowerCase();var own=h==="localhost"||/\\.localhost$/.test(h)||/^127(\\.\\d{1,3}){3}$/.test(h)||h==="[::1]"||h==="0.0.0.0";if(asks==="own"&&!own)return;e.preventDefault();window.parent.postMessage({chipsAddress:a.href},"*")},true)})();';
+  '(function(){if(window.parent===window)return;var asks="none";window.addEventListener("message",function(e){if(e.source!==window.parent)return;var m=e.data&&e.data.chipsAsks;if(m==="every"||m==="own"||m==="none")asks=m});document.addEventListener("click",function(e){var a=e.target instanceof Element?e.target.closest("[data-chips-address]"):null;if(!a||!a.href)return;var w=a.getAttribute("data-chips-words");var h=a.hostname.toLowerCase();var own=h==="localhost"||/\\.localhost$/.test(h)||/^127(\\.\\d{1,3}){3}$/.test(h)||h==="[::1]"||h==="0.0.0.0";if(asks==="none"||(asks==="own"&&!own)){window.parent.postMessage({chipsOpened:a.href,chipsWords:w},"*");return}e.preventDefault();window.parent.postMessage({chipsAddress:a.href,chipsWords:w},"*")},true)})();';
 
 /** What a person's browser or mail opens, and a page's frame may not go to. */
 const ADDRESS = /^\s*(https?|mailto):/i;
@@ -421,6 +424,8 @@ function foldLink(build: Build, element: Element, page: string): void {
     setAttr(element, "target", "_blank");
     if (WEB.test(href)) {
       setAttr(element, "data-chips-address", "");
+      const words = wordsOfLink(element);
+      if (words !== undefined) setAttr(element, "data-chips-words", words);
       build.addresses += 1;
     }
     return;
@@ -431,6 +436,35 @@ function foldLink(build: Build, element: Element, page: string): void {
   setAttr(element, "data-chips-file", path);
   dropAttr(element, "target");
   build.links += 1;
+}
+
+/** Every word under a node, as it reads. */
+function wordsUnder(node: Node): string {
+  if (defaultTreeAdapter.isTextNode(node)) return node.value;
+  if (!("childNodes" in node)) return "";
+  return node.childNodes.map(wordsUnder).join(" ");
+}
+
+/** The longest a link's words are kept: a name is said in a title, and a card's words aren't one. */
+const LINK_WORDS_MOST = 120;
+
+/**
+ * What a link to an address is called, for the sheet or banner that asks about it ("Labs needs
+ * Tailscale", ADR 0227's addendum of 10 November 2026): what it says it is for a reader that
+ * can't see it, else its first bold or heading, as a card's title is, else all its words.
+ */
+function wordsOfLink(element: Element): string | undefined {
+  const heading = elementsIn(element).find((each) =>
+    ["b", "strong", "h1", "h2", "h3", "h4", "h5", "h6"].includes(each.tagName),
+  );
+  const oneLine = (text: string | undefined) => text?.replace(/\s+/g, " ").trim() || undefined;
+  const words =
+    oneLine(attr(element, "aria-label")) ??
+    oneLine(attr(element, "title")) ??
+    oneLine(heading === undefined ? undefined : wordsUnder(heading)) ??
+    oneLine(wordsUnder(element)) ??
+    "";
+  return words === "" || words.length > LINK_WORDS_MOST ? undefined : words;
 }
 
 /** What a page's elements name, folded in, element by element. */

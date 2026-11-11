@@ -5,6 +5,7 @@ import {
   dollars,
   eventIdOfMessage,
   FIRST_PERSON_NAME,
+  NO_SPEND_CEILING,
 } from "@chipschat/protocol";
 import { actorKind, type ClientEvent } from "../events.js";
 import { addLine, textLine } from "./lines.js";
@@ -129,17 +130,20 @@ export const SPACE_FOLDS: Readonly<Record<string, FoldStep>> = {
   // What the room allows a job (ADR 0117), or that it follows the default again, in one line by
   // who set it.
   "space.spend_ceiling_set": (state, event) => {
-    const space = spaceOf(state, event);
-    if (space === undefined) return;
     const usd = field<number | null>(event, "usd") ?? undefined;
-    const was = space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD;
-    space.spendCeiling = usd;
-    const said =
+    ceilingSet(
+      state,
+      event,
+      usd,
       usd === undefined
         ? `set the spend per job back to the default, ${dollars(DEFAULT_SPEND_CEILING_USD)}`
-        : `set the spend per job to ${dollars(usd)}`;
-    addLine(space, { ...textLine(event, said), kind: "system" });
-    space.ceilingLine = { id: event.id, seq: event.seq, by: event.actor.id, usd, was };
+        : `set the spend per job to ${dollars(usd)}`,
+    );
+  },
+
+  // The room's cap taken off (ADR 0292): Chips holds no job here for what it spends.
+  "space.spend_ceiling_lifted": (state, event) => {
+    ceilingSet(state, event, NO_SPEND_CEILING, "took the cap off the spend per job");
   },
 
   // A room's changes locked or let go (ADR 0156), in one line by who did it.
@@ -255,6 +259,24 @@ export const SPACE_FOLDS: Readonly<Record<string, FoldStep>> = {
     }
   },
 };
+
+/**
+ * What the room allows a job set: an amount, the default (nothing) or No cap. One line by who set
+ * it, which a carrying on at the ceiling right behind it turns into both (ADR 0282).
+ */
+function ceilingSet(
+  state: Building,
+  event: ClientEvent,
+  usd: number | typeof NO_SPEND_CEILING | undefined,
+  said: string,
+): void {
+  const space = spaceOf(state, event);
+  if (space === undefined) return;
+  const was = space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD;
+  space.spendCeiling = usd;
+  addLine(space, { ...textLine(event, said), kind: "system" });
+  space.ceilingLine = { id: event.id, seq: event.seq, by: event.actor.id, usd, was };
+}
 
 /**
  * An agent out of a room (ADR 0087): the room remembers why, for its notice and for an agent an
@@ -404,7 +426,7 @@ export function agentLine(
   event: ClientEvent,
   agentId: string,
   words: string,
-  more: Pick<Line, "compacted"> = {},
+  more: Pick<Line, "compacted" | "unpicked"> = {},
 ): void {
   addLine(space, {
     ...textLine(event, words),

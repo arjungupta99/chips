@@ -4,7 +4,7 @@
  */
 
 import type { IssuedInvite, RoomFileOf, WorkspaceRole } from "@chipschat/core";
-import type { RoomSpend, SpaceIcon } from "@chipschat/protocol";
+import type { RoomSpend, SpaceIcon, SpendCeilingSetting, SpentJobsPage } from "@chipschat/protocol";
 import type { ProjectActions } from "./Project.tsx";
 
 export interface SpaceActions {
@@ -27,11 +27,19 @@ export interface SpaceActions {
    */
   readonly lead: (agentId: string | null) => Promise<void>;
   /**
-   * Set what the room allows a job (ADR 0117), or `null` to follow the default again; rejects
-   * with the server's reason. With `carryOn`, the agents held at the ceiling carry on too, in the
-   * same request, the amount changed or not (ADR 0282).
+   * Set what the room allows a job (ADR 0117), `null` to follow the default again, or `"none"`
+   * for No cap (ADR 0292); rejects with the server's reason. With `carryOn`, the agents held at
+   * the ceiling carry on too, in the same request, the amount changed or not (ADR 0282).
    */
-  readonly spend: (usd: number | null, options?: { readonly carryOn?: boolean }) => Promise<void>;
+  readonly spend: (
+    usd: SpendCeilingSetting,
+    options?: { readonly carryOn?: boolean },
+  ) => Promise<void>;
+  /**
+   * Whether the server takes No cap and amounts past $100 (ADR 0292), as its hello said: an older
+   * one refuses both, so Spend per job offers neither to it.
+   */
+  readonly noCap: boolean;
   /**
    * Lock the room's changes, or let them go (ADR 0156): while they are locked, nobody renames,
    * archives or deletes it. Rejects with the server's reason.
@@ -42,6 +50,10 @@ export interface SpaceActions {
    * began it, and the jobs before it that spent (ADR 0282).
    */
   readonly roomSpend: () => Promise<RoomSpend>;
+  /** A page of the room's jobs before this one, newest first (ADR 0292 addendum). */
+  readonly roomJobs: (before?: number) => Promise<SpentJobsPage>;
+  /** Whether the server reads them a page at a time, as its hello said: See all. */
+  readonly spendJobs: boolean;
   /** Move an agent into this room from the one it is in (ADR 0087); rejects with the reason. */
   readonly move: (agentId: string) => Promise<void>;
   /**

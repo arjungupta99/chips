@@ -28,7 +28,7 @@
       "caption": {
         "eyebrow": "Spaces",
         "line": "Every job gets its own space",
-        "sentence": "Each conversation keeps to its own space. A face lights up while its agent works."
+        "sentence": "Each conversation keeps to its own space. You can see which ones have an agent at work."
       },
       "shots": [{ "app": "phone", "film": "watch", "chapter": 0 }]
     },

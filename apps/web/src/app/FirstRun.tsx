@@ -60,7 +60,13 @@ type Stage =
   | { readonly kind: "start" }
   | { readonly kind: "steps"; readonly answer: StartAnswer }
   /** A card's page; Back goes where it came from, the gallery or the steps. */
-  | { readonly kind: "connect"; readonly way: Choice; readonly from?: Stage };
+  | {
+      readonly kind: "connect";
+      readonly way: Choice;
+      readonly from?: Stage;
+      /** On this Mac, Connect at once: the steps followed along and saw them done. */
+      readonly start?: boolean;
+    };
 
 /**
  * A card's link put away unused as the welcome goes Back (the onboarding audit, Part 2, item 34):
@@ -166,7 +172,9 @@ export function FirstRun(props: {
             titleId={titleId}
             answer={stage.answer}
             onMac={props.onMac === true}
-            onConnect={(card) => setStage({ kind: "connect", way: card, from: stage })}
+            onConnect={(card, start) =>
+              setStage({ kind: "connect", way: card, from: stage, start: start === true })
+            }
             onBack={() => setStage({ kind: "start" })}
           />
         )}
@@ -180,6 +188,7 @@ export function FirstRun(props: {
             joins={joins}
             join={props.join}
             onOpen={(roomId) => props.onDone(roomId)}
+            startHere={stage.start === true}
             foldSwitches
             onKept={(kept) => {
               made.current = kept.id;

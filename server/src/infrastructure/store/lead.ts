@@ -8,12 +8,21 @@
  */
 
 import { type Kysely, sql } from "kysely";
-import type { JoinView, LedRoomView, PostView, TurnView } from "../../application/ports/index.js";
+import type {
+  HandOffView,
+  JoinView,
+  LedRoomView,
+  PickUpView,
+  PostView,
+  TurnView,
+} from "../../application/ports/index.js";
 import { TERMINAL_RUN_STATES } from "../../domain/index.js";
 import type { Database } from "../db/schema.js";
 
 /** How many of a room's runs are read for its turns: plenty for the agents one room holds. */
 const RUNS_READ = 200;
+/** How many messages agents sent agents are read for what nobody picked up: an hour's, amply. */
+const HAND_OFFS_READ = 200;
 /** How many of a going run's newest events are read for when it was last heard from, and its step. */
 const EVENTS_READ = 40;
 
@@ -67,6 +76,85 @@ export function createLeadReads(db: Kysely<Database>) {
     return {
       last_heard_at: events[0]?.ts ?? run.started_at,
       ...(line === undefined ? {} : { step: line }),
+    };
+  }
+
+  /** Whether an agent said something after a message, passed after it, or a turn of its heard it. */
+  async function answeredSince(
+    workspaceId: string,
+    spaceId: string,
+    agentId: string,
+    message: { readonly message_id: string; readonly seq: number },
+  ): Promise<boolean> {
+    const said = await db
+      .selectFrom("messages")
+      .select("id")
+      .where("workspace_id", "=", workspaceId)
+      .where("space_id", "=", spaceId)
+      .where("seq", ">", message.seq)
+      .where("type", "=", "text")
+      .where("author_id", "=", agentId)
+      .limit(1)
+      .executeTakeFirst();
+    if (said !== undefined) return true;
+    // It passed after it, or a turn of its heard it (ADRs 0105, 0106).
+    const heard = await db
+      .selectFrom("events")
+      .select("seq")
+      .where("workspace_id", "=", workspaceId)
+      .where("space_id", "=", spaceId)
+      .where("seq", ">", message.seq)
+      .where("actor_id", "=", agentId)
+      .where((eb) =>
+        eb.or([
+          eb("type", "=", "turn.passed"),
+          eb.and([
+            eb("type", "=", "message.heard"),
+            eb(sql<string>`json_extract(payload, '$.message_id')`, "=", message.message_id),
+          ]),
+        ]),
+      )
+      .limit(1)
+      .executeTakeFirst();
+    return heard !== undefined;
+  }
+
+  /**
+   * An agent's turn in a room that says what it did about a message said at `seq`: one still
+   * going, else its newest that began after the message. Nothing when it has had none since.
+   */
+  async function turnSince(
+    workspaceId: string,
+    spaceId: string,
+    agentId: string,
+    seq: number,
+  ): Promise<PickUpView["turn"]> {
+    const run = await db
+      .selectFrom("runs")
+      .select(["id", "state", "started_at", "error"])
+      .where("workspace_id", "=", workspaceId)
+      .where("space_id", "=", spaceId)
+      .where("agent_id", "=", agentId)
+      .orderBy("started_at", "desc")
+      .limit(1)
+      .executeTakeFirst();
+    if (run === undefined) return undefined;
+    if (isGoing(run.state))
+      return { going: true, failed: false, ...(await heardFrom(workspaceId, run)) };
+    // Its newest turn ended: only one that began after the message was its turn on it.
+    const began = await db
+      .selectFrom("events")
+      .select("seq")
+      .where("workspace_id", "=", workspaceId)
+      .where("run_id", "=", run.id)
+      .orderBy("seq")
+      .limit(1)
+      .executeTakeFirst();
+    if (began === undefined || began.seq <= seq) return undefined;
+    return {
+      going: false,
+      failed: run.state === "failed",
+      ...(run.error === null ? {} : { error: run.error }),
     };
   }
 
@@ -209,6 +297,112 @@ export function createLeadReads(db: Kysely<Database>) {
         going.push({ run_id: run.id, agent_id: run.agent_id, last_heard_at });
       }
       return going;
+    },
+
+    async handOffsSince(sinceIso: string): Promise<HandOffView[]> {
+      const rows = await db
+        .selectFrom("messages")
+        .innerJoin("spaces", (join) =>
+          join
+            .onRef("spaces.id", "=", "messages.space_id")
+            .onRef("spaces.workspace_id", "=", "messages.workspace_id"),
+        )
+        .select([
+          "messages.workspace_id as workspace_id",
+          "messages.space_id as space_id",
+          "messages.id as id",
+          "messages.seq as seq",
+          "messages.created_at as created_at",
+          "messages.author_id as author_id",
+          "messages.addressed_to as addressed_to",
+        ])
+        // The rooms first, by what happened in them lately; then each room's own messages.
+        .where("spaces.state", "=", "open")
+        .where("spaces.last_activity_at", ">=", sinceIso)
+        .where("messages.created_at", ">=", sinceIso)
+        .where("messages.type", "=", "text")
+        .where("messages.deleted_at", "is", null)
+        .where("messages.seq", "is not", null)
+        .where("messages.author_kind", "in", ["harness", "agent"])
+        .where("messages.addressed_to", "is not", null)
+        .where("messages.addressed_to", "!=", "[]")
+        .where((eb) => eb.or([eb("messages.held", "is", null), eb("messages.held", "=", 0)]))
+        .orderBy("messages.seq", "desc")
+        .limit(HAND_OFFS_READ)
+        .execute();
+      return rows.flatMap((row) =>
+        row.space_id === null || row.seq === null
+          ? []
+          : [
+              {
+                workspace_id: row.workspace_id,
+                space_id: row.space_id,
+                event_id: row.id,
+                seq: row.seq,
+                ts: row.created_at,
+                author_id: row.author_id,
+                addressed_to: idsOf(row.addressed_to),
+              },
+            ],
+      );
+    },
+
+    async pickUpOf(
+      workspaceId: string,
+      spaceId: string,
+      agentId: string,
+      message: { readonly message_id: string; readonly seq: number },
+    ): Promise<PickUpView> {
+      if (await answeredSince(workspaceId, spaceId, agentId, message)) return { answered: true };
+      const turn = await turnSince(workspaceId, spaceId, agentId, message.seq);
+      return { answered: false, ...(turn === undefined ? {} : { turn }) };
+    },
+
+    async handedOnSince(
+      workspaceId: string,
+      spaceId: string,
+      afterSeq: number,
+    ): Promise<
+      { readonly seq: number; readonly message_id: string; readonly unanswered_by: string }[]
+    > {
+      const rows = await db
+        .selectFrom("events")
+        .select([
+          "seq",
+          sql<string | null>`json_extract(payload, '$.message_id')`.as("message_id"),
+          sql<string | null>`json_extract(payload, '$.unanswered_by')`.as("unanswered_by"),
+        ])
+        .where("workspace_id", "=", workspaceId)
+        .where("space_id", "=", spaceId)
+        .where("seq", ">", afterSeq)
+        .where("type", "=", "message.handed")
+        .execute();
+      return rows.flatMap((row) =>
+        row.message_id === null || row.unanswered_by === null
+          ? []
+          : [{ seq: row.seq, message_id: row.message_id, unanswered_by: row.unanswered_by }],
+      );
+    },
+
+    async lastLeadChoice(
+      workspaceId: string,
+      spaceId: string,
+    ): Promise<{ readonly agent_id: string | null; readonly by_person: boolean } | undefined> {
+      const row = await db
+        .selectFrom("events")
+        .select([
+          "actor_kind",
+          sql<string | null>`json_extract(payload, '$.agent_id')`.as("agent_id"),
+        ])
+        .where("workspace_id", "=", workspaceId)
+        .where("space_id", "=", spaceId)
+        .where("type", "=", "space.lead_set")
+        .orderBy("seq", "desc")
+        .limit(1)
+        .executeTakeFirst();
+      return row === undefined
+        ? undefined
+        : { agent_id: row.agent_id, by_person: row.actor_kind === "person" };
     },
 
     async ranSince(

@@ -73,11 +73,13 @@ export type Command = readonly [string, ...string[]];
 export interface Kept {
   /**
    * `kept` running; `theirs`, a file of somebody's own was there and left; `unsupported`, no
-   * manager here; `off`, `CHIPS_KEEP=off` said not to (a test running a card's line as written).
+   * manager here; `off`, `CHIPS_KEEP=off` said not to (a test running a card's line as written);
+   * `failed`, the manager wouldn't start it, which `why` says and the person was told.
    */
-  readonly state: "kept" | "theirs" | "unsupported" | "off";
+  readonly state: "kept" | "theirs" | "unsupported" | "off" | "failed";
   readonly path?: string | undefined;
   readonly logFile?: string | undefined;
+  readonly why?: string | undefined;
 }
 
 export function serviceKind(platform: string): ServiceKind | undefined {
@@ -351,8 +353,59 @@ const runOf = (options: Running) =>
   ((command: Command) =>
     execFileSync(command[0], command.slice(1), {
       encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
+      // What it printed on failing is what says why: no session, no bus.
+      stdio: ["ignore", "pipe", "pipe"],
     }));
+
+/** A command of the service manager's that failed, and what it printed. */
+class Refused extends Error {
+  constructor(
+    readonly command: Command,
+    readonly printed: string,
+  ) {
+    super(`${command.join(" ")} failed`);
+  }
+}
+
+/** What a failed command printed: its standard error and output, as `execFileSync` hands them. */
+function printedBy(error: unknown): string {
+  if (typeof error !== "object" || error === null) return String(error);
+  const { stderr, stdout, message } = error as {
+    stderr?: unknown;
+    stdout?: unknown;
+    message?: unknown;
+  };
+  const said = [stderr, stdout]
+    .map((each) => (typeof each === "string" ? each.trim() : ""))
+    .join("\n")
+    .trim();
+  return said !== "" ? said : typeof message === "string" ? message : "";
+}
+
+/**
+ * Why the service manager wouldn't keep it, in words a person can act on. Over SSH to a Mac nobody
+ * is logged in to at its screen launchd has no session to start one in, and without a systemd user
+ * session (WSL, `su`, most containers) systemctl finds no bus; both say only that (the onboarding
+ * audit, Part 2, items 9 and 12). `chips up` says the same of its own service.
+ */
+export function refusedWords(command: Command, printed: string): string {
+  const first = printed.split("\n")[0]?.trim() ?? "";
+  if (
+    command[0] === "launchctl" &&
+    /Bootstrap failed: (5|125)|Domain does not support|Could not find domain/.test(printed)
+  ) {
+    return "Nobody is logged in to this Mac at its screen, so it can't be kept running from here";
+  }
+  if (
+    command[0] === "systemctl" &&
+    /Failed to connect to (user scope )?bus|DBUS_SESSION_BUS_ADDRESS|not been booted with systemd/.test(
+      printed,
+    )
+  ) {
+    return "This shell has no systemd user session, so it can't be kept running from here";
+  }
+  return `It couldn't be kept running: \`${command.join(" ")}\` failed${first === "" ? "" : ` (${first})`}`;
+}
 
 const ours = (path: string) => !existsSync(path) || readFileSync(path, "utf8").includes(MARK);
 
@@ -367,7 +420,7 @@ function runOne(command: Command, run: (command: Command) => unknown, retryMs: n
       return;
     } catch (error) {
       if (mayFail(command)) return;
-      if (tried >= tries) throw error;
+      if (tried >= tries) throw new Refused(command, printedBy(error));
       pause(retryMs);
     }
   }
@@ -425,7 +478,21 @@ export function keepRunning(spec: KeepSpec, options: Running = {}): Kept {
   // Read by its user only: a bridge may carry a password its harness needs.
   writeFileSync(file.path, file.contents, { mode: 0o600 });
   chmodSync(file.path, 0o600);
-  runAll(startCommands(file.kind, spec.label, file.path, uidOf(options)), options);
+  try {
+    runAll(startCommands(file.kind, spec.label, file.path, uidOf(options)), options);
+  } catch (error) {
+    if (!(error instanceof Refused)) throw error;
+    // Nothing half kept: no file left to start it at the next login beside this copy.
+    try {
+      runAll(stopCommands(file.kind, spec.label, uidOf(options)), options);
+    } catch {
+      // It never started, so there is nothing to stop.
+    }
+    rmSync(file.path, { force: true });
+    const why = refusedWords(error.command, error.printed);
+    sayOf(options)(`${why}. It runs here instead, while this terminal is open.`);
+    return { state: "failed", why };
+  }
   if (file.kind === "systemd" && !lingers(options)) {
     sayOf(options)(
       "It stops when you log out. To keep it running on a machine nobody logs in to, run this once: sudo loginctl enable-linger $USER",

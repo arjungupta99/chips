@@ -134,9 +134,11 @@ describe("a page of the project", () => {
         '<a href="http://localhost:4173/home.html">App</a><a href="https://example.com" target="_self">Out</a><a href="mailto:a@example.com">Mail</a><area href="https://example.com/map"><a href="#top">Top</a>',
     });
     expect(html).toContain(
-      '<a href="http://localhost:4173/home.html" target="_blank" data-chips-address="">App</a>',
+      '<a href="http://localhost:4173/home.html" target="_blank" data-chips-address="" data-chips-words="App">App</a>',
     );
-    expect(html).toContain('<a href="https://example.com" target="_blank" data-chips-address="">');
+    expect(html).toContain(
+      '<a href="https://example.com" target="_blank" data-chips-address="" data-chips-words="Out">',
+    );
     expect(html).toContain('<a href="mailto:a@example.com" target="_blank">Mail</a>');
     expect(html).toContain(
       '<area href="https://example.com/map" target="_blank" data-chips-address="">',
@@ -153,12 +155,44 @@ describe("a page of the project", () => {
     expect(lines).toContain('m==="every"||m==="own"||m==="none"');
     // Until it says, nothing is held back: the link opens a window as it would.
     expect(lines).toContain('var asks="none"');
-    expect(lines).toContain("window.parent.postMessage({chipsAddress:a.href}");
+    expect(lines).toContain("window.parent.postMessage({chipsAddress:a.href,chipsWords:w}");
     expect(() => new Function(lines)).not.toThrow();
     // Mail, and a page with no web address, need none of it.
     expect(await built({ "index.html": '<a href="mailto:a@example.com">Mail</a>' })).not.toContain(
       "<script>",
     );
+  });
+
+  it("names a link to an address as a card's title, for the sheet that asks about it (ADR 0227)", async () => {
+    const html = await built({
+      "index.html": [
+        '<a class="card" href="https://mini.tail1.ts.net:8443/overview.html"><b>Labs</b><span>The verdict, the flagged results.</span></a>',
+        '<a href="https://example.com/a" aria-label="The map">x</a>',
+        '<a href="https://example.com/b" title=" Help  page ">?</a>',
+        '<a href="https://example.com/c">  Plain\n words  </a>',
+        '<a href="https://example.com/d"><img src="x.png"></a>',
+        `<a href="https://example.com/e">${"long ".repeat(30)}</a>`,
+        '<a href="https://example.com/f"><b> </b>Under</a>',
+      ].join(""),
+    });
+    expect(html).toContain('data-chips-words="Labs"');
+    expect(html).toContain('data-chips-words="The map"');
+    expect(html).toContain('data-chips-words="Help page"');
+    expect(html).toContain('data-chips-words="Plain words"');
+    expect(html).toContain(
+      '<a href="https://example.com/d" target="_blank" data-chips-address="">',
+    );
+    expect(html).toContain(
+      '<a href="https://example.com/e" target="_blank" data-chips-address="">',
+    );
+    expect(html).toContain('data-chips-words="Under"');
+  });
+
+  it("tells the window a link opened by itself, so a browser can say what it needed (ADR 0227)", async () => {
+    const html = await built({ "index.html": '<a href="https://mini.tail1.ts.net/">App</a>' });
+    const lines = /<script>([\s\S]*)<\/script>/.exec(html)?.[1] ?? "";
+    expect(lines).toContain('if(asks==="none"||(asks==="own"&&!own))');
+    expect(lines).toContain("window.parent.postMessage({chipsOpened:a.href,chipsWords:w}");
   });
 
   it("keeps a script's words from closing the element they stand in", async () => {

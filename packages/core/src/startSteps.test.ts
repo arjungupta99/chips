@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { type Connector, readConnectors } from "@chipschat/protocol";
 import { describe, expect, it } from "vitest";
-import { isNoneAnswer, openWords, startAnswers, startWhere } from "./startSteps.js";
+import {
+  followSteps,
+  isNoneAnswer,
+  openWords,
+  startAnswers,
+  startWhere,
+  stepPrograms,
+  stepsSignIn,
+} from "./startSteps.js";
 
 const card = (id: string, start?: Connector["start"]): Connector => ({
   id,
@@ -75,5 +83,63 @@ describe("the steps' words", () => {
     expect(openWords("https://chatgpt.com/")).toBe("Open chatgpt.com");
     expect(openWords("https://www.example.org/a")).toBe("Open example.org");
     expect(openWords("not a url")).toBe("Open its page");
+  });
+});
+
+describe("followSteps: the steps ticking themselves off on Chips for Mac (option B)", () => {
+  const account = { says: "Make a ChatGPT account.", open: "https://chatgpt.com/" };
+  const install = { says: "Install Codex.", line: "curl x | sh", done: { program: "codex" } };
+  const signIn = { says: "Sign in.", line: "codex login", done: { signedIn: true as const } };
+  const seen = (programs: string[], signedIn?: boolean, marked: number[] = []) => ({
+    programs: new Set(programs),
+    signedIn,
+    marked: new Set(marked),
+  });
+  const states = (result: ReturnType<typeof followSteps>) => result.steps.map((one) => one.state);
+
+  it("watches the first step not done, and keeps the rest waiting", () => {
+    const followed = followSteps([install, signIn], seen([]));
+    expect(states(followed)).toEqual(["now", "later"]);
+    expect(followed.steps.map((one) => one.watched)).toEqual([true, true]);
+    expect(followed.ready).toBe(false);
+  });
+
+  it("ticks a program off once it's on this Mac, and the sign-in once the agent says so", () => {
+    const installed = followSteps([install, signIn], seen(["codex"], false));
+    expect(states(installed)).toEqual(["done", "now"]);
+    expect(installed.steps[0]?.saw).toBe("Chips sees it on this Mac");
+    const signed = followSteps([install, signIn], seen(["codex"], true));
+    expect(states(signed)).toEqual(["done", "done"]);
+    expect(signed.steps[1]?.saw).toBe("Signed in");
+    expect(signed.ready).toBe(true);
+  });
+
+  it("counts a step it can't see done when the person says so, or once a step after it is", () => {
+    expect(states(followSteps([account, install, signIn], seen([])))).toEqual([
+      "now",
+      "later",
+      "later",
+    ]);
+    expect(states(followSteps([account, install, signIn], seen([], undefined, [0])))).toEqual([
+      "done",
+      "now",
+      "later",
+    ]);
+    // Codex is on this Mac: whoever installed it got past making an account.
+    expect(states(followSteps([account, install, signIn], seen(["codex"])))).toEqual([
+      "done",
+      "done",
+      "now",
+    ]);
+  });
+
+  it("is never ready by itself where it can see none of the steps", () => {
+    expect(followSteps([account], seen([], undefined, [0])).ready).toBe(false);
+  });
+
+  it("says which programs to look for and whether to ask about the sign-in", () => {
+    expect(stepPrograms([account, install, signIn, install])).toEqual(["codex"]);
+    expect(stepsSignIn([account, install])).toBe(false);
+    expect(stepsSignIn([install, signIn])).toBe(true);
   });
 });

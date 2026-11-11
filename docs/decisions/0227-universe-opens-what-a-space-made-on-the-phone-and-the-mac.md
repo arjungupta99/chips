@@ -286,3 +286,64 @@ transitions must be smooth and polished".
     its dot changes colour, and its ground turns gold and back. Reduce Motion keeps it still.
   - The phone's Desktop tab needs neither: its Run bar is the banner already, and its Open opens the
     start page, which needs no program; the links on that page are asked about on the Mac.
+
+## Addendum, 10 November 2026: a link only some devices reach is looked at first
+
+Arjun, in the Health space: he pressed Run and tapped the start page's link to the app, and it
+didn't open. The page links to `mac-mini.<tailnet>.ts.net:8443`, which Tailscale on the Mac mini
+passes on to the app at `127.0.0.1:4173`, and the device he tapped on wasn't on the tailnet. Chips
+couldn't tell that from a program not yet up: running, it handed the link to the browser, which
+said it couldn't find the server; not running, Run and open waited 20 seconds and said the page
+wasn't answering yet. He asked what could detect it, chose from running mocks (the sheet, the
+banner's line, the Mac's banner asking, a browser's note after, and every sheet a Tailscale link
+can bring up, with another VPN's two added on his question), said "Keep the names" (the sheet names
+the link, *Labs needs Tailscale*), then "ok build it".
+
+- **What a device looks at, and only for such a link.** Core's `networkOf`: a `.ts.net` name or a
+  100.64.0.0/10 address (or Tailscale's IPv6 range) is Tailscale's; 10/8, 172.16/12, 192.168/16,
+  169.254/16, `.local`, `.home.arpa` and `.lan` are a private network's. Before it opens one, the
+  phone and the Mac app look (`look`):
+  - *the name*: only Tailscale finds a `.ts.net` name, so not found means Tailscale is off here or
+    something is in its way, and found means the device is on the tailnet;
+  - *the tunnels*, to choose the words: a `utun` with a 100.x address is Tailscale's, one with any
+    other address another VPN's. Wi-Fi and cellular never count: a carrier can give a phone a 100.x
+    address too;
+  - *the page*, for 3 seconds, only when it should be up (anybody's but the owner's own program
+    while it isn't running).
+  What stands in the way is core's `blockedBy`: Tailscale off; another VPN on (a phone runs one at
+  a time, so it turned Tailscale off); not installed (the Mac can tell); something in Tailscale's
+  way (on, but the name isn't found: its DNS setting, or another VPN); the Mac not answering (found,
+  no answer); for somebody who isn't the owner, the owner's tailnet (ADR 0231); a private network.
+  The words are core's `reachAsk`. The phone's half is `modules/link-reach` (getaddrinfo, getifaddrs),
+  the Mac app's `reach.rs` (`link_reach`, `open_tailscale`).
+- **The sheet, and the Mac's banner, say why.** *Labs needs Tailscale* / *Tailscale is off on this
+  iPhone. Turn it on, and Chips opens Labs.*, with *Open Tailscale* and *Open anyway*. Open Tailscale
+  opens its app (`tailscale://`, else its App Store page; on the Mac its app, else its download
+  page), and the sheet says *Waiting for Tailscale*. It looks again every 1.5 seconds and as the
+  person comes back to Chips; once the name is found it goes on to *Opening Labs* and gives the page
+  10 seconds (its tunnel is new), or, while the program isn't running, to the program's own
+  question. A look that takes longer than 0.6 seconds shows *Opening Labs* meanwhile, so a quick
+  answer shows nothing. On the Mac the same words go in the banner, as its program questions do.
+  The phone looks at every page's links, program or not; the Mac where the banner is.
+- **The link's name** is the page builder's: each address link gets `data-chips-words` (its
+  `aria-label`, `title`, first bold or heading, else its words, one line, at most 120 characters).
+  The Mac hears it with the address; the phone, hearing only the address, reads it from the page
+  (`linkNameIn`): the one name every link to that address has, else none. Core's `linkName` keeps a
+  title's worth (40) and drops a trailing arrow; with none, *This link needs Tailscale*.
+- **Before a tap.** While the page links through Tailscale and the device has no Tailscale tunnel,
+  the owner's banner says, in amber, *Links here need Tailscale, which is off on this iPhone* (or
+  *need it running, and Tailscale*), read again every 3 seconds and on coming back, so it folds away
+  once Tailscale comes on.
+- **A browser can look at none of it**, and opens a window only on a press, so it opens the link as
+  it did. The page builder's lines tell the window a link opened by itself (`chipsOpened`), and the
+  banner says for 8 seconds *Labs goes through Tailscale. If it didn't open, turn Tailscale on on
+  this computer.*
+- **The Mac hears every address.** `frameAsks` is `every` in Chips for Mac, owner's or not, running
+  or not: it looks at the few that need it and opens the rest at once (`open_link`). And the window
+  tells the frame again on every load, not only the first: a page that reloads itself starts from
+  nothing, and would have opened its links unlooked at.
+- **Not done:** carrying the program through Chips' own tunnel so no Tailscale is needed (programs
+  never run in Chips, and health data would cross the relay); asking Tailscale itself on the Mac
+  (`tailscale status`), since the tunnel and the name say the same without running its command; on
+  the phone, telling that Tailscale isn't installed (it would need a query scheme), so Open
+  Tailscale falls back to the App Store.

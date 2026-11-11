@@ -94,6 +94,7 @@ const EVERY_EVENT = [
   "space.erased",
   "space.lead_set",
   "space.lock_set",
+  "space.spend_ceiling_lifted",
   "space.spend_ceiling_set",
   "space.updated",
   "step.log",

@@ -12,8 +12,10 @@ import {
   isAgentKind,
   mentionsEveryone,
   messageIdOf,
+  NO_SPEND_CEILING,
   resolveAddress,
   resolveMentions,
+  type SpendCeilingSetting,
 } from "@chipschat/protocol";
 import type { ClientEvent } from "../events.js";
 import type { OutboxEvent } from "../outbox.js";
@@ -60,8 +62,8 @@ export interface Book {
   readonly agent: (agentId: string) => AgentFacts | undefined;
   readonly isAgent: (id: string) => boolean;
   readonly nameOf: (id: string) => string;
-  /** What a room allows a job, when somebody has set it (ADR 0117). */
-  readonly ceilingOf: (spaceId: string) => number | undefined;
+  /** What a room allows a job, when somebody has set it (ADR 0117), or No cap (ADR 0292). */
+  readonly ceilingOf: (spaceId: string) => number | typeof NO_SPEND_CEILING | undefined;
   /** The newest message in a room with these words, by the id of the event that carried it. */
   readonly lineOf: (spaceId: string, text: string) => string | undefined;
   /** The rooms an agent has been in, oldest first. */
@@ -79,8 +81,8 @@ interface Known {
   readonly asks: Map<string, boolean>;
   /** Every agent by id, the demo's own and the copies its harnesses registered since. */
   readonly agents: Map<string, AgentFacts>;
-  /** What a room allows a job, by room: `null` for the default again. */
-  readonly ceilings: Map<string, number | null>;
+  /** What a room allows a job, by room: `null` for the default again, or No cap. */
+  readonly ceilings: Map<string, SpendCeilingSetting>;
 }
 
 const participantOf = (event: ClientEvent): string => String(event["participant_id"]);
@@ -124,6 +126,8 @@ const LEARNS: Readonly<Record<string, (known: Known, event: ClientEvent) => void
   },
   "space.spend_ceiling_set": (known, event) =>
     known.ceilings.set(event.space_id ?? "", event["usd"] as number | null),
+  "space.spend_ceiling_lifted": (known, event) =>
+    known.ceilings.set(event.space_id ?? "", NO_SPEND_CEILING),
   "run.started": (known, event) => known.going.set(event.run_id ?? "", event.actor.id),
   "run.completed": (known, event) => known.going.delete(event.run_id ?? ""),
   "approval.request": (known, event) => known.asks.set(event["approval_id"] as string, false),

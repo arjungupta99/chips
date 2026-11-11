@@ -20,12 +20,17 @@
 import {
   BANNERS,
   DEFAULT_SPEND_CEILING_USD,
+  dollars,
   HELD_START,
   isAgentKind,
   isSpendCeiling,
   messageIdOf,
+  NO_SPEND_CEILING,
   resetsTheCount,
   SERVER_TAKES,
+  SPEND_CEILING_MAX,
+  SPEND_CEILING_MIN,
+  SPEND_JOBS,
 } from "@chipschat/protocol";
 import type { Cache } from "../cache.js";
 import type { Device, DeviceStorage } from "../device.js";
@@ -496,19 +501,24 @@ function spendCeiling(book: Book, route: string, body: Body, ts: string): unknow
     throw refusal(404, "not_found", "No space of that id that you are in.");
   }
   const usd = body["usd"];
-  if (usd !== null && !(typeof usd === "number" && isSpendCeiling(usd))) {
-    const message = "A job may be allowed from $0.25 to $100.00, in steps of 25 cents.";
+  if (
+    usd !== null &&
+    usd !== NO_SPEND_CEILING &&
+    !(typeof usd === "number" && isSpendCeiling(usd))
+  ) {
+    const message = `A job may be allowed from ${dollars(SPEND_CEILING_MIN)} to ${dollars(SPEND_CEILING_MAX)}, in steps of 25 cents, or No cap.`;
     throw refusal(422, "invalid_event", message);
   }
   if ((book.ceilingOf(room) ?? null) === usd) return { space_id: room, usd, changed: false };
+  const event = {
+    space_id: room,
+    actor: { kind: "person", id: DEMO_PERSON_ID },
+    idempotency_key: `spend-ceiling-${room}-${usd ?? "default"}-at-${book.events.length}`,
+  };
   book.record(
-    {
-      type: "space.spend_ceiling_set",
-      space_id: room,
-      actor: { kind: "person", id: DEMO_PERSON_ID },
-      idempotency_key: `spend-ceiling-${room}-${usd ?? "default"}-at-${book.events.length}`,
-      usd,
-    },
+    usd === NO_SPEND_CEILING
+      ? { ...event, type: "space.spend_ceiling_lifted" }
+      : { ...event, type: "space.spend_ceiling_set", usd },
     ts,
   );
   return { space_id: room, usd, changed: true };
@@ -518,7 +528,12 @@ function helloOf(book: Book): ClientEvent {
   return {
     type: "hello",
     // A film keeps no choices and takes no yes from an agent's page, so those stay on the device.
-    server: { takes: SERVER_TAKES.filter((each) => each !== BANNERS && each !== HELD_START) },
+    // A film's rooms have a job or two before this one: no pages of them to read.
+    server: {
+      takes: SERVER_TAKES.filter(
+        (each) => each !== BANNERS && each !== HELD_START && each !== SPEND_JOBS,
+      ),
+    },
     spaces: book.rooms(),
     workspace: { id: DEMO_WORKSPACE_ID, name: DEMO_WORKSPACE_NAME },
   } as unknown as ClientEvent;
@@ -694,7 +709,7 @@ function snippetOf(text: string, terms: readonly string[]): string {
  * its report being its total so far. A run of the job that reported nothing counts nothing, and
  * is said. Against what the room allows a job: its own, once You has set one, or the default.
  */
-function jobSpend(book: Book, spaceId: string): Readonly<Record<string, number>> {
+function jobSpend(book: Book, spaceId: string): Readonly<Record<string, number | null>> {
   const here = book.events.filter((event) => event.space_id === spaceId);
   const acts = here.filter(
     (event) => event.actor.kind === "person" && resetsTheCount(event.type, event),
@@ -708,11 +723,16 @@ function jobSpend(book: Book, spaceId: string): Readonly<Record<string, number>>
   const spent = [...working].reduce((sum, run) => sum + costAfter(reported.get(run)), 0);
   const uncounted = [...working].filter((run) => !(reported.get(run)?.after ?? 0)).length;
   return {
-    ceiling_usd: book.ceilingOf(spaceId) ?? DEFAULT_SPEND_CEILING_USD,
+    ceiling_usd: ceilingUsd(book.ceilingOf(spaceId)),
     spent_usd: Math.round(spent * 100) / 100,
     since_seq: since,
     uncounted_runs: uncounted,
   };
+}
+
+/** What the room allows a job as the server answers it: `null` for No cap (ADR 0292). */
+function ceilingUsd(set: number | typeof NO_SPEND_CEILING | undefined): number | null {
+  return set === NO_SPEND_CEILING ? null : (set ?? DEFAULT_SPEND_CEILING_USD);
 }
 
 const byAgent = (event: ClientEvent): boolean =>

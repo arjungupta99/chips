@@ -26,14 +26,12 @@ import {
   hitWords,
   isDemo,
   type Lane,
-  laneChainCostUsd,
   lanesInSpace,
   mayArchive,
   mayChangeProject,
   mayErase,
   mayOpenSpace,
   mayRenameWorkspace,
-  mayTurnDial,
   mayUseMac,
   messageRoute,
   myRole,
@@ -45,12 +43,9 @@ import {
   pinAct,
   type Question,
   type RelayState,
-  type Run,
   readUniverse,
   registerPasskey,
   roomDirectory,
-  runGoing,
-  runsBySession,
   type SearchHit,
   type Snapshot,
   type Space,
@@ -60,7 +55,6 @@ import {
   spaceById,
   spaceTitle,
   type TakenOut,
-  THINKING_GRACE_MS,
   troubled,
   turnedBy,
   unreadCount,
@@ -69,12 +63,7 @@ import {
   withdrawLeaving,
   workspaceLabel,
 } from "@chipschat/core";
-import {
-  type AutonomyLevel,
-  type Connector,
-  pairingUrl,
-  phonePairingUrl,
-} from "@chipschat/protocol";
+import { type Connector, pairingUrl, phonePairingUrl } from "@chipschat/protocol";
 import { ChipMark, Icon } from "@chipschat/ui";
 import {
   type ReactNode,
@@ -90,7 +79,7 @@ import type { AgentsService } from "./Agents.tsx";
 import type { Chosen } from "./Ask.tsx";
 import { AgentPane } from "./agent/AgentPane.tsx";
 import { type BannerService, bannerServiceOf } from "./agent/bannerService.ts";
-import { Columns, ColumnsShellFrame, useNarrowForThird } from "./Columns.tsx";
+import { Columns, ColumnsShellFrame } from "./Columns.tsx";
 import type { DecisionInput } from "./Decide.tsx";
 import type { OnFeedback } from "./Feedback.tsx";
 import { useFirstRun } from "./FirstRun.tsx";
@@ -103,10 +92,11 @@ import { useMenuCommands } from "./menuCommands.ts";
 import { useNewSpaceDialog } from "./NewSpace.tsx";
 import { NoRooms } from "./NoRooms.tsx";
 import type { RowActs } from "./RowMenu.tsx";
-import { RunPanel } from "./RunPanel.tsx";
 import type { SpaceActions } from "./room/actions.ts";
+import { lookOnMac, openTailscaleOnMac, tunnelsOnMac } from "./room/linkReach.ts";
 import type { ProjectActions } from "./room/Project.tsx";
 import { AskedPage } from "./room/Universe.tsx";
+import type { RunActs } from "./runActs.ts";
 import {
   type Beside,
   OpenInSpaces,
@@ -213,6 +203,7 @@ export function Shell({
   device,
   files: given,
   openId,
+  onOpened,
   landIn,
   onLanded,
   onSignOut,
@@ -230,9 +221,11 @@ export function Shell({
   /**
    * Something to look at, named from outside: a `chips://` link the desktop shell was opened
    * with (M2.2). A space id opens the room; an approval id opens the room it is waiting
-   * in, which is where the card is.
+   * in, which is where the card is. Followed once: `onOpened` when its room is open, and the
+   * link is spent.
    */
   readonly openId?: string | undefined;
+  readonly onOpened?: (() => void) | undefined;
   /**
    * A room a link has just let this person into (ADR 0168), opened as soon as it is here, which
    * may be a moment after the join: `onLanded` once it is taken.
@@ -277,7 +270,6 @@ export function Shell({
   // The room on screen, taken from this reader by somebody else: its place says by whom (JR-6).
   const [takenFrom, setTakenFrom] = useState<TakenOut | undefined>(undefined);
   const [notice, setNotice] = useState<string | undefined>(undefined);
-  const [pickedSession, setPickedSession] = useState<string | undefined>(undefined);
   /** A space this person just opened, to select the moment its event comes back (M3.3). */
   const [awaited, setAwaited] = useState<string | undefined>(undefined);
   // A room whose sheet comes up as it opens: on Add, made empty from the + (ADR 0148); on Icon,
@@ -381,7 +373,6 @@ export function Shell({
   });
   const select = useCallback((roomId: string) => {
     setSelectedId(roomId);
-    setPickedSession(undefined);
     setTab("spaces");
     setMenu(false);
     setTakenFrom(undefined);
@@ -393,7 +384,6 @@ export function Shell({
   );
   const keepTab = useCallback((roomId: string) => {
     setSelectedId(roomId);
-    setPickedSession(undefined);
     setTakenFrom(undefined);
   }, []);
   const [searchBeside, besideSearch] = useSearchBeside({
@@ -405,14 +395,19 @@ export function Shell({
   });
 
   // A link from outside. An approval names the space it is waiting in rather than one of
-  // its own, so both kinds of link end in the same place: a space, open, on Spaces.
+  // its own, so both kinds of link end in the same place: a space, open, on Spaces. It is
+  // followed once, as the phone follows one (`useDeepLinks`): a link kept after its room opened
+  // took the window back there at every change in the workspace, from whichever room the person
+  // had gone to since (Chips for Mac, 11 November 2026).
   useEffect(() => {
     if (openId === undefined) return;
     const spaceId = openId.startsWith("spc_")
       ? openId
       : model.needsYou.find((item) => item.id === openId)?.spaceId;
-    if (spaceId !== undefined) open(spaceId);
-  }, [openId, model.needsYou, open]);
+    if (spaceId === undefined) return;
+    open(spaceId);
+    onOpened?.();
+  }, [openId, model.needsYou, open, onOpened]);
 
   // A room a link let this person into: awaited, as a room the + asked for is, so it opens the
   // moment the server has sent it (ADR 0168).
@@ -448,9 +443,19 @@ export function Shell({
     }),
     [store],
   );
+  // A run's Pause, Resume and Stop, from its bubble's menu and its room's row (ADR 0293).
+  const runActs = useMemo<RunActs>(
+    () => ({
+      pause: (spaceId, runId) => store.pauseRun({ spaceId, runId }),
+      resume: (spaceId, runId) => store.resumeRun({ spaceId, runId }),
+      stop: (spaceId, runId) => store.stopRun({ spaceId, runId }),
+    }),
+    [store],
+  );
   // What a row's menu pins, hides, archives and deletes through: the phone's swipes, on a right-click.
   const rowActs = useMemo<RowActs>(
     () => ({
+      run: runActs,
       pin: (spaceId, pinned) => store.setSpacePinned(spaceId, pinned),
       hide: (spaceId, hidden) => store.setSpaceHidden(spaceId, hidden),
       archive: (spaceId, archived) =>
@@ -462,18 +467,9 @@ export function Shell({
         setSheetFor({ spaceId, on: "icon" });
       },
     }),
-    [store, open],
+    [store, open, runActs],
   );
-
-  // Which visit's run the panel is showing, when a space has more than one open (ADR 0024).
-  // Nothing picked means the most recent run in the space, which is what a space with one
-  // terminal has always shown.
-  const sessions = useMemo(
-    () => (selected === undefined ? [] : runsBySession(selected)),
-    [selected],
-  );
-  const picked = sessions.find((each) => each.session.sessionRef === pickedSession)?.run;
-  const run = picked ?? selected?.run;
+  const run = selected?.run;
 
   /**
    * What the composer's line asks for; a command that cannot be done becomes a notice. A message
@@ -542,16 +538,6 @@ export function Shell({
     [store, selectedId],
   );
 
-  const turnDial = (level: AutonomyLevel) => {
-    if (selected === undefined || run === undefined) return;
-    store.setAutonomy({
-      harnessId: run.harnessId,
-      spaceId: selected.id,
-      level,
-      rules: run.policy?.rules ?? [],
-    });
-  };
-
   // One dialog for a new space, opened out of the rail's + or an empty workspace's button.
   const newSpace = useNewSpaceDialog({
     directory,
@@ -593,6 +579,8 @@ export function Shell({
       directory={directory}
       busy={busy}
       keepsHeldYes={snapshot.keepsHeldYes}
+      keepsNoCap={snapshot.keepsNoCap}
+      keepsSpendJobs={snapshot.keepsSpendJobs}
       selected={selected}
       device={device}
       workspaceName={workspaceName}
@@ -651,23 +639,7 @@ export function Shell({
       workspaces={workspaces}
       onSwitch={onSwitch}
       cards={firstRun.cards}
-    />
-  );
-  const side = useAfterTheBeat(sideOf(tab, selected, run, sessions));
-  const runPanel = (going: Run) => (
-    <RunPanel
-      run={going}
-      directory={directory}
-      harness={model.harnesses[going.harnessId]}
-      busy={busy.has(going.runId) || busy.has(going.harnessId)}
-      sessions={sessions}
-      chainCostUsd={laneChainCostUsd(model, going.runId)}
-      onPickSession={setPickedSession}
-      onPause={() => carryOut({ kind: "pause" })}
-      onResume={() => carryOut({ kind: "resume" })}
-      onStop={(reason) => carryOut({ kind: "stop", reason })}
-      onAutonomy={turnDial}
-      turnsDial={mayTurnDial(model, device.participantId)}
+      runActs={runActs}
     />
   );
   const railProps: SidebarProps = {
@@ -737,8 +709,6 @@ export function Shell({
             narrow={narrow}
             middle={middle}
             room={selected !== undefined}
-            side={side}
-            runPanel={runPanel}
           />
         </Turns>
         {newSpace.dialog}
@@ -940,6 +910,8 @@ function JoinAsks(props: {
 
 interface MiddlePaneProps {
   readonly tab: Tab;
+  /** A run's Pause, Resume and Stop, for the bubble's menu (ADR 0293). */
+  readonly runActs: RunActs;
   /** You opened from the setup card's Away from home, to the relay card: which ask (ADR 0245). */
   readonly revealRelay?: number | undefined;
   readonly model: Snapshot["model"];
@@ -1005,6 +977,10 @@ interface MiddlePaneProps {
   readonly hiddenSpaces: Snapshot["hiddenSpaces"];
   /** The rooms the person pinned (ADR 0240), which the room's sheet offers to let go. */
   readonly pinnedSpaces: Snapshot["pinnedSpaces"];
+  /** Whether the server takes No cap and amounts past $100 (ADR 0292). */
+  readonly keepsNoCap: Snapshot["keepsNoCap"];
+  /** Whether the server reads a room's jobs a page at a time (ADR 0292 addendum). */
+  readonly keepsSpendJobs: Snapshot["keepsSpendJobs"];
   readonly searching: SearchSession;
   /** What a result opened beside Search's results (ADR 0269), and opening another there. */
   readonly searchBeside: Beside | undefined;
@@ -1070,13 +1046,6 @@ function useSearchBeside(on: {
   return [opened, open];
 }
 
-/**
- * What the right-hand column shows: the room's run while one is going in it, else nothing, and the
- * room has the width (ADR 0268). The run shown is the visit picked, which may have ended while
- * another goes on, so the panel's picker can switch back.
- */
-type Side = { readonly kind: "run"; readonly room: Space; readonly run: Run } | undefined;
-
 /** Whether a room stands in the second column: Spaces' open room, or the one Search opened beside. */
 function roomShown(tab: Tab, selected: Space | undefined, beside: Beside | undefined): boolean {
   if (tab === "spaces") return selected !== undefined;
@@ -1085,9 +1054,8 @@ function roomShown(tab: Tab, selected: Space | undefined, beside: Beside | undef
 
 /**
  * Spaces in its columns (ADR 0284): the rooms in the first, under the rail's top (in the rail's menu
- * at a phone's width), the room in the second, and the run beside it in the third. The run stands
- * there only where the list keeps its place beside both, so a run starting never puts the list
- * away; narrower, the room's own bar says it. Another section is its own columns already.
+ * at a phone's width), and the room in the second. A run has no third column: its Pause and Stop
+ * are in the bubble's menu and the row's (ADR 0293). Another section is its own columns already.
  */
 function SpacesColumns(props: {
   readonly on: boolean;
@@ -1095,59 +1063,17 @@ function SpacesColumns(props: {
   readonly narrow: boolean;
   readonly middle: ReactNode;
   readonly room: boolean;
-  readonly side: Side;
-  readonly runPanel: (run: Run) => ReactNode;
 }) {
-  const crowded = useNarrowForThird();
   if (!props.on) return props.middle;
-  const run = crowded ? undefined : props.side?.run;
   return (
     <Columns
       name="spaces"
       as="div"
       list={props.narrow ? null : <SpacesList {...props.rail} />}
       detail={props.middle}
-      third={run === undefined ? undefined : props.runPanel(run)}
       room={props.room}
     />
   );
-}
-
-function sideOf(
-  tab: Tab,
-  room: Space | undefined,
-  run: Run | undefined,
-  sessions: readonly { readonly run?: Run }[],
-): Side {
-  if (tab !== "spaces" || room === undefined || run === undefined) return undefined;
-  const going = [room.run, ...sessions.map((each) => each.run)].some(
-    (each) => each !== undefined && runGoing(each),
-  );
-  return going ? { kind: "run", room, run } : undefined;
-}
-
-/**
- * The panel once its run has been going the thinking bubble's beat (core's `THINKING_GRACE_MS`), as
- * the bubble waits it: a run over in less never shows it, where the panel slid in and straight back
- * out (ADR 0268 addendum). Counted from the run's own start, so a room opened on a run long going
- * shows it at once, and a clock ahead of the server's waits no more than the beat.
- */
-function useAfterTheBeat(side: Side): Side {
-  const [, again] = useState(0);
-  const started = side === undefined ? Number.NaN : Date.parse(side.run.startedAt ?? "");
-  const left = Number.isNaN(started)
-    ? 0
-    : Math.min(THINKING_GRACE_MS, Math.max(0, started + THINKING_GRACE_MS - Date.now()));
-  const waiting = left > 0;
-  useEffect(() => {
-    if (!waiting) return;
-    const timer = setTimeout(
-      () => again((n) => n + 1),
-      Math.max(1, started + THINKING_GRACE_MS - Date.now()),
-    );
-    return () => clearTimeout(timer);
-  }, [waiting, started]);
-  return waiting ? undefined : side;
 }
 
 /**
@@ -1521,6 +1447,9 @@ function roomView(p: MiddlePaneProps, selected: Space, headEnd?: ReactNode) {
         {
           hidden: p.hiddenSpaces?.has(selected.id) === true,
           pinned: p.pinnedSpaces?.includes(selected.id) === true,
+          // Until a hello has said, as the cache's choices stand (ADR 0292).
+          noCap: p.keepsNoCap !== false,
+          spendJobs: p.keepsSpendJobs !== false,
         },
         p.workspace,
         p.folders,
@@ -1545,6 +1474,7 @@ function roomView(p: MiddlePaneProps, selected: Space, headEnd?: ReactNode) {
       onFeedback={p.feedback}
       onOpenAgent={p.onOpenAgent}
       onStopLane={(lane) => stopLane(p.store, lane)}
+      onRun={p.runActs}
       onStopLetWork={(asker) => p.store.stopLetWork({ spaceId: selected.id, asker })}
       banners={p.banners}
       onOpenPermissions={p.onOpenPermissions}
@@ -1665,7 +1595,17 @@ function spaceActions(
   space: Space,
   model: Snapshot["model"],
   selfId: string,
-  { hidden, pinned }: { readonly hidden: boolean; readonly pinned: boolean },
+  {
+    hidden,
+    pinned,
+    noCap,
+    spendJobs,
+  }: {
+    readonly hidden: boolean;
+    readonly pinned: boolean;
+    readonly noCap: boolean;
+    readonly spendJobs: boolean;
+  },
   workspace?: string,
   folders?: Folders,
 ): SpaceActions {
@@ -1684,9 +1624,12 @@ function spaceActions(
     takeArrival: () => store.takeArrival(spaceId),
     lead: (agentId) => store.setLead(spaceId, agentId),
     spend: (usd, options) => store.setSpendCeiling(spaceId, usd, options),
+    noCap,
     lock: (locked) => store.setLock(spaceId, locked),
     icon: (face) => store.setSpaceIcon(spaceId, face),
     roomSpend: () => store.roomSpend(spaceId),
+    roomJobs: (before) => store.roomJobs(spaceId, before),
+    spendJobs,
     refresh: () => store.refreshDirectory(),
     mayArchive: mayArchive(model, space, selfId),
     mayErase: mayErase(model, space, selfId),
@@ -1786,6 +1729,11 @@ function projectMade(
     openLink: inDesktop()
       ? (url) => void desktop().then((shell) => shell?.openLink?.(url))
       : (url) => void window.open(url, "_blank", "noopener,noreferrer"),
+    // A link only some devices reach is looked at before it opens, in the Mac app (ADR 0227's
+    // addendum of 10 November 2026); a browser can't look.
+    ...(inDesktop()
+      ? { look: lookOnMac, tunnels: tunnelsOnMac, openTailscale: openTailscaleOnMac }
+      : {}),
     // A browser asks the person's Mac (ADR 0225, ADR 0226); the Mac app opens and runs its own,
     // and opens a page in its browser from the room's folder.
     ...(inDesktop()

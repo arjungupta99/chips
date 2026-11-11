@@ -127,9 +127,10 @@ test("a message reaches the harness it is for, the capsule picks, and the refere
   // An agent's circle adds it or takes it out, and the list stays open (ADR 0114): Scout in,
   // Pilot out, and Escape puts the list away.
   const menu = page.getByRole("listbox", { name: "Where the next message goes" });
+  // Scout was put in the room first, so it leads (ADR 0291), and the list says so.
   await expect(
     menu.getByRole("option", {
-      name: `${scoutName}, @${scoutName.replace(/\s+/g, "")}`,
+      name: `${scoutName}, lead, @${scoutName.replace(/\s+/g, "")}`,
       exact: true,
     }),
   ).toBeVisible();

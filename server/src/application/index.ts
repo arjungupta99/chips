@@ -179,6 +179,7 @@ export {
   DIRECT_PUSH_WORDS,
   directAskViewOf,
 } from "./use-cases/direct-asks.js";
+export { createEnsureLead, type EnsureLead, type EnsureLeadDeps } from "./use-cases/ensure-lead.js";
 export type {
   Erased,
   EraseFailure,
@@ -438,6 +439,14 @@ export type {
   Transferred,
 } from "./use-cases/transfer-harness.js";
 export { createTransferHarness } from "./use-cases/transfer-harness.js";
+export {
+  createUnpickedTurns,
+  UNPICKED_AFTER_MS,
+  UNPICKED_WITHIN_MS,
+  type Unpicked,
+  type UnpickedTurns,
+  type UnpickedTurnsDeps,
+} from "./use-cases/unpicked-turns.js";
 export type {
   PlannedAgent,
   PlannedHarness,

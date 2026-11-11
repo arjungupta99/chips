@@ -26,6 +26,7 @@ import {
 import { type ReactElement, useState } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { isPad } from "../device/word";
 import { fakeStore, snapshot } from "../testing/fixtures";
 import { drawLibrary } from "../testing/picker";
 import { SheetDock } from "../ui/Sheet";
@@ -33,6 +34,13 @@ import { ICON_GROUNDS } from "../ui/tokens";
 import type { FileService } from "./files";
 import { RoomNotice } from "./RoomNotice";
 import { RoomSheet } from "./RoomSheet";
+import { SpendPage } from "./RoomSpend";
+
+// Jest's iOS has no \`Platform.isPad\`: an iPad is said by the module that asks it.
+jest.mock("../device/word", () => ({
+  ...jest.requireActual("../device/word"),
+  isPad: jest.fn(() => false),
+}));
 
 // An agent's card and history, which a row in the column beside the room pushes inside it (ADR
 // 0276), stand in as a word, with the press that opens the history.
@@ -1630,13 +1638,222 @@ describe("what the room allows a job (ADR 0117)", () => {
       name: "setSpendCeiling",
       args: { spaceId: "sp_1", usd: 7.5 },
     });
-    await userEvent.press(screen.getByTestId("room-sheet-spend"));
+    // Saved, the page stays, and Save says so until something else is picked (11 November 2026).
+    expect(screen.getByTestId("room-sheet-spend-save")).toHaveTextContent("Saved");
+    expect(screen.getByTestId("room-sheet-spend-save")).toBeDisabled();
     await userEvent.press(screen.getByTestId("room-sheet-spend-default"));
+    expect(screen.getByTestId("room-sheet-spend-save")).toHaveTextContent("Save");
     await userEvent.press(screen.getByTestId("room-sheet-spend-save"));
     expect(store.calls).toContainEqual({
       name: "setSpendCeiling",
       args: { spaceId: "sp_1", usd: null },
     });
+  });
+
+  it("says under Other past $1,000 that No cap is the way to more, and saves No cap (ADR 0292)", async () => {
+    const space = room({ ...two(), spendCeiling: 100 });
+    const snap = withRoom(space);
+    const store = fakeStore(snap);
+    await render(
+      <RoomSheet
+        store={store}
+        snapshot={snap}
+        space={space}
+        title="Hello"
+        selfId="per_arjun"
+        open
+        onClose={() => undefined}
+        onOpenAgent={() => undefined}
+      />,
+    );
+    await userEvent.press(screen.getByTestId("room-sheet-spend"));
+    // The room's $100 is Other's, as Arjun found it; one 0 more is past what Other takes.
+    expect(screen.getByTestId("room-sheet-spend-amount")).toHaveProp("value", "100.00");
+    await userEvent.clear(screen.getByTestId("room-sheet-spend-amount"));
+    await userEvent.type(screen.getByTestId("room-sheet-spend-amount"), "1000.00");
+    expect(screen.getByTestId("room-sheet-spend-amount-hint")).toHaveTextContent(
+      "From $0.25 to $1,000.00, in steps of 25¢.",
+    );
+    await userEvent.press(screen.getByTestId("room-sheet-spend-save"));
+    expect(store.calls).toContainEqual({
+      name: "setSpendCeiling",
+      args: { spaceId: "sp_1", usd: 1000 },
+    });
+    expect(screen.getByTestId("room-sheet-spend-save")).toHaveTextContent("Saved");
+    await userEvent.clear(screen.getByTestId("room-sheet-spend-amount"));
+    await userEvent.type(screen.getByTestId("room-sheet-spend-amount"), "10000.0");
+    expect(screen.getByTestId("room-sheet-spend-amount-hint")).toHaveTextContent(
+      "Other goes up to $1,000.00. For more, pick No cap.",
+    );
+    expect(screen.getByTestId("room-sheet-spend-save")).toBeDisabled();
+    await userEvent.press(screen.getByTestId("room-sheet-spend-none"));
+    expect(screen.queryByTestId("room-sheet-spend-amount")).toBeNull();
+    await userEvent.press(screen.getByTestId("room-sheet-spend-save"));
+    expect(store.calls).toContainEqual({
+      name: "setSpendCeiling",
+      args: { spaceId: "sp_1", usd: "none" },
+    });
+  });
+
+  it("offers no No cap to a server whose hello says it refuses it (ADR 0292)", async () => {
+    const space = room(two());
+    const snap = { ...withRoom(space), keepsNoCap: false };
+    await render(
+      <RoomSheet
+        store={fakeStore(snap)}
+        snapshot={snap}
+        space={space}
+        title="Hello"
+        selfId="per_arjun"
+        open
+        onClose={() => undefined}
+        onOpenAgent={() => undefined}
+      />,
+    );
+    await userEvent.press(screen.getByTestId("room-sheet-spend"));
+    expect(screen.queryByTestId("room-sheet-spend-none")).toBeNull();
+    await userEvent.press(screen.getByTestId("room-sheet-spend-other"));
+    await userEvent.type(screen.getByTestId("room-sheet-spend-amount"), "500");
+    expect(screen.getByTestId("room-sheet-spend-amount-hint")).toHaveTextContent(
+      "Other goes up to $100.00.",
+    );
+  });
+
+  it("types Other's amount on the keyboard's numbers on an iPad, and the number pad on a phone", async () => {
+    const space = room(two());
+    const page = (
+      <SpendPage
+        space={space}
+        spend={undefined}
+        busy={false}
+        directory={withRoom(space).directory}
+        selfId="per_arjun"
+        onBack={() => undefined}
+        onSave={async () => true}
+      />
+    );
+    const amount = async () => {
+      await render(page);
+      await userEvent.press(screen.getByTestId("room-sheet-spend-other"));
+      return screen.getByTestId("room-sheet-spend-amount");
+    };
+    expect(await amount()).toHaveProp("keyboardType", "decimal-pad");
+    jest.mocked(isPad).mockReturnValue(true);
+    try {
+      expect(await amount()).toHaveProp("keyboardType", "numbers-and-punctuation");
+    } finally {
+      jest.mocked(isPad).mockReturnValue(false);
+    }
+  });
+
+  it("lists ten jobs before this one, and See all reads the rest a page at a time (ADR 0292 addendum)", async () => {
+    // 45 jobs, newest first: the newest began at seq 1000, each before it 10 earlier.
+    const job = (n: number) => ({
+      since_seq: 1000 - n * 10,
+      started_at: "2026-11-06T09:50:58.793Z",
+      last_at: "2026-11-06T10:58:33.287Z",
+      spent_usd: 1 + n,
+      uncounted_runs: 0,
+      run_ids: [],
+      by: ["agt_hello"],
+      held: false,
+    });
+    const all = Array.from({ length: 45 }, (_, n) => job(n));
+    const space = room(two());
+    const snap = { ...withRoom(space), keepsSpendJobs: true };
+    const base = fakeStore(snap);
+    const read: (number | undefined)[] = [];
+    const store = {
+      ...base,
+      roomSpend: async () => ({
+        ceiling_usd: 3,
+        spent_usd: 0,
+        since_seq: 1010,
+        uncounted_runs: 0,
+        jobs: all.slice(0, 30),
+        total_usd: 500,
+        jobs_count: all.length,
+      }),
+      roomJobs: async (spaceId: string, before?: number) => {
+        read.push(before);
+        const from = before === undefined ? all : all.filter((each) => each.since_seq < before);
+        const jobs = from.slice(0, 30);
+        const oldest = jobs.at(-1);
+        return from.length > 30 && oldest !== undefined
+          ? { space_id: spaceId, jobs, next: oldest.since_seq }
+          : { space_id: spaceId, jobs };
+      },
+    };
+    await render(
+      <RoomSheet
+        store={store}
+        snapshot={snap}
+        space={space}
+        title="Hello"
+        selfId="per_arjun"
+        open
+        onClose={() => undefined}
+        onOpenAgent={() => undefined}
+      />,
+    );
+    await userEvent.press(screen.getByTestId("room-sheet-spend"));
+    expect(await screen.findByTestId("room-sheet-spend-job-1000")).toBeOnTheScreen();
+    expect(screen.getByTestId("room-sheet-spend-job-910")).toBeOnTheScreen();
+    // The eleventh is left to See all.
+    expect(screen.queryByTestId("room-sheet-spend-job-900")).toBeNull();
+    await userEvent.press(screen.getByTestId("room-sheet-spend-see-all"));
+    const page = await screen.findByTestId("room-sheet-jobs-page");
+    expect(await screen.findByTestId("room-sheet-spend-job-900")).toBeOnTheScreen();
+    expect(read).toEqual([undefined]);
+    // Its end in reach, the next page is read from the oldest so far, and the last one ends it.
+    fireEvent(page, "endReached");
+    await waitFor(() => expect(read).toEqual([undefined, 710]));
+    expect(await screen.findByTestId("room-sheet-jobs-page")).toBeOnTheScreen();
+    await waitFor(() => expect(screen.queryByTestId("room-sheet-jobs-reading")).toBeNull());
+    fireEvent(page, "endReached");
+    expect(read).toEqual([undefined, 710]);
+  });
+
+  it("offers no See all to a server whose hello says it reads no pages of jobs (ADR 0292 addendum)", async () => {
+    const all = Array.from({ length: 12 }, (_, n) => ({
+      since_seq: 1000 - n * 10,
+      started_at: "2026-11-06T09:50:58.793Z",
+      last_at: "2026-11-06T10:58:33.287Z",
+      spent_usd: 1,
+      uncounted_runs: 0,
+      run_ids: [],
+      by: ["agt_hello"],
+      held: false,
+    }));
+    const space = room(two());
+    const snap = { ...withRoom(space), keepsSpendJobs: false };
+    const store = {
+      ...fakeStore(snap),
+      roomSpend: async () => ({
+        ceiling_usd: 3,
+        spent_usd: 0,
+        since_seq: 1010,
+        uncounted_runs: 0,
+        jobs: all,
+        total_usd: 12,
+      }),
+    };
+    await render(
+      <RoomSheet
+        store={store}
+        snapshot={snap}
+        space={space}
+        title="Hello"
+        selfId="per_arjun"
+        open
+        onClose={() => undefined}
+        onOpenAgent={() => undefined}
+      />,
+    );
+    await userEvent.press(screen.getByTestId("room-sheet-spend"));
+    expect(await screen.findByTestId("room-sheet-spend-job-910")).toBeOnTheScreen();
+    expect(screen.queryByTestId("room-sheet-spend-job-900")).toBeNull();
+    expect(screen.queryByTestId("room-sheet-spend-see-all")).toBeNull();
   });
 
   it("opens on Raise the limit at the next amount up, lists the jobs before this one, and saves with a carry on (ADR 0282)", async () => {

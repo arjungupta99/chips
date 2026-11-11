@@ -358,7 +358,7 @@ function ruleOf(
   holds: boolean,
 ): { match: string; external: 0 | 1; irreversible: 0 | 1; starts_with: string | null } | undefined {
   if (holds) return { match: "*", external: 0, irreversible: 0, starts_with: null };
-  const offer = standingOffer(action.input);
+  const offer = standingOffer(action);
   if (offer !== undefined && offer.kind !== "starts") return undefined;
   return {
     match: action.kind,

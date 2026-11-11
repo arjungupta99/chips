@@ -57,6 +57,9 @@ test("a room's spend per job is set from the sheet, handed to the agent's turn, 
   await sheet.locator("label", { has: page.getByTestId("spend-10") }).click();
   await expect(sheet.getByTestId("spend-10")).toBeChecked();
   await sheet.getByTestId("spend-save").click();
+  // Saved, the page stays and says so (11 November 2026); back, the tile has it.
+  await expect(sheet.getByTestId("spend-save")).toHaveText("Saved");
+  await sheetBack(page);
   await expect(row).toContainText("$10.00");
   await expect(page.getByTestId("messages")).toContainText("set the spend per job to $10.00");
   await closeSheet(page);
@@ -90,5 +93,25 @@ test("a room's spend per job is set from the sheet, handed to the agent's turn, 
   await expect((await roomSheet(page)).getByTestId("room-sheet-spend")).toContainText(
     "This job so far: $0.40",
   );
+
+  // Other past $1,000 says why Save is grey; No cap takes the cap off, the room says so, and the
+  // next turn is handed no spend (ADR 0292).
+  await row.click();
+  await sheet.locator("label", { has: page.getByTestId("spend-other") }).click();
+  await sheet.getByTestId("spend-amount").fill("10000.00");
+  await expect(sheet.getByTestId("spend-amount-hint")).toHaveText(
+    "Other goes up to $1,000.00. For more, pick No cap.",
+  );
+  await expect(sheet.getByTestId("spend-save")).toBeDisabled();
+  await sheet.locator("label", { has: page.getByTestId("spend-none") }).click();
+  await sheet.getByTestId("spend-save").click();
+  await expect(sheet.getByTestId("spend-save")).toHaveText("Saved");
+  await sheetBack(page);
+  await expect(row).toContainText("$0.40 · no cap");
+  await expect(page.getByTestId("messages")).toContainText("took the cap off the spend per job");
+  await closeSheet(page);
+  await say(page, "@Reader and the rest", "and the rest");
+  const uncapped = await harness.next("message.new");
+  expect((uncapped["context"] as Record<string, unknown>)["spend"]).toBeUndefined();
   harness.close();
 });

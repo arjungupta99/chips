@@ -11,6 +11,7 @@ import {
   cantAnswerWords,
   connectedWords,
   WATCH_MS,
+  type Waiting,
   waitingOn,
   waitWords,
 } from "./agents.js";
@@ -139,12 +140,35 @@ describe("the watch (ADR 0083)", () => {
     expect(
       waitingOn(room([line(ME, { addressedTo: [CLAW], pending: true })]), directory()),
     ).toEqual([]);
-    // For Jacobian only; from before Chips said who a message is for; an agent's own words.
+    // For Jacobian only; from before Chips said who a message is for; an agent's words for itself.
     expect(
       waitingOn(room([line(ME, { addressedTo: [JAC] })], [run(JAC, 999)]), directory()),
     ).toEqual([]);
     expect(waitingOn(room([line(ME)]), directory())).toEqual([]);
-    expect(waitingOn(room([line(JAC, { addressedTo: [CLAW] })]), directory())).toEqual([]);
+    expect(waitingOn(room([line(CLAW, { addressedTo: [CLAW] })]), directory())).toEqual([]);
+  });
+
+  it("waits on an agent another agent handed work to, until Chips hands it on (ADR 0291)", () => {
+    const handOff = line(JAC, { addressedTo: [CLAW] });
+    expect(waitingOn(room([handOff]), directory())).toEqual([
+      { lineId: handOff.id, harnessId: CLAW, since: SENT, byAgent: true },
+    ]);
+    // The room says so for the hour in which Chips hands it on, and not for ever after.
+    const waiting = waitingOn(room([handOff]), directory())[0] as Waiting;
+    const at = (minutes: number) => Date.parse(SENT) + minutes * 60_000;
+    expect(waitWords(waiting, directory(), at(5))?.title).toBe("OpenClaw hasn't picked this up");
+    expect(waitWords(waiting, directory(), at(61))).toBeUndefined();
+    const gone = directory({ state: { connected: false, since: SENT } });
+    expect(waitWords(waiting, gone, at(5))?.title).toBe("OpenClaw can't answer yet");
+    expect(waitWords(waiting, gone, at(61))).toBeUndefined();
+    // Anything of OpenClaw's after it ends the wait, as for a person's message.
+    expect(waitingOn(room([handOff, line(CLAW)]), directory())).toEqual([]);
+    // Words the referee held were for nobody.
+    expect(waitingOn(room([line(JAC, { addressedTo: [CLAW], held: true })]), directory())).toEqual(
+      [],
+    );
+    // Handed on to the lead, or back: the room no longer waits on OpenClaw for it.
+    expect(waitingOn(room([{ ...handOff, passedOn: [CLAW] }]), directory())).toEqual([]);
   });
 
   it("says a wait nobody explained once it is thirty seconds old, and one it can explain at once", () => {

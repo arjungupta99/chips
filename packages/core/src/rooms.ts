@@ -5,7 +5,7 @@
  * (ADR 0151) offer the same agents in the same words.
  */
 
-import { DEFAULT_SPEND_CEILING_USD } from "@chipschat/protocol";
+import { DEFAULT_SPEND_CEILING_USD, type NO_SPEND_CEILING } from "@chipschat/protocol";
 import { type Directory, harnessOf, isAgent, isRemoved, nameOf } from "./events.js";
 import { administers, myRole, spaceById, spaceTitle } from "./model/readers.js";
 import type { AgentLeft, Space, WorkspaceModel } from "./model/types.js";
@@ -415,6 +415,25 @@ export function mayLock(space: Space, selfId: string): boolean {
 }
 
 /**
+ * The colour of each tile's mark on the room sheet's first page (ADR 0202's addendum of 23 October
+ * 2026), as the index a face's `ground` is sent as (ADR 0064), so the phone and the web turn it into
+ * the same colour in either faces' theme: Project blue, Lead violet, Spend per job green,
+ * Notifications red, Lock changes teal and, while shut, ochre for the padlock in gold, Hide pink.
+ */
+export const ROOM_TILE_GROUNDS = {
+  project: 4,
+  lead: 5,
+  spend: 7,
+  notify: 12,
+  lock: 3,
+  locked: 9,
+  hide: 0,
+} as const;
+
+/** A tile on the room sheet, by the colour its mark wears. */
+export type RoomTileGround = keyof typeof ROOM_TILE_GROUNDS;
+
+/**
  * Whether this reader may set what the room allows a job (ADR 0117), as the server has it: the
  * workspace's owner, in the room, since a job is paid for on the owner's account (his call of 18
  * October 2026, ADR 0196). A lock leaves it alone.
@@ -454,8 +473,8 @@ export function workspaceOwnerName(
   return owner === undefined ? undefined : nameOf(directory, owner.participantId);
 }
 
-/** What the room allows a job (ADR 0117): what a person set, or the default. */
-export function spendCeilingOf(space: Space): number {
+/** What the room allows a job (ADR 0117): what a person set, No cap (ADR 0292), or the default. */
+export function spendCeilingOf(space: Space): number | typeof NO_SPEND_CEILING {
   return space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD;
 }
 

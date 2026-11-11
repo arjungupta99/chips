@@ -7,30 +7,42 @@
  *   (core's `mediaFilesWords`), and shows the newest five as pictures, a voice note's microphone or
  *   a document's kind, beside a square for the files. It turns the sheet to the Media & files page
  *   (`RoomMedia.tsx`). It was the Files row.
- * - **The tiles** are what the rows were: Lead, Spend per job and Lock changes, each with its mark,
- *   what it is set to, and its name under that. The desktop has no Notifications (ADR 0198 sends
- *   them to the phone alone), so there are three at most, and they share one row while the sheet
- *   is its own width; at a phone's width they go two to a row, an odd last one taking its row, as
- *   the phone's do. A tile opens what its row opened, with a chevron; one that opens nothing for
- *   you, as Lead for a guest or Spend for a member, has none and does not press. Spend per job
- *   draws how much of the room's ceiling the job has used, in the colour of where it stands (ADR
- *   0118), and says the row's words to a hover and to a screen reader. Lock changes keeps its
- *   switch, and its padlock shuts in gold while it is on.
+ * - **The tiles** are what the rows were: Project, Lead, Spend per job and Lock changes, each with
+ *   its mark, what it is set to, and its name under that. The desktop has no Notifications (ADR
+ *   0198 sends them to the phone alone). They go two to a row, an odd last one taking its row, and
+ *   Lock changes and Hide share a row of their own under the rest, as the phone's and the iPad's
+ *   do: the sheet is the iPad's 420 across (`--third-w`), and four in one row cut every value short
+ *   (Arjun, 10 November 2026). A tile opens what its row opened, with a chevron; one that opens
+ *   nothing for you, as Lead for a guest or Spend for a member, has none and does not press. Spend
+ *   per job draws how much of the room's ceiling the job has used, in the colour of where it stands
+ *   (ADR 0118), and says the row's words to a hover and to a screen reader. Lock changes keeps its
+ *   switch, and its padlock shuts while it is on. Each mark wears the phone's colour for it (core's
+ *   `ROOM_TILE_GROUNDS`), the padlock's turning ochre while shut.
  */
 
 import {
   type Attachment,
   type CarriedFile,
+  ceilingWords,
   formatDuration,
   inAlbum,
   kindOf,
   mediaFilesWords,
+  ROOM_TILE_GROUNDS,
+  type RoomTileGround,
 } from "@chipschat/core";
-import { dollars, type JobSpend, spendStage } from "@chipschat/protocol";
-import { Icon, type IconName } from "@chipschat/ui";
-import { type ReactNode, useEffect, useState } from "react";
+import {
+  cappedSpend,
+  dollars,
+  type JobSpend,
+  type NO_SPEND_CEILING,
+  type RoomJob,
+  spendStage,
+} from "@chipschat/protocol";
+import { groundVar, Icon, type IconName } from "@chipschat/ui";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import type { FileService } from "../files.ts";
-import { Padlock, useLockFlip } from "../LockRow.tsx";
+import { useLockFlip } from "../LockRow.tsx";
 import { Switch } from "../you/controls.tsx";
 import { Chev } from "./parts.tsx";
 
@@ -191,9 +203,27 @@ export function Section({
   );
 }
 
-/** The tiles: in one row at the sheet's own width, two to a row at a phone's. */
-export function Tiles({ children }: { readonly children: ReactNode }) {
-  return <div className="sheet-tiles">{children}</div>;
+/**
+ * The tiles, two to a row, an odd last one taking its row's width; the foot's, Lock changes and
+ * Hide, on a row of their own under the rest, whatever their number, as the phone's `Tiles`.
+ */
+export function Tiles({
+  children,
+  foot = [],
+}: {
+  readonly children: readonly ReactNode[];
+  readonly foot?: readonly ReactNode[];
+}) {
+  return (
+    <div className="sheet-tiles">
+      {children.length > 0 && <div className="sheet-tiles-grid">{children}</div>}
+      {foot.length > 0 && (
+        <div className="sheet-tiles-grid" data-testid="room-sheet-tiles-foot">
+          {foot}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -214,6 +244,8 @@ function Tile(props: {
   readonly onClick?: (() => void) | undefined;
   /** At the mark's right: the chevron where it opens something, or Lock's switch. */
   readonly trailing?: ReactNode;
+  /** Whether a press opens a page, which its chevron says: not Hide's, which acts at once. */
+  readonly opens?: boolean;
   readonly testId: string;
   /** Over the tile's foot: Spend's bar. */
   readonly children?: ReactNode;
@@ -222,7 +254,7 @@ function Tile(props: {
     <>
       <span className="sheet-box-top">
         {props.mark}
-        {props.trailing ?? (props.onClick !== undefined && <Chev />)}
+        {props.trailing ?? (props.onClick !== undefined && props.opens !== false && <Chev />)}
       </span>
       <span className="sheet-box-value">{props.value}</span>
       {props.under !== undefined && <span className="sheet-box-under">{props.under}</span>}
@@ -252,10 +284,25 @@ function Tile(props: {
   );
 }
 
-/** A tile's mark: a rounded square with a line drawing, or Spend's dollar. */
-function Mark({ children, lit = false }: { readonly children: ReactNode; readonly lit?: boolean }) {
+/**
+ * A tile's mark: a rounded square in its colour, a ground a face may wear, with a line drawing or
+ * Spend's dollar in the faces' ink, as the phone's.
+ */
+function Mark({
+  ground,
+  children,
+}: {
+  readonly ground: RoomTileGround;
+  readonly children: ReactNode;
+}) {
   return (
-    <span className="sheet-box-mark" data-lit={lit ? "true" : undefined} aria-hidden="true">
+    <span
+      className="sheet-box-mark"
+      style={{ "--mark-ground": groundVar(ROOM_TILE_GROUNDS[ground]) } as CSSProperties}
+      data-ground={ground}
+      aria-hidden="true"
+      data-testid={`room-sheet-mark-${ground}`}
+    >
       {children}
     </span>
   );
@@ -273,8 +320,8 @@ export function ProjectTile({
   return (
     <Tile
       mark={
-        <Mark>
-          <Icon name="drawers" size={16} />
+        <Mark ground="project">
+          <Icon name="drawers" size={18} />
         </Mark>
       }
       value={words}
@@ -299,8 +346,8 @@ export function LeadTile({
   return (
     <Tile
       mark={
-        <Mark>
-          <Icon name="route" size={16} />
+        <Mark ground="lead">
+          <Icon name="route" size={18} />
         </Mark>
       }
       value={who}
@@ -314,7 +361,8 @@ export function LeadTile({
 
 /**
  * What the room's job has spent of what the room allows a job (ADR 0117), or only what it allows
- * until the server has said; the bar under it in the colour of where the job stands (ADR 0118).
+ * until the server has said; the bar under it in the colour of where the job stands (ADR 0118). A
+ * room with no cap draws what the job has spent, and no bar (ADR 0292).
  */
 export function SpendTile({
   ceiling,
@@ -323,39 +371,42 @@ export function SpendTile({
   last,
   onClick,
 }: {
-  readonly ceiling: number;
-  readonly spend: JobSpend | undefined;
+  readonly ceiling: number | typeof NO_SPEND_CEILING;
+  readonly spend: RoomJob | undefined;
   /** The row's line, `This job so far: $0.28`, and who sets it for one who doesn't. */
   readonly words: string | undefined;
   /** `Last job $3.10`, once a job before this one spent (ADR 0282). */
   readonly last?: string | undefined;
   readonly onClick: (() => void) | undefined;
 }) {
+  const bar = spend === undefined ? undefined : cappedSpend(spend);
   return (
     <Tile
       mark={
-        <Mark>
+        <Mark ground="spend">
           <span className="sheet-dollar">$</span>
         </Mark>
       }
       value={
         spend === undefined ? (
-          dollars(ceiling)
+          ceilingWords(ceiling)
         ) : (
           <>
             {dollars(spend.spent_usd)}
-            <span className="sheet-box-of"> of {dollars(ceiling)}</span>
+            <span className="sheet-box-of">
+              {typeof ceiling === "number" ? ` of ${dollars(ceiling)}` : " · no cap"}
+            </span>
           </>
         )
       }
       under={last}
       name="Spend per job"
-      label={`Spend per job, ${dollars(ceiling)}${words === undefined ? "" : `, ${words}`}${last === undefined ? "" : `, ${last}`}`}
+      label={`Spend per job, ${ceilingWords(ceiling)}${words === undefined ? "" : `, ${words}`}${last === undefined ? "" : `, ${last}`}`}
       hint={words}
       onClick={onClick}
       testId="room-sheet-spend"
     >
-      {spend !== undefined && <SpendBar spend={spend} />}
+      {bar !== undefined && <SpendBar spend={bar} />}
     </Tile>
   );
 }
@@ -377,7 +428,7 @@ function SpendBar({ spend }: { readonly spend: JobSpend }) {
 }
 
 /**
- * Lock changes (ADR 0156) as a tile: On or Off, the switch, and the padlock shut in gold while it
+ * Lock changes (ADR 0156) as a tile: On or Off, the switch, and the padlock shut on ochre while it
  * is on. A flip shows at once and holds until the room says the server has it (`useLockFlip`).
  */
 export function LockTile({
@@ -394,8 +445,8 @@ export function LockTile({
   return (
     <Tile
       mark={
-        <Mark lit={on}>
-          <Padlock on={on} />
+        <Mark ground={on ? "locked" : "lock"}>
+          <Icon name={on ? "lock" : "unlock"} size={18} />
         </Mark>
       }
       value={on ? "On" : "Off"}
@@ -412,6 +463,41 @@ export function LockTile({
         />
       }
       testId="room-sheet-lock"
+    />
+  );
+}
+
+/** What Hide and Unhide do, said to a hover and to a screen reader, in the phone's words. */
+const HIDE_UNDER = {
+  hide: "Off your list, and quiet. The others here carry on.",
+  unhide: "Back on your list, and heard as before.",
+} as const;
+
+/**
+ * Hide (ADR 0205) as a tile beside Lock changes, as the phone's: the room off the reader's own list
+ * at once, or Unhide on a hidden room. It opens nothing, so it has no chevron.
+ */
+export function HideTile({
+  hidden,
+  onHide,
+}: {
+  readonly hidden: boolean;
+  readonly onHide: (hidden: boolean) => void;
+}) {
+  return (
+    <Tile
+      mark={
+        <Mark ground="hide">
+          <Icon name={hidden ? "unhide" : "hide"} size={18} />
+        </Mark>
+      }
+      value={hidden ? "Unhide" : "Hide"}
+      name={hidden ? "Back on your list" : "Off your list"}
+      label={hidden ? "Unhide" : "Hide"}
+      hint={hidden ? HIDE_UNDER.unhide : HIDE_UNDER.hide}
+      onClick={() => onHide(!hidden)}
+      opens={false}
+      testId={hidden ? "unhide-space" : "hide-space"}
     />
   );
 }

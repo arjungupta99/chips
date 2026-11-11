@@ -99,6 +99,7 @@ import type {
   NeedsYouItem,
   ReplyCard as ReplyCardModel,
   Run,
+  RunAct,
   Snapshot,
   Space,
   Store,
@@ -153,11 +154,9 @@ import {
   PixelRatio,
   Platform,
   Pressable,
-  type StyleProp,
   StyleSheet,
   Text,
   View,
-  type ViewStyle,
   type ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -200,7 +199,7 @@ import type { RoomPage } from "./RoomSheet";
 import { Ink, RoomWords } from "./RoomWords";
 import type { RouteDrawn } from "./RouteSheet";
 import { returning } from "./returning";
-import { ColourList, type Field, useColourField } from "./ScrollColours";
+import { ColourList, DrawsPast, type Field, useColourField } from "./ScrollColours";
 import { FlightLayer } from "./SendFlight";
 import { sameLanes } from "./sameLanes";
 import {
@@ -230,7 +229,7 @@ import {
 import { NOBODY, ThinkingBubble, useInTouch, useThinking } from "./Thinking";
 import { type Undoing, UndoPill } from "./UndoPill";
 import { Unstarted } from "./Unstarted";
-import { WaitsProvider } from "./Waits";
+import { Waits, WaitsProvider } from "./Waits";
 import { separatorLabel } from "./when";
 
 /**
@@ -903,14 +902,15 @@ function useRoomFlight({
  * simulator, 25 September 2026: a stall, and the room a third of the way up in one frame).
  */
 function useFoot(
+  spaceId: string,
   doing: readonly Doing[],
   asks: readonly NeedsYouItem[],
   snapshot: Snapshot,
   resting: boolean,
 ): FootRow {
   return useMemo(
-    () => ({ foot: true as const, doing, asks, snapshot, resting }),
-    [doing, asks, snapshot, resting],
+    () => ({ foot: true as const, spaceId, doing, asks, snapshot, resting }),
+    [spaceId, doing, asks, snapshot, resting],
   );
 }
 
@@ -1237,7 +1237,7 @@ export function SpaceView({
   // Out of touch with the server — or a beat after it is back, while it catches up — a bubble
   // says what was known, and stands still (`ThinkingBubble`'s `resting`).
   const inTouch = useInTouch(snapshot.connection);
-  const foot = useFoot(doing, asks, snapshot, !inTouch);
+  const foot = useFoot(spaceId, doing, asks, snapshot, !inTouch);
   const folded = useFolded(
     drawn,
     space,
@@ -1403,7 +1403,7 @@ export function SpaceView({
                         field={field}
                         inverted
                         testID="space-lines"
-                        style={listStyle(span)}
+                        style={styles.list}
                         onLayout={onListed}
                         // Unseen while a room opened on a line places it (`useLanding`).
                         shown={!landing.placing}
@@ -1490,6 +1490,7 @@ export function SpaceView({
                   closeAddress={closeAddress}
                   onOpenRoom={onOpenRoom}
                   bar={headHeight}
+                  inTouch={inTouch}
                 />
                 <Flown
                   flight={flight}
@@ -1625,6 +1626,7 @@ function Foot({
   closeAddress,
   onOpenRoom,
   bar,
+  inTouch,
 }: {
   readonly store: Store;
   readonly space: Space;
@@ -1639,6 +1641,8 @@ function Foot({
   readonly onOpenRoom?: ((page?: RoomPage) => void) | undefined;
   /** Where the room's bar ends, which the field's list stops under (ADR 0113). */
   readonly bar: number;
+  /** Whether the room has caught up with its server (`useInTouch`): the banner waits until it has. */
+  readonly inTouch: boolean;
 }) {
   const palette = usePalette();
   const closed = space.state === "closed";
@@ -1671,11 +1675,13 @@ function Foot({
           onAdd={onOpenRoom === undefined ? undefined : () => onOpenRoom("add")}
         />
         <PausedBanner
+          key={`paused-${space.id}`}
           store={store}
           space={space}
           snapshot={snapshot}
           selfId={selfId}
           onRaise={onOpenRoom === undefined ? undefined : () => onOpenRoom("raise")}
+          inTouch={inTouch}
         />
         <Composer
           key={space.id}
@@ -1730,7 +1736,9 @@ const ALIGNED: Record<Edge, { readonly alignSelf: "flex-start" | "center" | "fle
  * know, so a change of it draws this box again and not the room: the room drawn again three or four
  * times on its way, in a long room, kept the details from setting off for a quarter of a second
  * (the simulator, 5 November 2026). That box stands in the middle of the room or at its edge that
- * stays put, and the room cuts off what it holds past its edges while it is wider.
+ * stays put, and the room cuts off what it holds past its edges while it is wider. While the lines
+ * glide to the new width the list draws past its own frame, and only then (`DrawsPast`): a list
+ * that always did stopped short of a room's first line.
  *
  * The box keeps the list inside it (`collapsable={false}`), as the page does (`Screen`'s `Page`).
  * A view with a test id and no more is drawn by React Native as an empty view with its children
@@ -1769,7 +1777,7 @@ function TapAway({
     }),
     [field],
   );
-  const { width: held, edge, ...words } = useHeldWidth(span, field.moves, column, told);
+  const { width: held, edge, gliding, ...words } = useHeldWidth(span, field.moves, column, told);
   return (
     <View
       ref={glass}
@@ -1795,7 +1803,7 @@ function TapAway({
           }
           testID="room-held"
         >
-          {children}
+          <DrawsPast.Provider value={gliding}>{children}</DrawsPast.Provider>
         </View>
       </RoomWords>
     </View>
@@ -2243,9 +2251,15 @@ function RoomFoot({
   readonly selfId: string;
   readonly onDetails: ((item: NeedsYouItem) => void) | undefined;
 }) {
-  const { doing, asks, snapshot, resting } = foot;
+  const { doing, asks, snapshot, resting, spaceId } = foot;
   // Nothing at the foot stands nothing off the newest line.
   if (doing.length === 0 && asks.length === 0) return <View testID="space-foot" />;
+  // A held bubble's Pause, Resume and Stop (ADR 0293).
+  const onRun = (act: RunAct, runId: string) => {
+    if (act === "pause") store.pauseRun({ spaceId, runId });
+    else if (act === "resume") store.resumeRun({ spaceId, runId });
+    else store.stopRun({ spaceId, runId });
+  };
   return (
     <View style={styles.foot} testID="space-foot">
       {doing.map((each) => (
@@ -2254,6 +2268,8 @@ function RoomFoot({
           doing={each}
           directory={snapshot.directory}
           resting={resting}
+          busy={snapshot.busy.has(each.runId)}
+          onRun={onRun}
         />
       ))}
       <Asks items={asks} snapshot={snapshot} selfId={selfId} store={store} onDetails={onDetails} />
@@ -2288,11 +2304,6 @@ function Turn({ drawn, children }: { readonly drawn: Drawn; readonly children: R
       {children}
     </Moving>
   );
-}
-
-/** The room's list: beside an iPad's panes, drawn past its own frame (`styles.unclipped`). */
-function listStyle(span: RoomSpan | undefined): StyleProp<ViewStyle> {
-  return span === undefined ? styles.list : [styles.list, styles.unclipped];
 }
 
 /**
@@ -2363,14 +2374,20 @@ function Fold({
         {open ? (
           <View style={styles.foldLines}>{children}</View>
         ) : latest === undefined ? null : (
-          <Ink>
-            <Text numberOfLines={1} style={[styles.foldLatest, { color: palette.ink3 }]}>
-              <Text style={{ color: palette.ink2, fontWeight: "600" }}>
-                {nameOf(directory, latest.authorId)}:
-              </Text>{" "}
-              {plainWords(latest.text)}
-            </Text>
-          </Ink>
+          <>
+            <Ink>
+              <Text numberOfLines={1} style={[styles.foldLatest, { color: palette.ink3 }]}>
+                <Text style={{ color: palette.ink2, fontWeight: "600" }}>
+                  {nameOf(directory, latest.authorId)}:
+                </Text>{" "}
+                {plainWords(latest.text)}
+              </Text>
+            </Ink>
+            {/* Folded, a hand-off its agent hasn't picked up still says so (ADR 0291). */}
+            {fold.lines.map((line) => (
+              <Waits key={line.id} lineId={line.id} mine={false} />
+            ))}
+          </>
         )}
       </View>
       {fold.guard === undefined ? null : <RefereeLine guard={fold.guard} onExchange={onExchange} />}
@@ -2533,10 +2550,6 @@ const styles = StyleSheet.create({
   // The list takes the screen's height. Without it the list is as tall as its content wants to
   // be, which inside a flex column is nothing at all: the lines render and are clipped away.
   list: { flex: 1 },
-  // Beside an iPad's panes the list draws past its own frame, and the room cuts off what is past
-  // its edges: a bubble gliding in from outside the box its lines took was cut off at the box's
-  // edge, half a bubble on its way (ADR 0279, the simulator, 6 November 2026).
-  unclipped: { overflow: "visible" },
   // The room, where the lines' box stands while it holds a width of its own.
   tap: { flex: 1, overflow: "hidden" },
   // What an empty room says, over its list.

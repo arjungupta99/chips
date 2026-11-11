@@ -152,6 +152,12 @@ export const runStatus = defineEvent({
       .nonnegative()
       .optional()
       .describe("Seconds remaining, when the harness knows."),
+    pausable: z
+      .boolean()
+      .optional()
+      .describe(
+        "This run holds where it is when a person pauses it (ADR 0293): on `run.pause` the harness stops the run's work within a few seconds without ending it, on `run.resume` it carries on in the same conversation, and on `run.cancel` while paused it ends quietly. Said once, on any status of the run; clients offer Pause only on a run that said it.",
+      ),
   }),
 });
 

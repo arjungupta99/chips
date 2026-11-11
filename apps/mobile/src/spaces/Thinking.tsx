@@ -56,15 +56,42 @@
  *
  * Reduce Motion leaves the dots lit and still, takes the travel out of the arrival, and changes
  * the words at once.
+ *
+ * Pressed and held, it lifts out of the room as a held message does (`LiftedMenu.tsx`, ADR 0200)
+ * with a card under it: who is working and for how long, then Pause (or Resume) and, after a rule,
+ * Stop in red (ADR 0293). What was chosen is done once the bubble is back in its place, so the
+ * change is seen on the bubble itself. Paused, it stays: it says Paused, its dots stand unlit, its
+ * clock holds, and a flat Resume sits at its right. "Pausing" or "Stopping" shows only once the
+ * server has not answered in the beat the asks wait.
  */
 
-import type { CallKind, ConnectionState, Directory, Doing, Says } from "@chipschat/core";
-import { clockWords, doingSays, holdSays, nameOf, THINKING_GRACE_MS } from "@chipschat/core";
+import type {
+  CallKind,
+  ConnectionState,
+  Directory,
+  Doing,
+  RunAct,
+  RunMenuItem,
+  Says,
+} from "@chipschat/core";
+import {
+  clockWords,
+  doingSays,
+  holdSays,
+  nameOf,
+  RUN_ASKED_WORDS,
+  runMenuHead,
+  runMenuItems,
+  THINKING_GRACE_MS,
+} from "@chipschat/core";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Animated,
+  AppState,
   Easing,
+  Keyboard,
   Platform,
+  Pressable,
   type StyleProp,
   StyleSheet,
   Text,
@@ -75,12 +102,19 @@ import { faceProps } from "../agents/face";
 import { Avatar, faceGround } from "../ui/Avatar";
 import { Dots } from "../ui/Dots";
 import { useFacePaint } from "../ui/faceTheme";
+import { alpha } from "../ui/Glass";
+import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
+import type { IconName } from "../ui/icons";
 import { usePalette } from "../ui/theme";
 import { BUBBLE, LEADING_PHONE, type Palette, SPACE, TEXT } from "../ui/tokens";
 import { useReduceMotion } from "../ui/useReduceMotion";
 import { CallStrip, GLYPHS } from "./CallStrip";
+import { LiftedMenu, type LiftRow } from "./LiftedMenu";
+import { LiftBox, useLiftBox } from "./LiftedMotion";
+import type { Box, Span } from "./lift";
 import { Coming, Moving } from "./RoomMotion";
+import { useRunAsked } from "./runAsked";
 
 /**
  * How long a run has to have been going before the bubble comes; the beat that makes it a thought.
@@ -193,8 +227,17 @@ export function useThinking(doing: readonly Doing[], confirmed = true): readonly
 export const CATCH_UP_MS = 800;
 
 /**
- * Whether the room is in touch with its server, for its bubbles' sake: not while the socket is
- * down, nor for `CATCH_UP_MS` after it is back. A room opened connected is in touch at once.
+ * Whether the room is in touch with its server, for what it draws from the server's word — its
+ * bubbles, and the paused banner (`PausedBanner`): not while the socket is down, nor for
+ * `CATCH_UP_MS` after it is back, nor for `CATCH_UP_MS` after the app comes back from the
+ * background. A room opened connected is in touch at once.
+ *
+ * Back from the background, the socket may still say it is open: iOS froze it rather than closing
+ * it, and what came while the app was away is only now on its way in. The room was drawing what it
+ * knew when the app went, and a banner that had been true then went the moment the catch-up said
+ * otherwise, with nothing in between (Arjun's iPhone, 11 November 2026: a red box for a second on
+ * coming back to a room, "abrupt and unexpected"). So a return is a beat out of touch as well, out
+ * of the very render that hears it.
  *
  * `atOnce` false waits the beat from the opening too, for a screen a push opens the moment the
  * app is back: the socket may still look open then, before anything has found it stale, and what
@@ -202,22 +245,48 @@ export const CATCH_UP_MS = 800;
  */
 export function useInTouch(connection: ConnectionState, atOnce = true): boolean {
   const open = connection === "open";
-  const [caughtUp, setCaughtUp] = useState(open && atOnce);
+  const returns = useReturns();
+  // The return the room has caught up since: none while it has not.
+  const [caughtUp, setCaughtUp] = useState<number | undefined>(
+    open && atOnce ? returns : undefined,
+  );
   useEffect(() => {
     if (!open) {
-      setCaughtUp(false);
+      setCaughtUp(undefined);
       return;
     }
-    const timer = setTimeout(() => setCaughtUp(true), CATCH_UP_MS);
+    const timer = setTimeout(() => setCaughtUp(returns), CATCH_UP_MS);
     return () => clearTimeout(timer);
-  }, [open]);
-  return open && caughtUp;
+  }, [open, returns]);
+  return open && caughtUp === returns;
+}
+
+/**
+ * How many times the app has come back to the front from the background since this was drawn.
+ * Not from `inactive`, which is Control Center or a call's banner over an app that kept its socket
+ * running the whole time.
+ */
+function useReturns(): number {
+  const [returns, setReturns] = useState(0);
+  useEffect(() => {
+    let away = AppState.currentState === "background";
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "background") away = true;
+      if (state !== "active" || !away) return;
+      away = false;
+      setReturns((was) => was + 1);
+    });
+    return () => subscription.remove();
+  }, []);
+  return returns;
 }
 
 export function ThinkingBubble({
   doing,
   directory,
   resting = false,
+  busy = false,
+  onRun,
 }: {
   readonly doing: Doing;
   readonly directory: Directory;
@@ -230,62 +299,376 @@ export function ThinkingBubble({
    * a turn long over was still breathing for as long as the room took to catch up).
    */
   readonly resting?: boolean;
+  /** A Pause, a Resume or a Stop for its run is on its way. */
+  readonly busy?: boolean;
+  /** Pause, Resume and Stop for its run (ADR 0293); absent, a hold on it does nothing. */
+  readonly onRun?: ((act: RunAct, runId: string) => void) | undefined;
 }) {
   const palette = usePalette();
-  const faces = useFacePaint();
   const less = useReduceMotion();
   const says = useHeld(doing);
   const name = nameOf(directory, doing.harnessId);
   const face = faceProps(directory, doing.harnessId);
   const strip = useStripRow(says.calls > 0);
+  const asked = useRunAsked(doing, busy);
+  const paused = doing.paused === true;
+  const items = onRun === undefined ? NO_ITEMS : runMenuItems(doing);
+  const act = (chosen: RunAct) => {
+    if (onRun === undefined) return;
+    asked.ask(chosen);
+    onRun(chosen, doing.runId);
+  };
+  const held = useHeldBubble(act);
+  const lifted = held.lifted;
+  // The card's title says how long it has worked, and goes on saying it while the card is up.
+  const now = useTicking(lifted?.open === true);
+  const inside: InsideProps = {
+    doing,
+    says,
+    label: bubbleLabel(asked, paused, says.label),
+    name,
+    icon: face.icon,
+    resting: resting || paused,
+    running: !resting && !paused && asked.act !== "stop",
+    strip,
+    less,
+    // Resume, in the bubble, while paused and nothing is on its way.
+    onResume: onRun === undefined ? undefined : () => act("resume"),
+    waiting: busy || asked.act !== undefined,
+  };
   return (
     <Coming rise={RISE}>
       <View
         testID="doing"
         accessibilityRole="progressbar"
-        accessibilityLabel={`${name} · ${says.label} · ${says.detail}`}
+        accessibilityLabel={`${name} · ${inside.label} · ${says.detail}`}
         style={styles.row}
       >
         {/* Its pins lit and still: the dots in the bubble are the one sign of the work. */}
         <Avatar name={name} {...face} size="sm" pinsOut decorative />
         <Moving style={[styles.bubble, { backgroundColor: palette.them }]}>
-          <View style={styles.top}>
-            <Dots
-              colour={faces.ground(faceGround(name, face.icon))}
-              lit
-              resting={resting}
-              line={LINE}
-              testID="doing-dots"
-            />
-            <Swap id={says.label} less={less} style={styles.slot}>
-              <Text
-                testID="doing-label"
-                numberOfLines={1}
-                maxFontSizeMultiplier={BUBBLE.maxScale}
-                style={[styles.label, { color: palette.ink }]}
-              >
-                {says.label}
-              </Text>
-            </Swap>
-            <Clock startedAt={doing.startedAt} palette={palette} running={!resting} />
-          </View>
-          <Swap id={detailKey(says)} less={less} style={styles.under}>
-            <Detail says={says} palette={palette} />
-          </Swap>
-          {strip.open ? (
-            <View style={[styles.under, styles.stripRow]}>
-              <CallStrip
-                key={doing.runId}
-                made={doing.made}
-                palette={palette}
-                less={less}
-                lead={strip.lead}
-              />
-            </View>
-          ) : null}
+          {items.length > 0 ? <LiftBox box={held.box} /> : null}
+          <Hold name={name} items={items} onHold={held.lift} onAct={act}>
+            <Inside {...inside} />
+          </Hold>
         </Moving>
       </View>
+      {lifted === undefined ? null : (
+        <LiftedMenu
+          key={lifted.id}
+          open={lifted.open}
+          bubble={lifted.box}
+          seen={lifted.seen}
+          back={lifted.back}
+          side="left"
+          copy={
+            <View style={[styles.bubble, styles.copy, { backgroundColor: palette.them }]}>
+              <View style={styles.inside}>
+                <Inside {...inside} onResume={undefined} />
+              </View>
+            </View>
+          }
+          title={runMenuHead(doing, name, now)}
+          quick={[]}
+          rows={rowsOf(items, inside.waiting, held.putDown)}
+          onClose={() => held.putDown()}
+          onGone={() => held.gone(lifted.id)}
+        />
+      )}
     </Coming>
+  );
+}
+
+const NO_ITEMS: readonly RunMenuItem[] = [];
+
+/** The time, once a second while `on`; when it last was, while not. */
+function useTicking(on: boolean): number {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!on) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [on]);
+  return now;
+}
+
+/** The card's rows: Pause or Resume, and Stop in red after a rule (`LiftedMenu`'s `Card`). */
+function rowsOf(
+  items: readonly RunMenuItem[],
+  waiting: boolean,
+  putDown: (next?: RunAct) => void,
+): readonly LiftRow[] {
+  return items.map((item) => ({
+    key: `run-${item.act}`,
+    icon: RUN_ICONS[item.act],
+    label: item.label,
+    danger: item.danger === true,
+    // A command already on its way: the card goes down and nothing is asked twice.
+    onPress: () => putDown(waiting ? undefined : item.act),
+  }));
+}
+
+const RUN_ICONS: Readonly<Record<RunAct, IconName>> = {
+  pause: "pause",
+  resume: "play",
+  stop: "stop",
+};
+
+/**
+ * The bubble held up (ADR 0293), as a message is (`Line.tsx`'s `useHeldMenu`): where it is, and
+ * where its room shows lines, asked for on the UI thread as the hold lands; and, once a choice is
+ * made, the bubble put down onto where it is now and the choice carried out once the menu has gone.
+ */
+function useHeldBubble(act: (chosen: RunAct) => void) {
+  const box = useLiftBox();
+  const [lifted, setLifted] = useState<{
+    /** Which hold this is: a menu still going when the next hold lands is the last one's. */
+    readonly id: number;
+    readonly box: Box;
+    readonly seen: Span | undefined;
+    readonly open: boolean;
+    readonly back?: { readonly box: Box; readonly seen: Span | undefined } | undefined;
+  }>();
+  const lifts = useRef(0);
+  const after = useRef<RunAct | undefined>(undefined);
+  return {
+    box,
+    lifted,
+    lift: () =>
+      box.ask((at, seen) => {
+        if (at === null) return;
+        lifts.current += 1;
+        setLifted({ id: lifts.current, box: at, seen: seen ?? undefined, open: true });
+      }),
+    putDown: (next?: RunAct) => {
+      after.current = next;
+      box.ask((back, seen) =>
+        setLifted((now) =>
+          now === undefined || !now.open
+            ? now
+            : {
+                ...now,
+                open: false,
+                back: back === null ? undefined : { box: back, seen: seen ?? undefined },
+              },
+        ),
+      );
+    },
+    gone: (id: number) => {
+      if (id !== lifts.current) return;
+      const next = after.current;
+      after.current = undefined;
+      setLifted(undefined);
+      if (next !== undefined) act(next);
+    },
+  };
+}
+
+/**
+ * A press held on the bubble, where it has a menu: the keyboard down, the lift's feel, the bubble
+ * held up. VoiceOver has its items as the bubble's own actions, without the lift.
+ */
+function Hold({
+  name,
+  items,
+  onHold,
+  onAct,
+  children,
+}: {
+  readonly name: string;
+  readonly items: readonly RunMenuItem[];
+  readonly onHold: () => void;
+  readonly onAct: (act: RunAct) => void;
+  readonly children: ReactNode;
+}) {
+  if (items.length === 0) return <View style={styles.inside}>{children}</View>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint={`Press and hold for what to do with ${name}'s work`}
+      accessibilityActions={items.map((item) => ({ name: item.act, label: item.label }))}
+      onAccessibilityAction={(event) => {
+        const chosen = items.find((item) => item.act === event.nativeEvent.actionName);
+        if (chosen !== undefined) onAct(chosen.act);
+      }}
+      testID="doing-hold"
+      onLongPress={() => {
+        Keyboard.dismiss();
+        feel.lift();
+        onHold();
+      }}
+      style={styles.inside}
+    >
+      {children}
+    </Pressable>
+  );
+}
+
+/** What a paused bubble says in place of its work (ADR 0293). */
+const PAUSED_WORD = "Paused";
+
+/** Past the beat with no answer, what is on its way; paused, that it is; else its work. */
+function bubbleLabel(
+  asked: { readonly act: RunAct | undefined; readonly late: boolean },
+  paused: boolean,
+  working: string,
+): string {
+  if (asked.late && asked.act !== undefined) return RUN_ASKED_WORDS[asked.act];
+  return paused ? PAUSED_WORD : working;
+}
+
+interface InsideProps {
+  readonly doing: Doing;
+  readonly says: Says;
+  /** The top line's words: the work's kind, Paused, or what is on its way. */
+  readonly label: string;
+  readonly name: string;
+  readonly icon: Parameters<typeof faceGround>[1];
+  /** Its dots unlit: out of touch, or paused. */
+  readonly resting: boolean;
+  /** Its clock counting. */
+  readonly running: boolean;
+  readonly strip: ReturnType<typeof useStripRow>;
+  readonly less: boolean;
+  /** Resume, drawn while paused; absent in the lifted copy and where there is no menu. */
+  readonly onResume: (() => void) | undefined;
+  readonly waiting: boolean;
+}
+
+/**
+ * What the bubble holds — its top line, its detail and its strip — drawn the same in the room and
+ * in the copy that is held up. Paused, the detail and the strip go soft, and Resume comes in.
+ */
+function Inside(props: InsideProps) {
+  const { doing, says, strip, less } = props;
+  const palette = usePalette();
+  const faces = useFacePaint();
+  const paused = doing.paused === true;
+  const soft = useSoft(paused, less);
+  return (
+    <>
+      <View style={styles.top}>
+        <Dots
+          colour={faces.ground(faceGround(props.name, props.icon))}
+          lit
+          resting={props.resting}
+          line={LINE}
+          testID="doing-dots"
+        />
+        <Swap id={props.label} less={less} style={styles.slot}>
+          <Text
+            testID="doing-label"
+            numberOfLines={1}
+            maxFontSizeMultiplier={BUBBLE.maxScale}
+            style={[styles.label, { color: palette.ink }]}
+          >
+            {props.label}
+          </Text>
+        </Swap>
+        <Clock
+          startedAt={doing.startedAt}
+          heldAt={doing.heldAt}
+          palette={palette}
+          running={props.running}
+        />
+        {paused && props.onResume !== undefined ? (
+          <Resume waiting={props.waiting} less={less} onPress={props.onResume} />
+        ) : null}
+      </View>
+      <Animated.View style={{ opacity: soft }}>
+        <Swap id={detailKey(says)} less={less} style={styles.under}>
+          <Detail says={says} palette={palette} />
+        </Swap>
+        {strip.open ? (
+          <View style={[styles.under, styles.stripRow]}>
+            <CallStrip
+              key={doing.runId}
+              made={doing.made}
+              palette={palette}
+              less={less}
+              lead={strip.lead}
+            />
+          </View>
+        ) : null}
+      </Animated.View>
+    </>
+  );
+}
+
+/** How far a paused bubble's detail and strip fade, and how long they take. */
+const SOFT = 0.55;
+const SOFT_MS = 200;
+
+/** The detail and the strip's strength: soft while paused, a crossfade either way. */
+function useSoft(paused: boolean, less: boolean): Animated.Value {
+  const soft = useRef(new Animated.Value(paused ? SOFT : 1)).current;
+  useEffect(() => {
+    const to = paused ? SOFT : 1;
+    if (less) {
+      soft.setValue(to);
+      return;
+    }
+    const run = Animated.timing(soft, {
+      toValue: to,
+      duration: SOFT_MS,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    });
+    run.start();
+    return () => run.stop();
+  }, [paused, less, soft]);
+  return soft;
+}
+
+/** A paused bubble's way back: flat, small, at its right, fading in as the pause lands. */
+function Resume({
+  waiting,
+  less,
+  onPress,
+}: {
+  readonly waiting: boolean;
+  readonly less: boolean;
+  readonly onPress: () => void;
+}) {
+  const palette = usePalette();
+  const shown = useRef(new Animated.Value(less ? 1 : 0)).current;
+  useEffect(() => {
+    if (less) return;
+    const run = Animated.timing(shown, {
+      toValue: 1,
+      duration: SOFT_MS,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    });
+    run.start();
+    return () => run.stop();
+  }, [less, shown]);
+  return (
+    <Animated.View style={{ opacity: shown }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Resume"
+        accessibilityState={{ disabled: waiting }}
+        disabled={waiting}
+        hitSlop={8}
+        onPress={onPress}
+        testID="doing-resume"
+        style={({ pressed }) => [
+          styles.resume,
+          { backgroundColor: alpha(palette.ink, pressed ? 0.14 : 0.08) },
+          waiting ? styles.resumeWaiting : null,
+        ]}
+      >
+        <Icon name="play" size={10} color={palette.ink} weight={2} />
+        <Text
+          maxFontSizeMultiplier={BUBBLE.maxScale}
+          style={[styles.resumeWords, { color: palette.ink }]}
+        >
+          Resume
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -363,23 +746,28 @@ function Glyph({ kind, palette }: { readonly kind: CallKind; readonly palette: P
  */
 function Clock({
   startedAt,
+  heldAt,
   palette,
   running,
 }: {
   readonly startedAt: string | undefined;
+  /** Paused at: the clock holds here (ADR 0293). */
+  readonly heldAt?: string | undefined;
   readonly palette: Palette;
   /** Counting; stopped where it stands while the room is out of touch. */
   readonly running: boolean;
 }) {
-  const [now, setNow] = useState(Date.now);
+  const [ticked, setNow] = useState(Date.now);
+  const held = heldAt === undefined ? Number.NaN : Date.parse(heldAt);
+  const now = Number.isNaN(held) ? ticked : held;
   useEffect(() => {
-    if (!running) return;
+    if (!running || !Number.isNaN(held)) return;
     // On the second, as the turn counts them, rather than up to a second late.
     const began = startedAt === undefined ? now : Date.parse(startedAt);
     const wait = 1000 - ((((Date.now() - began) % 1000) + 1000) % 1000) + 5;
     const timer = setTimeout(() => setNow(Date.now()), wait);
     return () => clearTimeout(timer);
-  }, [now, startedAt, running]);
+  }, [now, startedAt, running, held]);
   return (
     <Text
       testID="doing-clock"
@@ -492,12 +880,23 @@ const styles = StyleSheet.create({
     borderRadius: BUBBLE.radius,
     // So what is outside the row as it opens is cut to the bubble's own corner.
     overflow: "hidden",
-    paddingHorizontal: BUBBLE.padX,
-    paddingVertical: BUBBLE.padY,
-    gap: 2,
     width: BUBBLE.maxWidth,
     flexShrink: 1,
   },
+  // Inside the bubble, so a hold anywhere on it, its padding too, lifts it.
+  inside: { paddingHorizontal: BUBBLE.padX, paddingVertical: BUBBLE.padY, gap: 2 },
+  // The copy held up is as wide as the bubble it was drawn from.
+  copy: { width: "100%" },
+  resume: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 22,
+    paddingHorizontal: SPACE.sm,
+    borderRadius: 999,
+  },
+  resumeWaiting: { opacity: 0.5 },
+  resumeWords: { fontSize: TEXT.sm, fontWeight: "500" },
   top: { flexDirection: "row", alignItems: "center", gap: SPACE.sm },
   // Takes what the clock leaves, so a long label ends in an ellipsis rather than pushing it out.
   slot: { flex: 1, minWidth: 0 },

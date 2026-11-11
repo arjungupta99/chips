@@ -15,6 +15,12 @@ export type PresenceListener = (workspaceId: string, harnessId: string, state: A
 export interface Presence {
   /** What Chips knows now of a harness. */
   readonly stateOf: (workspaceId: string, harnessId: string) => AgentState;
+  /**
+   * A harness was just made: not connected, since now. Without it, one that took its key and has
+   * not connected yet reads as offline since the server started, and its join card says at once
+   * that it never connected (the onboarding audit, Part 2, item 9).
+   */
+  readonly added: (workspaceId: string, harnessId: string) => void;
   /** A socket of the harness opened, through the port or the relay. */
   readonly opened: (workspaceId: string, harnessId: string) => void;
   /** A socket of the harness closed. Offline only once none has opened again for a while. */

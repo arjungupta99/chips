@@ -131,7 +131,7 @@ function secretService(): KeyStore {
 }
 
 /** One JSON map, readable by this user alone, beside the CLI's own `secrets.json`. */
-function file(path: string): KeyStore {
+function file(path: string): KeyStore & { readonly path: string } {
   const read = (): Record<string, string> => {
     if (!existsSync(path)) return {};
     try {
@@ -151,6 +151,7 @@ function file(path: string): KeyStore {
   };
   return {
     kind: "file",
+    path,
     get: (account) => read()[account],
     set(account, secret) {
       write({ ...read(), [account]: secret });
@@ -163,14 +164,47 @@ function file(path: string): KeyStore {
 }
 
 /**
+ * A keychain or Secret Service that won't take a key, with the file behind it: a locked keychain
+ * over SSH, or `secret-tool` with no session bus to reach (WSL, a server), refuses as the key is
+ * handed over, when the link is spent already and a failure would lose the key (the onboarding
+ * audit, Part 2, item 9). A key kept in the file is read back from it.
+ */
+export function orInTheFile(
+  best: KeyStore,
+  plain: KeyStore & { readonly path?: string },
+  say: (line: string) => void = (line) => void process.stderr.write(`${line}\n`),
+): KeyStore {
+  const where = best.kind === "keychain" ? "The keychain" : "The Secret Service";
+  return {
+    kind: best.kind,
+    get: (account) => best.get(account) ?? plain.get(account),
+    set(account, secret) {
+      try {
+        best.set(account, secret);
+      } catch {
+        plain.set(account, secret);
+        say(
+          `${where} wouldn't take its key, so it's kept in ${plain.path ?? "a file"}, which only you can read.`,
+        );
+      }
+    },
+    remove(account) {
+      best.remove(account);
+      plain.remove(account);
+    },
+  };
+}
+
+/**
  * The best place this machine has. `CHIPS_NO_KEYCHAIN=true` asks for the file, as it does of the
  * CLI: a test, a container, a server with no keyring unlocked.
  */
 export function openKeyStore(env: Environment, platform: string = process.platform): KeyStore {
   const plain = file(join(configHome(env), "harness-keys.json"));
   if (env["CHIPS_NO_KEYCHAIN"] === "true") return plain;
-  if (platform === "darwin" && answers("/usr/bin/security", ["list-keychains"])) return keychain();
+  if (platform === "darwin" && answers("/usr/bin/security", ["list-keychains"]))
+    return orInTheFile(keychain(), plain);
   if (platform === "linux" && answers("sh", ["-c", "command -v secret-tool"]))
-    return secretService();
+    return orInTheFile(secretService(), plain);
   return plain;
 }

@@ -226,6 +226,8 @@ function runCommand(
       return undefined;
     case "pause":
       if (run.paused) return "The run is already paused.";
+      // A Pause its harness would not hold hides work that carries on (ADR 0293).
+      if (!run.pausable) return "This agent can't pause. /stop ends its work.";
       store.pauseRun(target);
       return undefined;
     case "resume":

@@ -46,6 +46,7 @@ import { thisDevice } from "../src/device/word";
 import { Big } from "../src/pairing/JoinCard";
 import { FinderView, type HeldServer, OnThisWifi, useFinder } from "../src/pairing/OnThisWifi";
 import { ScanSheet } from "../src/pairing/ScanSheet";
+import { StartOnComputer } from "../src/pairing/StartOnComputer";
 import { type Join, useJoin } from "../src/pairing/useJoin";
 import { useChips } from "../src/store/provider";
 import { ChipPulse } from "../src/ui/ChipPulse";
@@ -60,10 +61,11 @@ export default function PairScreen() {
   const { began, paired } = useChips();
   const lookAround = useLookAround();
   const router = useRouter();
-  const { problem, ways, code } = useLocalSearchParams<{
+  const { problem, ways, code, setup } = useLocalSearchParams<{
     problem?: string;
     ways?: string;
     code?: string;
+    setup?: string;
   }>();
   const join = useJoin(problem);
   const [scanning, setScanning] = useState(false);
@@ -73,6 +75,18 @@ export default function PairScreen() {
       ? undefined
       : { serverUrl: paired.device.serverUrl, workspace: workspaceLabel(paired.device) };
   const typeCode = () => router.push({ pathname: "/pair", params: { code: "1" } });
+  const setUp = () => router.push({ pathname: "/pair", params: { setup: "1" } });
+  const scanSheet = (
+    <ScanSheet
+      visible={scanning}
+      reader={join}
+      onClose={() => setScanning(false)}
+      onType={() => {
+        setScanning(false);
+        typeCode();
+      }}
+    />
+  );
 
   if (code === "1" || problem !== undefined) {
     return (
@@ -80,6 +94,19 @@ export default function PairScreen() {
         join={join}
         onBack={() => (router.canGoBack() ? router.back() : router.replace(WAYS_IN))}
       />
+    );
+  }
+
+  if (setup === "1") {
+    return (
+      <>
+        <StartOnComputer
+          onBack={() => (router.canGoBack() ? router.back() : router.replace(WAYS_IN))}
+          onScan={() => setScanning(true)}
+          onLookAround={lookAround}
+        />
+        {scanSheet}
+      </>
     );
   }
 
@@ -96,17 +123,10 @@ export default function PairScreen() {
         scanning={scanning}
         onScan={() => setScanning(true)}
         onType={typeCode}
+        onSetUp={setUp}
         onLookAround={lookAround}
       />
-      <ScanSheet
-        visible={scanning}
-        reader={join}
-        onClose={() => setScanning(false)}
-        onType={() => {
-          setScanning(false);
-          typeCode();
-        }}
-      />
+      {scanSheet}
     </>
   );
 }
@@ -150,6 +170,7 @@ interface WelcomeWays {
   readonly scanning: boolean;
   readonly onScan: () => void;
   readonly onType: () => void;
+  readonly onSetUp: () => void;
   readonly onLookAround: () => void;
 }
 
@@ -222,6 +243,7 @@ function WelcomeFilm({
   scanning,
   onScan,
   onType,
+  onSetUp,
   onFilm,
   onLookAround,
 }: WelcomeWays & {
@@ -253,7 +275,14 @@ function WelcomeFilm({
       player.play();
     }
   }, [away, player]);
-  const ways = { onScan, onType, onFilm, onLookAround, onWatchAgain: () => film.goTo(0) };
+  const ways = {
+    onScan,
+    onType,
+    onSetUp,
+    onFilm,
+    onLookAround,
+    onWatchAgain: () => film.goTo(0),
+  };
   if (shape !== "phone") {
     return (
       <WideFilm

@@ -35,6 +35,7 @@ Every event also carries the [envelope](/reference/envelope/).
 | `verb_phrase` | yes | `string` | What to show under the harness's name, for example "Reading PO #4471…". |
 | `progress` | no | `number` | Fraction complete, when the harness knows. |
 | `estimate_seconds` | no | `number` | Seconds remaining, when the harness knows. |
+| `pausable` | no | `boolean` | This run holds where it is when a person pauses it (ADR 0293): on `run.pause` the harness stops the run's work within a few seconds without ending it, on `run.resume` it carries on in the same conversation, and on `run.cancel` while paused it ends quietly. Said once, on any status of the run; clients offer Pause only on a run that said it. |
 
 ## Example
 

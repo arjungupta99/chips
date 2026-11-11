@@ -90,9 +90,30 @@
       "description": "Who it is handed to."
     },
     "lead": {
-      "description": "Handed to the room's lead because it was nobody's turn and the room went still (ADR 0104), rather than held by the referee.",
+      "description": "Handed to the room's lead because it was nobody's turn and the room went still (ADR 0104), or because the agent it was for did not pick it up (`unanswered_by`), rather than held by the referee.",
       "type": "boolean",
       "const": true
+    },
+    "unanswered_by": {
+      "description": "The agent the message was for that did not pick it up (ADR 0291): no turn of its on it, no word and no pass, a minute after it was said. The message is handed to the room's lead, or, when the lead said it or is the one that did not pick it up, back to the agent that said it.",
+      "type": "string",
+      "pattern": "^(?:agt|hrn)_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "why": {
+      "description": "With `unanswered_by`, why: its harness is `offline`, or says something is wrong (`trouble`); its turn on the message `failed`; or it is connected and nothing has been heard from it (`silent`).",
+      "type": "string",
+      "enum": [
+        "offline",
+        "trouble",
+        "failed",
+        "silent"
+      ]
+    },
+    "reason": {
+      "description": "For `trouble`, what its harness said is wrong; for `failed`, the run's error.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
     }
   },
   "required": [

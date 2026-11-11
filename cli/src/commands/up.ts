@@ -42,6 +42,7 @@ import {
   lingerCommand,
   lingeringCommand,
   mayFail,
+  NO_SESSION,
   type ServiceKind,
   type ServiceSpec,
   type ServiceState,
@@ -114,6 +115,11 @@ export interface UpDeps {
   readonly waitFor: (check: () => Promise<boolean>, timeoutMs: number) => Promise<boolean>;
   /** Older releases beside this one removed once the service runs on it, by version. */
   readonly pruneReleases?: (() => readonly string[]) | undefined;
+  /**
+   * Whether this shell has a session a login service can start in (`sessionCommand`). Absent, it
+   * is taken to have one, and a start that fails says why.
+   */
+  readonly hasSession?: ((kind: ServiceKind) => Promise<boolean>) | undefined;
 }
 
 export interface UpOptions {
@@ -207,7 +213,7 @@ export async function up(options: UpOptions): Promise<Up> {
   const stale =
     deps.release !== undefined && running !== undefined && running !== deps.release.version;
 
-  const path = planUp({
+  const planned = planUp({
     health,
     state: found.state,
     kind,
@@ -217,6 +223,7 @@ export async function up(options: UpOptions): Promise<Up> {
     changed: found.changes.length > 0,
     stale,
   });
+  const path = await sessionOrHere(planned, kind, health, options);
   const refused = refusal(path, port, file);
   if (refused !== undefined) {
     out.err(refused);
@@ -280,6 +287,37 @@ async function prepare(
   }
   return { choice, created };
 }
+
+/**
+ * A service with no session to start in runs here instead, said before anything is asked, rather
+ * than asking who can reach Chips, failing, and asking again under `--no-service` (the onboarding
+ * audit, Part 2, item 12). A Chips running already is left running.
+ */
+async function sessionOrHere(
+  path: UpPath,
+  kind: ServiceKind | undefined,
+  health: Health,
+  options: UpOptions,
+): Promise<UpPath> {
+  const { deps, console: out } = options;
+  if (path !== "service" || kind === undefined || deps.hasSession === undefined) return path;
+  if (await deps.hasSession(kind)) return path;
+  out.err(NO_SESSION_HERE[kind]);
+  return health === "chips" ? "already-running" : "foreground";
+}
+
+const NO_SESSION_HERE: Readonly<Record<ServiceKind, string>> = {
+  launchd: [
+    "  ! Nobody is logged in to this Mac at its screen, so Chips can't run as a login service from",
+    "    here. It runs in this terminal and stops when you close it. To run it as a service, log in",
+    "    at the Mac and run `chips up` there.",
+  ].join("\n"),
+  systemd: [
+    "  ! This shell has no systemd user session, so Chips can't run as a service from it. It runs in",
+    "    this terminal and stops when you close it. To run it as a service, log in as this user over",
+    "    SSH or at the desktop and run `chips up` there.",
+  ].join("\n"),
+};
 
 /** What `chips up` says when it will not go on, or nothing when it will. */
 function refusal(path: UpPath, port: number, file: string | undefined): string | undefined {
@@ -622,9 +660,7 @@ function failed(command: Command, output: string): string {
   const said = `\`${command.join(" ")}\` failed:`;
   const printed = output.trim();
   if (command[0] === "launchctl") return launchctlFailed(said, printed);
-  const noSession =
-    /Failed to connect to (user scope )?bus|DBUS_SESSION_BUS_ADDRESS|not been booted with systemd/;
-  if (command[0] !== "systemctl" || (printed !== "" && !noSession.test(printed))) {
+  if (command[0] !== "systemctl" || (printed !== "" && !NO_SESSION.systemd.test(printed))) {
     return `${said}\n${printed}`;
   }
   return [
@@ -641,8 +677,7 @@ function failed(command: Command, output: string): string {
  * domain (the onboarding audit, Part 2, item 12).
  */
 function launchctlFailed(said: string, printed: string): string {
-  const noSession = /Bootstrap failed: (5|125)|Domain does not support|Could not find domain/;
-  if (!noSession.test(printed)) return `${said}\n${printed}`;
+  if (!NO_SESSION.launchd.test(printed)) return `${said}\n${printed}`;
   return [
     `${said} ${printed.split("\n")[0] ?? ""}`.trimEnd(),
     "Nobody is logged in to this Mac at its screen, so Chips can't run as a login service from",

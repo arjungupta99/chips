@@ -15,6 +15,7 @@ import { defaultAgentOf } from "../agents.js";
 import type { HarnessRegistry } from "../ports/harnesses.js";
 import type { Principal } from "../ports/identity.js";
 import type { Clock, EventStore, IdGenerator, ReadModels } from "../ports/index.js";
+import type { Presence } from "../ports/presence.js";
 
 export interface AddHarnessDeps {
   readonly registry: HarnessRegistry;
@@ -27,6 +28,8 @@ export interface AddHarnessDeps {
   readonly ids: IdGenerator;
   /** Mints a token and its digest. Injected so a test can read the token it will get. */
   readonly mint: () => { readonly token: string; readonly hash: string };
+  /** Told of the harness made, so it is offline from now rather than since the server started. */
+  readonly presence?: Pick<Presence, "added"> | undefined;
 }
 
 export interface AddHarnessInput {
@@ -131,6 +134,7 @@ export function createAddHarness(deps: AddHarnessDeps) {
             display_name: displayName,
           });
 
+    deps.presence?.added(principal.workspaceId, harnessId);
     return {
       ok: true,
       value: {

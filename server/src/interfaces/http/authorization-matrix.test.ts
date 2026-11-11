@@ -573,6 +573,13 @@ const ROWS: readonly Row[] = [
     path: "/v1/spaces/spc_01K4ZQPX000000000000000001/spend",
     expect: authenticated,
   },
+  // Its jobs a page at a time (ADR 0292 addendum), for anybody in the room, as the spend is.
+  {
+    method: "GET",
+    route: "/v1/spaces/:id/spend/jobs",
+    path: "/v1/spaces/spc_01K4ZQPX000000000000000001/spend/jobs",
+    expect: authenticated,
+  },
   // Locking a room's changes, or letting them go (ADR 0156): a person's in the room who is not a
   // guest, never a harness's. Nobody is in a room of this id, so past the door each hears
   // `not_found`.

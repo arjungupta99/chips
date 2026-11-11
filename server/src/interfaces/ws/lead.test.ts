@@ -392,6 +392,33 @@ describe("what was nobody's turn, handed to the lead (ADR 0104)", () => {
     expect(await sweepIn(30_000)).toHaveLength(1);
   });
 
+  // Dudes and Bro chat, November 2026: Arjun asked all five agents a question, the last answer
+  // was handed to the lead, and the lead wrote a summary nobody had asked for.
+  it("is not handed the last answer to a question a person asked several agents, or all of them", async () => {
+    const { other, scoutAgent } = await room();
+    const ask = (text: string, to: string[] | "all") =>
+      submit(arjun(), {
+        type: "message.post",
+        space_id: ws.spaceId,
+        idempotency_key: `say-${ws.ids.next("event")}`,
+        text,
+        to,
+      });
+    await ask("Introduce yourselves.", "all");
+    await say(scout(), "I'm Scout.");
+    await say(other.principal, "I'm Ledger.");
+    expect(await sweepIn(30_000)).toEqual([]);
+
+    await ask("And what do you each make of Chips?", [scoutAgent, other.agent]);
+    await say(other.principal, "It keeps us honest.");
+    expect(await sweepIn(30_000)).toEqual([]);
+
+    // Work one agent handed another is still the lead's to look at when it ends on words for nobody.
+    await say(scout(), "@Ledger take F–J.");
+    await say(other.principal, "F–J done.");
+    expect(await sweepIn(30_000)).toHaveLength(1);
+  });
+
   it("is not handed while an agent is at work, nor in a room with no lead", async () => {
     const { other } = await room();
     const run = ws.ids.next("run");

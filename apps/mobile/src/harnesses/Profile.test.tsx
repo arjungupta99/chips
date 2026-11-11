@@ -70,6 +70,7 @@ function state(
           spaceCount: 2,
           needsYou: 0,
           paused: false,
+          pausable: true,
           status: "running",
           statusVerb: "Drafting the reply",
           spaceId: "sp_1",
@@ -268,7 +269,7 @@ describe("a harness's profile", () => {
           spaceCount: 1,
           needsYou: 0,
           paused: true,
-          status: "running",
+          status: "paused",
           spaceId: "sp_1",
           runId: "run_1",
         },
@@ -280,6 +281,27 @@ describe("a harness's profile", () => {
       name: "resumeRun",
       args: { spaceId: "sp_1", runId: "run_1" },
     });
+  });
+
+  it("greys Pause out while its run's harness never said a Pause holds it (ADR 0293)", async () => {
+    await render(
+      view({
+        fleet: [
+          {
+            harnessId: "har_scout",
+            liveSessions: 1,
+            sessionCount: 1,
+            spaceCount: 1,
+            needsYou: 0,
+            paused: false,
+            status: "running",
+            spaceId: "sp_1",
+            runId: "run_1",
+          },
+        ],
+      }).element,
+    );
+    expect(screen.getByRole("button", { name: "Pause" })).toBeDisabled();
   });
 
   it("greys Pause out once its latest run has ended, which the server would refuse to pause (ADR 0254)", async () => {

@@ -78,6 +78,7 @@ export const RUN_STATE_WORDS: Readonly<Record<RunState, string>> = {
   queued: "Queued",
   running: "Running",
   waiting: "Waiting",
+  paused: "Paused",
   done: "Done",
   failed: "Failed",
   cancelled: "Cancelled",

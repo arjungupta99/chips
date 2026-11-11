@@ -79,7 +79,11 @@ import {
   type RoomFile,
   type RoomSpend,
   readConnectors,
+  SPEND_JOBS,
+  SPEND_NO_CAP,
   type SpaceIcon,
+  type SpendCeilingSetting,
+  type SpentJobsPage,
   type WindowChangeView,
   type WindowLimitAsk,
   type WorkspaceRole,
@@ -309,6 +313,16 @@ export interface Snapshot {
   readonly keepsBanners?: boolean | undefined;
   /** Whether the server takes a yes from an agent's page, as its last hello said. */
   readonly keepsHeldStart?: boolean | undefined;
+  /**
+   * Whether the server takes No cap and amounts past $100 on a room's Spend per job (ADR 0292), as
+   * its last hello said. False from an older one, which refuses both; absent until a hello has said.
+   */
+  readonly keepsNoCap?: boolean | undefined;
+  /**
+   * Whether the server reads a room's jobs a page at a time (ADR 0292 addendum), as its last hello
+   * said: Spend per job's See all. False from an older one.
+   */
+  readonly keepsSpendJobs?: boolean | undefined;
 }
 
 /** What the server takes at most (ADR 0047), as `GET /v1/limits` says it. */
@@ -614,14 +628,15 @@ export interface Store {
    */
   readonly setLead: (spaceId: string, agentId: string | null) => Promise<void>;
   /**
-   * Set what a room allows a job (ADR 0117), from $0.25 to $100 in steps of $0.25, or `null` to
-   * follow the default again. Resolves once the server has it; the room hears it as
-   * `space.spend_ceiling_set`. With `carryOn`, the agents Chips held at the ceiling carry on in
-   * the same request (ADR 0282), and the room hears `exchange.set` right behind it.
+   * Set what a room allows a job (ADR 0117), from $0.25 to $1,000 in steps of $0.25, `null` to
+   * follow the default again, or `"none"` to take the cap off (ADR 0292). Resolves once the server
+   * has it; the room hears it as `space.spend_ceiling_set`, or `space.spend_ceiling_lifted`. With
+   * `carryOn`, the agents Chips held at the ceiling carry on in the same request (ADR 0282), and
+   * the room hears `exchange.set` right behind it.
    */
   readonly setSpendCeiling: (
     spaceId: string,
-    usd: number | null,
+    usd: SpendCeilingSetting,
     options?: { readonly carryOn?: boolean },
   ) => Promise<void>;
   /**
@@ -634,6 +649,11 @@ export interface Store {
    * it, and the jobs before it that spent, with the room's total (ADR 0282).
    */
   readonly roomSpend: (spaceId: string) => Promise<RoomSpend>;
+  /**
+   * A page of a room's jobs before its present one, newest first (ADR 0292 addendum): from the
+   * newest, or those that began before `before`, the `next` of the page before.
+   */
+  readonly roomJobs: (spaceId: string, before?: number) => Promise<SpentJobsPage>;
   /**
    * Delete an agent, for everybody (ADR 0095): gone from every list, its words kept under its
    * name. With `deleteRoom`, the room it was the one agent in is erased too, and gone from here at
@@ -1606,6 +1626,8 @@ export function createStore(options: StoreOptions): Store {
   let keepsHeldYes: boolean | undefined;
   let keepsBanners: boolean | undefined;
   let keepsHeldStart: boolean | undefined;
+  let keepsNoCap: boolean | undefined;
+  let keepsSpendJobs: boolean | undefined;
   /** The snapshot's `banners`: the cache's or the server's, with the changes on their way. */
   let banners: Banners = NO_BANNERS;
   let bannersFrom: "cache" | "server" | undefined;
@@ -1701,6 +1723,8 @@ export function createStore(options: StoreOptions): Store {
       banners,
       keepsBanners,
       keepsHeldStart,
+      keepsNoCap,
+      keepsSpendJobs,
       ...gone(),
       ...onItsWay(),
     };
@@ -2093,12 +2117,22 @@ export function createStore(options: StoreOptions): Store {
     const keeps = said.includes(HELD_YES);
     const keepsChoices = said.includes(BANNERS);
     const keepsStart = said.includes(HELD_START);
-    if (keeps === keepsHeldYes && keepsChoices === keepsBanners && keepsStart === keepsHeldStart) {
+    const noCap = said.includes(SPEND_NO_CAP);
+    const jobs = said.includes(SPEND_JOBS);
+    if (
+      keeps === keepsHeldYes &&
+      keepsChoices === keepsBanners &&
+      keepsStart === keepsHeldStart &&
+      noCap === keepsNoCap &&
+      jobs === keepsSpendJobs
+    ) {
       return;
     }
     keepsHeldYes = keeps;
     keepsBanners = keepsChoices;
     keepsHeldStart = keepsStart;
+    keepsNoCap = noCap;
+    keepsSpendJobs = jobs;
     notify();
   };
 
@@ -3995,14 +4029,26 @@ export function createStore(options: StoreOptions): Store {
         `/v1/spaces/${encodeURIComponent(spaceId)}/spend`,
       );
       return {
-        ceiling_usd: answer.ceiling_usd ?? DEFAULT_SPEND_CEILING_USD,
+        // `null` is a room with no cap (ADR 0292); nothing, a server that did not say.
+        ceiling_usd:
+          answer.ceiling_usd === null ? null : (answer.ceiling_usd ?? DEFAULT_SPEND_CEILING_USD),
         spent_usd: answer.spent_usd ?? 0,
         since_seq: answer.since_seq ?? 0,
         uncounted_runs: answer.uncounted_runs ?? 0,
-        // A server from before ADR 0282 says the job alone.
-        ...(answer.started === undefined ? {} : { started: answer.started }),
-        ...(Array.isArray(answer.jobs) ? { jobs: answer.jobs } : {}),
-        ...(typeof answer.total_usd === "number" ? { total_usd: answer.total_usd } : {}),
+        ...spendBesides(answer),
+      };
+    },
+
+    async roomJobs(spaceId, before) {
+      const query = before === undefined ? "" : `?before=${before}`;
+      const answer = await read<Partial<SpentJobsPage>>(
+        device,
+        `/v1/spaces/${encodeURIComponent(spaceId)}/spend/jobs${query}`,
+      );
+      return {
+        space_id: spaceId,
+        jobs: Array.isArray(answer.jobs) ? answer.jobs : [],
+        ...(typeof answer.next === "number" ? { next: answer.next } : {}),
       };
     },
 
@@ -4351,6 +4397,19 @@ export function createStore(options: StoreOptions): Store {
  * a read with the socket open did not land and nobody is known yet: a moment's hiccup through the
  * relay is not "Couldn't load your agents".
  */
+/**
+ * The parts of a room's spend an older server may leave out: a server from before ADR 0282 says the
+ * job alone, and one from before the ADR 0292 addendum no count of the jobs before it.
+ */
+function spendBesides(answer: Partial<RoomSpend>): Partial<RoomSpend> {
+  return {
+    ...(answer.started === undefined ? {} : { started: answer.started }),
+    ...(Array.isArray(answer.jobs) ? { jobs: answer.jobs } : {}),
+    ...(typeof answer.total_usd === "number" ? { total_usd: answer.total_usd } : {}),
+    ...(typeof answer.jobs_count === "number" ? { jobs_count: answer.jobs_count } : {}),
+  };
+}
+
 const DIRECTORY_RETRIES = 2;
 const DIRECTORY_RETRY_MS = 2000;
 /** The faces chosen for rooms are tried as often, and as far apart, as the directory is. */

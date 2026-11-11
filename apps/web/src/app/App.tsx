@@ -525,7 +525,10 @@ function PairedWith({
 }: PairedProps & {
   readonly store: Store;
 }) {
+  // A `chips://` link or a banner's click, held until the shell has opened its room, then let go:
+  // the same link again opens it again.
   const [link, setLink] = useState<string | undefined>(undefined);
+  const linkOpened = useCallback(() => setLink(undefined), []);
   const arrived = useArrivedInvite(desktop);
   // The other workspaces, in the background, unless muted here.
   const others = useWorkspaces(devices, device.deviceId);
@@ -613,7 +616,7 @@ function PairedWith({
           onSwitch={onSwitch}
           onMute={onMute}
           {...(onPairAnother === undefined ? {} : { onPairAnother })}
-          {...(link === undefined ? {} : { openId: link })}
+          {...(link === undefined ? {} : { openId: link, onOpened: linkOpened })}
           landIn={landIn}
           onLanded={onLanded}
           onRemoveDemo={onRemoveDemo}

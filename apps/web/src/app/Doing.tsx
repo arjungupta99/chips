@@ -210,19 +210,24 @@ export function useInTouch(connection: ConnectionState): boolean {
 /** How long the turn has taken, as a clock reads, ticking on the second; stopped while not `running`. */
 export function Clock({
   startedAt,
+  heldAt,
   running = true,
 }: {
   readonly startedAt: string | undefined;
+  /** Paused (ADR 0293): the clock stands at the time it held, and does not tick. */
+  readonly heldAt?: string | undefined;
   readonly running?: boolean;
 }) {
-  const [now, setNow] = useState(Date.now);
+  const [ticked, setNow] = useState(Date.now);
+  const held = heldAt === undefined ? Number.NaN : Date.parse(heldAt);
+  const now = Number.isNaN(held) ? ticked : held;
   useEffect(() => {
-    if (!running) return;
+    if (!running || !Number.isNaN(held)) return;
     const began = startedAt === undefined ? now : Date.parse(startedAt);
     const wait = 1000 - ((((Date.now() - began) % 1000) + 1000) % 1000) + 5;
     const timer = setTimeout(() => setNow(Date.now()), wait);
     return () => clearTimeout(timer);
-  }, [now, startedAt, running]);
+  }, [now, startedAt, running, held]);
   return (
     <span className="doing-clock" data-testid="doing-clock">
       {clockWords(startedAt, now)}

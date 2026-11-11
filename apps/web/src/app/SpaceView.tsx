@@ -43,6 +43,7 @@ import {
   type LaneState,
   type Line,
   type MessageRoute,
+  marginWords,
   mayReply,
   maySetSpend,
   nameOf,
@@ -57,7 +58,10 @@ import {
   type Question,
   RAISE_LIMIT,
   type ReplyCard as ReplyCardModel,
+  RUN_ASKED_WORDS,
   type Run,
+  type RunAct,
+  type RunMenuItem,
   readMark,
   readTaskBubble,
   repliesTo,
@@ -66,6 +70,8 @@ import {
   roomName,
   routesIn,
   runIsLane,
+  runMenuHead,
+  runMenuItems,
   type Session,
   type Space,
   searchTerms,
@@ -146,6 +152,7 @@ import { Markdown } from "./Markdown.tsx";
 import { type Focus, MessageList } from "./MessageList.tsx";
 import { RoomAsks } from "./RoomAsks.tsx";
 import { type RouteMark, RouteOver } from "./RouteOver.tsx";
+import { RunMenu, useRunAsked, useRunMenu } from "./RunMenu.tsx";
 import type { SpaceActions } from "./room/actions.ts";
 import { useBubbleShape } from "./room/bubbleShape.ts";
 import { type Breaking, DustProvider, returning, useCrumble, useDustRoom } from "./room/Dust.tsx";
@@ -155,6 +162,7 @@ import { RoomSheet } from "./room/RoomSheet.tsx";
 import { type Undoing, UndoPill } from "./room/UndoPill.tsx";
 import { UniverseMark } from "./room/UniverseMark.tsx";
 import { useUniverseCall } from "./room/universeSeen.ts";
+import { carryOutRunAct, type RunActs } from "./runActs.ts";
 import { Swap } from "./Swap.tsx";
 import { TaskBubble } from "./TaskBubble.tsx";
 import { clockTime, relativeTime } from "./time.ts";
@@ -221,6 +229,11 @@ export interface SpaceViewProps {
    * stopped, and the lead hears the lane was cancelled. Absent, the card offers no button.
    */
   readonly onStopLane?: ((lane: Lane) => void) | undefined;
+  /**
+   * Pause, Resume and Stop an agent's work from its bubble's menu (ADR 0293). Absent, the bubble
+   * has no menu.
+   */
+  readonly onRun?: RunActs | undefined;
   /**
    * Stop an agent working here without asking (ADR 0281), from the band under the room's head.
    * Absent, the band offers no Stop.
@@ -565,6 +578,9 @@ export function SpaceView(props: SpaceViewProps) {
                 doing={doing}
                 directory={directory}
                 resting={!inTouch}
+                spaceId={space.id}
+                busy={props.busy.has(doing.runId)}
+                onRun={props.onRun}
               />
             )}
           >
@@ -1136,6 +1152,8 @@ function Chatter(props: {
             <b>{nameOf(directory, latest.authorId)}</b> {plainWords(latest.text)}
           </p>
         )}
+        {/* Folded, a hand-off its agent hasn't picked up still says so (ADR 0291). */}
+        {!props.open && lines.map((line) => <Waits key={line.id} lineId={line.id} />)}
         {props.open && <div className="chatter-lines">{lines.map((line) => props.draw(line))}</div>}
       </div>
       {props.guard !== undefined && (
@@ -2099,21 +2117,46 @@ function Thinking({
   doing,
   directory,
   resting,
+  spaceId,
+  busy,
+  onRun,
 }: {
   readonly doing: Doing;
   readonly directory: Directory;
   readonly resting: boolean;
+  readonly spaceId: string;
+  /** A Pause, a Resume or a Stop for its run is on its way. */
+  readonly busy: boolean;
+  /** Pause, Resume and Stop (ADR 0293); absent, the bubble has no menu. */
+  readonly onRun?: RunActs | undefined;
 }) {
   const name = nameOf(directory, doing.harnessId);
   const says = useHeld(doing);
   const strip = useStripRow(says.calls > 0);
+  const asked = useRunAsked(doing, busy);
+  const items = onRun === undefined ? [] : runMenuItems(doing);
+  const menu = useRunMenu(items.length > 0);
+  const paused = doing.paused === true;
+  const label = bubbleLabel(asked, paused, says.label);
+  const act = (chosen: RunAct) => {
+    if (onRun === undefined) return;
+    asked.ask(chosen);
+    carryOutRunAct(onRun, chosen, spaceId, doing.runId);
+  };
+  // Drawn while the bubble has a menu, and shown only while paused, so it slides in and folds
+  // away rather than coming and going in a frame.
+  const resume = onRun !== undefined && (
+    <ResumeButton shown={paused} waiting={asked.act !== undefined} onResume={() => act("resume")} />
+  );
   return (
     <div
       className="msg doing"
       data-testid="doing"
+      data-paused={paused ? "true" : undefined}
+      data-asked={asked.act}
       role="status"
       aria-live="polite"
-      aria-label={`${name} · ${says.label} · ${says.detail}`}
+      aria-label={`${name} · ${label} · ${says.detail}`}
     >
       {/* Its pins lit and still: the dots in the bubble are the one sign of the work. */}
       <SaidFace
@@ -2124,15 +2167,26 @@ function Thinking({
       <div className="msg-body">
         <div
           className="bub doing-bub"
-          data-open={strip.open ? "true" : undefined}
-          data-resting={resting ? "true" : undefined}
+          {...bubbleMarks({
+            open: strip.open,
+            resting,
+            pressing: menu.pressing,
+            menu: menu.at !== undefined,
+          })}
+          {...(items.length > 0 ? { tabIndex: 0, "aria-haspopup": "menu" as const } : {})}
+          {...menu.handlers}
         >
           <div className="doing-top">
             <LitDots colour={faceGround(name, agentFace(directory, doing.harnessId))} />
-            <Swap id={says.label} className="doing-label">
-              {says.label}
+            <Swap id={label} className="doing-label">
+              {label}
             </Swap>
-            <Clock startedAt={doing.startedAt} running={!resting} />
+            <Clock
+              startedAt={doing.startedAt}
+              heldAt={doing.heldAt}
+              running={!resting && !paused && asked.act !== "stop"}
+            />
+            {resume}
           </div>
           <Swap
             id={`${says.kind ?? ""}\n${says.code ?? ""}\n${says.detail}`}
@@ -2154,7 +2208,106 @@ function Thinking({
           )}
         </div>
       </div>
+      <BubbleMenu
+        menu={menu}
+        doing={doing}
+        name={name}
+        items={items}
+        waiting={busy || asked.act !== undefined}
+        onAct={act}
+      />
     </div>
+  );
+}
+
+/** The bubble's `data-` marks: its strip's row open, at rest, held, its menu up. */
+function bubbleMarks(on: {
+  readonly open: boolean;
+  readonly resting: boolean;
+  readonly pressing: boolean;
+  readonly menu: boolean;
+}): Record<string, "true" | undefined> {
+  const mark = (yes: boolean) => (yes ? ("true" as const) : undefined);
+  return {
+    "data-open": mark(on.open),
+    "data-resting": mark(on.resting),
+    "data-pressing": mark(on.pressing),
+    "data-menu": mark(on.menu),
+  };
+}
+
+/** The bubble's menu, while it is asked for (ADR 0293). */
+function BubbleMenu(props: {
+  readonly menu: ReturnType<typeof useRunMenu>;
+  readonly doing: Doing;
+  readonly name: string;
+  readonly items: readonly RunMenuItem[];
+  readonly waiting: boolean;
+  readonly onAct: (act: RunAct) => void;
+}) {
+  if (props.menu.at === undefined) return null;
+  return <OpenBubbleMenu key={props.menu.key} {...props} at={props.menu.at} />;
+}
+
+/** The bubble's menu while it is up: its head's time goes on with the bubble's clock. */
+function OpenBubbleMenu(
+  props: Parameters<typeof BubbleMenu>[0] & {
+    readonly at: { readonly x: number; readonly y: number };
+  },
+) {
+  const { menu, doing, name } = props;
+  const now = useNow(1000);
+  return (
+    <RunMenu
+      at={props.at}
+      head={runMenuHead(doing, name, now)}
+      items={props.items}
+      label={`What to do with ${name}'s work`}
+      waiting={props.waiting}
+      leaving={menu.leaving}
+      onGone={menu.gone}
+      onClose={menu.close}
+      onAct={(chosen) => {
+        menu.close();
+        props.onAct(chosen);
+      }}
+    />
+  );
+}
+
+/** What a paused bubble says in place of its work (ADR 0293). */
+const PAUSED_WORD = "Paused";
+
+/** Past the beat with no answer, what is on its way; paused, that it is; else its work. */
+function bubbleLabel(
+  asked: { readonly act: RunAct | undefined; readonly late: boolean },
+  paused: boolean,
+  working: string,
+): string {
+  if (asked.late && asked.act !== undefined) return RUN_ASKED_WORDS[asked.act];
+  return paused ? PAUSED_WORD : working;
+}
+
+/** A paused bubble's way back: flat, small, at its right, there only while it is paused. */
+function ResumeButton(props: {
+  readonly shown: boolean;
+  readonly waiting: boolean;
+  readonly onResume: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="doing-resume"
+      data-testid="doing-resume"
+      data-shown={props.shown ? "true" : undefined}
+      aria-hidden={props.shown ? undefined : true}
+      tabIndex={props.shown ? undefined : -1}
+      disabled={props.waiting || !props.shown}
+      onClick={props.onResume}
+    >
+      <Icon name="play" size={10} />
+      Resume
+    </button>
   );
 }
 
@@ -2301,7 +2454,7 @@ function MarginLine({ line, directory, run, onOpenAgent }: MessageRowProps) {
     // A harness's read of a file is the one system line a reader sees: "Scout read PO-4471.pdf".
     return (
       <div className="sys" data-testid="fetch-line">
-        {nameOf(directory, line.authorId)} {line.text}
+        {marginWords(line, directory)}
       </div>
     );
   }

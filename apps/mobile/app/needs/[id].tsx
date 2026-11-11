@@ -31,7 +31,7 @@ import { candidates } from "../../src/needs/HandOn";
 import { answersInTheRoom, targetOf } from "../../src/spaces/spaces";
 import { useInTouch } from "../../src/spaces/Thinking";
 import { useChips, useSnapshot } from "../../src/store/provider";
-import { Button } from "../../src/ui/Button";
+import { Group, GroupRow, MARKED_INSET, RowMark } from "../../src/ui/Group";
 import { Empty, Screen, useColumn } from "../../src/ui/Screen";
 import { usePalette } from "../../src/ui/theme";
 import { SPACE, TEXT } from "../../src/ui/tokens";
@@ -104,7 +104,9 @@ function Detail({
   const question = questionFor(item, snapshot);
   const harnessName = snapshot.directory[item.harnessId]?.displayName ?? item.harnessId;
   const reason = snapshot.refused?.get(item.id);
-  const elsewhere = <Elsewhere item={item} onOpen={() => router.push(`/spaces/${item.spaceId}`)} />;
+  const openSpace = () => router.push(`/spaces/${item.spaceId}`);
+  const spaceName = roomName(snapshot.model, item.spaceId, snapshot.directory);
+  const elsewhere = <Elsewhere item={item} spaceName={spaceName} onOpen={openSpace} />;
 
   if (approval !== undefined) {
     return (
@@ -123,6 +125,7 @@ function Detail({
             back(SETTLE_MS);
           } else back(0);
         }}
+        onOpenSpace={openSpace}
         under={elsewhere}
       />
     );
@@ -192,6 +195,7 @@ function Deciding({
   now,
   leaving,
   onDecided,
+  onOpenSpace,
   under,
 }: {
   readonly store: Store;
@@ -203,6 +207,8 @@ function Deciding({
   /** Approved, and on its way back: the tick is showing. */
   readonly leaving: boolean;
   readonly onDecided: (input: DecisionInput) => void;
+  readonly onOpenSpace: () => void;
+  /** Why there is no space to open, for an ask from a space they are not in. */
   readonly under: ReactNode;
 }) {
   const router = useRouter();
@@ -260,7 +266,9 @@ function Deciding({
         keepsHeldYes={snapshot.keepsHeldYes}
         spaceName={spaceName}
         timeInBar
-        under={under}
+        // The way to the space is a row beside Hand to…; with no space to go to, a line says so.
+        onOpenSpace={item.outside === true ? undefined : onOpenSpace}
+        under={item.outside === true ? under : undefined}
       />
     </Screen>
   );
@@ -341,7 +349,15 @@ function Plain({ item }: { readonly item: NeedsYouItem }) {
  * were named on an ask raised in a space they are not in, and this card is all of it that
  * reached them, so the screen says so rather than offering a button that would fail.
  */
-function Elsewhere({ item, onOpen }: { readonly item: NeedsYouItem; readonly onOpen: () => void }) {
+function Elsewhere({
+  item,
+  spaceName,
+  onOpen,
+}: {
+  readonly item: NeedsYouItem;
+  readonly spaceName: string;
+  readonly onOpen: () => void;
+}) {
   const palette = usePalette();
   if (item.outside === true) {
     return (
@@ -351,8 +367,17 @@ function Elsewhere({ item, onOpen }: { readonly item: NeedsYouItem; readonly onO
     );
   }
   return (
-    <View style={styles.open}>
-      <Button label="Open the space" variant="plain" onPress={onOpen} />
+    <View style={styles.ways}>
+      <Group inset={MARKED_INSET} testID="ask-ways">
+        <GroupRow
+          label="Open the space"
+          value={spaceName}
+          mark={<RowMark icon="chat" />}
+          onPress={onOpen}
+          accessibilityLabel="Open the space"
+          testID="open-space"
+        />
+      </Group>
     </View>
   );
 }
@@ -361,5 +386,6 @@ const styles = StyleSheet.create({
   body: { padding: SPACE.lg, gap: SPACE.lg, paddingBottom: SPACE.xxl },
   plain: { fontSize: TEXT.body, lineHeight: TEXT.body * 1.45 },
   note: { fontSize: TEXT.sm },
-  open: { alignItems: "flex-start" },
+  // The group keeps a page's inset of its own, which the body's padding already gives.
+  ways: { marginHorizontal: -SPACE.lg },
 });

@@ -490,6 +490,8 @@ export function ConnectPage(props: {
    */
   readonly kept?: KeptLink | undefined;
   readonly onKept?: ((kept: KeptLink) => void) | undefined;
+  /** On this Mac, Connect at once: the written steps saw them all done (ADR 0290's addendum). */
+  readonly startHere?: boolean | undefined;
 }) {
   const listed = typeof props.way === "string" ? undefined : props.way;
   const bridge = fetchesBridge(props.way) ? props.way : undefined;
@@ -550,6 +552,7 @@ export function ConnectPage(props: {
             joinCard={card}
             nowMs={nowMs}
             onNewLink={() => makeLink(request?.capabilities ?? granted)}
+            startHere={props.startHere}
           />
         )}
         <Switches

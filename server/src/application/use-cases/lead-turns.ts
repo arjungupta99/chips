@@ -11,8 +11,8 @@
  * Not handed:
  * - the lead's own words: they were for the people, and the room is done or waiting on one;
  * - words that named somebody: an agent's turn, or a person's;
- * - an answer to a person who asked that agent alone: the person has it, though people said
- *   things for no agent while it worked;
+ * - an answer to a person who asked that agent, alone or with others: the person has it, though
+ *   people said things for no agent while it worked;
  * - words the referee held, or anything while it holds the room: it hands those over itself;
  * - anything a second time: once handed, the same words are not handed again, so a lead whose
  *   turn ends without naming anybody is not handed its own silence.
@@ -111,9 +111,16 @@ function stirring(turn: TurnView, nowMs: number): boolean {
 }
 
 /**
- * Whether these words answer a person who asked their agent alone: the person's message for that
- * agent and no other comes before them, with nothing between but that agent's own words and
- * people's words for no agent, such as a note to themselves said while it worked.
+ * Whether these words answer a person: walking back from them, the person's message comes before
+ * any work an agent handed another, and it was for the agent that said them, alone or with others
+ * or as one of every agent in the room. Between the two there may be that agent's own words, the
+ * answers of the others the person asked, and people's words for no agent, such as a note to
+ * themselves said while it worked.
+ *
+ * It used to hold only for a person who asked that agent alone. A question for every agent then
+ * had its last answer handed to the lead as nobody's turn, and the lead wrote a summary nobody had
+ * asked for (Dudes and Bro chat, November 2026). With a lead in every room of two agents (ADR
+ * 0291), that would have happened in every such room.
  */
 async function answersAPerson(
   deps: LeadTurnsDeps,
@@ -122,22 +129,30 @@ async function answersAPerson(
   last: PostView,
 ): Promise<boolean> {
   let before = last.seq;
+  // Everyone whose words lie between the person's message and these: each must have been asked.
+  const answered = new Set([last.author_id]);
   for (let looked = 0; looked < ANSWER_LOOKS_BACK; looked += 1) {
     const post = await deps.readModels.lastPost(workspaceId, spaceId, { beforeSeq: before });
     if (post === undefined) return false;
-    if (post.author_kind === "person") {
-      if (post.addressed_to.length === 0 && !post.addressed_to_all) {
-        before = post.seq;
-        continue;
-      }
-      return (
-        !post.addressed_to_all &&
-        post.addressed_to.length === 1 &&
-        post.addressed_to[0] === last.author_id
-      );
+    const what = cameBefore(post);
+    if (what === "asked") {
+      return post.addressed_to_all || [...answered].every((id) => post.addressed_to.includes(id));
     }
-    if (post.author_id !== last.author_id) return false;
+    // Work one agent handed another: these words end it, and are the lead's to look at.
+    if (what === "handed") return false;
+    if (what === "answer") answered.add(post.author_id);
     before = post.seq;
   }
   return false;
+}
+
+/**
+ * What a post before an agent's words is to them: a person's message for agents (`asked`), work
+ * an agent handed another or the referee held (`handed`), another answer for the people
+ * (`answer`), or a person's words for no agent, which are beside the point (`aside`).
+ */
+function cameBefore(post: PostView): "asked" | "handed" | "answer" | "aside" {
+  const forAgents = post.addressed_to.length > 0 || post.addressed_to_all;
+  if (post.author_kind === "person") return forAgents ? "asked" : "aside";
+  return forAgents || post.held ? "handed" : "answer";
 }

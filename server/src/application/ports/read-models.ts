@@ -11,6 +11,7 @@ import type {
   AttachmentCaps,
   ContextEvent,
   ExchangeStretch,
+  NO_SPEND_CEILING,
   PolicyRule,
   PostedFile,
   RoomSpend,
@@ -38,6 +39,14 @@ export interface SpendHistoryView {
   readonly started: RoomSpend["started"];
   readonly jobs: readonly SpentJob[];
   readonly total_usd: number;
+  /** How many jobs before this one there are in all, of which `jobs` is the newest few. */
+  readonly jobs_count: number;
+}
+
+/** A page of a room's jobs before its present one, newest first, and where the next begins. */
+export interface SpentJobsView {
+  readonly jobs: readonly SpentJob[];
+  readonly next?: number | undefined;
 }
 
 export interface ExchangeView extends ExchangeStretch {
@@ -91,6 +100,38 @@ export interface TurnView {
   readonly ended_at: string | null;
   readonly last_heard_at?: string | undefined;
   readonly step?: string | undefined;
+}
+
+/** An agent's message for agents, as the sweep for what nobody picked up reads it (ADR 0291). */
+export interface HandOffView {
+  readonly workspace_id: string;
+  readonly space_id: string;
+  readonly event_id: string;
+  readonly seq: number;
+  readonly ts: string;
+  readonly author_id: string;
+  /** The agents it was for. */
+  readonly addressed_to: readonly string[];
+}
+
+/** What an agent has done about a message that was for it (ADR 0291). */
+export interface PickUpView {
+  /** It said something after it, passed, or its turn heard it. */
+  readonly answered: boolean;
+  /**
+   * Its turn in the room that matters: one still going, else its newest that began after the
+   * message. Nothing when it has had none since.
+   */
+  readonly turn?:
+    | {
+        readonly going: boolean;
+        /** For one that ended: whether it failed. */
+        readonly failed: boolean;
+        readonly error?: string | undefined;
+        /** For one going: when anything was last heard from it. */
+        readonly last_heard_at?: string | undefined;
+      }
+    | undefined;
 }
 
 /** Somebody put in a room (ADR 0104): when, where in the log, and who did it. */
@@ -707,8 +748,14 @@ export interface ReadModels {
   ) => Promise<HeldMessageView[]>;
   /** Who leads a room now (ADR 0104): the agent set to, while it is a member there. */
   readonly leadOf: (workspaceId: string, spaceId: string) => Promise<string | undefined>;
-  /** What a room allows a job (ADR 0117) as a person there set it; nothing for the default. */
-  readonly spendCeilingOf: (workspaceId: string, spaceId: string) => Promise<number | undefined>;
+  /**
+   * What a room allows a job (ADR 0117) as a person there set it: an amount, `"none"` for No cap
+   * (ADR 0292), or nothing for the default.
+   */
+  readonly spendCeilingOf: (
+    workspaceId: string,
+    spaceId: string,
+  ) => Promise<number | typeof NO_SPEND_CEILING | undefined>;
   /** What a room's job has spent (ADR 0117), as of `uptoSeq` when given, else of now. */
   readonly jobSpendOf: (
     workspaceId: string,
@@ -717,6 +764,15 @@ export interface ReadModels {
   ) => Promise<JobSpendView>;
   /** A room's spending job by job (ADR 0282), as of now. */
   readonly spendHistoryOf: (workspaceId: string, spaceId: string) => Promise<SpendHistoryView>;
+  /**
+   * A page of a room's jobs before its present one (ADR 0292 addendum): those that began before
+   * `before`, newest first, at most `limit`, and the `before` of the next page when there is one.
+   */
+  readonly spentJobsOf: (
+    workspaceId: string,
+    spaceId: string,
+    page: { readonly before?: number | undefined; readonly limit: number },
+  ) => Promise<SpentJobsView>;
   /** Every open room, in every workspace, with a lead still in it (ADR 0104). */
   readonly ledRooms: () => Promise<LedRoomView[]>;
   /**
@@ -744,6 +800,37 @@ export interface ReadModels {
   ) => Promise<
     { readonly run_id: string; readonly agent_id: string; readonly last_heard_at: string }[]
   >;
+  /**
+   * Every open room's messages an agent sent agents since `sinceIso`, newest first (ADR 0291):
+   * not held, and not taken back.
+   */
+  readonly handOffsSince: (sinceIso: string) => Promise<HandOffView[]>;
+  /** What an agent has done about a message for it, said at `seq` in a room (ADR 0291). */
+  readonly pickUpOf: (
+    workspaceId: string,
+    spaceId: string,
+    agentId: string,
+    message: { readonly message_id: string; readonly seq: number },
+  ) => Promise<PickUpView>;
+  /**
+   * The messages of a room Chips has already handed on because an agent did not pick them up,
+   * after `afterSeq` (ADR 0291): each with the agent that did not, and where in the log.
+   */
+  readonly handedOnSince: (
+    workspaceId: string,
+    spaceId: string,
+    afterSeq: number,
+  ) => Promise<
+    { readonly seq: number; readonly message_id: string; readonly unanswered_by: string }[]
+  >;
+  /**
+   * The newest choice of who leads a room (ADR 0104): the agent, or `null` for nobody, and whether
+   * a person made it. Nothing for a room where nobody ever chose.
+   */
+  readonly lastLeadChoice: (
+    workspaceId: string,
+    spaceId: string,
+  ) => Promise<{ readonly agent_id: string | null; readonly by_person: boolean } | undefined>;
   /** Whether any of these agents has had a turn in a room since `sinceIso`: a run there (ADR 0104). */
   readonly ranSince: (
     workspaceId: string,

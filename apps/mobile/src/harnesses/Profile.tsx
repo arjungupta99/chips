@@ -390,7 +390,8 @@ function Acts({
 /**
  * Pause or Resume its latest run, greyed out while nothing of it is going (Arjun: "Show it greyed
  * out"), so the row keeps its shape between idle and busy. The server refuses to pause a run that
- * has ended, so an ended run is nothing to press.
+ * has ended, so an ended run is nothing to press; and a run whose harness never said a Pause holds
+ * it is greyed out too, since pausing it would hide work that carries on (ADR 0293).
  */
 function PauseButton({
   store,
@@ -409,7 +410,8 @@ function PauseButton({
       label={paused ? "Resume" : "Pause"}
       icon={paused ? "play" : "pause"}
       grow
-      disabled={target === undefined}
+      // Pause only where its harness said a Pause holds the run (ADR 0293); Resume always.
+      disabled={target === undefined || (!paused && entry?.pausable !== true)}
       onPress={() => {
         if (target === undefined) return;
         if (paused) store.resumeRun(target);
@@ -420,9 +422,9 @@ function PauseButton({
   );
 }
 
-/** Whether a run is still going, paused or not: queued, running or waiting on someone. */
+/** Whether a run is still going, paused or not: queued, running, waiting on someone or paused. */
 const runGoing = (state: RunState | undefined) =>
-  state === "queued" || state === "running" || state === "waiting";
+  state === "queued" || state === "running" || state === "waiting" || state === "paused";
 
 /**
  * New agent (ADR 0190, point 4), for whoever may ask this harness for one (`Acts` asks): a sheet that names it

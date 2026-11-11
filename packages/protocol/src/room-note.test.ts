@@ -615,3 +615,93 @@ describe("a person's message for several agents (ADR 0287)", () => {
     expect(note).toMatch(/^In this space:/);
   });
 });
+
+describe("what a turn is told of work another agent did not pick up (ADR 0291)", () => {
+  const WYNN: NoteMember = { id: "agt_wynn", kind: "agent", name: "Wynn", lead: true };
+  const HAZEL: NoteMember = { id: "agt_hazel", kind: "agent", name: "Hazel" };
+  const OTTO: NoteMember = { id: "agt_otto", kind: "agent", name: "Ottoline" };
+  const team = [ARJUN, WYNN, HAZEL, OTTO];
+  const noteFor = (
+    you: string,
+    news: Parameters<typeof renderRoomNote>[3],
+    now?: Parameters<typeof renderRoomNote>[2],
+  ) =>
+    roomNoteFor(team, [you], now, news === undefined ? undefined : { [you]: news }).notes[you] ??
+    "";
+
+  it("tells the agent that said it, when its own message comes back", () => {
+    expect(
+      noteFor(WYNN.id, {
+        unpicked: {
+          by: "Hazel",
+          why: "offline",
+          minutes: 3,
+          yours: true,
+          lead: true,
+          tell: "Arjun",
+        },
+      }),
+    ).toMatch(
+      /^Hazel hasn't picked up this message of yours, sent 3 minutes ago: its harness is offline\. Do the work yourself, hand it to another agent with an @, or tell Arjun it is waiting on Hazel\. Write Hazel's name without an @ until it is back: an @ for it now only waits\. In this space:/,
+    );
+  });
+
+  it("tells the lead whose message it is, and that it comes to it as the lead", () => {
+    expect(
+      noteFor(WYNN.id, {
+        unpicked: { by: "Ottoline", why: "silent", minutes: 1, saidBy: "Hazel", lead: true },
+      }),
+    ).toMatch(
+      /^Ottoline hasn't picked up this message from Hazel, sent 1 minute ago: nothing has been heard from it\. It comes to you as the lead: do the work yourself, hand it to another agent with an @, or tell the people here it is waiting on Ottoline\. In this space:/,
+    );
+  });
+
+  it("says why in the harness's words, or the run's, with no second full stop", () => {
+    const why = (unpicked: { why: "trouble" | "failed"; reason?: string }) =>
+      noteFor(HAZEL.id, { unpicked: { by: "Wynn", minutes: 0, yours: true, ...unpicked } });
+    expect(why({ why: "trouble", reason: "Can't reach its gateway." })).toContain(
+      "sent just now: its harness says: Can't reach its gateway. Do the work yourself",
+    );
+    expect(why({ why: "trouble" })).toContain(
+      "its harness says something is wrong on its side. Do",
+    );
+    expect(why({ why: "failed", reason: "Codex stopped (exited 1)" })).toContain(
+      "its turn failed: Codex stopped (exited 1). Do",
+    );
+    expect(why({ why: "failed" })).toContain("its turn failed. Do");
+    // Away, an @ for it only waits; after a turn that failed, an @ is how to ask again.
+    expect(why({ why: "trouble" })).toContain("Write Wynn's name without an @ until it is back");
+    expect(why({ why: "failed" })).not.toContain("without an @");
+  });
+
+  it("says a message reaches its taker late, before who is here", () => {
+    expect(noteFor(HAZEL.id, { late: { minutes: 42 } })).toMatch(
+      /^This was said 42 minutes ago and reaches you only now: read what was said since before you act on it\. In this space:/,
+    );
+  });
+
+  it("names who can't answer after who is working, and never the taker", () => {
+    const now = {
+      working: [],
+      idle: [],
+      away: [
+        { participant_id: HAZEL.id, why: "offline" as const, minutes: 12 },
+        {
+          participant_id: OTTO.id,
+          why: "trouble" as const,
+          reason: "Can't reach its gateway",
+          minutes: 2,
+        },
+      ],
+    };
+    expect(noteFor(WYNN.id, undefined, now)).toContain(
+      "Working now: nobody else. Can't answer now: Hazel (offline for 12 minutes); Ottoline (its harness says: Can't reach its gateway). Work you hand them waits until they are back.",
+    );
+    expect(noteFor(HAZEL.id, undefined, now)).toContain(
+      "Can't answer now: Ottoline (its harness says: Can't reach its gateway). Work you hand it waits until it is back.",
+    );
+    const wire = roomNoteFor(team, [WYNN.id], now);
+    expect(roomNote.parse(wire).away).toHaveLength(2);
+    expect(roomNoteFor(team, [WYNN.id], { working: [], idle: [] }).away).toBeUndefined();
+  });
+});

@@ -51,6 +51,29 @@ describe("presence (ADR 0083)", () => {
     presence.close();
   });
 
+  it("has a harness made since the start offline from when it was made, not since the start (audit Part 2, item 9)", () => {
+    const { presence } = watched();
+    pass(GRACE + 60_000);
+    presence.added(WS, "hrn_new");
+    expect(presence.stateOf(WS, "hrn_new")).toEqual({ connected: false, since: iso(clock) });
+    // Its first socket makes it connected, as any other's does.
+    pass(3000);
+    presence.opened(WS, "hrn_new");
+    expect(presence.stateOf(WS, "hrn_new")).toEqual({ connected: true, since: iso(clock) });
+    presence.close();
+  });
+
+  it("never takes a harness made while the process starts as connected: it has nothing to come back from", () => {
+    const { presence, heard } = watched();
+    pass(2000);
+    presence.added(WS, "hrn_new");
+    expect(presence.stateOf(WS, "hrn_new")).toEqual({ connected: false, since: iso(START + 2000) });
+    pass(GRACE);
+    expect(presence.stateOf(WS, "hrn_new")).toEqual({ connected: false, since: iso(START + 2000) });
+    expect(heard).toEqual([]);
+    presence.close();
+  });
+
   it("is connected from a socket opened while starting, and says nothing of it", () => {
     const { presence, heard } = watched();
     presence.stateOf(WS, SCOUT);

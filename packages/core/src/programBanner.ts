@@ -207,10 +207,13 @@ export function linkTap(input: {
 
 /**
  * Which links a page's frame hands to its window rather than opening them itself (the page
- * builder's few lines, on the Mac and the web): every address while the person's program isn't
- * running, so the banner can ask; only localhost while it runs in a browser that isn't on the Mac,
- * so the banner can say where it opens; otherwise none, and a link opens as any link does. Nobody
- * but the owner runs it (ADR 0231), so for anybody else a link opens as it would anywhere.
+ * builder's few lines, on the Mac and the web). Chips for Mac hears every address, owner's or
+ * not, running or not: it looks at one only some devices reach (Tailscale's, a private network's)
+ * before it opens it (ADR 0227's addendum of 10 November 2026), and opens the rest at once. A
+ * browser can't look, and opens a window only on a press, so there: every address while the
+ * person's program isn't running, so the banner can ask; only localhost while it runs, so the
+ * banner can say where it opens; otherwise none, and a link opens as any link does. Nobody but the
+ * owner runs it (ADR 0231), so for anybody else in a browser a link opens as it would anywhere.
  */
 export type FrameAsks = "every" | "own" | "none";
 
@@ -218,11 +221,12 @@ export function frameAsks(input: {
   readonly program: boolean;
   readonly owner: boolean;
   readonly kind: BannerKind;
+  /** Chips for Mac, which can look at an address before it opens it. */
   readonly onTheMac: boolean;
 }): FrameAsks {
+  if (input.onTheMac) return "every";
   if (!input.program || !input.owner) return "none";
-  if (input.kind !== "running") return "every";
-  return input.onTheMac ? "none" : "own";
+  return input.kind === "running" ? "own" : "every";
 }
 
 /**
@@ -241,15 +245,23 @@ export type AskKind =
   | "failed"
   | "stopped";
 
-/** The sheet's words and buttons, for where it is. */
-export interface LinkAsk {
-  readonly kind: AskKind;
+/**
+ * The sheet's words and buttons, for where it is: the program's own questions (`AskKind`), or, as
+ * `reachAsk` says them, what stands in the way of a link only some devices reach.
+ */
+export interface LinkAsk<Kind extends string = AskKind> {
+  readonly kind: Kind;
   readonly title: string;
   readonly body?: string | undefined;
   readonly tone: "plain" | "changed" | "bad";
   /** The gold button's word, and whether it waits; none when there is nothing to press. */
   readonly go?: string | undefined;
   readonly busy?: boolean | undefined;
+  /**
+   * What the gold button does, for a link the device has to reach first (`reachAsk`): open
+   * Tailscale, get it, or look again. Nothing for the program's own questions.
+   */
+  readonly opens?: "tailscale" | "get" | "again" | undefined;
   /** Open anyway, under it. */
   readonly anyway: boolean;
 }

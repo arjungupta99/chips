@@ -165,6 +165,7 @@ export function DemoTag() {
 export const STATUS_TONE: Record<string, Tone> = {
   running: "blue",
   waiting: "amber",
+  paused: "amber",
   failed: "red",
   cancelled: "red",
   done: "green",
@@ -1191,6 +1192,7 @@ function Unread({ count }: { readonly count: number }) {
 const STATUS_WORD: Record<string, string> = {
   running: "Working",
   waiting: "Waiting on you",
+  paused: "Paused",
   failed: "Failed",
   cancelled: "Stopped",
   done: "Done",

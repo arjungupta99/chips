@@ -137,8 +137,8 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
     why: `a harness's tile on the Agents tab's shelf, and Connect a harness's beside them (ADR 0185, ADR 0190); ${SHAPE}`,
   },
   "apps/mobile/src/harnesses/Connect.tsx": {
-    count: 4,
-    why: `Connect a harness on the phone: the gallery's cards and ways, the card being connected, and the harness landing on the arrival, none with an agent yet (ADR 0190); ${SHAPE}`,
+    count: 5,
+    why: `Connect a harness on the phone: the gallery's cards and ways, I don't have one yet (ADR 0290), the card being connected, and the harness landing on the arrival, none with an agent yet (ADR 0190); ${SHAPE}`,
   },
   "apps/mobile/src/harnesses/NewAgent.tsx": {
     count: 1,

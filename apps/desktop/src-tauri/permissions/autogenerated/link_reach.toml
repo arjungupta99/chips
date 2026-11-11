@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-link-reach"
+description = "Enables the link_reach command without any pre-configured scope."
+commands.allow = ["link_reach"]
+
+[[permission]]
+identifier = "deny-link-reach"
+description = "Denies the link_reach command without any pre-configured scope."
+commands.deny = ["link_reach"]

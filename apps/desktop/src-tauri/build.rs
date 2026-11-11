@@ -3,6 +3,7 @@
 const COMMANDS: &[&str] = &[
     "can_run_here",
     "programs_here",
+    "signed_in_here",
     "run_here",
     "connect_here",
     "cancel_connect",
@@ -17,6 +18,8 @@ const COMMANDS: &[&str] = &[
     "come_forward",
     "set_menu",
     "open_link",
+    "link_reach",
+    "open_tailscale",
     "page_zoom",
     "drawn",
 ];

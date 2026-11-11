@@ -5,7 +5,7 @@
  * Nothing here is exported from the package: `build.ts` freezes these into the public types.
  */
 
-import type { AttachmentCaps, ExchangeLimits } from "@chipschat/protocol";
+import type { AttachmentCaps, ExchangeLimits, NO_SPEND_CEILING } from "@chipschat/protocol";
 import type { Attachment } from "../attachments.js";
 import { actorKind, type ClientEvent, harnessOfActor } from "../events.js";
 import type {
@@ -53,6 +53,10 @@ export interface MutableRun {
   goal: string;
   state: RunState;
   paused: boolean;
+  pausable: boolean;
+  pausedAt?: string | undefined;
+  pausedBy?: string | undefined;
+  pausedMs: number;
   /** The last event that touched this run, so the fleet shows a harness's latest run. */
   lastSeq: number;
   statusVerb?: string | undefined;
@@ -105,10 +109,10 @@ export interface CeilingLine {
   readonly id: string;
   readonly seq: number;
   readonly by: string;
-  /** The amount set, or nothing for the default. */
-  readonly usd: number | undefined;
+  /** The amount set, `"none"` for No cap (ADR 0292), or nothing for the default. */
+  readonly usd: number | typeof NO_SPEND_CEILING | undefined;
   /** What the room allowed before. */
-  readonly was: number;
+  readonly was: number | typeof NO_SPEND_CEILING;
 }
 
 export interface MutableSpace {
@@ -128,7 +132,7 @@ export interface MutableSpace {
   /** The agent last chosen to lead the room (ADR 0104); `roomLeadOf` says whether it still does. */
   lead?: string | undefined;
   /** What the room allows a job, as a person set it (ADR 0117); none follows the default. */
-  spendCeiling?: number | undefined;
+  spendCeiling?: number | typeof NO_SPEND_CEILING | undefined;
   /** Whether a person locked the room's changes (ADR 0156): no rename, archive or delete. */
   locked?: boolean | undefined;
   /** The agents that left, by id, the last time each did (ADR 0087). */
@@ -416,6 +420,8 @@ export function runOf(state: Building, event: ClientEvent): MutableRun | undefin
     goal: "",
     state: "running",
     paused: false,
+    pausable: false,
+    pausedMs: 0,
     lastSeq: event.seq,
     steps: [],
     approvals: [],

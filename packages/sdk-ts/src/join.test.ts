@@ -84,6 +84,31 @@ describe("join() with a link", () => {
     expect(again).toEqual(me);
   });
 
+  it("still hands back the key when nowhere will keep it, and says it needs a new link next time (audit Part 2, item 9)", async () => {
+    const refusing: KeyStore = {
+      kind: "file",
+      get: () => undefined,
+      set: () => {
+        throw new Error(
+          "EACCES: permission denied, open '/home/sam/.config/chips/harness-keys.json'",
+        );
+      },
+      remove: () => undefined,
+    };
+    const said: string[] = [];
+    const write = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((line: string) => said.push(line) > 0) as typeof process.stderr.write;
+    try {
+      const me = await join({ link: await link(), name: "Tide", keep: refusing, env: {} });
+      expect(me.token).toMatch(/^chips_at_/);
+    } finally {
+      process.stderr.write = write;
+    }
+    expect(said).toEqual([
+      "Its key couldn't be kept here (EACCES: permission denied, open '/home/sam/.config/chips/harness-keys.json'). It works while this runs. Once it stops, it needs a new link from Chips.\n",
+    ]);
+  });
+
   it("takes up a new link over the key it kept, and keeps the new one", async () => {
     // The harness was removed, or Chips started afresh: the person makes a new link.
     const keep = memory();

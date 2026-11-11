@@ -191,6 +191,8 @@ export interface RunStatus {
   progress?: number;
   /** Seconds remaining, when the harness knows. */
   estimate_seconds?: number;
+  /** This run holds where it is when a person pauses it (ADR 0293): on `run.pause` the harness stops the run's work within a few seconds without ending it, on `run.resume` it carries on in the same conversation, and on `run.cancel` while paused it ends quietly. Said once, on any status of the run; clients offer Pause only on a run that said it. */
+  pausable?: boolean;
 }
 
 /** `run.plan` — The plan changed. Replaces the steps not yet done; the ones already done or failed keep their place. */
@@ -1015,7 +1017,7 @@ export interface Hello {
     name: string;
     /** The server's own version. */
     version: string;
-    /** What this server keeps of what a person's client may send beyond the base set, by the names in `SERVER_TAKES`. `held_yes` is `for_minutes` and `until_stopped` on `approval.resolved`. A server older than the field says nothing, and drops those fields, so a client offers neither to it (ADR 0281). */
+    /** What this server keeps of what a person's client may send beyond the base set, by the names in `SERVER_TAKES`. `held_yes` is `for_minutes` and `until_stopped` on `approval.resolved`. A server older than the field says nothing, and drops those fields, so a client offers neither to it (ADR 0281). `spend_no_cap` is No cap and amounts past $100 on a room's Spend per job (ADR 0292). */
     takes?: string[];
   };
   /** The harness the token belongs to, and only that one. One connection speaks for all of the harness's agents (ADR 0087), which `agents` lists. A harness running inside another is a lane, not a duplicate. */
@@ -1441,6 +1443,16 @@ export interface MessageNew {
     idle?: {
       participant_id: string;
       /** How long since its last turn here ended, in whole minutes. */
+      minutes: number;
+    }[];
+    /** The room's agents that can't answer as Chips sends this turn (ADR 0291): offline, or their harness says something is wrong. Work handed to one of them waits. */
+    away?: {
+      participant_id: string;
+      /** `offline`: no connection of its harness is open. `trouble`: its harness is connected and says something is wrong on its side (ADR 0083). */
+      why: "offline" | "trouble";
+      /** For `trouble`: what its harness said is wrong, in its own words. */
+      reason?: string;
+      /** For how long, in whole minutes. */
       minutes: number;
     }[];
   };
@@ -3122,8 +3134,14 @@ export interface MessageHanded {
   message_id: string;
   /** Who it is handed to. */
   agent_id: string;
-  /** Handed to the room's lead because it was nobody's turn and the room went still (ADR 0104), rather than held by the referee. */
+  /** Handed to the room's lead because it was nobody's turn and the room went still (ADR 0104), or because the agent it was for did not pick it up (`unanswered_by`), rather than held by the referee. */
   lead?: true;
+  /** The agent the message was for that did not pick it up (ADR 0291): no turn of its on it, no word and no pass, a minute after it was said. The message is handed to the room's lead, or, when the lead said it or is the one that did not pick it up, back to the agent that said it. */
+  unanswered_by?: string;
+  /** With `unanswered_by`, why: its harness is `offline`, or says something is wrong (`trouble`); its turn on the message `failed`; or it is connected and nothing has been heard from it (`silent`). */
+  why?: "offline" | "trouble" | "failed" | "silent";
+  /** For `trouble`, what its harness said is wrong; for `failed`, the run's error. */
+  reason?: string;
 }
 
 /** `space.lead_set` — A room's lead was chosen, or taken away. */
@@ -3186,8 +3204,38 @@ export interface SpaceSpendCeilingSet {
     /** For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips. */
     harness_id?: string;
   };
-  /** What the room allows a job now, in US dollars, from 0.25 to 100 in steps of 0.25; `null` for the default (3). */
+  /** What the room allows a job now, in US dollars, from 0.25 to 1000 in steps of 0.25; `null` for the default (3). */
   usd: unknown;
+}
+
+/** `space.spend_ceiling_lifted` — A room's cap on what a job may spend was taken off: No cap. */
+export interface SpaceSpendCeilingLifted {
+  /** Protocol major version. */
+  v: 1;
+  type: "space.spend_ceiling_lifted";
+  /** The event's own id. Stable across a retry of the same event. */
+  id: string;
+  /** When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced. */
+  ts: string;
+  /** A workspace identifier: `ws_` followed by a ULID. */
+  workspace_id: string;
+  /** The space, when the event belongs to one. */
+  space_id?: string;
+  /** The run, when the event belongs to one. */
+  run_id?: string;
+  /** Assigned by the server on append, monotonic per workspace. Absent on the way in. */
+  seq?: number;
+  /** Required on every client-originated write. Sending the same key twice is a no-op. */
+  idempotency_key?: string;
+  /** The participant an event is attributed to. */
+  actor: {
+    /** Whether a person, a harness, one of a harness's agents or Chips itself acted. */
+    kind: "person" | "harness" | "agent" | "system";
+    /** The participant id, or `system` for Chips. */
+    id: string;
+    /** For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips. */
+    harness_id?: string;
+  };
 }
 
 /** `space.lock_set` — A room's changes were locked, or let go: while locked, no person renames, archives or deletes it. */

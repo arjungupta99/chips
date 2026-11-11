@@ -258,8 +258,17 @@ export interface Doing {
   readonly step?: string | undefined;
   /** Calls begun so far, so a long stretch of them reads as progress rather than a hang. */
   readonly calls: number;
-  /** When the run began: the bubble's clock counts from it (ADR 0147). */
+  /**
+   * When the run began, moved on by the time it stood paused: the bubble's clock counts from it
+   * (ADR 0147), so it counts working time (ADR 0293).
+   */
   readonly startedAt?: string | undefined;
+  /** A person paused it, or Chips did: the bubble says Paused and offers Resume (ADR 0293). */
+  readonly paused?: true | undefined;
+  /** While paused, when: the clock holds there. */
+  readonly heldAt?: string | undefined;
+  /** Its harness said a Pause holds it, so Pause is offered (ADR 0293). */
+  readonly pausable: boolean;
   /** What it last said it was at, never a bare `Writing…`: the bubble reads it (`bubbleSays`). */
   readonly thought?: Thought | undefined;
   /** The calls begun, in the order they began: what the bubble says, and its strip of glyphs. */
@@ -284,12 +293,18 @@ export function hasTimeline(run: Run): boolean {
 
 /**
  * A run that is going, and what it is going at. Nothing for a run that has ended, one a person
- * paused, or one waiting on somebody: what to look at then is the card, not a spinner.
+ * paused, or one waiting on somebody: what to look at then is the card, not a spinner. A room's
+ * bubble keeps a paused run, which `spaceDoing` gives (ADR 0293); a fleet's row does not.
  */
 export function runDoing(run: Run | undefined, asking = false): Doing | undefined {
   if (run === undefined || run.paused) return undefined;
   const going = run.state === "queued" || run.state === "running";
   if (!going && !(asking && run.state === "waiting")) return undefined;
+  return doingOf(run);
+}
+
+/** The bubble's view of a run, paused or not. */
+function doingOf(run: Run): Doing {
   const current = underway(run.steps);
   const made = run.steps.filter(
     (step) => step.kind !== "tick" && step.planned !== true && step.status !== "planned",
@@ -300,10 +315,20 @@ export function runDoing(run: Run | undefined, asking = false): Doing | undefine
     verb: run.statusVerb,
     step: current?.title,
     calls: made.length,
-    startedAt: run.startedAt,
+    startedAt: workedFrom(run),
     thought: run.thought,
     made,
+    pausable: run.pausable === true,
+    ...(run.paused ? { paused: true as const, heldAt: run.pausedAt } : {}),
   };
+}
+
+/** The run's start, moved on by the time it stood paused, so a clock from it counts work. */
+function workedFrom(run: Run): string | undefined {
+  const stood = run.pausedMs ?? 0;
+  if (run.startedAt === undefined || stood <= 0) return run.startedAt;
+  const at = Date.parse(run.startedAt);
+  return Number.isNaN(at) ? run.startedAt : new Date(at + stood).toISOString();
 }
 
 /**
@@ -334,7 +359,8 @@ export function spaceDoing(
   const newest = new Map<string, Run>();
   for (const run of space.runs) newest.set(run.harnessId, run);
   return [...newest.values()].flatMap((run) => {
-    const doing = runDoing(run, asking.has(run.harnessId));
+    // A paused run keeps its bubble, which says so and offers Resume (ADR 0293).
+    const doing = run.paused ? doingOf(run) : runDoing(run, asking.has(run.harnessId));
     return doing === undefined ? [] : [doing];
   });
 }

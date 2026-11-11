@@ -45,9 +45,9 @@ import { type ReactNode, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button } from "../ui/Button";
 import type { Choice } from "../ui/Choices";
 import { Capsule } from "../ui/Glass";
+import { Group, GroupRow, MARKED_INSET, RowMark } from "../ui/Group";
 import * as feel from "../ui/haptics";
 import { Pill } from "../ui/Pill";
 import { Risk } from "../ui/Risk";
@@ -98,7 +98,9 @@ export interface DecideProps {
   readonly spaceName?: string | undefined;
   /** Whether the bar shows the time left, as a ring beside the face, so no line here says it. */
   readonly timeInBar?: boolean | undefined;
-  /** What the screen draws under the ask, at the end of what scrolls: the way to its space. */
+  /** The way to the ask's space, as a row beside Hand to…; absent where there is none to go to. */
+  readonly onOpenSpace?: (() => void) | undefined;
+  /** What the screen draws under the ask, at the end of what scrolls: why there is no space. */
   readonly under?: ReactNode;
 }
 
@@ -238,12 +240,12 @@ export function Decide(props: DecideProps) {
 }
 
 /**
- * Under the ask: who decided it, once someone has; Hand to…, while it is this person's; and whose
- * it is, while it is somebody else's.
+ * Under the ask: who decided it, once someone has; whose it is, while it is somebody else's; and
+ * where else it can go (`Ways`).
  */
 function Below(props: DecideProps & { readonly open: boolean; readonly tray: TrayProps }) {
   const palette = usePalette();
-  const { approval, directory, tray } = props;
+  const { approval, directory } = props;
   const decided = verdict(approval, directory);
   const waitingOn = approval.approvers.map((id) => nameOf(directory, id)).join(" or ");
   const theirs = decided === undefined && !mayAnswer(approval, props.selfId);
@@ -256,21 +258,53 @@ function Below(props: DecideProps & { readonly open: boolean; readonly tray: Tra
         </Text>
       )}
       <OwnTools approval={approval} directory={directory} harnessId={props.harnessId} />
-      {props.open && props.handTo.length > 0 ? (
-        <Button
-          label="Hand to…"
-          variant="plain"
-          disabled={props.busy || tray.answered !== undefined}
-          style={styles.quiet}
-          onPress={() => tray.setMode(tray.mode === "handing" ? "idle" : "handing")}
-        />
-      ) : null}
       {theirs ? (
         <Text style={[styles.line, { color: palette.ink3 }]} testID="waiting-on">
           {waitingOn === "" ? "Somebody else" : waitingOn} answers this one.
         </Text>
       ) : null}
+      <Ways {...props} />
     </>
+  );
+}
+
+/**
+ * Where else the ask can go, as rows of one group under it: Hand to…, while it is this person's to
+ * answer, and Open the space. They were two loose words a few points apart that lined up with
+ * nothing (Luis's ask, 10 November 2026).
+ */
+function Ways(props: DecideProps & { readonly open: boolean; readonly tray: TrayProps }) {
+  const { tray, onOpenSpace } = props;
+  const hands = props.open && props.handTo.length > 0;
+  if (!hands && onOpenSpace === undefined) return null;
+  const stopped = props.busy || tray.answered !== undefined;
+  return (
+    <View style={styles.ways}>
+      <Group inset={MARKED_INSET} testID="ask-ways">
+        {hands ? (
+          <GroupRow
+            label="Hand to…"
+            mark={<RowMark icon="route" />}
+            tone={stopped ? "off" : "plain"}
+            onPress={
+              stopped ? undefined : () => tray.setMode(tray.mode === "handing" ? "idle" : "handing")
+            }
+            accessibilityLabel="Hand to…"
+            testID="hand-to"
+          />
+        ) : null}
+        {onOpenSpace === undefined ? null : (
+          <GroupRow
+            label="Open the space"
+            value={props.spaceName}
+            mark={<RowMark icon="chat" />}
+            onPress={onOpenSpace}
+            accessibilityLabel="Open the space"
+            testID="open-space"
+          />
+        )}
+      </Group>
+    </View>
   );
 }
 
@@ -297,31 +331,52 @@ function Asking(
         lit={props.lit}
         settled={props.settled}
       />
-      {saysLasts(approval, plate) ? <Lasts approval={approval} /> : null}
-      <Risk classes={approval.risk} />
-      <Waits approval={approval} selfId={props.selfId} />
+      <Tags approval={approval} plate={plate} selfId={props.selfId} />
+      <Sources approval={approval} />
       <Lapse approval={approval} now={props.now} hidden={props.timeInBar === true} />
       <Notices approval={approval} directory={props.directory} />
     </View>
   );
 }
 
-/** "Waits for you" on an open ask that matters (ADR 0195), and where it came from. */
-function Waits({ approval, selfId }: { readonly approval: Approval; readonly selfId: string }) {
-  const palette = usePalette();
+/**
+ * What kind of ask it is, as one row of tags that wraps: its risks, "Waits for you" on an open ask
+ * that matters (ADR 0195), and how long a yes lasts where that is worth saying. Each stood on a
+ * line of its own, three lines for three words.
+ */
+function Tags({
+  approval,
+  plate,
+  selfId,
+}: {
+  readonly approval: Approval;
+  readonly plate: Plate | undefined;
+  readonly selfId: string;
+}) {
+  const waits = askMatters(approval) && approval.resolved === undefined;
+  const lasts = approval.lasts !== undefined && saysLasts(approval, plate);
+  if (approval.risk.length === 0 && !waits && !lasts) return null;
   return (
-    <>
-      {askMatters(approval) && approval.resolved === undefined ? (
-        <View style={styles.row} testID="waits-for-you">
+    <View style={styles.tags} testID="ask-tags">
+      <Risk classes={approval.risk} />
+      {waits ? (
+        <View testID="waits-for-you">
           <Pill>{waitsWords(mayAnswer(approval, selfId))}</Pill>
         </View>
       ) : null}
-      {approval.sources.length === 0 ? null : (
-        <Text style={[styles.line, { color: palette.ink3 }]}>
-          From {approval.sources.map((source) => source.label).join(", ")}
-        </Text>
-      )}
-    </>
+      {lasts ? <Lasts approval={approval} /> : null}
+    </View>
+  );
+}
+
+/** Where the ask came from, when the harness said. */
+function Sources({ approval }: { readonly approval: Approval }) {
+  const palette = usePalette();
+  if (approval.sources.length === 0) return null;
+  return (
+    <Text style={[styles.line, { color: palette.ink3 }]}>
+      From {approval.sources.map((source) => source.label).join(", ")}
+    </Text>
   );
 }
 
@@ -401,8 +456,9 @@ const styles = StyleSheet.create({
   question: { fontSize: 22, lineHeight: 27, fontWeight: "700", letterSpacing: -0.2 },
   line: { fontSize: TEXT.sm },
   verdict: { fontSize: TEXT.md, fontWeight: "600" },
-  row: { flexDirection: "row" },
-  quiet: { alignSelf: "flex-start", paddingHorizontal: SPACE.xs },
+  tags: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.xs },
+  // The group keeps a page's inset of its own, which the body's padding already gives.
+  ways: { marginTop: SPACE.sm, marginHorizontal: -SPACE.lg },
   foot: { position: "absolute", left: SPACE.sm, right: SPACE.sm, alignItems: "center" },
   tray: { width: "100%", borderRadius: 24, padding: SPACE.md, gap: SPACE.md },
 });

@@ -962,6 +962,40 @@ describe("on a VPS (the new-person sweep's findings 17 and 23)", () => {
     expect(printed).toContain("`chips up --no-service` to run Chips in this terminal");
   });
 
+  it("with no user systemd session, says so before asking anything and runs Chips in this terminal (audit Part 2, item 12)", async () => {
+    const serving = {
+      issueCode: () => "ABC-234",
+      offer: {},
+      stop: async () => {},
+    } as unknown as Serving;
+    let served = false;
+    const here = world({
+      machine: { platform: "linux", home: "/home/ada", environment: {} },
+      hasSession: async () => false,
+      serve: async () => {
+        served = true;
+        return serving;
+      },
+    });
+    const out = scriptedConsole(true);
+    const result = await up({
+      config,
+      console: out,
+      flags: flags({ open: false }),
+      deps: here.deps,
+    });
+    expect(result.ok).toBe(true);
+    expect(served).toBe(true);
+    // Nothing tried as a service, so nothing to fail and ask again.
+    expect(here.ran).toEqual([]);
+    expect(here.files["/home/ada/.config/systemd/user/chips.service"]).toBeUndefined();
+    const printed = out.lines.join("\n");
+    expect(printed).toContain(
+      "This shell has no systemd user session, so Chips can't run as a service from it. It runs in\n    this terminal and stops when you close it.",
+    );
+    expect(printed.indexOf("no systemd user session")).toBeLessThan(printed.indexOf("http://"));
+  });
+
   it("over SSH to a Mac nobody is logged in to, says so rather than launchctl's number", async () => {
     const here = world({
       machine: { platform: "darwin", home: "/Users/ada", environment: {} },

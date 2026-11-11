@@ -223,3 +223,54 @@ off early; it ends on its own. The Asks list shows it as the person's yes.
 (`whileWords`, `handChoices`, `forMinutes` on `resolveApproval`); the phone's and the web's decide
 cards and the ui card's `onceWhy`; tests at each layer and the phone's `decide.spec.ts`. A chipsd
 restart for the migration.
+
+## Addendum, 10 November 2026: a shell's command sent as its input is read too
+
+**What was wrong.** Jacobian asks `jacobian.shell.shell` with the command line itself as the
+input, where every other bridge sends `{ command }`. Protocol's reader (`askedCommand`) read only
+`input.command`, so for the door, the engine and the writer such an ask had no command, and an
+Always on it was kept as a rule for the whole kind: one yes, and every later shell command from
+that agent went ahead without a card. The card said so ("Asks like this go ahead without a card"),
+under a plate that since ADR 0280's addendum of the same day drew the command part by part, so a
+person read it as a yes for that command. The wire allows it: `action.input` is any value.
+
+It had not happened in Arjun's workspace. His Jacobian lets its own shell commands run unasked, so
+the only ones that reach Chips are on its blocklist or come from a turn somebody else spoke in,
+and Jacobian marks both destructive, which Chips answers once. All ten in the live database were
+like that, and no rule for the kind was kept. Jacobian's default config does ask for shell
+commands, so a default install would hit it.
+
+**The comparison** put three ways side by side: A, protocol's reader takes a shell's bare input as
+its command; B, Jacobian sends `{ command }`, as the other bridges do; C, no Always for such an
+ask. B was the smaller change but leaves Chips keeping a whole kind for any harness that sends
+bare words; C costs what A costs and gives less. His answer: **"Build A"**.
+
+**Decided.**
+
+1. **The reader takes the ask's action, not its input** (`askedCommand(action)`,
+   `standingOffer(action)`, with `AskedAction` = `{ kind, input }`): `input.command` as before,
+   whatever the kind; else the input itself, when it is a string that isn't blank and the kind runs
+   a shell: `shell`, `bash`, `zsh`, `sh`, `exec`, `execute` or `terminal` as one of the kind's
+   dotted words (`jacobian.shell.shell`, `shell.exec`, `acp.bash`, `acp.execute`). A path or an
+   address from any other kind (`jacobian.filesystem.write`, `jacobian.browser.navigate`) is no
+   command, and its Always keeps the kind, as before.
+2. **One reader draws and decides.** Core's `shownCommand` and its own list of shell kinds are
+   gone; the plate reads the command with protocol's reader, so what the plate lights is what an
+   Always keeps, and a Jacobian command the reader can't follow says why there is no Always for it
+   where the choices are, as any other does.
+3. **Every caller passes the action**: the server's `askedAction` and `evaluateAsk` (the door and
+   the engine), `alwaysAsked` (the rules an Always keeps), the projection writer's `ruleOf` (This
+   session's rows), and core's `askStanding` and plate. The type no longer takes a bare input, so
+   a caller that still passed one would not compile.
+
+**Consequences.** An Always on a Jacobian shell ask keeps the starts of the command on the card,
+`git log …` and `head …` for `git log --oneline | head -20`; one Chips can't read, or one that uses
+a program on the never list, takes Once, For an hour and Let it work, and no Always. Reading a
+string as a command can only narrow what a yes keeps: the engine looks at a command only for rules
+that name how it starts, so a rule for a kind written by hand reaches what it reached. Rules
+already kept for a whole shell kind stay as they are; there were none in the live database. No
+change on the wire, no migration, no Jacobian change.
+
+**Cost.** Protocol (`askedCommand`, `standingOffer`, the shell kinds); server (four callers);
+core (`askStanding`, the plate); tests in protocol, core and an end-to-end one at the gateway. A
+chipsd restart puts it live; the phone takes it in 1.2.4.

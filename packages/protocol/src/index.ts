@@ -117,7 +117,7 @@ export {
 } from "./capabilities.js";
 export type { ChecklistRow } from "./checklist.js";
 export { CONNECTION_CHECKLIST } from "./checklist.js";
-export type { CommandParts, StandingOffer } from "./commands.js";
+export type { AskedAction, CommandParts, StandingOffer } from "./commands.js";
 export {
   askedCommand,
   commandParts,
@@ -297,6 +297,8 @@ export {
   restartFrame,
   SERVER_EXTENSIONS,
   SERVER_TAKES,
+  SPEND_JOBS,
+  SPEND_NO_CAP,
   serverFrame,
   subscribeFrame,
 } from "./frames.js";
@@ -620,12 +622,14 @@ export {
 } from "./room-files.js";
 export type {
   NoteMember,
+  RoomAway,
   RoomIdle,
   RoomMember,
   RoomNote,
   RoomNow,
   RoomWork,
   TakerNews,
+  UnpickedWhy,
 } from "./room-note.js";
 export {
   FILE_WORDS,
@@ -634,6 +638,7 @@ export {
   REACH_A_PERSON_WORDS,
   RUNNING_WORDS,
   renderRoomNote,
+  roomAway,
   roomIdle,
   roomMember,
   roomMembers,
@@ -656,16 +661,29 @@ export {
   SPACE_ICON_GROUNDS,
   spaceIcon,
 } from "./space-icons.js";
-export type { JobSpend, JobStart, RoomSpend, SpendStage, SpentJob } from "./spend.js";
+export type {
+  JobSpend,
+  JobStart,
+  RoomJob,
+  RoomSpend,
+  SpendCeilingSetting,
+  SpendStage,
+  SpentJob,
+  SpentJobsPage,
+} from "./spend.js";
 export {
+  cappedSpend,
   DEFAULT_SPEND_CEILING_USD,
   dollars,
   isSpendCeiling,
   jobSpend,
+  NO_SPEND_CEILING,
   SPEND_CEILING_MAX,
   SPEND_CEILING_MIN,
   SPEND_CEILING_STEP,
   SPEND_WARN_AT,
+  SPENT_JOBS_PAGE,
+  SPENT_JOBS_PAGE_MAX,
   SPENT_JOBS_SHOWN,
   spendCeiling,
   spendStage,

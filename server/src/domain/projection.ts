@@ -469,7 +469,18 @@ const PROJECTORS: Readonly<Record<string, Projector>> = {
       kind: "patch",
       table: "spaces",
       key: { workspace_id: event.workspace_id, id: event.space_id },
-      set: { spend_ceiling_usd: field<number | null>(event, "usd") ?? null },
+      set: { spend_ceiling_usd: field<number | null>(event, "usd") ?? null, spend_uncapped: 0 },
+    },
+  ],
+
+  // A room's cap taken off (ADR 0292): Chips holds no job there until an amount or the default is
+  // set again. No line in the room's log, as for the ceiling set.
+  "space.spend_ceiling_lifted": (event) => [
+    {
+      kind: "patch",
+      table: "spaces",
+      key: { workspace_id: event.workspace_id, id: event.space_id },
+      set: { spend_ceiling_usd: null, spend_uncapped: 1 },
     },
   ],
 

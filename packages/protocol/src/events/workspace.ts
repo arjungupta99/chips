@@ -452,6 +452,9 @@ export const exchangeSet = defineEvent({
  * once the room went still: nobody working, and nothing for anybody to answer. The lead's harness
  * is sent it as `message.new` with `handed` and `lead`, and its note says why; the room shows one
  * quiet line under the message.
+ *
+ * Or, with `unanswered_by` (ADR 0291), an agent's message for another agent that did not pick it
+ * up: handed to the lead, or back to the agent that said it, whose note says who did not and why.
  */
 export const messageHanded = defineEvent({
   type: "message.handed",
@@ -467,8 +470,25 @@ export const messageHanded = defineEvent({
       .literal(true)
       .optional()
       .describe(
-        "Handed to the room's lead because it was nobody's turn and the room went still (ADR 0104), rather than held by the referee.",
+        "Handed to the room's lead because it was nobody's turn and the room went still (ADR 0104), or because the agent it was for did not pick it up (`unanswered_by`), rather than held by the referee.",
       ),
+    unanswered_by: agentId
+      .optional()
+      .describe(
+        "The agent the message was for that did not pick it up (ADR 0291): no turn of its on it, no word and no pass, a minute after it was said. The message is handed to the room's lead, or, when the lead said it or is the one that did not pick it up, back to the agent that said it.",
+      ),
+    why: z
+      .enum(["offline", "trouble", "failed", "silent"])
+      .optional()
+      .describe(
+        "With `unanswered_by`, why: its harness is `offline`, or says something is wrong (`trouble`); its turn on the message `failed`; or it is connected and nothing has been heard from it (`silent`).",
+      ),
+    reason: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe("For `trouble`, what its harness said is wrong; for `failed`, the run's error."),
   }),
 });
 
@@ -543,9 +563,24 @@ export const spaceSpendCeilingSet = defineEvent({
   requiresRun: false,
   payload: z.object({
     usd: spendCeiling.describe(
-      "What the room allows a job now, in US dollars, from 0.25 to 100 in steps of 0.25; `null` for the default (3).",
+      "What the room allows a job now, in US dollars, from 0.25 to 1000 in steps of 0.25; `null` for the default (3).",
     ),
   }),
+});
+
+/**
+ * A room's cap taken off (ADR 0292): Chips holds no job there for what it spends, warns nobody at
+ * most of it, and hands its harnesses no `context.spend`, until somebody sets an amount or the
+ * default again (`space.spend_ceiling_set`). The workspace's owner, in the room, takes it off. A
+ * device from before it changes nothing for it, as for any type it does not know.
+ */
+export const spaceSpendCeilingLifted = defineEvent({
+  type: "space.spend_ceiling_lifted",
+  direction: "workspace",
+  sender: "chips",
+  summary: "A room's cap on what a job may spend was taken off: No cap.",
+  requiresRun: false,
+  payload: z.object({}),
 });
 
 /**
@@ -1261,6 +1296,7 @@ export const WORKSPACE_EVENTS = [
   messageHanded,
   spaceLeadSet,
   spaceSpendCeilingSet,
+  spaceSpendCeilingLifted,
   spaceLockSet,
   turnPassed,
   contextCompacted,

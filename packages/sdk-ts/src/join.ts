@@ -435,8 +435,23 @@ export async function join(options: JoinOptions): Promise<Joined> {
   const answered = joinedOf(answer);
   const joined = { ...answered, url: hereInstead(answered.url, env) ?? answered.url };
   // Handed over now, so its first words are due (`helloOnce`).
-  if (store !== false) store.set(account, JSON.stringify({ ...joined, from, hello: "due" }));
+  if (store !== false) keepTheKey(store, account, { ...joined, from, hello: "due" });
   return joined;
+}
+
+/**
+ * Keep what the link was spent for. Nowhere to keep it is said, not thrown: the key in hand still
+ * connects, and the link is gone (the onboarding audit, Part 2, item 9).
+ */
+function keepTheKey(store: KeyStore, account: string, record: Record<string, unknown>): void {
+  try {
+    store.set(account, JSON.stringify(record));
+  } catch (error) {
+    const why = error instanceof Error ? error.message.split("\n")[0] : String(error);
+    process.stderr.write(
+      `Its key couldn't be kept here (${why}). It works while this runs. Once it stops, it needs a new link from Chips.\n`,
+    );
+  }
 }
 
 /**

@@ -205,4 +205,23 @@ describe("a turn's spend (ADR 0117)", () => {
       "This job has spent $1.20 of the $10.00 this space allows a job; at $10.00 Chips holds the agents until a person acts.",
     );
   });
+
+  it("comes with no turn, in numbers or words, in a room with no cap (ADR 0292)", async () => {
+    const scoutAgent = await agentOf(ws.scout.participantId);
+    const done = await ws.gateway.deps.setSpendCeiling({
+      principal: arjun(),
+      spaceId: ws.spaceId,
+      usd: "none",
+    });
+    expect(done).toMatchObject({ ok: true, changed: true, usd: "none" });
+    const scoutSide = await connect(scout());
+    await say(arjun(), "@Scout read the trials");
+    await settled();
+    const turn = scoutSide.of("message.new").at(-1);
+    expect(turn?.["context"]).toBeDefined();
+    expect((turn?.["context"] as Record<string, unknown> | undefined)?.["spend"]).toBeUndefined();
+    const note = noteOf(scoutSide.of("message.new"), scoutAgent);
+    expect(note).toContain("Everyone here reads what you write.");
+    expect(note).not.toMatch(/This job has spent|Chips holds the agents/);
+  });
 });

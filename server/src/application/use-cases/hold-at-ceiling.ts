@@ -15,11 +15,11 @@
  * Each is once per job: its key names the room and where the job began, so a run reporting after
  * the pause, or two reports at once, append nothing more. Letting the agents carry on, or anything
  * else a person does there, starts a new job, with the room's whole ceiling again (R1). A job whose
- * runs report no cost spends nothing, and is never held. Runs after every append, whichever door
- * made it, beside the hand-over of what was held.
+ * runs report no cost spends nothing, and is never held; nor is a job in a room with no cap (ADR
+ * 0292). Runs after every append, whichever door made it, beside the hand-over of what was held.
  */
 
-import { type JobSpend, spendStage } from "@chipschat/protocol";
+import { cappedSpend, type JobSpend, spendStage } from "@chipschat/protocol";
 import type { Clock, IdGenerator } from "../ports/clock.js";
 import type { EventStore, StoredEvent } from "../ports/event-store.js";
 import type { ReadModels } from "../ports/read-models.js";
@@ -68,17 +68,26 @@ export function createHoldAtCeiling(deps: HoldAtCeilingDeps) {
     });
   }
 
+  /**
+   * The room's job as of a cost reported there, once most of its ceiling is spent: nothing while
+   * it is within it, nor in a room with no cap (ADR 0292), which is neither warned nor held.
+   */
+  async function pastMost(room: Room, seq: number) {
+    const spend = cappedSpend(
+      await roomSpendFor({ readModels: deps.readModels, ...room, uptoSeq: seq }),
+    );
+    if (spend === undefined) return undefined;
+    const stage = spendStage(spend);
+    return stage === "within" ? undefined : { spend, stage };
+  }
+
   return {
     async after(event: StoredEvent): Promise<void> {
       if (event.type !== "usage" || event.space_id === null) return;
       const room = { workspaceId: event.workspace_id, spaceId: event.space_id };
-      const spend = await roomSpendFor({
-        readModels: deps.readModels,
-        ...room,
-        uptoSeq: event.seq,
-      });
-      const stage = spendStage(spend);
-      if (stage === "within") return;
+      const past = await pastMost(room, event.seq);
+      if (past === undefined) return;
+      const { spend, stage } = past;
       const job = `spend-${room.spaceId}-${spend.since_seq}`;
       if (stage === "ceiling") await pause(room, job, spend);
       const at = stage === "ceiling" ? 100 : 80;

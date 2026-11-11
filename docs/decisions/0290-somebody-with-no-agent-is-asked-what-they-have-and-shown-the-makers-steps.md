@@ -45,6 +45,36 @@ the maker's own installer and sign-in.
   cards. Older apps read the cards and leave `start` out.
 - OpenCode, OpenClaw and Hermes have no steps, so they have no answer. They stay in the gallery as
   before.
-- The phone's way in for somebody with nothing set up (a row that sends them to chipschat.ai/setup)
-  and the card that follows along (B) are later pieces.
+- **The phone (10 November 2026).** The phone runs no Chips and no agent, so it hands the setup
+  page to a computer, as the mock's phone row and hand-off page do:
+  - Its first screen's ways in end with **Nothing set up yet?** and Start, in place of the line
+    that linked the download page. It opens **Chips starts on your computer**: the
+    chipschat.ai/setup link to copy (Handoff carries it to a Mac's clipboard) or send to oneself,
+    then Scan a QR code for when the computer shows one, and Look around meanwhile.
+  - A paired phone's Connect a harness ends the cards with I don't have one yet, saying
+    "chipschat.ai/setup says which one to get and how", and opens that page. It shows where some
+    card has steps, as the welcome's row does.
 - Claude Code's path on a new Mac still asks for Node.js, until Anthropic answers.
+
+## Addendum, 10 November 2026: the steps follow along on Chips for Mac (option B)
+
+Arjun: "build / fix all the items you just listed", the card that follows along among them. Built
+to the mock's option B, on top of A:
+
+1. **Each step can say how it is seen done.** A step's `done` in `connectors.json` is `program`, a
+   command the step puts on the PATH, or `signedIn`. Claude Code's are `claude`, signed in, and
+   `claude-agent-acp`; Codex's are `codex` and signed in. Making an account has none.
+2. **Chips only looks.** Chips for Mac looks every three seconds while the steps are open and
+   whenever its window comes back: the programs on the login shell's PATH (`programs_here`), and
+   the agent's own status command for the sign-in (`signed_in_here`), from a list in the app by the
+   card's id: `claude auth status` reads `loggedIn`, and `codex login status` succeeds. A card names
+   which agent it is, never a command, and what the person signed in as is never read.
+3. **What the person sees.** A step ticks green with what Chips saw ("Chips sees it on this Mac",
+   "Signed in") and its line folds away; the one under way wears a gold ring and says "Chips is
+   watching for this"; a step Chips can't see takes I've done this, and counts as done once a step
+   after it is. Connect stays under them throughout.
+4. **On to Connect.** When the last step ticks off while the page is open, it says "All done.
+   Connecting…" and goes on to the card's Connect, which starts by itself. Steps all done at the first
+   look, as on coming Back, wait for Connect to be pressed.
+5. **A browser stays with A.** It can't look at the computer the steps run on.
+

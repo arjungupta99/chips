@@ -113,6 +113,7 @@ import {
   newAgentName,
   newestFilesOf,
   nobodyToAddWords,
+  offersAllJobs,
   type RoomFileOf,
   roomAgents,
   roomByline,
@@ -130,7 +131,12 @@ import {
   whyFaceNotSaved,
   workspaceOwnerName,
 } from "@chipschat/core";
-import type { RoomSpend, SpaceIcon, SpaceNotifications } from "@chipschat/protocol";
+import type {
+  RoomSpend,
+  SpaceIcon,
+  SpaceNotifications,
+  SpendCeilingSetting,
+} from "@chipschat/protocol";
 import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -158,7 +164,7 @@ import { useRoomFiles } from "./RoomFiles";
 import { IconPage } from "./RoomIcon";
 import { MediaFilesPage } from "./RoomMedia";
 import { ChangePage, ProjectFilePage, ProjectPage, projectActions } from "./RoomProject";
-import { SpendPage, useRoomSpend } from "./RoomSpend";
+import { AllJobsPage, SpendPage, useRoomSpend } from "./RoomSpend";
 import {
   HideTile,
   LeadTile,
@@ -184,6 +190,8 @@ type Page =
   | { readonly kind: "lead" }
   /** Spend per job; from the banner's Raise the limit, its Save lets the agents carry on too. */
   | { readonly kind: "spend"; readonly carryOn?: boolean }
+  /** Every job before this one, from Spend per job's See all (ADR 0292 addendum). */
+  | { readonly kind: "jobs" }
   | { readonly kind: "notify" }
   | { readonly kind: "new" }
   | { readonly kind: "invite" }
@@ -397,20 +405,23 @@ export function RoomSheet({
   // What the room allows a job (ADR 0117): saved, the first page shows it, and the room says who.
   // Opened from Raise the limit, it lets the agents carry on with it too, and the sheet goes, so
   // the room shows them going on (ADR 0282).
-  const spending = async (usd: number | null, carryOn: boolean) => {
+  // Saved, Spend per job stays open, its Save saying so; from Raise the limit the sheet goes, so
+  // the room shows the agents carrying on.
+  const spending = async (usd: SpendCeilingSetting, carryOn: boolean): Promise<boolean> => {
     setBusy(true);
     setFailed(undefined);
     try {
       if (!carryOn) {
         await store.setSpendCeiling(space.id, usd);
-        go({ kind: "who" });
       } else {
         // The amount changed or not: the server lets the held agents carry on either way.
         await store.setSpendCeiling(space.id, usd, { carryOn: true });
         onClose();
       }
+      return true;
     } catch (error) {
       setFailed(error instanceof Error ? error.message : "The server would not do it.");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -512,6 +523,43 @@ export function RoomSheet({
           media.current = true;
           onClose();
         };
+  // A job's row, on Spend per job or See all's page: the room, at the reply that closed its run.
+  const goingTo =
+    onGoTo === undefined
+      ? undefined
+      : (lineId: string) => {
+          onClose();
+          onGoTo(lineId);
+        };
+  // Spend per job, and See all's page of every job before this one, a page at a time.
+  const spendPage = (shown: Extract<Page, { readonly kind: "spend" | "jobs" }>) =>
+    shown.kind === "jobs" ? (
+      <AllJobsPage
+        store={store}
+        space={space}
+        directory={snapshot.directory}
+        onBack={() => go({ kind: "spend" })}
+        onGoTo={goingTo}
+      />
+    ) : (
+      <SpendPage
+        space={space}
+        spend={spend}
+        busy={busy}
+        carryOn={shown.carryOn === true}
+        // Until a hello has said, as the cache's choices stand (ADR 0292).
+        noCap={snapshot.keepsNoCap !== false}
+        directory={snapshot.directory}
+        selfId={selfId}
+        onBack={() => go({ kind: "who" })}
+        onSave={(usd) => spending(usd, shown.carryOn === true)}
+        onGoTo={goingTo}
+        onSeeAll={allJobs}
+      />
+    );
+  const allJobs = offersAllJobs(spend, snapshot.keepsSpendJobs)
+    ? () => go({ kind: "jobs" })
+    : undefined;
   // The pages that come off the first: Lead, Spend per job, Media & files and those that put an agent in
   // the room.
   const further = (
@@ -532,25 +580,8 @@ export function RoomSheet({
       }
     >,
   ) =>
-    shown.kind === "spend" ? (
-      <SpendPage
-        space={space}
-        spend={spend}
-        busy={busy}
-        carryOn={shown.carryOn === true}
-        directory={snapshot.directory}
-        selfId={selfId}
-        onBack={() => go({ kind: "who" })}
-        onSave={(usd) => void spending(usd, shown.carryOn === true)}
-        onGoTo={
-          onGoTo === undefined
-            ? undefined
-            : (lineId) => {
-                onClose();
-                onGoTo(lineId);
-              }
-        }
-      />
+    shown.kind === "spend" || shown.kind === "jobs" ? (
+      spendPage(shown)
     ) : shown.kind === "lead" ? (
       <Lead
         snapshot={snapshot}

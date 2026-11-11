@@ -129,6 +129,15 @@ export function createInProcessPresence(
 
   return {
     stateOf: (workspaceId, harnessId) => view(entryOf(workspaceId, harnessId)),
+    added(workspaceId, harnessId) {
+      const entry = entryOf(workspaceId, harnessId);
+      if (entry.sockets > 0) return;
+      // Nothing to come back from: not taken as connected while the process starts, and not
+      // offline since the start, before it had a key.
+      entry.starting = false;
+      entry.connected = false;
+      entry.since = now();
+    },
     opened(workspaceId, harnessId) {
       const entry = entryOf(workspaceId, harnessId);
       entry.sockets += 1;

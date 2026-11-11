@@ -903,10 +903,9 @@ class Session {
       this.budget,
       this.host.signed,
     );
-    // What the room's job has spent, as of the message (ADR 0117).
-    return context === undefined
-      ? undefined
-      : { ...context, spend: this.host.workspace.spendOf(event.space_id, event.seq) };
+    // What the room's job has spent, as of the message (ADR 0117); nothing with no cap (ADR 0292).
+    const spend = this.host.workspace.spendOf(event.space_id, event.seq);
+    return context === undefined || spend === undefined ? context : { ...context, spend };
   }
 
   /**

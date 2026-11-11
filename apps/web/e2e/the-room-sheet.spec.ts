@@ -31,7 +31,7 @@ async function box(locator: Locator) {
 /** Where the room sheet's tiles stand, read at one moment so nothing moves between them. */
 function tiles(page: Page): Promise<{ x: number; y: number; width: number; height: number }[]> {
   return page.evaluate(() =>
-    ["room-sheet-lead", "room-sheet-spend", "room-sheet-lock"].map((id) => {
+    ["room-sheet-lead", "room-sheet-spend", "room-sheet-lock", "hide-space"].map((id) => {
       const rect = document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect();
       if (rect === undefined) throw new Error(`no ${id}`);
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
@@ -48,7 +48,7 @@ async function attach(page: Page, file: { name: string; mimeType: string; buffer
   });
 }
 
-test("the room sheet's first page is laid out in tiles, three across on the Mac and two to a row at a phone's width", async ({
+test("the room sheet's first page is laid out in tiles, two to a row as the phone's, Lock changes and Hide under them", async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -92,27 +92,41 @@ test("the room sheet's first page is laid out in tiles, three across on the Mac 
   expect(add.x).toBeGreaterThan(headed.x + 200);
 
   // The workspace's owner, whose agents answer here, is offered no Leave (ADR 0204's addendum):
-  // Hide stands at the foot with Archive and Done instead, which is only theirs (ADR 0205).
+  // Hide stands beside Lock changes instead, which is only theirs (ADR 0205).
   const members = sheet.getByTestId("room-sheet-members");
   await expect(members.getByTestId("leave-space")).toHaveCount(0);
   await expect(sheet.locator(".sheet-foot").getByTestId("leave-space")).toHaveCount(0);
-  await expect(sheet.locator(".sheet-foot").getByTestId("hide-space")).toHaveText("Hide");
+  await expect(sheet.getByTestId("room-sheet-tiles-foot").getByTestId("hide-space")).toContainText(
+    "HideOff your list",
+  );
 
-  // The settings as tiles, all three in one row, Lead first.
+  // The settings as tiles, two to a row as the phone's: Lead and Spend per job, then Lock changes
+  // and Hide on the foot's row under them, each half the row, none of them cut short.
   await expect
     .poll(async () => {
-      const [lead, spend, lock] = await tiles(page);
+      const [lead, spend, lock, hide] = await tiles(page);
       return (
         lead !== undefined &&
         spend !== undefined &&
         lock !== undefined &&
+        hide !== undefined &&
         Math.abs(spend.y - lead.y) < 1 &&
-        Math.abs(lock.y - lead.y) < 1 &&
+        Math.abs(hide.y - lock.y) < 1 &&
+        lock.y > lead.y + lead.height &&
         lead.x < spend.x &&
-        spend.x < lock.x
+        Math.abs(lock.x - lead.x) < 1 &&
+        Math.abs(hide.x - spend.x) < 1 &&
+        Math.abs(lead.width - spend.width) < 1
       );
     })
     .toBe(true);
+  expect(
+    await sheet
+      .locator(".sheet-box-value, .sheet-box-name, .sheet-box-under")
+      .evaluateAll((all) =>
+        all.filter((line) => line.scrollWidth > line.clientWidth).map((line) => line.textContent),
+      ),
+  ).toEqual([]);
   await expect(sheet.getByTestId("room-sheet-lead")).toContainText("NobodyLead");
   await expect(sheet.getByTestId("room-sheet-spend")).toContainText("$3.00");
 
@@ -162,18 +176,20 @@ test("the room sheet's first page is laid out in tiles, three across on the Mac 
   await sheet.getByTestId("room-media-back").click();
   await expect(sheet.getByTestId("room-sheet-icon")).toBeVisible();
 
-  // At a phone's width, the tiles go two to a row and Lock changes takes the row under them.
+  // At a phone's width they stay as they were: two to a row, Lock changes and Hide under them.
   await page.setViewportSize({ width: 390, height: 844 });
   await expect
     .poll(async () => {
-      const [lead, spend, lock] = await tiles(page);
+      const [lead, spend, lock, hide] = await tiles(page);
       return (
         lead !== undefined &&
         spend !== undefined &&
         lock !== undefined &&
+        hide !== undefined &&
         Math.abs(spend.y - lead.y) < 1 &&
+        Math.abs(hide.y - lock.y) < 1 &&
         lock.y > lead.y + lead.height &&
-        lock.width > lead.width * 2
+        Math.abs(lock.width - lead.width) < 1
       );
     })
     .toBe(true);

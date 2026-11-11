@@ -178,6 +178,11 @@ Every event also carries the [envelope](/reference/envelope/).
 | `room.idle` | no | object[] | The room's other agents that have had a turn here: how long since the last one ended (ADR 0104). |
 | `room.idle[].participant_id` | yes | `string` |  |
 | `room.idle[].minutes` | yes | `number` | How long since its last turn here ended, in whole minutes. |
+| `room.away` | no | object[] | The room's agents that can't answer as Chips sends this turn (ADR 0291): offline, or their harness says something is wrong. Work handed to one of them waits. |
+| `room.away[].participant_id` | yes | `string` |  |
+| `room.away[].why` | yes | `"offline" \| "trouble"` | `offline`: no connection of its harness is open. `trouble`: its harness is connected and says something is wrong on its side (ADR 0083). |
+| `room.away[].reason` | no | `string` | For `trouble`: what its harness said is wrong, in its own words. |
+| `room.away[].minutes` | yes | `number` | For how long, in whole minutes. |
 | `exchange` | no | object | How the agents' talk in the room stands, once it is worth a word (ADR 0097): from eight messages between agents since a person last acted or an agent last made something new. A harness puts `note` at the top of the turn, as Chips's, ahead of the room's note. Absent below that, and worked out from the log, so a replay hands over the same facts. |
 | `exchange.count` | yes | `number` | Messages agents have sent agents in the room since the reset, this one included. |
 | `exchange.since` | yes | object | The last reset of the count. |

@@ -285,3 +285,31 @@ Measured on the 13-inch simulator, a bubble of yours and the column's edge read 
 recording. The lines and the column set off in the same frame, opening and closing, upright and on
 its side, with the bubble's edge a steady 50 points clear of the column's all the way; and the same
 held up for 300 ms as above. Every edge went one way.
+
+## Addendum, 10 November 2026: the list draws past its frame only while it glides
+
+Arjun, on his iPad, in OpenClaw main: "I am not able to completely scroll to top, beyond the
+'1. Octopus' message, it keeps bouncing back". The room held two replies of eighty numbered lines.
+One of them came as a single paragraph, about 3,450 points tall.
+
+Decision 11 gave the room's list `overflow: "visible"` for good. To Yoga a scroll view that does
+not clip is not a scroll view: it measures the list's content as if it had to fit the glass, and a
+paragraph taller than the glass is counted at about the glass's height. The rows were laid out to
+8,720 points while the content box they stand in was 6,491, so the list ended 2,292 points short of
+its first line and sprang back from there (the 13-inch simulator, a copy of his room, measured off
+the shadow tree). The iPhone was never touched: its list always clipped.
+
+22. **The list draws past its frame only while the lines glide** to a new width, from the render
+    that draws them at it until they let go of it (`HeldWidth.gliding`, given the list as
+    `DrawsPast` by the room's box). At rest it clips, and Yoga measures it as a scroll view.
+23. **While it glides it keeps at least the length it had as the glide began** (a `minHeight` on
+    its content). Left short for the glide, iOS pulled the offset in to the short end before the
+    room could keep the reader's place: from the top of that room, opening the details put the
+    reader 1,830 points down, in the middle of the eighty animals. Held to its length, the list is
+    measured to it, so it stays its full length the whole way.
+
+Measured on the 13-inch simulator, that room: the list reaches its first line; from the top,
+opening the details keeps the line at the foot of the glass where it was (7,673 to 8,355 as the
+rows above it grew, the length 9,787 the whole glide), and closing them brings it back to 7,673,
+the top again. Every bubble, yours at the right edge included, is whole in every frame of the
+glide.

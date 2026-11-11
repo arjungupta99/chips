@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { eventSchema } from "./envelope.js";
 import { budgetWarning } from "./events/chips-to-harness.js";
-import { exchangeSet, spaceSpendCeilingSet } from "./events/workspace.js";
+import { exchangeSet, spaceSpendCeilingLifted, spaceSpendCeilingSet } from "./events/workspace.js";
 import {
+  cappedSpend,
   DEFAULT_SPEND_CEILING_USD,
   dollars,
   isSpendCeiling,
@@ -15,12 +16,24 @@ import {
 } from "./spend.js";
 
 describe("what a room may allow a job (ADR 0117)", () => {
-  it("is $3 by default, from $0.25 to $100 in steps of $0.25", () => {
+  it("is $3 by default, from $0.25 to $1,000 in steps of $0.25 (ADR 0292)", () => {
     expect(DEFAULT_SPEND_CEILING_USD).toBe(3);
-    for (const usd of [SPEND_CEILING_MIN, 0.5, 1, 2.75, 3, 7.5, 10, 99.75, SPEND_CEILING_MAX]) {
+    expect(SPEND_CEILING_MAX).toBe(1000);
+    for (const usd of [
+      SPEND_CEILING_MIN,
+      0.5,
+      1,
+      2.75,
+      3,
+      7.5,
+      10,
+      100.25,
+      999.75,
+      SPEND_CEILING_MAX,
+    ]) {
       expect(isSpendCeiling(usd), String(usd)).toBe(true);
     }
-    for (const usd of [0, 0.1, 0.3, 2.6, 100.25, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const usd of [0, 0.1, 0.3, 2.6, 1000.25, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(isSpendCeiling(usd), String(usd)).toBe(false);
     }
   });
@@ -39,7 +52,39 @@ describe("what a room may allow a job (ADR 0117)", () => {
     expect(schema.safeParse({ ...base, usd: 10 }).success).toBe(true);
     expect(schema.safeParse({ ...base, usd: null }).success).toBe(true);
     expect(schema.safeParse({ ...base, usd: 0.1 }).success).toBe(false);
-    expect(schema.safeParse({ ...base, usd: 101 }).success).toBe(false);
+    expect(schema.safeParse({ ...base, usd: 1000 }).success).toBe(true);
+    expect(schema.safeParse({ ...base, usd: 1001 }).success).toBe(false);
+    expect(schema.safeParse({ ...base, usd: "none" }).success).toBe(false);
+  });
+
+  it("has its cap taken off by an event of its own, which a device from before skips (ADR 0292)", () => {
+    const lifted = {
+      v: 1,
+      type: "space.spend_ceiling_lifted",
+      id: "evt_01J0000000000000000000000B",
+      ts: "2026-11-10T12:00:00.000Z",
+      workspace_id: "ws_01J0000000000000000000000A",
+      space_id: "spc_01J0000000000000000000000A",
+      actor: { kind: "person", id: "usr_01J0000000000000000000000A" },
+    };
+    expect(eventSchema(spaceSpendCeilingLifted).safeParse(lifted).success).toBe(true);
+  });
+
+  it("hands a harness the job only while the room has a cap", () => {
+    const job = { spent_usd: 12.5, since_seq: 7, uncounted_runs: 1 };
+    expect(cappedSpend({ ...job, ceiling_usd: 25 })).toEqual({ ...job, ceiling_usd: 25 });
+    expect(cappedSpend({ ...job, ceiling_usd: null })).toBeUndefined();
+  });
+});
+
+describe("an amount in words", () => {
+  it("is in dollars to the cent, with a comma from a thousand", () => {
+    expect(dollars(0.25)).toBe("$0.25");
+    expect(dollars(3)).toBe("$3.00");
+    expect(dollars(999.994)).toBe("$999.99");
+    expect(dollars(1000)).toBe("$1,000.00");
+    expect(dollars(35.23)).toBe("$35.23");
+    expect(dollars(1_234_567.891)).toBe("$1,234,567.89");
   });
 });
 

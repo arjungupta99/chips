@@ -658,7 +658,7 @@ export type AskStanding =
 
 export function askStanding(approval: Approval): AskStanding {
   if (askMatters(approval)) return { kind: "once", why: ONCE_ONLY_WORDS, holds: false };
-  const offer = standingOffer(approval.input);
+  const offer = standingOffer({ kind: approval.actionKind, input: approval.input });
   if (offer === undefined) return { kind: "any" };
   if (offer.kind === "unreadable") {
     // A write into a file is named where it stands (ADR 0280); anything else is said whole.

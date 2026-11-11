@@ -33,6 +33,7 @@ import {
   ownerNameOf,
   PROGRAMS_ON_MAC,
   PROGRAMS_ON_OWNERS_MAC,
+  type ProgramBanner,
   pageOnMacWords,
   pageRowWords,
   programBanner,
@@ -71,7 +72,7 @@ import { previewBytes } from "./local";
 import { Moves, Opening } from "./MacMotion";
 import { MacRow, RowButton, RowMark } from "./MacRow";
 import { PageSheet } from "./PageSheet";
-import { LinkAskSheet, ProgramBannerView, useLinkAsk } from "./ProgramBanner";
+import { LinkAskSheet, ProgramBannerView, useLinkAsk, useTailscaleLine } from "./ProgramBanner";
 import { PAGE_WAITS_MS } from "./pages";
 import { type ProjectActions, projectActions } from "./RoomProject";
 import { PhoneRun, type RunHeld, useRunBar, useRunOnMac } from "./RunBar";
@@ -215,6 +216,7 @@ function UniverseOf({
                 banner={ran.banner}
                 onFile={openFile}
                 onAddress={ran.onAddress}
+                onPage={ran.onPage}
                 onDesktop={toDesktop}
               />
             ) : (
@@ -232,16 +234,14 @@ function UniverseOf({
           onClose={() => setPaged(undefined)}
         />
       )}
-      {ran.program ? (
-        <LinkAskSheet
-          asked={ran.links.asked}
-          open={ran.links.open}
-          onGo={ran.links.go}
-          onAnyway={ran.links.anyway}
-          onClose={ran.links.close}
-          onGone={ran.links.gone}
-        />
-      ) : null}
+      <LinkAskSheet
+        asked={ran.links.asked}
+        open={ran.links.open}
+        onGo={ran.links.go}
+        onAnyway={ran.links.anyway}
+        onClose={ran.links.close}
+        onGone={ran.links.gone}
+      />
     </Sheet>
   );
 }
@@ -268,20 +268,27 @@ function useProgram(
     return ownerNameOf(model, directory);
   });
   const banner = owner ? programBanner(bar) : memberBanner(ownerName);
-  const links = useLinkAsk({ held, banner, recipe, program, owner });
+  const links = useLinkAsk({ held, banner, recipe, program, owner, ownerName });
   const usable = recipe !== undefined && !("why" in recipe) ? recipe : undefined;
+  // The page the Phone tab shows, so the banner can say its links need Tailscale.
+  const [page, setPage] = useState<string | undefined>(undefined);
+  const line = useTailscaleLine(page, open && owner && program, isUp(banner.kind));
   // Until the first read answers, whether it runs isn't known: no banner says it doesn't.
   const shown = program && (!owner || held.known);
   return {
     program,
     held: program && owner ? held : undefined,
     links,
-    onAddress: program ? links.tap : undefined,
+    // Every page's links are looked at first where they need it (ADR 0227's addendum of 10
+    // November 2026); the program's question is asked only where there is a program.
+    onAddress: links.tap,
+    onPage: setPage,
     banner: shown ? (
       <ProgramBannerView
         banner={banner}
         busy={held.busy}
         hereOnly={links.hereOnly}
+        line={line}
         onRun={() => {
           if (usable !== undefined) void held.press({ op: "run", command: commandOf(usable) });
         }}
@@ -289,6 +296,11 @@ function useProgram(
       />
     ) : null,
   };
+}
+
+/** Running, or on its way: the banner's Tailscale line says only Tailscale is missing. */
+function isUp(kind: ProgramBanner["kind"]): boolean {
+  return kind === "running" || kind === "starting";
 }
 
 /**
@@ -490,6 +502,7 @@ function PhoneTab({
   banner,
   onFile,
   onAddress,
+  onPage,
   onDesktop,
 }: {
   readonly universe: Universe;
@@ -501,7 +514,9 @@ function PhoneTab({
   /** The program's banner, over what the tab shows, where the space has a program. */
   readonly banner: ReactNode;
   /** A tapped link to a web address, for Universe to open or ask about first. */
-  readonly onAddress: ((url: string) => void) | undefined;
+  readonly onAddress: ((url: string, html?: string) => void) | undefined;
+  /** The page the tab shows, once it's read. */
+  readonly onPage: (html: string | undefined) => void;
   /** Desktop, for an owner; nobody else has it (ADR 0231). */
   readonly onDesktop: (() => void) | undefined;
 }) {
@@ -516,6 +531,7 @@ function PhoneTab({
           live={live}
           onFile={onFile}
           onAddress={onAddress}
+          onPage={onPage}
         />
       </Bannered>
     );
@@ -562,13 +578,15 @@ function Start({
   live,
   onFile,
   onAddress,
+  onPage,
 }: {
   readonly path: string;
   readonly project: ProjectActions;
   readonly kept: Kept;
   readonly live: boolean;
   readonly onFile: (path: string) => void;
-  readonly onAddress: ((url: string) => void) | undefined;
+  readonly onAddress: ((url: string, html?: string) => void) | undefined;
+  readonly onPage: (html: string | undefined) => void;
 }) {
   const kind = documentKind(path);
   if (kind === "page" || kind === "markdown") {
@@ -580,6 +598,7 @@ function Start({
         live={live}
         onFile={onFile}
         onAddress={onAddress}
+        onPage={onPage}
         markdown={kind === "markdown"}
       />
     );
@@ -600,6 +619,7 @@ function Drawn({
   live,
   onFile,
   onAddress,
+  onPage,
   markdown,
 }: {
   readonly path: string;
@@ -607,7 +627,8 @@ function Drawn({
   readonly kept: Kept;
   readonly live: boolean;
   readonly onFile: (path: string) => void;
-  readonly onAddress: ((url: string) => void) | undefined;
+  readonly onAddress: ((url: string, html?: string) => void) | undefined;
+  readonly onPage: (html: string | undefined) => void;
   readonly markdown: boolean;
 }) {
   const palette = usePalette();
@@ -621,6 +642,11 @@ function Drawn({
       ? markdownPage(read.value, { ...palette, scheme, size: TEXT.body })
       : withHtmlPolicy(read.value);
   }, [read.value, markdown, palette, scheme]);
+  // The page, for the banner over it; nothing once it's gone.
+  useEffect(() => {
+    onPage(html);
+    return () => onPage(undefined);
+  }, [html, onPage]);
   // Seen once it says it has loaded, or after a while if it never does, as the page sheet's is.
   useEffect(() => {
     if (html === undefined || drawn) return;

@@ -572,6 +572,28 @@ describe("the store", () => {
     expect(h.snapshots.at(-1)?.keepsHeldYes).toBe(false);
   });
 
+  it("hears from each hello whether the server takes No cap and amounts past $100 (ADR 0292)", async () => {
+    const h = harness();
+    await started();
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsNoCap).toBeUndefined();
+    h.wire().onEvent({ type: "hello", spaces: [], server: { takes: ["spend_no_cap"] } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsNoCap).toBe(true);
+    // A v1.2.3 server says the three before it, and refuses both.
+    h.wire().onEvent({
+      type: "hello",
+      spaces: [],
+      server: { takes: ["held_yes", "held_start", "banners"] },
+    } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsNoCap).toBe(false);
+    expect(h.snapshots.at(-1)?.keepsSpendJobs).toBe(false);
+    h.wire().onEvent({ type: "hello", spaces: [], server: { takes: ["spend_jobs"] } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsSpendJobs).toBe(true);
+  });
+
   it("takes a rename the socket brings, and its own from the server's answer, but not one the cache replays (ADR 0194)", async () => {
     const kept = new Map<string, unknown>([["dev_1", { ...DEVICE, workspaceName: "Solo" }]]);
     const deviceStorage: DeviceStorage = {

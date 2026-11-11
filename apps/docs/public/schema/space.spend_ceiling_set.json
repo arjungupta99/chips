@@ -80,7 +80,7 @@
       "description": "The participant an event is attributed to."
     },
     "usd": {
-      "description": "What the room allows a job now, in US dollars, from 0.25 to 100 in steps of 0.25; `null` for the default (3).",
+      "description": "What the room allows a job now, in US dollars, from 0.25 to 1000 in steps of 0.25; `null` for the default (3).",
       "type": [
         "number",
         "null"

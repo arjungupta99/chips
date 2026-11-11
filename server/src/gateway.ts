@@ -43,6 +43,7 @@ import {
   createDeleteAccount,
   createDeleteAgent,
   createDirectAsks,
+  createEnsureLead,
   createEraseSpace,
   createForkAgent,
   createHandOverHeld,
@@ -98,6 +99,7 @@ import {
   createSubmitEvent,
   createSweep,
   createTransferHarness,
+  createUnpickedTurns,
   createUpgradeAgents,
   createUpgradeNames,
   createUpgradeOneRoom,
@@ -587,6 +589,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     clock: systemClock,
     ids,
     mint: mintHarnessToken,
+    presence,
   });
   const openSpace = createOpenSpace({ store, readModels, clock: systemClock, ids });
   const upgradeAgents = createUpgradeAgents({
@@ -726,8 +729,11 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
   // A run's cost reported in a room weighs the room's job against its ceiling (ADR 0118): a
   // warning at 80%, and at the ceiling the agents held until a person acts.
   const holdAtCeiling = createHoldAtCeiling({ store, readModels, clock: systemClock, ids });
+  // A room with two or more agents has a lead, unless a person said nobody leads (ADR 0291).
+  const ensureLead = createEnsureLead({ store, readModels, clock: systemClock, ids });
   react = async (event) => {
     await oneRoom.after(event);
+    await ensureLead.after(event);
     await handOver.after(event);
     await holdAtCeiling.after(event);
     // A person's standing changed (SEC-26): their sockets were opened with the old one, and
@@ -771,6 +777,15 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
   const setLock = createSetLock({ store, readModels, clock: systemClock, ids });
   const setAgentLock = createSetAgentLock({ store, readModels, clock: systemClock, ids });
   const leadTurns = createLeadTurns({ store, readModels, clock: systemClock, ids });
+  // What an agent sent another that the other did not pick up goes to the lead, or back (ADR 0291).
+  const unpickedTurns = createUnpickedTurns({
+    store,
+    readModels,
+    presence,
+    clock: systemClock,
+    ids,
+    startedAtMs: systemClock.nowMs(),
+  });
   const deleteAgent = createDeleteAgent({
     store,
     readModels,
@@ -1113,6 +1128,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     waitForApproval,
     sweep,
     leadTurns,
+    unpickedTurns,
     uploads,
     uploadsRegistry,
     blobs,
@@ -1304,6 +1320,12 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
             if (handed.length > 0) logger.info({ handed }, "handed to a room's lead");
           })
           .catch((error: unknown) => logger.error({ err: error }, "lead turns failed"));
+        // What an agent sent another that the other did not pick up (ADR 0291).
+        void unpickedTurns()
+          .then((handed) => {
+            if (handed.length > 0) logger.info({ handed }, "handed on what was not picked up");
+          })
+          .catch((error: unknown) => logger.error({ err: error }, "unpicked turns failed"));
         drainPlayables();
       }, config.realtime.sweepSeconds * 1000);
       sweeper.unref?.();

@@ -368,10 +368,12 @@ it was nobody's turn".
 
 Every room allows a job a spend ceiling
 ([ADR 0117](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0117-a-room-has-a-spend-ceiling-per-job.md)):
-$3 unless a person in the room sets another, from $0.25 to $100. A job is the work the room's
-agents do after the last thing a person did there, or after a brief was handed into the room. Its
-spend is what the room's `usage` reports said since then, every harness's together. A `message.new`
-that gives a turn carries it as `context.spend`, as of the message:
+$3 unless a person in the room sets another, from $0.25 to $1,000, or takes the cap off (No cap,
+[ADR 0292](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0292-a-room-can-have-no-cap.md)).
+A job is the work the room's agents do after the last thing a person did there, or after a brief
+was handed into the room. Its spend is what the room's `usage` reports said since then, every
+harness's together. A `message.new` that gives a turn carries it as `context.spend`, as of the
+message, except in a room with no cap, which carries none and says nothing of spend in the note:
 
 ```json
 "spend": { "ceiling_usd": 3, "spent_usd": 0.42, "since_seq": 62, "uncounted_runs": 0 }

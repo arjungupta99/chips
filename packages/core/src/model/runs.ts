@@ -1,10 +1,11 @@
 /** A run from its first steer to its last word, with its steps, usage and checkpoints. */
 
 import { isNoReply, type StepKind, stepKind } from "@chipschat/protocol";
-import { type ClientEvent, harnessOfActor } from "../events.js";
+import { actorKind, type ClientEvent, harnessOfActor } from "../events.js";
 import { addLine, closeOnLastSaid, textLine } from "./lines.js";
 import { policyFor } from "./policy.js";
 import { settleChanges } from "./project.js";
+import { agentLine } from "./spaces.js";
 import {
   type Building,
   type FoldStep,
@@ -99,6 +100,10 @@ export function freezeRun(state: Building, run: MutableRun): Run {
     goal: run.goal,
     state: run.state,
     paused: run.paused,
+    pausable: run.pausable,
+    pausedAt: run.pausedAt,
+    pausedBy: run.pausedBy,
+    pausedMs: run.pausedMs,
     statusVerb: run.statusVerb,
     thought: run.thought,
     steps: run.steps,
@@ -240,6 +245,8 @@ export const RUN_FOLDS: Readonly<Record<string, FoldStep>> = {
     run.spaceId = space?.id ?? run.spaceId;
     run.state = "running";
     run.paused = false;
+    run.pausedAt = undefined;
+    run.pausedBy = undefined;
     run.startedAt = event.ts;
     run.sessionRef = field<string>(event, "session_ref") ?? run.sessionRef;
     run.goalFrom = field<"harness" | "chips">(event, "goal_from") ?? run.goalFrom;
@@ -269,6 +276,8 @@ export const RUN_FOLDS: Readonly<Record<string, FoldStep>> = {
   "run.status": (state, event) => {
     const run = runOf(state, event);
     if (run !== undefined && !TERMINAL.includes(run.state)) {
+      // Said once, and it holds for the run (ADR 0293).
+      if (field<boolean>(event, "pausable") === true) run.pausable = true;
       const words = field<string>(event, "verb_phrase");
       run.statusVerb = words;
       // A word and its ellipsis says the harness is still going; the thought before it stands.
@@ -335,30 +344,48 @@ export const RUN_FOLDS: Readonly<Record<string, FoldStep>> = {
 
   "run.pause": (state, event) => {
     const run = runOf(state, event);
-    if (run === undefined || TERMINAL.includes(run.state)) return;
-    run.state = "waiting";
+    if (run === undefined || TERMINAL.includes(run.state) || run.paused) return;
+    run.state = "paused";
     run.paused = true;
+    run.pausedAt = event.ts;
+    run.pausedBy = field<string>(event, "by") ?? event.actor.id;
     state.audit.push(runAudit(event, "paused the run"));
   },
 
   "run.resume": (state, event) => {
     const run = runOf(state, event);
     if (run === undefined || TERMINAL.includes(run.state)) return;
-    run.state = "running";
-    run.paused = false;
+    unpause(run, event.ts);
+    // An ask that came while it was paused is still open: it waits on that, not on nobody.
+    run.state = asksOpen(run) ? "waiting" : "running";
     state.audit.push(runAudit(event, "resumed the run"));
   },
 
   "run.cancel": (state, event) => {
     const run = runOf(state, event);
+    const space = spaceOf(state, event);
     if (run === undefined || TERMINAL.includes(run.state)) return;
+    unpause(run, event.ts);
     run.state = "cancelled";
-    run.paused = false;
     run.statusVerb = undefined;
     run.thought = undefined;
     run.endedAt = event.ts;
     settleChanges(state, run);
     state.audit.push(runAudit(event, "stopped the run"));
+    // A person's Stop says so where the bubble stood, so everybody in the room sees who did it
+    // (ADR 0293). Chips fills `by` from the credential that sent it; its own stops say `system`.
+    const by =
+      field<string>(event, "by") ??
+      (actorKind(event.actor) === "person" ? event.actor.id : undefined);
+    if (space !== undefined && by !== undefined && by !== "system" && run.harnessId !== "") {
+      const name = state.people.get(by)?.displayName;
+      agentLine(
+        space,
+        event,
+        run.harnessId,
+        name === undefined ? "was stopped" : `was stopped by ${name}`,
+      );
+    }
   },
 
   "run.completed": (state, event) => {
@@ -370,7 +397,7 @@ export const RUN_FOLDS: Readonly<Record<string, FoldStep>> = {
     const summary = passed ? NOTHING_TO_ADD : said;
     if (run !== undefined) {
       run.state = "done";
-      run.paused = false;
+      unpause(run, event.ts);
       run.summary = summary;
       run.statusVerb = undefined;
       run.thought = undefined;
@@ -393,7 +420,7 @@ export const RUN_FOLDS: Readonly<Record<string, FoldStep>> = {
     const error = required<string>(event, "error");
     if (run !== undefined) {
       run.state = "failed";
-      run.paused = false;
+      unpause(run, event.ts);
       run.statusVerb = undefined;
       run.thought = undefined;
       run.error = error;
@@ -408,3 +435,25 @@ export const RUN_FOLDS: Readonly<Record<string, FoldStep>> = {
     });
   },
 };
+
+/**
+ * A pause ended, by a Resume or by the run ending: the time it stood paused is added to the run's,
+ * so its clock counts the time it worked (ADR 0293).
+ */
+function unpause(run: MutableRun, at: string): void {
+  if (run.paused && run.pausedAt !== undefined) {
+    const stood = Date.parse(at) - Date.parse(run.pausedAt);
+    if (Number.isFinite(stood) && stood > 0) run.pausedMs += stood;
+  }
+  run.paused = false;
+  run.pausedAt = undefined;
+  run.pausedBy = undefined;
+}
+
+/** Whether the run has an approval or a question nobody has answered yet. */
+function asksOpen(run: MutableRun): boolean {
+  return (
+    run.approvals.some((approval) => approval.resolved === undefined) ||
+    run.questions.some((question) => question.answered === undefined)
+  );
+}

@@ -1,7 +1,7 @@
 /**
  * Phase 1 exit criterion: a Lighthouse accessibility score above 90 on the main screens. The
  * screens are states of one page, so this uses Lighthouse's flow API in snapshot mode on a
- * paired session with a run in it: the space with its run panel and an approval, Needs
+ * paired session with a run in it: the space with a run waiting on an approval, Needs
  * you, Agents, and the workspace's log. Chromium is Playwright's; Puppeteer drives it because
  * that is what Lighthouse's flow API takes.
  */
@@ -62,8 +62,8 @@ test("the main screens score above 90 on Lighthouse accessibility", async () => 
     );
     await click(page, "PO-4471");
 
-    // A run in the room, waiting on an approval: the space and the run panel both have their
-    // cards.
+    // A run in the room, waiting on an approval: its card stands in the space (the Run panel
+    // beside it went, ADR 0293).
     const run = await harness.runs.start({
       spaceId: details.space_id,
       goal: "Get PO #4471 confirmed with Northwind.",

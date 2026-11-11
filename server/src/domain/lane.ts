@@ -117,7 +117,9 @@ export function decideRoute(request: RouteRequest, parent: ParentLane | undefine
  * seen from the lead's chat, is `completed`. Everything else reads the same word.
  */
 export function laneStateForRun(run: RunState): LaneState {
-  return run === "done" ? "completed" : run;
+  if (run === "done") return "completed";
+  // A paused specialist is holding for a person, as a waiting one is (ADR 0293).
+  return run === "paused" ? "waiting" : run;
 }
 
 /**

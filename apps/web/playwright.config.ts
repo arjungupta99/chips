@@ -30,8 +30,8 @@ const BUILD_PORT = process.env["CHIPS_E2E_BUILD_PORT"] ?? "5175";
 process.env["CHIPS_E2E_BUILD_PORT"] = BUILD_PORT;
 
 /**
- * A window the three columns all fit (ADR 0284): at Desktop Chrome's own 1280 a run's panel has no
- * column to stand in, and a page beside the list crowds the list out.
+ * A window the columns all fit (ADR 0284): at Desktop Chrome's own 1280 a page beside the list
+ * crowds the list out.
  */
 const THREE_COLUMNS = { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } };
 

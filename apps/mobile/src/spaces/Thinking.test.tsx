@@ -10,13 +10,20 @@ import type { Doing } from "@chipschat/core";
 import { act, renderHook } from "@testing-library/react-native";
 import { NOBODY, THINKING_GRACE_MS, useThinking } from "./Thinking";
 
-const thinking: Doing = { harnessId: "har_scout", runId: "run_1", calls: 0, made: [] };
+const thinking: Doing = {
+  harnessId: "har_scout",
+  runId: "run_1",
+  calls: 0,
+  made: [],
+  pausable: false,
+};
 const working: Doing = {
   harnessId: "har_scout",
   runId: "run_1",
   verb: "Reading the map",
   calls: 1,
   made: [],
+  pausable: false,
 };
 /** A second harness in the same room. */
 const other: Doing = {
@@ -25,6 +32,7 @@ const other: Doing = {
   verb: "Checking the hours",
   calls: 2,
   made: [],
+  pausable: false,
 };
 
 interface Room {

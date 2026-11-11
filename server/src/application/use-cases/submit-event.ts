@@ -1767,7 +1767,7 @@ function askedAction(action: unknown, risk: unknown): PolicyAction | undefined {
     irreversible: shape.irreversible,
     money_usd: shape.money_usd,
     risk: Array.isArray(risk) ? (risk as PolicyAction["risk"]) : undefined,
-    command: askedCommand(shape.input),
+    command: askedCommand(shape),
   };
 }
 
@@ -1795,7 +1795,7 @@ async function evaluateAsk(
     irreversible: action.irreversible,
     money_usd: action.money_usd,
     risk: event["risk"] as never,
-    command: askedCommand(action.input),
+    command: askedCommand(action),
   };
   return evaluate(
     asked,
@@ -2158,7 +2158,7 @@ async function alwaysAsked(
   );
   const action = approval?.action as ActionShape | undefined;
   if (action === undefined) return undefined;
-  const offer = standingOffer(action.input);
+  const offer = standingOffer(action);
   if (offer === undefined) return { action, offer };
   return offer.kind === "starts" ? { action, offer } : undefined;
 }

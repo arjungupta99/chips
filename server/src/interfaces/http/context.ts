@@ -86,6 +86,7 @@ import type {
   SubmitEvent,
   Sweep,
   TransferHarness,
+  UnpickedTurns,
   UpgradeAgents,
   UpgradeNames,
   UpgradeOneRoom,
@@ -130,6 +131,8 @@ export interface GatewayDeps {
   readonly sweep: Sweep;
   /** Hands a room's lead what was nobody's turn once the room goes still (ADR 0104); on the same timer. */
   readonly leadTurns: LeadTurns;
+  /** The sweep that hands on what an agent did not pick up (ADR 0291). */
+  readonly unpickedTurns: UnpickedTurns;
   /** Add harness, Custom: a person names a harness and gets its token once (M1.6). */
   readonly addHarness: AddHarness;
   /** The space a harness works in, found or opened by the key its adapter names it with (M2.3). */

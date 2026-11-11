@@ -433,6 +433,11 @@ export function OnThisMac(props: {
   readonly spent: boolean;
   readonly nowMs: number;
   readonly onNewLink: () => Promise<string | undefined>;
+  /**
+   * Connect once the link is made, as if pressed: the written steps followed along and saw them
+   * all done (ADR 0290's addendum, option B). Once, however often the page draws.
+   */
+  readonly startOnLink?: boolean | undefined;
 }) {
   const { card } = props;
   const { steps, running, start } = useHereRun(
@@ -442,6 +447,12 @@ export function OnThisMac(props: {
     props.spent,
     props.onNewLink,
   );
+  const started = useRef(false);
+  useEffect(() => {
+    if (props.startOnLink !== true || props.link === undefined || started.current) return;
+    started.current = true;
+    void start();
+  }, [props.startOnLink, props.link, start]);
   const stop = running ? undefined : steps.stop;
   // Connected, it waits for the hello, which the arrival follows, unless the card stops there.
   const stalled = steps.connected && !running ? props.stall : undefined;
@@ -489,6 +500,8 @@ export function BridgeWays(props: {
   readonly nowMs: number;
   /** A new link, allowed as the card's first was. */
   readonly onNewLink: () => Promise<string | undefined>;
+  /** Connect here at once, once the link is made: the written steps saw everything done. */
+  readonly startHere?: boolean | undefined;
 }) {
   const { card, here, request } = props;
   const another = (
@@ -516,6 +529,7 @@ export function BridgeWays(props: {
           spent={request?.state !== "allowed" || props.joinCard?.stall !== undefined}
           nowMs={props.nowMs}
           onNewLink={props.onNewLink}
+          startOnLink={props.startHere}
         />
       </div>
       {props.where === "another" ? another : null}

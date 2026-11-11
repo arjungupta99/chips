@@ -257,7 +257,7 @@ function working(space: Space, directory: Directory): string[] {
   const newest = new Map<string, (typeof space.runs)[number]>();
   for (const run of space.runs) newest.set(run.harnessId, run);
   const live = [...newest.values()].filter(
-    (run) => run.state === "running" || run.state === "waiting",
+    (run) => run.state === "running" || run.state === "waiting" || run.state === "paused",
   );
   return [...new Set(live.map((run) => nameOf(directory, run.harnessId)))];
 }

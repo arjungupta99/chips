@@ -41,6 +41,7 @@ export default function FilmScreen() {
           onLeave: () => (router.canGoBack() ? router.back() : router.replace("/")),
           onScan: () => setScanning(true),
           onType: typeCode,
+          onSetUp: () => home(paired?.device, "setup"),
           onFilm: (key) => router.setParams({ film: key }),
           onLookAround: lookAround,
         }}

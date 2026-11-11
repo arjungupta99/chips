@@ -33,7 +33,10 @@ Every event also carries the [envelope](/reference/envelope/).
 | `actor.harness_id` | no | `string` | For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips. |
 | `message_id` | yes | `string` | The message, as `message.new` named it. |
 | `agent_id` | yes | `string` | Who it is handed to. |
-| `lead` | no | `true` | Handed to the room's lead because it was nobody's turn and the room went still (ADR 0104), rather than held by the referee. |
+| `lead` | no | `true` | Handed to the room's lead because it was nobody's turn and the room went still (ADR 0104), or because the agent it was for did not pick it up (`unanswered_by`), rather than held by the referee. |
+| `unanswered_by` | no | `string` | The agent the message was for that did not pick it up (ADR 0291): no turn of its on it, no word and no pass, a minute after it was said. The message is handed to the room's lead, or, when the lead said it or is the one that did not pick it up, back to the agent that said it. |
+| `why` | no | `"offline" \| "trouble" \| "failed" \| "silent"` | With `unanswered_by`, why: its harness is `offline`, or says something is wrong (`trouble`); its turn on the message `failed`; or it is connected and nothing has been heard from it (`silent`). |
+| `reason` | no | `string` | For `trouble`, what its harness said is wrong; for `failed`, the run's error. |
 
 ## Example
 

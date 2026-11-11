@@ -24,11 +24,12 @@ const TRANSITIONS: readonly RunTransition[] = [
 ];
 
 describe("a run's life", () => {
-  it("has the six states Appendix C names", () => {
+  it("has the six states Appendix C names, and paused (ADR 0293)", () => {
     expect([...RUN_STATES]).toEqual([
       "queued",
       "running",
       "waiting",
+      "paused",
       "done",
       "failed",
       "cancelled",
@@ -48,11 +49,26 @@ describe("a run's life", () => {
   });
 
   it("lets a paused run resume", () => {
+    expect(applyRunTransition("running", "pause")).toBe("paused");
     expect(applyRunTransition(applyRunTransition("running", "pause"), "resume")).toBe("running");
   });
 
+  it("stays paused through an ask and its answer, so only Resume sets it going (ADR 0293)", () => {
+    let state: RunState = applyRunTransition("running", "pause");
+    state = applyRunTransition(state, "await_person");
+    expect(state).toBe("paused");
+    state = applyRunTransition(state, "person_answered");
+    expect(state).toBe("paused");
+    expect(runAccepts(state, "run.resume").ok).toBe(true);
+    expect(applyRunTransition(state, "resume")).toBe("running");
+  });
+
+  it("still resumes a run paused before ADR 0293, which was kept waiting", () => {
+    expect(applyRunTransition("waiting", "resume")).toBe("running");
+  });
+
   it("can fail or be cancelled from anywhere it is still alive", () => {
-    for (const state of ["queued", "running", "waiting"] as const) {
+    for (const state of ["queued", "running", "waiting", "paused"] as const) {
       expect(applyRunTransition(state, "fail")).toBe("failed");
       expect(applyRunTransition(state, "cancel")).toBe("cancelled");
     }
@@ -128,7 +144,12 @@ describe("transitions, as properties", () => {
   it("can only reach a terminal state through a transition that ends a run", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom("queued" as const, "running" as const, "waiting" as const),
+        fc.constantFrom(
+          "queued" as const,
+          "running" as const,
+          "waiting" as const,
+          "paused" as const,
+        ),
         fc.constantFrom(...TRANSITIONS),
         (state, transition) => {
           const next = applyRunTransition(state, transition);
@@ -218,10 +239,12 @@ describe("what a run takes at the door", () => {
     }
   });
 
-  it("pauses only a running run, and resumes only a waiting one", () => {
+  it("pauses only a running run, and resumes only a paused one", () => {
     expect(runAccepts("running", "run.pause").ok).toBe(true);
     expect(runAccepts("waiting", "run.pause")).toMatchObject({ ok: false });
     expect(runAccepts("queued", "run.pause")).toMatchObject({ ok: false });
+    expect(runAccepts("paused", "run.pause")).toMatchObject({ ok: false });
+    expect(runAccepts("paused", "run.resume").ok).toBe(true);
     expect(runAccepts("waiting", "run.resume").ok).toBe(true);
     expect(runAccepts("running", "run.resume")).toMatchObject({
       ok: false,
@@ -237,7 +260,12 @@ describe("what a run takes at the door", () => {
   it("takes everything else into a run that is still alive", () => {
     fc.assert(
       fc.property(
-        fc.constantFrom("queued" as const, "running" as const, "waiting" as const),
+        fc.constantFrom(
+          "queued" as const,
+          "running" as const,
+          "waiting" as const,
+          "paused" as const,
+        ),
         fc.constantFrom(...RUN_EVENTS.filter((t) => t !== "run.pause" && t !== "run.resume")),
         (state, type) => {
           expect(runAccepts(state, type).ok).toBe(true);

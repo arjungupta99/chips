@@ -82,6 +82,28 @@ import { isFoot, type Row } from "./spaces";
 export type { Field };
 
 const FieldContext = createContext<Field | undefined>(undefined);
+
+/**
+ * Whether the room's list draws past its own frame: only while an iPad's room glides its lines to a
+ * new width, so a bubble gliding in from outside the box the lines have taken is drawn whole (ADR
+ * 0279, decision 11; `useHeldWidth`'s `gliding`, said by `TapAway` in `SpaceView.tsx`).
+ *
+ * Only then, because a scroll view that does not clip is not a scroll view to Yoga. Its content is
+ * measured as if it had to fit the glass, and a paragraph taller than the glass is counted at the
+ * glass's height, so the list ended that much short of its first line: an iPad's room with a reply
+ * of eighty lines in one paragraph stopped 2,292 points below its top, and sprang back from there
+ * (Arjun's iPad, 10 November 2026: "it keeps bouncing back"; the simulator, a copy of his room).
+ *
+ * And while the lines glide the list keeps at least the length it had as they set off (`minHeight`).
+ * Left to Yoga it came up short again for the glide, iOS pulled the offset in to the short end, and
+ * a reader near the top was a room's worth of a long reply further down when the details had
+ * opened (the simulator: 7,673 points up, put at 5,843). A list held to a length is measured to it,
+ * so it is its full length the whole way and the room keeps the reader's place as it always has.
+ */
+export const DrawsPast = createContext(false);
+/** How the list draws past its frame (`DrawsPast`). */
+const PAST: ViewStyle = { overflow: "visible" };
+
 /**
  * The list, animated, drawing its own cells (`MovingCell`): each row moves from where it was to
  * where it is, and a row that has just landed comes in under the row above it (`RoomMotion.tsx`).
@@ -251,6 +273,19 @@ export const ColourList = forwardRef<
     [scroll, moves, lifting, held, lift, stand],
   );
   const cell = useCell(CellRendererComponentStyle, arrives, props.keyExtractor);
+  const past = useContext(DrawsPast);
+  // How long the list was as last laid out: what it keeps while it draws past its frame, as of
+  // the render that sets it drawing past.
+  const length = useRef(0);
+  const { style, contentContainerStyle } = props;
+  const drawn = useMemo(() => (past ? [style, PAST] : style), [past, style]);
+  const content = useMemo(
+    () =>
+      past && length.current > 0
+        ? [contentContainerStyle, { minHeight: length.current }]
+        : contentContainerStyle,
+    [past, contentContainerStyle],
+  );
   // The viewport is measured once per frame it could have moved in, not once per bubble —
   // and not before its first layout, when there is nothing to measure yet and asking is a
   // warning in development.
@@ -279,10 +314,13 @@ export const ColourList = forwardRef<
             {...props}
             ref={ref}
             {...STRICT_MODE}
+            style={drawn}
+            contentContainerStyle={content}
             CellRendererComponent={cell}
             onScroll={onScroll}
             scrollEventThrottle={16}
             onContentSizeChange={(width, height) => {
+              length.current = height;
               layout.value += 1;
               props.onContentSizeChange?.(width, height);
             }}

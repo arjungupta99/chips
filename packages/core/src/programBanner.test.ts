@@ -195,9 +195,15 @@ describe("which links a page's frame hands to its window", () => {
     expect(frameAsks({ ...off, onTheMac: false, kind: "ended" })).toBe("every");
   });
 
-  it("hands none over on the Mac while it runs, and only localhost in a browser elsewhere", () => {
-    expect(frameAsks({ ...off, kind: "running" })).toBe("none");
+  it("hands every address over on the Mac while it runs, and only localhost in a browser", () => {
+    // The Mac looks at an address only some devices reach before it opens it (10 November 2026).
+    expect(frameAsks({ ...off, kind: "running" })).toBe("every");
     expect(frameAsks({ ...off, kind: "running", onTheMac: false })).toBe("own");
+  });
+
+  it("hands every address over on the Mac for anybody, program or not", () => {
+    expect(frameAsks({ ...off, owner: false })).toBe("every");
+    expect(frameAsks({ ...off, program: false })).toBe("every");
   });
 
   it("hands none over for somebody who isn't the owner, whose links open as anywhere", () => {

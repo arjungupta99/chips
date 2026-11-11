@@ -1913,6 +1913,67 @@ describe("policy at the door (M1.4)", () => {
     expect(refused.status).toBe(422);
   });
 
+  /** A shell ask whose input is the command line itself, as Jacobian sends one. */
+  const askBare = (runId: string, key: string, line: string) =>
+    call("POST", `/v1/runs/${runId}/events`, {
+      headers: { ...ws.scout.headers, "idempotency-key": key },
+      body: {
+        type: "approval.request",
+        approval_id: ws.ids.next("approval"),
+        action: { kind: "jacobian.shell.shell", input: line },
+        risk: [],
+        expires_in: 3600,
+      },
+    });
+
+  it("keeps a shell command sent as its input by its starts, not the whole kind (ADR 0239, addendum of 10 November 2026)", async () => {
+    await setLevel(1);
+    const runId = await startedRun("bare-run");
+    const asked = await askBare(runId, "bare-ask", "git log --oneline | head -20");
+    const always = await answer(runId, asked.body["approval_id"], "bare-always", {
+      scope: "always",
+    });
+    expect(always.status, JSON.stringify(always.body)).toBe(201);
+    const policy = await ws.gateway.deps.readModels.harnessPolicy(
+      ws.workspaceId,
+      ws.scout.participantId,
+      ws.spaceId,
+    );
+    expect(policy?.rules.map((rule) => [rule.match, rule.when?.starts_with])).toEqual([
+      ["jacobian.shell.shell", ["git", "log"]],
+      ["jacobian.shell.shell", ["head"]],
+    ]);
+    expect((await askBare(runId, "bare-same", "git log -5 | head -3")).body).toMatchObject({
+      resolution: "approved",
+    });
+    // It was a rule for the kind whole: one yes let every later command through.
+    const other = await askBare(runId, "bare-other", "git commit -am wip");
+    expect(other.body["resolution"]).toBeUndefined();
+
+    // This session keeps the same starts, for the run.
+    const session = await answer(runId, other.body["approval_id"], "bare-session", {
+      scope: "session",
+    });
+    expect(session.status, JSON.stringify(session.body)).toBe(201);
+    const kept = await ws.gateway.deps.readModels.sessionRules(ws.workspaceId, runId);
+    expect(kept.map((rule) => [rule.match, rule.when?.starts_with])).toEqual([
+      ["jacobian.shell.shell", ["git", "commit"]],
+    ]);
+
+    // One Chips can't read, or one that uses a listed program, is answered once.
+    for (const [line, key] of [
+      ["P=$(lsof -t -i :4199); kill $P", "bare-unread"],
+      ["ls && rm -rf build", "bare-never"],
+    ] as const) {
+      const unread = await askBare(runId, key, line);
+      expect(unread.body["resolution"], line).toBeUndefined();
+      const refused = await answer(runId, unread.body["approval_id"], `${key}-always`, {
+        scope: "always",
+      });
+      expect(refused.status, line).toBe(422);
+    }
+  });
+
   it("lets everything the asker asks through for a while, in this space, past the run (ADR 0281)", async () => {
     await setLevel(1);
     const runId = await startedRun("while-run");

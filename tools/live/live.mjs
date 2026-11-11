@@ -25,6 +25,13 @@
  *   pnpm live spend <room>                       the job's spend against the ceiling
  *   pnpm live carry-on <room>                    "Let them carry on" under the paused banner
  *   pnpm live pause <room>                       pause the agents' talk
+ *   pnpm live run-pause <room>                   pause the newest open run, as its bubble's Pause
+ *                                                does (ADR 0293); `run-resume` resumes it
+ *   pnpm live take-back <room> <message_id>...   take messages back for everyone (ADR 0035) and
+ *                                                hide what's left of them from you (ADR 0167)
+ *   pnpm live archive <room>                     archive a room, as its menu's Archive does: out
+ *                                                of the list, and back with Unarchive. For a
+ *                                                test's own room once the test is done
  *   pnpm live stop <room> [--follow-up] [--after <s>]
  *                                                stop the newest open run; with --follow-up, wait for
  *                                                a capped turn's follow-up and stop it <s> in (30)
@@ -362,6 +369,7 @@ const SAYS = {
   "exchange.set": (e) => `${e.state}${e.why ? ` (${e.why})` : ""}`,
   "lane.updated": (e) => `${e.state ?? ""} ${oneLine(e.summary, 80)}`,
   "space.lock_set": (e) => (e.locked ? "locked changes" : "unlocked changes"),
+  "space.spend_ceiling_lifted": () => "no cap on a job's spend",
 };
 
 async function lineOf(event) {
@@ -1113,6 +1121,41 @@ async function stop(roomArg, flags) {
   console.log(`stopped ${runId} at seq ${ack.seq}`);
 }
 
+/** The newest open run's Pause or Resume, as the thinking bubble's menu sends it (ADR 0293). */
+async function runAct(roomArg, type) {
+  const room = await roomNamed(roomArg);
+  const runId = (await openRunIn(room.id))?.id ?? fail(`no run is open in ${room.title}`);
+  const [ack] = await submit([{ type, space_id: room.id, run_id: runId }]);
+  console.log(`${type === "run.pause" ? "paused" : "resumed"} ${runId} at seq ${ack.seq}`);
+}
+
+/**
+ * Messages taken back, as their author or the space's owner may (ADR 0035), and then hidden from
+ * you (ADR 0167), so neither their words nor the "taken back" mark stays in the room.
+ */
+async function takeBack(roomArg, messageIds) {
+  const room = await roomNamed(roomArg);
+  if (messageIds.length === 0) fail("name the messages to take back");
+  // A message is named on the wire by its event's ULID under `msg_` (`messageIdOf`).
+  for (const id of messageIds.map((each) => each.replace(/^evt_/, "msg_"))) {
+    const [gone] = await submit([{ type: "message.deleted", space_id: room.id, message_id: id }]);
+    const [hidden] = await submit([{ type: "message.hidden", space_id: room.id, message_id: id }]);
+    console.log(`took back ${id} at seq ${gone.seq}, hidden at seq ${hidden.seq}`);
+  }
+}
+
+/**
+ * A room archived, as its menu's Archive does: out of the list, kept whole, and back with
+ * Unarchive. A live test posts only in a room made for it and puts it away after (Arjun, 11
+ * November 2026). The agents made there stay its agents: deleting them, and erasing the room, are
+ * for good, and are a person's to do.
+ */
+async function archive(roomArg) {
+  const room = await roomNamed(roomArg);
+  const [done] = await submit([{ type: "space.updated", space_id: room.id, state: "closed" }]);
+  console.log(`archived ${room.title} at seq ${done.seq}`);
+}
+
 const UNTIL = {
   answer: (e) => e.type === "message.post" && e.actor?.kind !== "person",
   ask: (e) => e.type === "approval.request",
@@ -1163,6 +1206,7 @@ const WATCHED = new Set([
   "turn.passed",
   "message.handed",
   "space.spend_ceiling_set",
+  "space.spend_ceiling_lifted",
   "space.lock_set",
 ]);
 
@@ -1314,6 +1358,10 @@ const COMMANDS = {
   "carry-on": () => exchange(words[0], "going"),
   pause: () => exchange(words[0], "paused"),
   stop: () => stop(words[0], flags),
+  "run-pause": () => runAct(words[0], "run.pause"),
+  "run-resume": () => runAct(words[0], "run.resume"),
+  "take-back": () => takeBack(words[0], words.slice(1)),
+  archive: () => archive(words.join(" ")),
   wait: () => wait(words[0], flags),
   read: () => read(words[0], flags),
   watch: () => watch(words, flags),

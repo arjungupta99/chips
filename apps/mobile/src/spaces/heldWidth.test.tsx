@@ -48,6 +48,7 @@ function Lines({
     width: held,
     edge,
     words,
+    gliding,
     ...says
   } = useHeldWidth({ width, end }, moves, column, {
     glide: (shift, take) => {
@@ -63,6 +64,7 @@ function Lines({
       <Text testID="lines">{held === undefined ? "the room's" : String(held)}</Text>
       <Text testID="edge">{edge ?? "none"}</Text>
       <Text testID="words">{words ?? "there"}</Text>
+      <Text testID="gliding">{gliding ? "gliding" : "still"}</Text>
     </>
   );
 }
@@ -76,6 +78,7 @@ function Beside() {
 const lines = () => screen.getByTestId("lines");
 const edge = () => screen.getByTestId("edge");
 const words = () => screen.getByTestId("words");
+const gliding = () => screen.getByTestId("gliding");
 const wait = (ms: number) =>
   act(() => {
     jest.advanceTimersByTime(ms);
@@ -96,6 +99,7 @@ it("holds the width it had while its words go, takes the new one once they have 
   expect(lines()).toHaveTextContent("1036");
   expect(edge()).toHaveTextContent("start");
   expect(words()).toHaveTextContent("going");
+  expect(gliding()).toHaveTextContent("still");
 
   // However long the words take, nothing moves until they say they have gone.
   await wait(1000);
@@ -104,6 +108,7 @@ it("holds the width it had while its words go, takes the new one once they have 
   await gone();
   expect(lines()).toHaveTextContent("616");
   expect(edge()).toHaveTextContent("start");
+  expect(gliding()).toHaveTextContent("gliding");
   // The column of 900 stood 68 in from the room's start; at 616 it fills the room, from its start.
   expect(glides).toEqual([glided(-68)]);
   // Said again, it is the same change.
@@ -123,6 +128,7 @@ it("holds the width it had while its words go, takes the new one once they have 
   await wait(LET_GO - WORDS_BACK);
   expect(lines()).toHaveTextContent("the room's");
   expect(edge()).toHaveTextContent("none");
+  expect(gliding()).toHaveTextContent("still");
   expect(glides).toEqual([glided(-68), "landed"]);
 
   // They are coming back until they say they are back, and then simply there.

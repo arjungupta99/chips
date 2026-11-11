@@ -17,9 +17,23 @@ import { Linking } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore, snapshot } from "../testing/fixtures";
 import { answersWithin } from "./answers";
+import { look, openTailscale, seesTunnels, tunnelsNow } from "./linkReach";
 import { UniverseSheet } from "./Universe";
 
-jest.mock("./answers", () => ({ answersWithin: jest.fn(async () => true) }));
+jest.mock("./answers", () => ({
+  answers: jest.fn(async () => true),
+  answersWithin: jest.fn(async () => true),
+}));
+
+// What the phone sees of a link (ADR 0227's addendum of 10 November 2026). By default, as a phone
+// that can't look: the page answers when it's asked, and nothing else is known.
+jest.mock("./linkReach", () => ({
+  look: jest.fn(async (_url: string, ask: boolean) => ({ answered: ask ? true : undefined })),
+  tunnelsNow: jest.fn(() => ({})),
+  seesTunnels: jest.fn(() => false),
+  openTailscale: jest.fn(),
+  getTailscale: jest.fn(),
+}));
 
 const IPHONE = {
   frame: { x: 0, y: 0, width: 393, height: 852 },
@@ -50,7 +64,7 @@ const space = (id = "sp_1") =>
 /** The Health space: a start page that links to its app, and a program that serves it. */
 function healthStore(running?: unknown) {
   const files: Record<string, string> = {
-    ".chips/index.html": `<a href="${LABS}">Labs</a>`,
+    ".chips/index.html": `<a href="${LABS}" data-chips-words="Labs">Labs</a>`,
     ".chips/run.json": '{"run": "python3 app/server.py"}',
   };
   const store = fakeStore(snapshot());
@@ -107,6 +121,11 @@ let opened: jest.SpyInstance;
 beforeEach(() => {
   opened = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
   jest.mocked(answersWithin).mockResolvedValue(true);
+  jest.mocked(look).mockImplementation(async (_url: string, ask: boolean) => ({
+    answered: ask ? true : undefined,
+  }));
+  jest.mocked(seesTunnels).mockReturnValue(false);
+  jest.mocked(tunnelsNow).mockReturnValue({});
 });
 afterEach(() => opened.mockRestore());
 
@@ -269,5 +288,109 @@ describe("a link tapped on the page", () => {
     await screen.findByTestId("program-banner");
     await tapLink("mailto:dr.gill@example.com");
     expect(opened).toHaveBeenCalledWith("mailto:dr.gill@example.com");
+  });
+});
+
+describe("a link through Tailscale", () => {
+  const running = () => said({ state: "running", command: RUN, since: new Date().toISOString() });
+  const tailscaleOff = { found: false, tailscale: false, otherVpn: false, oneVpn: true };
+
+  it("names the link and says Tailscale is off on this iPhone, then opens it once it's on", async () => {
+    jest.useFakeTimers();
+    try {
+      jest.mocked(look).mockResolvedValue(tailscaleOff);
+      await open(healthStore(running()));
+      await screen.findByTestId("program-banner");
+      await tapLink(LABS);
+      expect(await screen.findByTestId("link-ask-title")).toHaveTextContent("Labs needs Tailscale");
+      expect(screen.getByTestId("link-ask-words")).toHaveTextContent(
+        "Tailscale is off on this iPhone. Turn it on, and Chips opens Labs.",
+      );
+      expect(opened).not.toHaveBeenCalled();
+      await userEvent.press(screen.getByTestId("link-ask-go"));
+      expect(openTailscale).toHaveBeenCalled();
+      expect(screen.getByTestId("link-ask-title")).toHaveTextContent("Waiting for Tailscale");
+      // Tailscale comes on: the next look finds the name, and the page answers.
+      jest.mocked(look).mockResolvedValue({ found: true, tailscale: true, oneVpn: true });
+      await act(async () => jest.advanceTimersByTime(1600));
+      expect(jest.mocked(answersWithin)).toHaveBeenCalledWith(LABS, 10_000, expect.anything());
+      await act(async () => jest.advanceTimersByTime(300));
+      expect(opened).toHaveBeenCalledWith(LABS);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("says another VPN is on, and what turning Tailscale on does to it", async () => {
+    jest.mocked(look).mockResolvedValue({ ...tailscaleOff, otherVpn: true });
+    await open(healthStore(running()));
+    await screen.findByTestId("program-banner");
+    await tapLink(LABS);
+    expect(await screen.findByTestId("link-ask-words")).toHaveTextContent(
+      "Another VPN is on. Your iPhone runs one VPN at a time, so turning on Tailscale turns the other one off.",
+    );
+  });
+
+  it("says Tailscale comes first while the program isn't running, and doesn't ask the page", async () => {
+    jest.mocked(look).mockResolvedValue(tailscaleOff);
+    await open(healthStore());
+    await screen.findByTestId("program-banner");
+    await tapLink(LABS);
+    expect(await screen.findByTestId("link-ask-words")).toHaveTextContent(
+      "Tailscale is off on this iPhone, and the program isn’t running. Turn Tailscale on first.",
+    );
+    expect(jest.mocked(look)).toHaveBeenCalledWith(LABS, false, expect.anything());
+  });
+
+  it("goes on to the program's question once the name is found", async () => {
+    jest.mocked(look).mockResolvedValue({ found: true, tailscale: true, oneVpn: true });
+    await open(healthStore());
+    await screen.findByTestId("program-banner");
+    await tapLink(LABS);
+    expect(await screen.findByTestId("link-ask-title")).toHaveTextContent(
+      "This link needs the program running",
+    );
+  });
+
+  it("says the Mac didn't answer when this iPhone is on Tailscale, and looks again", async () => {
+    jest.mocked(look).mockResolvedValue({ found: true, answered: false, tailscale: true });
+    await open(healthStore(running()));
+    await screen.findByTestId("program-banner");
+    await tapLink(LABS);
+    expect(await screen.findByTestId("link-ask-title")).toHaveTextContent("Your Mac didn’t answer");
+    jest.mocked(look).mockResolvedValue({ found: true, answered: true, tailscale: true });
+    await userEvent.press(screen.getByTestId("link-ask-go"));
+    await waitFor(() => expect(opened).toHaveBeenCalledWith(LABS));
+  });
+
+  it("tells somebody who isn't the owner it's on the owner's tailnet, with nothing gold", async () => {
+    jest.mocked(look).mockResolvedValue(tailscaleOff);
+    await open(healthStore(), "per_dana");
+    await screen.findByTestId("program-banner");
+    await tapLink(LABS);
+    expect(await screen.findByTestId("link-ask-title")).toHaveTextContent(
+      "Labs is on Arjun’s tailnet",
+    );
+    expect(screen.queryByTestId("link-ask-go")).toBeNull();
+    await userEvent.press(screen.getByTestId("link-ask-anyway"));
+    await waitFor(() => expect(opened).toHaveBeenCalledWith(LABS));
+  });
+
+  it("says on the banner, before a tap, that the page's links need Tailscale", async () => {
+    jest.mocked(seesTunnels).mockReturnValue(true);
+    jest.mocked(tunnelsNow).mockReturnValue({ tailscale: false, otherVpn: false });
+    await open(healthStore(running()));
+    expect(await screen.findByTestId("program-banner-words")).toHaveTextContent(
+      "Links here need Tailscale, which is off on this iPhone.",
+    );
+  });
+
+  it("says nothing on the banner once Tailscale is on", async () => {
+    jest.mocked(seesTunnels).mockReturnValue(true);
+    jest.mocked(tunnelsNow).mockReturnValue({ tailscale: true, otherVpn: false });
+    await open(healthStore());
+    expect(await screen.findByTestId("program-banner-words")).toHaveTextContent(
+      "Some links here open only while it runs on your Mac.",
+    );
   });
 });

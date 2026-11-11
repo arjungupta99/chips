@@ -26,7 +26,7 @@ import type { Health, UpDeps } from "./commands/up.js";
 import { configHome } from "./home.js";
 import { lanAddress, type Networks, tailnetAddress } from "./reach.js";
 import type { Release } from "./release.js";
-import type { Command } from "./service.js";
+import { type Command, NO_SESSION, sessionCommand } from "./service.js";
 
 /** Runs a command and says whether it worked, with what it printed. Never throws. */
 export function run(command: Command): Promise<{ ok: boolean; output: string }> {
@@ -257,5 +257,9 @@ export function systemUpDeps(machine: Machine, release: Release | undefined): Up
     choose,
     waitFor,
     pruneReleases: () => pruneReleases(release, machine),
+    hasSession: async (kind) => {
+      const asked = await run(sessionCommand(kind, process.getuid?.() ?? 0));
+      return asked.ok || !NO_SESSION[kind].test(asked.output);
+    },
   };
 }

@@ -20,7 +20,8 @@ chips up
 `install.sh` works out the platform (macOS or Linux, Apple silicon, Intel or ARM), checks that
 `SHA256SUMS` is signed with Chips's release key and that the file matches its SHA-256, unpacks it
 into `~/.local/lib/chips/<version>`, and points `~/.local/bin/chips` at it. The signature is checked
-with OpenSSH's `ssh-keygen` (8.1 or later, on macOS and every current Linux); a release downloaded
+with OpenSSH's `ssh-keygen` (8.1 or later, on macOS and every current Linux), or with OpenSSL 1.1.1
+or later where OpenSSH is older, as on RHEL 8; a release downloaded
 without one is not installed, and a file you already have says so when no signature is beside it. If `~/.local/bin` is not on your `PATH` it offers to add it to your shell's profile, once, for the
 next terminal; `--no-path` leaves the profile alone and prints the line instead. Either way the
 line it prints to run next, `~/.local/bin/chips up`, works in the terminal you're in. Installing a newer version keeps the older
@@ -93,6 +94,11 @@ allowed, as over SSH on most systems, it says to run `sudo loginctl enable-linge
 Without it, Chips and your harnesses' bridges stop when you log out. A harness's bridge kept on a
 Linux machine that doesn't run Chips turns lingering on the same way when it is kept, or says the
 same line.
+
+Where there is no session to start a service in, `chips up` says so first and runs Chips in the
+terminal instead, as `--no-service` does: a shell with no systemd user session (WSL without
+systemd, `su`, most containers), or a Mac over SSH that nobody is logged in to at its screen. A
+harness's bridge in the same place says the same, and runs in its terminal too.
 
 `chips down` stops the service and keeps it from starting at login until `chips up` runs again.
 `chips uninstall` removes the service, the install, the link and the `# Chips` PATH line the install

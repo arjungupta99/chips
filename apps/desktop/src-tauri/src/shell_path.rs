@@ -121,6 +121,17 @@ fn runs(path: &Path) -> bool {
     }
 }
 
+/// Where `name` is on `path`, as a shell would run it: the first there that can be run.
+pub fn which(name: &str, path: &str) -> Option<std::path::PathBuf> {
+    if !bare(name) {
+        return None;
+    }
+    path.split(':')
+        .filter(|dir| !dir.is_empty())
+        .map(|dir| Path::new(dir).join(name))
+        .find(|candidate| runs(candidate))
+}
+
 /// Which of `names` are programs somewhere on `path`, in the order asked (ADR 0288).
 pub fn found_among(names: &[String], path: &str) -> Vec<String> {
     names

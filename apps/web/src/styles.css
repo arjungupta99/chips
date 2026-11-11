@@ -1425,6 +1425,90 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Pause and Stop live in the bubble's menu (ADR 0293): a right-click, the menu key, or a press held,
+   which sinks the bubble a little while it waits, as the phone's long press does. */
+.doing-bub {
+  transition:
+    transform 450ms var(--ease),
+    box-shadow var(--motion-fast) var(--ease);
+}
+.doing-bub[data-pressing] {
+  transform: scale(0.97);
+}
+.doing-bub[data-menu] {
+  box-shadow: 0 0 0 1.5px var(--line-2);
+}
+.doing-bub:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+/* A Pause or a Stop asked for: the light in the dots holds where it is, at once. */
+.doing[data-asked="pause"] .lit-dots i,
+.doing[data-asked="stop"] .lit-dots i {
+  animation-play-state: paused;
+}
+/* Paused: the dots dim and still, the clock stands grey, and what it last did stays readable. */
+.doing[data-paused] .lit-dots i {
+  animation: none;
+  opacity: 0.28;
+}
+.doing .lit-dots i,
+.doing .doing-detail,
+.doing .call-strip {
+  transition: opacity var(--motion-base) var(--ease);
+}
+.doing[data-paused] .doing-detail,
+.doing[data-paused] .call-strip {
+  opacity: 0.55;
+}
+/* Its way back, flat and small at its right: it slides in when paused and folds away after. */
+.doing-resume {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 19px;
+  max-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(6px);
+  pointer-events: none;
+  cursor: pointer;
+  transition:
+    max-width var(--motion-base) var(--ease),
+    padding var(--motion-base) var(--ease),
+    opacity var(--motion-base) var(--ease),
+    transform var(--motion-base) var(--ease),
+    background-color var(--motion-fast) var(--ease);
+}
+.doing-resume[data-shown] {
+  max-width: 90px;
+  padding: 0 9px 0 7px;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.doing-resume[data-shown]:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.doing-resume:not(:disabled):hover {
+  background: var(--line-2);
+}
+.doing-resume:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* Under the label, past the dots: what a call was given beside its glyph, or the words. */
 .doing-detail {
   margin-left: 29px;
@@ -2218,109 +2302,6 @@
   position: absolute;
   inset: 0;
   opacity: 0;
-}
-
-/* ---------- run panel ---------- */
-
-/* The live run, in Spaces' third column beside its room (ADR 0284), which brings it in and out. */
-.runpanel {
-  background: var(--bg);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  overflow-y: auto;
-  min-height: 0;
-}
-
-.rp-h {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: var(--text-xs);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  font-weight: 600;
-}
-
-.rp-title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 16px;
-  line-height: 1.25;
-}
-
-.rp-meta {
-  font-size: 12px;
-  color: var(--ink-3);
-}
-
-/* One button per visit to this space, so two terminals are two runs to choose between. */
-.rp-sessions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.rp-session {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: inherit;
-  font-size: var(--text-xs);
-  color: var(--ink-2);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 2px 8px;
-  cursor: pointer;
-}
-.rp-session[aria-pressed="true"] {
-  border-color: var(--line-2);
-  color: var(--ink);
-  background: var(--surface-2);
-}
-.rp-session:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-.rp-session-word {
-  color: var(--ink-3);
-}
-
-.rp-sec {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.rp-l {
-  font-size: var(--text-2xs);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-  font-weight: 600;
-}
-
-.rp-ring {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.rp-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.rp-confirm {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-sm);
-  color: var(--red-ink);
 }
 
 /* the approval and question cards fill the space column comfortably */
@@ -3190,10 +3171,6 @@
   align-items: center;
 }
 
-.rp-sec .ui-dial {
-  margin-bottom: 4px;
-}
-
 /* ---------- the workspace's log, a page beside You's list (ADR 0261, ADR 0265) ---------- */
 
 .audit-when {
@@ -3735,11 +3712,6 @@
 .lane-files {
   margin-top: var(--space-2);
 }
-/* What a run's lanes cost, beneath the run's own cost. */
-.rp-chain {
-  color: var(--ink-3);
-}
-
 /* Universe's four rings (ADR 0227): the planets' edges are the header's ground. */
 .conv-universe {
   --universe-ground: var(--bg);
@@ -12359,23 +12331,22 @@ button.sheet-room-face:focus-visible {
 .sheet-thumb-played .ui-icon {
   fill: currentColor;
 }
-/* The settings as tiles: in one row while the sheet is its own 420 pixels, two to a row once the
-   window is a phone's and the sheet narrows with it, an odd last one taking its row. */
+/* The settings as tiles, as the phone's and the iPad's: two to a row, an odd last one taking its
+   row, and Lock changes with Hide on a row of their own under the rest. Four in one row cut every
+   value short at the sheet's 420 pixels (Arjun, 10 November 2026). */
 .sheet-tiles {
   flex: none;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
-@media (max-width: 451px) {
-  .sheet-tiles {
-    grid-auto-flow: row;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .sheet-box:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-  }
+.sheet-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.sheet-tiles-grid > .sheet-box:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
 }
 .sheet-box {
   position: relative;
@@ -12405,22 +12376,21 @@ button.sheet-box:hover {
   min-height: 28px;
   margin-bottom: 6px;
 }
+/* Each mark in its own colour, a ground a face may wear, with the faces' ink on it (core's
+   `ROOM_TILE_GROUNDS`, as the phone's): the padlock's turns from teal to ochre as it shuts. */
 .sheet-box-mark {
   flex: none;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--radius-sm);
-  background: var(--surface-3);
-  color: var(--ink-3);
-  transition:
-    background-color var(--motion-base) var(--ease),
-    color var(--motion-base) var(--ease);
+  background: var(--mark-ground, var(--surface-3));
+  color: var(--on-avatar);
+  transition: background-color var(--motion-base) var(--ease);
 }
-.sheet-box-mark[data-lit="true"] {
-  background: var(--gold-soft);
-  color: var(--gold-deep);
+.sheet-box-mark .ui-icon {
+  stroke-width: 2;
 }
 .sheet-box-value {
   font-size: var(--text-md);
@@ -12575,6 +12545,20 @@ button.sheet-box:hover {
   color: inherit;
   opacity: 0.7;
 }
+/* No cap, across the foot of the amounts (ADR 0292): its name and what it means on one line. */
+.sheet-amount[data-wide="true"] {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  gap: 8px;
+  min-height: 44px;
+}
+.sheet-amount[data-wide="true"] small {
+  font-size: var(--text-xs);
+}
+/* Other's amount when it is not one the field takes: Save is grey, and this says why. */
+.sheet-field-hint[data-wrong="true"] {
+  color: var(--red-ink);
+}
 .sheet-field {
   display: flex;
   align-items: center;
@@ -12634,6 +12618,32 @@ button.sheet-box:hover {
   flex-direction: column;
   gap: 6px;
   margin-top: 8px;
+}
+/* The heading with See all at its right (ADR 0292 addendum). */
+.sheet-jobs-headline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sheet-jobs-all {
+  margin: 0 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+.sheet-jobs-foot {
+  display: flex;
+  justify-content: center;
+  min-height: 32px;
+  padding: 8px 0 16px;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
 }
 .sheet-jobs-head {
   margin: 0 2px;
@@ -14507,6 +14517,84 @@ button.jobs-day:focus-visible {
 .start-open:hover {
   background: var(--surface-2);
 }
+/* Following along on Chips for Mac (ADR 0290's addendum, option B): a step's mark says where it
+   stands, ticking green as Chips sees it done, and its line folds away under it; the one under
+   way wears the gold ring and says Chips is watching for it. */
+.start-steps.following > li .start-step-no {
+  transition:
+    background-color var(--motion-slow) var(--ease),
+    color var(--motion-slow) var(--ease),
+    box-shadow var(--motion-slow) var(--ease);
+}
+.start-steps > li.now .start-step-no {
+  box-shadow: inset 0 0 0 2px var(--gold);
+  color: var(--ink);
+}
+.start-steps > li.later .start-step-no,
+.start-steps > li.later .start-step > b {
+  color: var(--ink-3);
+}
+.start-steps > li.done .start-step-no {
+  background: var(--green);
+  color: var(--surface);
+  animation: start-tick 360ms var(--ease);
+}
+.start-step-saw {
+  margin-top: -6px;
+  font-size: 12.5px;
+  color: var(--green-ink);
+  animation: first-run-in 320ms var(--ease) both;
+}
+.start-step-do {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--motion-slow) var(--ease),
+    opacity var(--motion-slow) var(--ease);
+}
+.start-step-do > div {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+  /* Room for a focus ring inside what clips while it folds. */
+  margin: -3px;
+  padding: 3px;
+}
+.start-steps > li.done .start-step-do {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.start-watching {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.start-watching::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: start-breathe 1.4s ease-in-out infinite;
+}
+.start-mark {
+  justify-self: start;
+  font-size: 13.5px;
+}
+@keyframes start-tick {
+  from {
+    transform: scale(0.55);
+  }
+}
+@keyframes start-breathe {
+  50% {
+    opacity: 0.25;
+  }
+}
 .start-guide > .ui-button {
   justify-self: stretch;
   height: 44px;
@@ -14762,13 +14850,18 @@ button.jobs-day:focus-visible {
   .first-run-col > *,
   .start-answers > *,
   .start-steps > li,
+  .start-steps > li.done .start-step-no,
+  .start-step-saw,
+  .start-watching::before,
   .phone-offer,
   .phone-offer-ok,
   .setup-tick {
     animation: none;
   }
   .setup-fold,
-  .join-card-go {
+  .join-card-go,
+  .start-step-do,
+  .start-steps.following > li .start-step-no {
     transition: none;
   }
 }

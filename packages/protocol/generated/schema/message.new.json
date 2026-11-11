@@ -1161,6 +1161,46 @@
               "minutes"
             ]
           }
+        },
+        "away": {
+          "description": "The room's agents that can't answer as Chips sends this turn (ADR 0291): offline, or their harness says something is wrong. Work handed to one of them waits.",
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "participant_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "why": {
+                "type": "string",
+                "enum": [
+                  "offline",
+                  "trouble"
+                ],
+                "description": "`offline`: no connection of its harness is open. `trouble`: its harness is connected and says something is wrong on its side (ADR 0083)."
+              },
+              "reason": {
+                "description": "For `trouble`: what its harness said is wrong, in its own words.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "minutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "For how long, in whole minutes."
+              }
+            },
+            "required": [
+              "participant_id",
+              "why",
+              "minutes"
+            ]
+          }
         }
       },
       "required": [

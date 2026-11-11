@@ -14,13 +14,36 @@ const read = (command: string) => commandParts(command)?.map((part) => part.join
 
 describe("reading a command (ADR 0239)", () => {
   it("finds the command in an ask's input, a string or an array of words", () => {
-    expect(askedCommand({ command: "ls -la", cwd: "/x" })).toBe("ls -la");
-    expect(askedCommand({ command: ["git", "status"] })).toEqual(["git", "status"]);
-    expect(askedCommand({ command: "  " })).toBeUndefined();
-    expect(askedCommand({ command: ["git", 4] })).toBeUndefined();
-    expect(askedCommand({ files: ["a"] })).toBeUndefined();
-    expect(askedCommand("ls")).toBeUndefined();
+    const shell = (input: unknown) => askedCommand({ kind: "shell.exec", input });
+    expect(shell({ command: "ls -la", cwd: "/x" })).toBe("ls -la");
+    expect(shell({ command: ["git", "status"] })).toEqual(["git", "status"]);
+    expect(shell({ command: "  " })).toBeUndefined();
+    expect(shell({ command: ["git", 4] })).toBeUndefined();
+    expect(shell({ files: ["a"] })).toBeUndefined();
+    // `input.command` is the command whatever the kind says.
+    expect(askedCommand({ kind: "tool.call", input: { command: "ls" } })).toBe("ls");
+    expect(askedCommand({ input: { command: "ls" } })).toBe("ls");
     expect(commandParts(["sh", "-c", "rm -rf x"])).toEqual([["sh", "-c", "rm -rf x"]]);
+  });
+
+  it("takes a shell's input as its command when it is the command line itself (addendum of 10 November 2026)", () => {
+    // Jacobian's shell ask: the command line is the input, not `{ command }`.
+    expect(askedCommand({ kind: "jacobian.shell.shell", input: "git log --oneline | head" })).toBe(
+      "git log --oneline | head",
+    );
+    for (const kind of ["shell.exec", "acp.bash", "acp.execute", "x.zsh", "sh.run", "x.terminal"]) {
+      expect(askedCommand({ kind, input: "ls" })).toBe("ls");
+    }
+    expect(askedCommand({ kind: "jacobian.shell.shell", input: "   " })).toBeUndefined();
+    // A path or an address from an action that runs no shell is not a command; nor is a kind
+    // whose word only begins like one.
+    expect(askedCommand({ kind: "jacobian.filesystem.write", input: "/tmp/a.md" })).toBeUndefined();
+    expect(
+      askedCommand({ kind: "jacobian.browser.navigate", input: "https://x.y" }),
+    ).toBeUndefined();
+    expect(askedCommand({ kind: "jacobian.shellfish.eat", input: "ls" })).toBeUndefined();
+    expect(askedCommand({ kind: "acp.executor_pick", input: "ls" })).toBeUndefined();
+    expect(askedCommand({ input: "ls" })).toBeUndefined();
   });
 
   it("splits a chain into its parts, and each part into words, quotes off", () => {
@@ -189,16 +212,31 @@ describe("what a standing yes remembers, and what it never covers (ADR 0239)", (
   });
 
   it("says what a card's standing yes would remember, or why there is none", () => {
-    expect(standingOffer({ command: "node --check game.js && echo ok" })).toEqual({
+    const offer = (input: unknown) => standingOffer({ kind: "acp.bash", input });
+    expect(offer({ command: "node --check game.js && echo ok" })).toEqual({
       kind: "starts",
       starts: [["node", "--check"], ["echo"]],
     });
-    expect(standingOffer({ command: "echo hi > x" })).toEqual({ kind: "unreadable" });
-    expect(standingOffer({ command: "cat package.json 2>/dev/null | head -60" })).toEqual({
+    expect(offer({ command: "echo hi > x" })).toEqual({ kind: "unreadable" });
+    expect(offer({ command: "cat package.json 2>/dev/null | head -60" })).toEqual({
       kind: "starts",
       starts: [["cat"], ["head"]],
     });
-    expect(standingOffer({ command: "ls && rm x" })).toEqual({ kind: "never", command: "rm" });
-    expect(standingOffer({ path: "a.md" })).toBeUndefined();
+    expect(offer({ command: "ls && rm x" })).toEqual({ kind: "never", command: "rm" });
+    expect(offer({ path: "a.md" })).toBeUndefined();
+  });
+
+  it("remembers a Jacobian shell command's starts, not the whole kind (addendum of 10 November 2026)", () => {
+    const jacobian = (input: string) => standingOffer({ kind: "jacobian.shell.shell", input });
+    expect(jacobian("git log --oneline | head -20")).toEqual({
+      kind: "starts",
+      starts: [["git", "log"], ["head"]],
+    });
+    expect(jacobian("rm -rf /tmp/hv")).toEqual({ kind: "never", command: "rm" });
+    expect(jacobian("P=$(lsof -t -i :4199); kill $P")).toEqual({ kind: "unreadable" });
+    // A file's path keeps what it kept: the kind, with no command to read.
+    expect(
+      standingOffer({ kind: "jacobian.filesystem.write", input: "/tmp/a.md" }),
+    ).toBeUndefined();
   });
 });

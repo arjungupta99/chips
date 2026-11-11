@@ -814,12 +814,16 @@ jest.mock("./src/spaces/ScrollColours", () => {
   // opens or answers, as `RoomMotion.tsx`'s `Arrival` says). Whether the room has been
   // built is handed on to the list rather than stripped from it, because what it turns off is the
   // transition this mock stands in for: the room's own tests read it off the list. So is whether
-  // it is shown, which a room opened on a line holds back while it places the line.
+  // it is shown, which a room opened on a line holds back while it places the line. Whether it
+  // draws past its own frame, which only a glide to a new width says (`DrawsPast`), is handed on
+  // as `drawsPast`.
+  const DrawsPast = react.createContext(false);
   const ColourList = react.forwardRef(
     ({ field: _field, CellRendererComponentStyle: _over, arrives, renderItem, ...props }, ref) =>
       react.createElement(FlatList, {
         ...props,
         ref,
+        drawsPast: react.useContext(DrawsPast),
         renderItem: (info) => {
           const drawn = renderItem(info);
           const arrival = arrives?.(info.item);
@@ -831,6 +835,7 @@ jest.mock("./src/spaces/ScrollColours", () => {
   );
   return {
     ColourList,
+    DrawsPast,
     OutgoingColour: () => null,
     FrozenColour: () => null,
     useColourField: () => colourField,

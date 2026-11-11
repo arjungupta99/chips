@@ -72,6 +72,14 @@ runs themselves before pressing Connect. One card's `none` is the answer for som
 the others, with `first` steps, such as making an account, before its own. The same steps are on
 [chipschat.ai/setup](https://chipschat.ai/setup/).
 
+A step's `done` says how Chips for Mac sees it done, so the steps tick themselves off while the page
+is open: `program`, a command the step puts on the PATH, or `signedIn`, once the card's agent says
+it is signed in. Chips asks the agent's own status command for that, from a list of its own by the
+card's id (`claude auth status`, `codex login status`), and never runs anything a card names. A step
+with no `done`, such as making an account, takes I've done this, or counts as done once a step after
+it is. When the last step ticks off, Chips goes on to Connect and starts it. In a browser the steps
+stay written.
+
 ## Getting a connector on this page
 
 1. Run `chips conformance custom --capabilities <what it declares>` against it, and say what the

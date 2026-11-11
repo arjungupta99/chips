@@ -22,21 +22,34 @@ import {
   addressShown,
   askAfterNews,
   askUnheard,
+  blockedBy,
+  cleared,
   commandOf,
   HERE_ONLY_MS,
+  isReachKind,
   type LinkAsk,
   linkAsk,
+  linkNameIn,
+  linksThroughTailscale,
   linkTap,
+  needsLooking,
+  networkOf,
   OPEN_ANYWAY,
   PROGRAM_BANNER,
   type ProgramBanner,
+  REACH_AFTER_MS,
+  REACH_LOOKS_MS,
+  REACH_SHOWS_MS,
+  type ReachDevice,
+  type ReachKind,
   type RecipeRead,
-  RUN_AND_OPEN,
+  reachAsk,
+  reachLine,
   SETTLES_MS,
 } from "@chipschat/core";
 import type { HeldRun } from "@chipschat/protocol";
-import { useEffect, useRef, useState } from "react";
-import { Linking, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AppState, Linking, Platform, StyleSheet, Text, View } from "react-native";
 import { Button } from "../ui/Button";
 import { useGround } from "../ui/ground";
 import { Sheet } from "../ui/Sheet";
@@ -46,6 +59,7 @@ import { Swap } from "../ui/Swap";
 import { usePalette } from "../ui/theme";
 import { type Palette, RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { answersWithin } from "./answers";
+import { getTailscale, look, openTailscale, seesTunnels, tunnelsNow } from "./linkReach";
 import { Moves, Opening } from "./MacMotion";
 import { MacRow, type MarkKind, RowButton, RowMark } from "./MacRow";
 import type { RunHeld } from "./RunBar";
@@ -96,6 +110,7 @@ export function ProgramBannerView({
   banner,
   busy,
   hereOnly,
+  line,
   onRun,
   onStop,
 }: {
@@ -104,13 +119,18 @@ export function ProgramBannerView({
   readonly busy: boolean;
   /** A localhost link was just tapped: the banner says it opens only on the Mac. */
   readonly hereOnly: boolean;
+  /**
+   * The page links through Tailscale and this phone isn't on it (`reachLine`): said in amber,
+   * before a tap that couldn't work, for as long as it's so.
+   */
+  readonly line?: string | undefined;
   readonly onRun: () => void;
   readonly onStop: () => void;
 }) {
   const palette = usePalette();
   const on = useGround();
   const fresh = useFresh(banner.kind);
-  const { body, tone } = bannerWords(banner, hereOnly, fresh);
+  const { body, tone } = bannerWords(banner, hereOnly, fresh, line);
   const press = <BannerPress press={banner.press} busy={busy} onRun={onRun} onStop={onStop} />;
   return (
     <Moves style={[styles.card, { backgroundColor: on.fill }]} testID="program-banner">
@@ -133,14 +153,19 @@ export function ProgramBannerView({
 
 /**
  * What the banner says under its title: that localhost opens only on the Mac, for a moment after
- * one was tapped; nothing once a run that just started has settled; else its own words.
+ * one was tapped; what went wrong, when something did; that the page's links need Tailscale,
+ * while this phone isn't on it; nothing once a run that just started has settled; else its own
+ * words.
  */
-function bannerWords(
+export function bannerWords(
   banner: ProgramBanner,
   hereOnly: boolean,
   fresh: boolean,
+  line?: string,
 ): { readonly body: string | undefined; readonly tone: ProgramBanner["tone"] } {
   if (hereOnly) return { body: PROGRAM_BANNER.hereOnly, tone: "plain" };
+  if (banner.tone === "bad") return { body: banner.body, tone: "bad" };
+  if (line !== undefined) return { body: line, tone: "changed" };
   const settled = banner.settles === true && !fresh;
   return { body: settled ? undefined : banner.body, tone: banner.tone };
 }
@@ -189,11 +214,56 @@ function BannerPress({
 /** What the sheet is about: the tapped address, where the sheet is, and what it says. */
 export interface Asked {
   readonly url: string;
-  readonly kind: AskKind;
+  readonly kind: AskKind | ReachKind;
   /** What the Mac said when it couldn't. */
   readonly said?: string | undefined;
   /** Who changed the files since the person last ran it (SEC-40). */
   readonly changed?: string | undefined;
+  /** The link's name, as the page says it, for a link the phone has to reach first. */
+  readonly name?: string | undefined;
+  /** The person's program wasn't running when the link was tapped. */
+  readonly stopped?: boolean | undefined;
+  /** Whose tailnet it is, for somebody who isn't the owner. */
+  readonly ownerName?: string | undefined;
+  /** Tailscale has just come on: the page is given longer to answer. */
+  readonly after?: boolean | undefined;
+}
+
+/** The device, as the words name it. */
+export const DEVICE: ReachDevice = Platform.OS === "ios" && Platform.isPad ? "iPad" : "iPhone";
+
+/** How often the banner reads the phone's tunnels again while it shows a page through Tailscale. */
+const LINE_READS_MS = 3000;
+
+/**
+ * The banner's line while the page links through Tailscale and this phone isn't on it (ADR
+ * 0227's addendum of 10 November 2026): read from the phone's tunnels as the page is shown, as the
+ * person comes back to Chips, and every few seconds, so it folds away once Tailscale comes on.
+ */
+export function useTailscaleLine(
+  html: string | undefined,
+  live: boolean,
+  running: boolean,
+): string | undefined {
+  const through = useMemo(() => html !== undefined && linksThroughTailscale(html), [html]);
+  const [off, setOff] = useState(false);
+  useEffect(() => {
+    if (!live || !through || !seesTunnels()) {
+      setOff(false);
+      return;
+    }
+    const read = () => setOff(tunnelsNow().tailscale === false);
+    read();
+    const every = setInterval(read, LINE_READS_MS);
+    const back = AppState.addEventListener("change", (state) => {
+      if (state === "active") read();
+    });
+    return () => {
+      clearInterval(every);
+      back.remove();
+    };
+  }, [live, through]);
+  return off ? reachLine(running, DEVICE) : undefined;
 }
 
 /** The browser or mail: at once, or after `after` milliseconds. */
@@ -203,9 +273,34 @@ function outside(url: string, after = 0): void {
   else setTimeout(go, after);
 }
 
+/** The sheet's words, for where it is: the program's question, or what stands in a link's way. */
+export function askWords(asked: Asked): LinkAsk<AskKind | ReachKind> {
+  if (isReachKind(asked.kind)) {
+    return reachAsk(asked.kind, {
+      name: asked.name,
+      device: DEVICE,
+      url: asked.url,
+      stopped: asked.stopped,
+      ownerName: asked.ownerName,
+    });
+  }
+  return linkAsk(asked.kind, asked);
+}
+
+/** Where the sheet waits for Tailscale to come on, looking again as it waits. */
+const WAITS_FOR_TAILSCALE: ReadonlySet<string> = new Set([
+  "tailscale-off",
+  "other-vpn",
+  "not-installed",
+  "tailscale-wait",
+  "vpn-in-way",
+]);
+
 /**
  * What a tapped link does in Universe, and the sheet it brings up: asked, run, waited for, opened.
- * `held` is the person's run, `banner` how it stands as the banner says it.
+ * `held` is the person's run, `banner` how it stands as the banner says it. A link only some
+ * devices reach (Tailscale's, a private network's) is looked at first (ADR 0227's addendum of 10
+ * November 2026), on any page, program or not.
  */
 export function useLinkAsk({
   held,
@@ -213,6 +308,7 @@ export function useLinkAsk({
   recipe,
   program,
   owner,
+  ownerName,
 }: {
   readonly held: RunHeld;
   readonly banner: ProgramBanner;
@@ -221,6 +317,8 @@ export function useLinkAsk({
   readonly program: boolean;
   /** The person is the workspace's owner, who runs it (ADR 0231). */
   readonly owner: boolean;
+  /** The owner by name, for somebody who isn't. */
+  readonly ownerName?: string | undefined;
 }) {
   const [asked, setAsked] = useState<Asked | undefined>();
   const [open, setOpen] = useState(false);
@@ -229,6 +327,11 @@ export function useLinkAsk({
   // `null` while the sheet waits on nothing.
   const before = useRef<HeldRun | undefined | null>(null);
   const [heard, setHeard] = useState(false);
+  // Each look at a link, so one overtaken by a later tap or a closed sheet says nothing.
+  const looking = useRef(0);
+  // How the program stands now, for a look that answers after it changed.
+  const standing = useRef(banner);
+  standing.current = banner;
 
   useEffect(() => {
     if (hereOnlyAt === undefined) return;
@@ -283,38 +386,128 @@ export function useLinkAsk({
     return () => giving.abort();
   }, [open, asked?.kind, url]);
 
-  const tap = (tapped: string) => {
-    const what = linkTap({ url: tapped, program, owner, kind: banner.kind });
-    if (what === "open") return outside(tapped);
-    if (what === "here-only") return setHereOnlyAt(Date.now());
+  /** The link opened outside, after the sheet has started down if it was up. */
+  const leave = (tapped: string) => {
+    if (open) setOpen(false);
+    outside(tapped, open ? AFTER_SHEET_MS : 0);
+  };
+
+  /** The program's question for a link: waiting on a run already starting, or asking to run it. */
+  const askToRun = (tapped: string, name: string | undefined) => {
+    const now = standing.current;
     setHeard(false);
-    if (banner.kind === "starting") {
-      // Already starting: the sheet waits on that run.
-      before.current = held.run;
-      setAsked({ url: tapped, kind: "starting" });
-    } else {
-      before.current = null;
-      setAsked({
-        url: tapped,
-        kind: "ask",
-        changed: banner.tone === "changed" ? banner.body : undefined,
-      });
-    }
+    before.current = now.kind === "starting" ? held.run : null;
+    setAsked(
+      now.kind === "starting"
+        ? { url: tapped, name, kind: "starting" }
+        : {
+            url: tapped,
+            name,
+            kind: "ask",
+            changed: now.tone === "changed" ? now.body : undefined,
+          },
+    );
     setOpen(true);
+  };
+
+  /** The program's own question for a link, as before a link had to be reached first. */
+  const programTap = (tapped: string, name: string | undefined) => {
+    const what = linkTap({ url: tapped, program, owner, kind: standing.current.kind });
+    // localhost on a page with no program has no banner to say so: it opens as it always did.
+    if (what === "open" || (what === "here-only" && !program)) return leave(tapped);
+    if (what === "here-only") return setHereOnlyAt(Date.now());
+    askToRun(tapped, name);
+  };
+
+  /** Whether the page should be up: anybody's but the owner's own program while it isn't running. */
+  const stoppedNow = () => owner && program && standing.current.kind !== "running";
+
+  /**
+   * A link only some devices reach: looked at, and opened, or the sheet says what stands in its
+   * way. The sheet shows it's opening only when the look takes a while.
+   */
+  const reach = async (tapped: string, name: string | undefined) => {
+    const turn = ++looking.current;
+    const stopped = stoppedNow();
+    const shows = setTimeout(() => {
+      if (looking.current !== turn) return;
+      before.current = null;
+      setAsked({ url: tapped, name, kind: "reaching" });
+      setOpen(true);
+    }, REACH_SHOWS_MS);
+    const seen = await look(tapped, owner && !stopped, new AbortController().signal);
+    clearTimeout(shows);
+    if (looking.current !== turn) return;
+    const blocked = blockedBy(networkOf(tapped), seen, owner);
+    if (blocked !== undefined) {
+      before.current = null;
+      setAsked({ url: tapped, name, kind: blocked, stopped, ownerName });
+      setOpen(true);
+      return;
+    }
+    programTap(tapped, name);
+  };
+
+  // Waiting for Tailscale: looked at again until the name is found. Then it goes on: to the
+  // program's question while the program isn't running, else to opening the page.
+  const waiting =
+    open && asked !== undefined && WAITS_FOR_TAILSCALE.has(asked.kind) ? asked : undefined;
+  useLooksAgain(waiting, (on) => {
+    if (stoppedNow()) return programTap(on.url, on.name);
+    setAsked({ ...on, kind: "reaching", after: true });
+  });
+
+  // Tailscale has just come on: the page is given a while to answer, its tunnel being new.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: opened with the words of that moment.
+  useEffect(() => {
+    if (!open || asked?.kind !== "reaching" || asked.after !== true) return;
+    const giving = new AbortController();
+    const tapped = asked.url;
+    answersWithin(tapped, REACH_AFTER_MS, giving.signal).then((answered) => {
+      if (giving.signal.aborted) return;
+      if (answered) {
+        setOpen(false);
+        outside(tapped, AFTER_SHEET_MS);
+      } else {
+        setAsked((was) => (was === undefined ? was : { ...was, kind: "mac-quiet", after: false }));
+      }
+    });
+    return () => giving.abort();
+  }, [open, asked?.kind, asked?.after]);
+
+  /** A tapped link, with the page it was tapped on, whose words name it. */
+  const tap = (tapped: string, html?: string) => {
+    const name = html === undefined ? undefined : linkNameIn(html, tapped);
+    if (needsLooking(tapped)) return void reach(tapped, name);
+    looking.current += 1;
+    programTap(tapped, name);
   };
 
   const anyway = () => {
     if (asked === undefined) return;
+    looking.current += 1;
     setOpen(false);
     outside(asked.url, AFTER_SHEET_MS);
   };
 
+  /** The gold button, for a link the phone has to reach first: Tailscale, or another look. */
+  const reachGo = (on: Asked) => {
+    const { opens } = askWords(on);
+    if (opens === "again") return void reach(on.url, on.name);
+    if (opens === undefined) return;
+    if (opens === "get") getTailscale();
+    else openTailscale();
+    setAsked({ ...on, kind: "tailscale-wait" });
+  };
+
   const go = async () => {
-    if (asked?.kind === "quiet") return anyway();
-    if (asked === undefined || waits(asked.kind) || recipe === undefined || "why" in recipe) return;
+    if (asked === undefined) return;
+    if (isReachKind(asked.kind)) return reachGo(asked);
+    if (asked.kind === "quiet") return anyway();
+    if (waits(asked.kind) || recipe === undefined || "why" in recipe) return;
     before.current = held.run;
     setHeard(false);
-    setAsked({ url: asked.url, kind: "starting" });
+    setAsked({ url: asked.url, name: asked.name, kind: "starting" });
     const said = askUnheard(await held.press({ op: "run", command: commandOf(recipe) }));
     if (said === undefined) return;
     before.current = null;
@@ -328,7 +521,10 @@ export function useLinkAsk({
     tap,
     go: () => void go(),
     anyway,
-    close: () => setOpen(false),
+    close: () => {
+      looking.current += 1;
+      setOpen(false);
+    },
     gone: () => {
       before.current = null;
       setAsked(undefined);
@@ -336,22 +532,54 @@ export function useLinkAsk({
   };
 }
 
-/** The sheet is waiting on the Mac or the page: a press does nothing more. */
-function waits(kind: AskKind): boolean {
-  return kind === "starting" || kind === "opening";
+/**
+ * While the sheet waits for Tailscale, the link looked at again as the person comes back to
+ * Chips and every moment while the sheet is up; `clear` once its name is found.
+ */
+function useLooksAgain(waiting: Asked | undefined, clear: (on: Asked) => void) {
+  const latest = useRef(clear);
+  latest.current = clear;
+  useEffect(() => {
+    if (waiting === undefined) return;
+    const giving = new AbortController();
+    let busy = false;
+    const again = async () => {
+      // Away in Tailscale's app, Chips is in the background: it looks again on coming back.
+      if (busy || AppState.currentState === "background") return;
+      busy = true;
+      const seen = await look(waiting.url, false, giving.signal);
+      busy = false;
+      if (!giving.signal.aborted && cleared(seen)) latest.current(waiting);
+    };
+    const every = setInterval(() => void again(), REACH_LOOKS_MS);
+    const back = AppState.addEventListener("change", (state) => {
+      if (state === "active") void again();
+    });
+    return () => {
+      giving.abort();
+      clearInterval(every);
+      back.remove();
+    };
+  }, [waiting]);
 }
 
-/** The sheet's mark: how the program stands, as the banner's would. */
-function askMark(words: LinkAsk): MarkKind {
-  if (words.kind === "starting") return "starting";
-  if (words.kind === "opening") return "running";
+/** The sheet is waiting on the Mac or the page: a press does nothing more. */
+function waits(kind: AskKind | ReachKind): boolean {
+  return kind === "starting" || kind === "opening" || kind === "reaching";
+}
+
+/** The sheet's mark: how the program stands, as the banner's would, or the link's way. */
+function askMark(words: LinkAsk<AskKind | ReachKind>): MarkKind {
+  if (words.kind === "starting" || words.kind === "tailscale-wait") return "starting";
+  if (words.kind === "opening" || words.kind === "reaching") return "running";
   if (words.tone === "bad") return "failed";
-  return "off";
+  return isReachKind(words.kind) ? "plain" : "off";
 }
 
 /**
- * The sheet a tapped link brings up while the program isn't running: what it needs, the address,
- * Run and open, and Open anyway. It stands over the window, the page it asks about under it.
+ * The sheet a tapped link brings up while the program isn't running, or while what it links to
+ * can't be reached from here: what it needs, the address, and what to press. It stands over the
+ * window, the page it asks about under it.
  */
 export function LinkAskSheet({
   asked,
@@ -372,12 +600,7 @@ export function LinkAskSheet({
     <OverWindow>
       <Sheet open={open} onClose={onClose} onGone={onGone} testID="link-ask">
         {asked === undefined ? null : (
-          <AskShown
-            asked={asked}
-            words={linkAsk(asked.kind, asked)}
-            onGo={onGo}
-            onAnyway={onAnyway}
-          />
+          <AskShown asked={asked} words={askWords(asked)} onGo={onGo} onAnyway={onAnyway} />
         )}
       </Sheet>
     </OverWindow>
@@ -390,7 +613,7 @@ function askInk(tone: LinkAsk["tone"], palette: Palette): string {
   return tone === "changed" ? palette.amberInk : palette.ink3;
 }
 
-/** What the sheet holds: what the link needs and its address, then Run and open and Open anyway. */
+/** What the sheet holds: what the link needs and its address, then what to press. */
 function AskShown({
   asked,
   words,
@@ -398,7 +621,7 @@ function AskShown({
   onAnyway,
 }: {
   readonly asked: Asked;
-  readonly words: LinkAsk;
+  readonly words: LinkAsk<AskKind | ReachKind>;
   readonly onGo: () => void;
   readonly onAnyway: () => void;
 }) {
@@ -406,7 +629,7 @@ function AskShown({
   return (
     <View style={styles.ask}>
       <View style={styles.askRow}>
-        <RowMark kind={askMark(words)} icon="play" />
+        <RowMark kind={askMark(words)} icon={isReachKind(words.kind) ? "offline" : "play"} />
         <View style={styles.askWords}>
           <Swap swapKey={words.title}>
             <Text
@@ -441,15 +664,17 @@ function AskShown({
           </Text>
         </View>
       </View>
-      <Moves>
-        <Button
-          label={words.go ?? RUN_AND_OPEN}
-          variant="gold"
-          busy={words.busy === true}
-          onPress={onGo}
-          testID="link-ask-go"
-        />
-      </Moves>
+      {words.go === undefined ? null : (
+        <Moves>
+          <Button
+            label={words.go}
+            variant="gold"
+            busy={words.busy === true}
+            onPress={onGo}
+            testID="link-ask-go"
+          />
+        </Moves>
+      )}
       {words.anyway ? (
         <Opening>
           <Button label={OPEN_ANYWAY} variant="plain" onPress={onAnyway} testID="link-ask-anyway" />

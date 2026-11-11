@@ -52,6 +52,7 @@ export {
   lastWords,
   lettingWork,
   type MessageTrail,
+  marginWords,
   mayAnswer,
   mayDelete,
   mayEdit,

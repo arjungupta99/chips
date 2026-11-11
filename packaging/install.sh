@@ -109,20 +109,72 @@ openssh_how() {
   printf ' Install it with "%s%s", then run this again.' "$sudo" "$how"
 }
 
+# The four bytes at $2 in file $1, as the number they are (big-endian), and the $3 bytes at $2.
+u32_at() { od -An -tu1 -j "$2" -N4 "$1" | awk 'NF == 4 { print (($1 * 256 + $2) * 256 + $3) * 256 + $4 }'; }
+bytes_at() { dd if="$1" bs=1 skip="$2" count="$3" 2>/dev/null; }
+# The number $1 as four bytes, big-endian.
+u32() {
+  printf "$(printf '\\%03o\\%03o\\%03o\\%03o' $(($1 >> 24 & 255)) $(($1 >> 16 & 255)) \
+    $(($1 >> 8 & 255)) $(($1 & 255)))"
+}
+
+# The same check by OpenSSL 1.1.1 or later, for a machine whose OpenSSH is older than 8.1, as
+# RHEL 8's 8.0 is (the onboarding audit, Part 2, item 12). The signature is OpenSSH's SSHSIG
+# (PROTOCOL.sshsig): read apart here, and the release key's Ed25519 signature checked over what
+# ssh-keygen signs. 0 when it is the release key's, 1 when it isn't or doesn't read as one, and 2
+# when this openssl can't check Ed25519 at all.
+openssl_signed() {
+  command -v openssl >/dev/null 2>&1 || return 2
+  openssl pkeyutl -help 2>&1 | grep -q -- -rawin || return 2
+  d="$TMP/sshsig"
+  mkdir -p "$d"
+  # The release key: the 32 bytes inside the ssh-ed25519 key the script carries, as DER.
+  printf '%s\n' "${SIGNER##* }" | base64 -d > "$d/key.ssh" 2>/dev/null || return 2
+  [ "$(u32_at "$d/key.ssh" 15)" = 32 ] || return 2
+  { printf '\060\052\060\005\006\003\053\145\160\003\041\000'; bytes_at "$d/key.ssh" 19 32; } > "$d/key.der"
+  openssl pkey -pubin -inform DER -in "$d/key.der" -noout 2>/dev/null || return 2
+  # The signature, its fields in order: the key, the namespace, nothing reserved, the hash's name,
+  # and the signature itself.
+  sed '/-----/d' "$2" | tr -d ' \r\n' | base64 -d > "$d/sig" 2>/dev/null || return 1
+  [ "$(bytes_at "$d/sig" 0 6)" = SSHSIG ] && [ "$(u32_at "$d/sig" 6)" = 1 ] || return 1
+  at=10
+  for field in key namespace reserved hash signature; do
+    n=$(u32_at "$d/sig" "$at")
+    [ -n "$n" ] && [ "$n" -le 4096 ] || return 1
+    bytes_at "$d/sig" $((at + 4)) "$n" > "$d/$field"
+    at=$((at + 4 + n))
+  done
+  [ "$(cat "$d/namespace")" = chips-release ] && [ "$(cat "$d/hash")" = sha512 ] || return 1
+  [ "$(wc -c < "$d/signature" | tr -d ' ')" = 83 ] || return 1
+  [ "$(bytes_at "$d/signature" 4 11)" = ssh-ed25519 ] || return 1
+  bytes_at "$d/signature" 19 64 > "$d/raw"
+  openssl dgst -sha512 -binary < "$1" > "$d/digest" || return 1
+  { printf SSHSIG; u32 13; printf chips-release; u32 0; u32 6; printf sha512; u32 64
+    cat "$d/digest"; } > "$d/signed"
+  openssl pkeyutl -verify -pubin -keyform DER -inkey "$d/key.der" -rawin -in "$d/signed" \
+    -sigfile "$d/raw" > /dev/null 2>&1 || return 1
+}
+
 # Whether SHA256SUMS ($1) carries the release key's signature ($2). OpenSSH's ssh-keygen checks
-# it, 8.1 or later, which macOS and every current Linux have. One older than that has no -Y, and
-# says so: that is said as itself, not as a release that isn't signed.
+# it, 8.1 or later, which macOS and every current Linux have. One older than that has no -Y, so
+# OpenSSL checks it instead; with neither, that is said as itself, not as a release that isn't
+# signed.
 signed() {
-  command -v ssh-keygen >/dev/null 2>&1 || die "Checking the release's signature needs \
-ssh-keygen, which comes with OpenSSH.$(openssh_how)"
-  printf '%s\n' "$SIGNER" > "$TMP/signers"
-  ssh-keygen -Y verify -f "$TMP/signers" -I release@chipschat.ai -n chips-release -s "$2" \
-    < "$1" > "$TMP/verified" 2>&1 && return 0
-  if grep -Eq -- "option -- '?Y'?" "$TMP/verified"; then
-    die "This machine's ssh-keygen is older than OpenSSH 8.1, and can't check the release's \
-signature. Install a newer OpenSSH, then run this again."
+  if command -v ssh-keygen >/dev/null 2>&1; then
+    printf '%s\n' "$SIGNER" > "$TMP/signers"
+    ssh-keygen -Y verify -f "$TMP/signers" -I release@chipschat.ai -n chips-release -s "$2" \
+      < "$1" > "$TMP/verified" 2>&1 && return 0
+    grep -Eq -- "option -- '?Y'?" "$TMP/verified" || return 1
+    old="This machine's ssh-keygen is older than OpenSSH 8.1, and its openssl can't check \
+the release's signature either. Install OpenSSH 8.1 or later, then run this again."
+  else
+    old="Checking the release's signature needs ssh-keygen, which comes with OpenSSH.$(openssh_how)"
   fi
-  return 1
+  checked=0
+  openssl_signed "$1" "$2" || checked=$?
+  [ "$checked" = 0 ] && return 0
+  [ "$checked" = 1 ] && return 1
+  die "$old"
 }
 
 # Whether version $1 comes before version $2, by their numbers: 1.0.9 before 1.0.10.

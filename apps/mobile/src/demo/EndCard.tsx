@@ -3,7 +3,8 @@
  * then every way in on its own face. **Scan a QR code**, gold, opens the camera, which reads a
  * computer's pairing code, an invite's, or a new phone's. **Have an invite link?** pastes it, with
  * iOS's own Paste where there is one, which asks no "Allow Paste?". **Have a pairing code?** opens
- * the page to type it. **More walkthroughs** offers the films that start where this one stops, a
+ * the page to type it. **Nothing set up yet?** opens the page that hands chipschat.ai/setup to their
+ * computer (ADR 0290's addendum). **More walkthroughs** offers the films that start where this one stops, a
  * row each behind a round play button, only for those there are. **Look around** keeps the made-up
  * workspace, with the film off; **Watch again** plays it from the start.
  *
@@ -15,7 +16,7 @@
  * and the end's words stand apart there (`WaysIn`, `EndWords`).
  */
 
-import type { FilmEnd } from "@chipschat/core";
+import { type FilmEnd, START_ON_COMPUTER } from "@chipschat/core";
 import { MAC_DOWNLOAD } from "@chipschat/protocol";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,6 +32,8 @@ import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 export interface EndWays {
   readonly onScan: () => void;
   readonly onType: () => void;
+  /** Nothing set up yet?: the page that hands the setup page to their computer. */
+  readonly onSetUp: () => void;
   readonly onFilm: (film: string) => void;
   readonly onLookAround: () => void;
   readonly onWatchAgain: () => void;
@@ -123,8 +126,8 @@ export function EndWords({ words }: { readonly words: FilmEnd }) {
 }
 
 /**
- * Every way in: Scan a QR code, Have an invite link?, Have a pairing code?, More walkthroughs, Look
- * around and Watch again. In one column, or in two (`split`) under an upright iPad's film, the
+ * Every way in: Scan a QR code, Have an invite link?, Have a pairing code?, Nothing set up yet?,
+ * More walkthroughs, Look around and Watch again. In one column, or in two (`split`) under an upright iPad's film, the
  * ways on the left and the films and the links on the right.
  */
 export function WaysIn({
@@ -152,7 +155,7 @@ export function WaysIn({
       <PasteAction invites={invites} raised />
       <PasteSaid invites={invites} />
       <TypeAction onPress={ways.onType} />
-      <ForAComputer />
+      <SetUpAction onPress={ways.onSetUp} />
     </View>
   );
   const films =
@@ -264,6 +267,36 @@ function TypeAction({ onPress }: { readonly onPress: () => void }) {
       <View style={[styles.type, { backgroundColor: palette.goldSoft }]}>
         <Icon name="keys" size={16} color={palette.goldDeep} />
         <Text style={[styles.typeWord, { color: palette.goldDeep }]}>Type</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+/**
+ * Nothing set up yet?: a row like Have a pairing code?'s, with Start at its end. Every door above it
+ * needs a Chips running on a computer, so this is the one for somebody with none (the onboarding
+ * audit, item 2, and ADR 0290's addendum).
+ */
+function SetUpAction({ onPress }: { readonly onPress: () => void }) {
+  const palette = usePalette();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${START_ON_COMPUTER.row} ${START_ON_COMPUTER.go}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        {
+          backgroundColor: pressed ? palette.raisedPress : palette.raised,
+          borderColor: palette.line,
+        },
+      ]}
+      testID="demo-set-up"
+    >
+      <Text style={[styles.rowWord, { color: palette.ink }]}>{START_ON_COMPUTER.row}</Text>
+      <View style={[styles.type, { backgroundColor: palette.goldSoft }]}>
+        <Icon name="laptop" size={16} color={palette.goldDeep} />
+        <Text style={[styles.typeWord, { color: palette.goldDeep }]}>{START_ON_COMPUTER.go}</Text>
       </View>
     </Pressable>
   );

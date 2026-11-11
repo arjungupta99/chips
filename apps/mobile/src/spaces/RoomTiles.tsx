@@ -24,12 +24,23 @@
 import {
   type Attachment,
   type CarriedFile,
+  ceilingWords,
   formatDuration,
   inAlbum,
   kindOf,
   mediaFilesWords,
+  ROOM_TILE_GROUNDS,
+  type RoomTileGround,
 } from "@chipschat/core";
-import { dollars, type JobSpend, type SpaceNotifications, spendStage } from "@chipschat/protocol";
+import {
+  cappedSpend,
+  dollars,
+  type JobSpend,
+  type NO_SPEND_CEILING,
+  type RoomJob,
+  type SpaceNotifications,
+  spendStage,
+} from "@chipschat/protocol";
 import { Image } from "expo-image";
 import { type ReactNode, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
@@ -376,17 +387,18 @@ function Tile({
 /**
  * Each tile's mark in a colour of its own, as Settings' rows have them (Arjun, 23 October 2026:
  * "make these sheet icons colorful"). The colours are grounds a room's face may wear, named by
- * index, so the faces' theme paints them (ADR 0176) and the faces' ink reads on them in either.
+ * index in core's `ROOM_TILE_GROUNDS`, which the web's sheet reads too, so the faces' theme paints
+ * them (ADR 0176) and the faces' ink reads on them in either.
  */
 const MARK_GROUNDS = {
-  project: ICON_GROUNDS[4], // Blue
-  lead: ICON_GROUNDS[5], // Violet
-  spend: ICON_GROUNDS[7], // Green
-  notify: ICON_GROUNDS[12], // Red
-  lock: ICON_GROUNDS[3], // Teal
-  locked: ICON_GROUNDS[9], // Ochre: the padlock shut in gold
-  hide: ICON_GROUNDS[0], // Pink
-} as const;
+  project: ICON_GROUNDS[ROOM_TILE_GROUNDS.project],
+  lead: ICON_GROUNDS[ROOM_TILE_GROUNDS.lead],
+  spend: ICON_GROUNDS[ROOM_TILE_GROUNDS.spend],
+  notify: ICON_GROUNDS[ROOM_TILE_GROUNDS.notify],
+  lock: ICON_GROUNDS[ROOM_TILE_GROUNDS.lock],
+  locked: ICON_GROUNDS[ROOM_TILE_GROUNDS.locked],
+  hide: ICON_GROUNDS[ROOM_TILE_GROUNDS.hide],
+} as const satisfies Record<RoomTileGround, string>;
 
 /** A tile's mark: a rounded square in its colour with a line drawing, or Spend's dollar. */
 function Mark({
@@ -480,7 +492,8 @@ export function LeadTile({
 
 /**
  * What the room's job has spent of what the room allows a job (ADR 0117), or only what it allows
- * until the server has said; the bar under it in the colour of where the job stands (ADR 0118).
+ * until the server has said; the bar under it in the colour of where the job stands (ADR 0118). A
+ * room with no cap draws what the job has spent, and no bar (ADR 0292).
  */
 export function SpendTile({
   ceiling,
@@ -489,8 +502,8 @@ export function SpendTile({
   last,
   onPress,
 }: {
-  readonly ceiling: number;
-  readonly spend: JobSpend | undefined;
+  readonly ceiling: number | typeof NO_SPEND_CEILING;
+  readonly spend: RoomJob | undefined;
   /** The row's line, `This job so far: $0.28`, and who sets it for one who doesn't: said aloud. */
   readonly words: string | undefined;
   /** `Last job $3.10`, once a job before this one spent (ADR 0282). */
@@ -498,26 +511,29 @@ export function SpendTile({
   readonly onPress: (() => void) | undefined;
 }) {
   const palette = usePalette();
+  const bar = spend === undefined ? undefined : cappedSpend(spend);
   return (
     <Tile
       mark={<Mark ground="spend" icon="$" />}
       value={
         spend === undefined ? (
-          dollars(ceiling)
+          ceilingWords(ceiling)
         ) : (
           <>
             {dollars(spend.spent_usd)}
-            <Text style={[styles.of, { color: palette.ink3 }]}> of {dollars(ceiling)}</Text>
+            <Text style={[styles.of, { color: palette.ink3 }]}>
+              {typeof ceiling === "number" ? ` of ${dollars(ceiling)}` : " · no cap"}
+            </Text>
           </>
         )
       }
       under={last}
       name="Spend per job"
-      label={`Spend per job, ${dollars(ceiling)}${words === undefined ? "" : `, ${words}`}${last === undefined ? "" : `, ${last}`}`}
+      label={`Spend per job, ${ceilingWords(ceiling)}${words === undefined ? "" : `, ${words}`}${last === undefined ? "" : `, ${last}`}`}
       onPress={onPress}
       testID="room-sheet-spend"
     >
-      {spend === undefined ? null : <SpendBar spend={spend} />}
+      {bar === undefined ? null : <SpendBar spend={bar} />}
     </Tile>
   );
 }

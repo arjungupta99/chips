@@ -27,6 +27,7 @@ import {
   nameOf,
   newAgentName,
   newestFilesOf,
+  offersAllJobs,
   type Space,
   spaceFace,
   spaceTitle,
@@ -48,7 +49,7 @@ import { InvitePage } from "./InvitePage.tsx";
 import { ProjectPages } from "./Project.tsx";
 import { Failed, Pages, SheetClose } from "./parts.tsx";
 import { MediaFilesPage } from "./RoomMedia.tsx";
-import { LeadPage, SpendPage } from "./Settings.tsx";
+import { AllJobsPage, LeadPage, SpendPage } from "./Settings.tsx";
 import { UniversePage } from "./Universe.tsx";
 import { Who } from "./Who.tsx";
 
@@ -60,6 +61,8 @@ export type Page =
   | { readonly kind: "lead" }
   /** Spend per job; from the banner's Raise the limit, its Save lets the agents carry on too. */
   | { readonly kind: "spend"; readonly carryOn?: boolean }
+  /** Every job before this one, from Spend per job's See all (ADR 0292 addendum). */
+  | { readonly kind: "jobs" }
   | { readonly kind: "new" }
   | { readonly kind: "invite" }
   | { readonly kind: "move"; readonly agentId: string }
@@ -227,28 +230,30 @@ export function RoomSheet(props: RoomSheetProps) {
   // Spend per job. From Raise the limit the agents carry on with what is saved, and the sheet goes
   // so the room shows them going on; a job's row goes to its reply once it has (ADR 0282).
   const { onGoTo } = props;
+  // A job's row, on Spend per job or See all's page: the room, at the reply that closed its run.
+  const jobGoTo =
+    onGoTo === undefined
+      ? undefined
+      : (lineId: string) => {
+          goingTo.current = lineId;
+          putAway();
+        };
   const spendPage = (carryOn: boolean) => (
     <SpendPage
       {...common}
       spend={spend}
       carryOn={carryOn}
+      noCap={actions.noCap}
       onBack={() => go({ kind: "who" })}
+      // Saved, the page stays, its Save saying so (as on the iPad); from Raise the limit the sheet
+      // goes, so the room shows the agents carrying on.
       onSave={(usd) =>
         carryOn
-          ? void work(() => actions.spend(usd, { carryOn: true }), putAway)
-          : void work(
-              () => actions.spend(usd),
-              () => go({ kind: "who" }),
-            )
+          ? work(() => actions.spend(usd, { carryOn: true }), putAway)
+          : work(() => actions.spend(usd))
       }
-      onGoTo={
-        onGoTo === undefined
-          ? undefined
-          : (lineId) => {
-              goingTo.current = lineId;
-              putAway();
-            }
-      }
+      onGoTo={jobGoTo}
+      onSeeAll={offersAllJobs(spend, actions.spendJobs) ? () => go({ kind: "jobs" }) : undefined}
     />
   );
 
@@ -299,6 +304,17 @@ export function RoomSheet(props: RoomSheetProps) {
         );
       case "spend":
         return spendPage(shown.carryOn === true);
+      case "jobs":
+        return (
+          <AllJobsPage
+            titleId={titleId}
+            space={space}
+            directory={directory}
+            read={actions.roomJobs}
+            onBack={() => go({ kind: "spend" })}
+            onGoTo={jobGoTo}
+          />
+        );
       case "icon":
         return iconPage();
       case "universe":

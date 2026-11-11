@@ -39,15 +39,24 @@
         "steps": [
           {
             "says": "Install Claude Code.",
-            "line": "curl -fsSL https://claude.ai/install.sh | bash"
+            "line": "curl -fsSL https://claude.ai/install.sh | bash",
+            "done": {
+              "program": "claude"
+            }
           },
           {
             "says": "Sign in. Your browser opens with Anthropic's sign-in.",
-            "line": "claude auth login"
+            "line": "claude auth login",
+            "done": {
+              "signedIn": true
+            }
           },
           {
             "says": "Install the adapter Chips reaches Claude Code through. It needs npm, which comes with Node.js from nodejs.org.",
-            "line": "npm install -g @agentclientprotocol/claude-agent-acp"
+            "line": "npm install -g @agentclientprotocol/claude-agent-acp",
+            "done": {
+              "program": "claude-agent-acp"
+            }
           }
         ]
       },
@@ -81,11 +90,17 @@
         "steps": [
           {
             "says": "Install Codex.",
-            "line": "curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+            "line": "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
+            "done": {
+              "program": "codex"
+            }
           },
           {
             "says": "Sign in with your ChatGPT account. Your browser opens with OpenAI's sign-in.",
-            "line": "codex login"
+            "line": "codex login",
+            "done": {
+              "signedIn": true
+            }
           }
         ],
         "none": {

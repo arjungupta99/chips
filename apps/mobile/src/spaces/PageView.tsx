@@ -71,11 +71,12 @@ export function PageView({
   /** A tapped link to a file of the room's project (ADR 0227); without it, such a link does nothing. */
   readonly onFile?: ((path: string) => void) | undefined;
   /**
-   * A tapped link to a web address or mail, handed over rather than opened: Universe asks first when
-   * the address may need the space's program running (ADR 0227's addendum of 9 November 2026).
-   * Without it, the platform's browser or mail opens it.
+   * A tapped link to a web address or mail, handed over rather than opened, with the page it was
+   * tapped on, whose words name it: Universe asks first when the address may need the space's
+   * program running (ADR 0227's addendum of 9 November 2026), or is one only some devices reach
+   * (the addendum of 10 November 2026). Without it, the platform's browser or mail opens it.
    */
-  readonly onAddress?: ((url: string) => void) | undefined;
+  readonly onAddress?: ((url: string, html?: string) => void) | undefined;
 }) {
   const platform = Platform.OS === "android" ? "android" : "ios";
   const ios = platform === "ios";
@@ -99,7 +100,7 @@ export function PageView({
         const decision = pageLoad(request, platform);
         if (decision === "ground") setSaid(groundOfLink(request.url) ?? said);
         if (decision === "outside") {
-          if (onAddress !== undefined) onAddress(request.url);
+          if (onAddress !== undefined) onAddress(request.url, html);
           else void Linking.openURL(request.url).catch(() => undefined);
         }
         const file = decision === "file" ? fileOfLink(request.url) : undefined;

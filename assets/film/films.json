@@ -65,7 +65,7 @@
         }
       ],
       "rendered": {
-        "commit": "b24f3925",
+        "commit": "598c279d",
         "script": "sha256:a91f3e9f7b544a9c4a1a4cea563cef3932f8a25d59c35e92fb136458a3955b72",
         "beats": "sha256:023a8a67b2388bd33f29890f7564a6deee2ac13573c53ea2a1a122d34d72e3f0",
         "acts": "sha256:60a237e7d9560c01fc31af9d098dcee5e4d4d24cc738235c8162cb04b8609939"
@@ -120,7 +120,7 @@
         }
       ],
       "rendered": {
-        "commit": "b24f3925",
+        "commit": "598c279d",
         "script": "sha256:a91f3e9f7b544a9c4a1a4cea563cef3932f8a25d59c35e92fb136458a3955b72",
         "beats": "sha256:935e25f7dd7de776d26a00a09fe609d636398ae7e43eb68c4a495c4e75f0cb39",
         "acts": "sha256:60a237e7d9560c01fc31af9d098dcee5e4d4d24cc738235c8162cb04b8609939"
@@ -155,7 +155,7 @@
           "key": "spaces",
           "eyebrow": "Spaces",
           "line": "Every job gets its own space",
-          "sentence": "Each conversation keeps to its own space. A face lights up while its agent works.",
+          "sentence": "Each conversation keeps to its own space. You can see which ones have an agent at work.",
           "start": 12.616666666666667,
           "end": 19.2
         },
@@ -207,9 +207,9 @@
         }
       ],
       "rendered": {
-        "commit": "1c396bb3",
+        "commit": "e8fc4c74",
         "script": "sha256:a91f3e9f7b544a9c4a1a4cea563cef3932f8a25d59c35e92fb136458a3955b72",
-        "beats": "sha256:44c105327ae1e9964b099936e4f29954b6a3c5f7ff1aec044e48916bc71650bc",
+        "beats": "sha256:922e5952279adc215ca45b5838b2b3cff24cb9e5c6ec69a0f114f0d4a65622c5",
         "acts": "sha256:60a237e7d9560c01fc31af9d098dcee5e4d4d24cc738235c8162cb04b8609939"
       }
     }

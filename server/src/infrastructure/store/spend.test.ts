@@ -136,10 +136,43 @@ describe("what a room's job has spent (ADR 0117)", () => {
     expect((await spendOf()).ceiling_usd).toBe(3);
   });
 
+  it("takes amounts up to $1,000, and No cap, which the read says as a null ceiling (ADR 0292)", async () => {
+    expect((await setCeiling(ws.arjun.sign, 1000)).json).toMatchObject({
+      usd: 1000,
+      changed: true,
+    });
+    expect((await spendOf()).ceiling_usd).toBe(1000);
+    expect(await setCeiling(ws.arjun.sign, "none")).toEqual({
+      status: 200,
+      json: { space_id: ws.spaceId, usd: "none", changed: true, carried_on: false },
+    });
+    const head = await ws.gateway.deps.store.head(ws.workspaceId);
+    const { events } = await ws.gateway.deps.store.since(ws.workspaceId, head - 1);
+    expect(events.map((event) => [event.type, event.actor.kind])).toEqual([
+      ["space.spend_ceiling_lifted", "person"],
+    ]);
+    expect(await ws.gateway.deps.readModels.spendCeilingOf(ws.workspaceId, ws.spaceId)).toBe(
+      "none",
+    );
+    expect((await setCeiling(ws.arjun.sign, "none")).json).toMatchObject({ changed: false });
+    const path = `/v1/spaces/${ws.spaceId}/spend`;
+    const read = await call("GET", path, signed(ws.arjun.sign, "GET", path));
+    expect(read.json).toMatchObject({ space_id: ws.spaceId, ceiling_usd: null, spent_usd: 0 });
+    // An amount again puts the cap back on.
+    await setCeiling(ws.arjun.sign, 25);
+    expect((await spendOf()).ceiling_usd).toBe(25);
+    expect(await ws.gateway.deps.readModels.spendCeilingOf(ws.workspaceId, ws.spaceId)).toBe(25);
+  });
+
   it("refuses an amount out of range, a guest, a member and a harness", async () => {
-    for (const usd of [0, 0.1, 100.25, 2.6]) {
+    for (const usd of [0, 0.1, 1000.25, 2.6]) {
       expect((await setCeiling(ws.arjun.sign, usd)).status).toBe(422);
     }
+    const path0 = `/v1/spaces/${ws.spaceId}/spend-ceiling`;
+    const word = await call("POST", path0, signed(ws.arjun.sign, "POST", path0, { usd: "lots" }), {
+      usd: "lots",
+    });
+    expect(word.status).toBe(422);
     const gus = await ws.addPerson("Gus", "guest");
     expect((await setCeiling(gus.sign, 5)).status).toBe(403);
     // Only the workspace's owner sets it (ADR 0196): Dana is a member, in the room.
@@ -195,6 +228,49 @@ describe("what a room's job has spent (ADR 0117)", () => {
     expect(read.json["jobs"]).toHaveLength(2);
   });
 
+  it("reads the jobs before this one a page at a time, newest first, and says how many there are (ADR 0292 addendum)", async () => {
+    // 35 jobs that spent, each a person's word and a run that reported a cent more than the last.
+    const begun: number[] = [];
+    for (let n = 0; n < 35; n += 1) {
+      begun.push((await say()).seq);
+      await report(await start(), 0.01 * (n + 1));
+    }
+    await say();
+    const read = async (query: string) => {
+      const path = `/v1/spaces/${ws.spaceId}/spend/jobs${query}`;
+      return call("GET", path, signed(ws.arjun.sign, "GET", path));
+    };
+    const spendPath = `/v1/spaces/${ws.spaceId}/spend`;
+    const spend = await call("GET", spendPath, signed(ws.arjun.sign, "GET", spendPath));
+    expect(spend.json).toMatchObject({ jobs_count: 35 });
+    expect((spend.json as { jobs: unknown[] }).jobs).toHaveLength(30);
+
+    const first = (await read("?limit=20")).json as {
+      jobs: { since_seq: number }[];
+      next?: number;
+    };
+    const newest = [...begun].reverse();
+    expect(first.jobs.map((job) => job.since_seq)).toEqual(newest.slice(0, 20));
+    expect(first.next).toBe(newest[19]);
+    const last = (await read(`?before=${first.next}&limit=20`)).json as {
+      space_id: string;
+      jobs: { since_seq: number }[];
+      next?: number;
+    };
+    expect(last.space_id).toBe(ws.spaceId);
+    expect(last.jobs.map((job) => job.since_seq)).toEqual(newest.slice(20));
+    expect(last.next).toBeUndefined();
+    // Not said, a page is 30.
+    expect(((await read("")).json as { jobs: unknown[] }).jobs).toHaveLength(30);
+    for (const query of ["?limit=0", "?limit=101", "?before=x", "?limit=2.5"]) {
+      expect((await read(query)).status, query).toBe(422);
+    }
+    // Somebody not in the room reads none of it.
+    const gus = await ws.addPerson("Gus", "member");
+    const theirs = `/v1/spaces/${ws.spaceId}/spend/jobs`;
+    expect((await call("GET", theirs, signed(gus.sign, "GET", theirs))).status).toBe(404);
+  });
+
   it("lets the agents held at the ceiling carry on in the same request that raises it (ADR 0282)", async () => {
     const path = `/v1/spaces/${ws.spaceId}/spend-ceiling`;
     const raise = (usd: number) =>
@@ -238,7 +314,7 @@ type Sign = (method: string, target: string, body: string | Uint8Array) => Recor
 const signed = (sign: Sign, method: string, path: string, body?: unknown) =>
   sign(method, path, body === undefined ? "" : JSON.stringify(body));
 
-function setCeiling(sign: Sign, usd: number | null) {
+function setCeiling(sign: Sign, usd: number | null | "none") {
   const path = `/v1/spaces/${ws.spaceId}/spend-ceiling`;
   return call("POST", path, signed(sign, "POST", path, { usd }), { usd });
 }

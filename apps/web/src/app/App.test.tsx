@@ -3,7 +3,7 @@
  * mocked: which one is in front, switching, muting, pairing another and signing out.
  */
 
-import type { Device, Snapshot, Store } from "@chipschat/core";
+import type { ClientEvent, Device, Snapshot, Store } from "@chipschat/core";
 import { buildModel } from "@chipschat/core";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
@@ -23,15 +23,19 @@ const core = vi.hoisted(() => ({
   deletedAccount: false,
   /** What each store's hello called its workspace, by device id (ADR 0193): none unless a test says. */
   workspaceNames: {} as Record<string, string>,
+  /** What every store's rooms are folded from: none unless a test says. */
+  events: [] as ClientEvent[],
+  /** One for each store made: folds `events` again and tells its listeners, as a socket's event does. */
+  moves: [] as (() => void)[],
 }));
 
 vi.mock("@chipschat/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@chipschat/core")>();
   const store = (device: Device): Store => {
     const workspaceName = core.workspaceNames[device.deviceId];
-    const snapshot: Snapshot = {
+    let snapshot: Snapshot = {
       connection: core.connection,
-      model: buildModel([]),
+      model: buildModel(core.events),
       directory: {
         [device.participantId]: {
           id: device.participantId,
@@ -48,10 +52,16 @@ vi.mock("@chipschat/core", async (importOriginal) => {
     };
     const made = { deviceId: device.deviceId, closed: false };
     core.stores.push(made);
+    const listeners = new Set<(snapshot: Snapshot) => void>();
+    core.moves.push(() => {
+      snapshot = { ...snapshot, model: buildModel(core.events) };
+      for (const listener of listeners) listener(snapshot);
+    });
     return {
       subscribe: (listener: (snapshot: Snapshot) => void) => {
+        listeners.add(listener);
         listener(snapshot);
-        return () => undefined;
+        return () => listeners.delete(listener);
       },
       getSnapshot: () => snapshot,
       // The Mac's folders (ADR 0225): no ask from another device comes.
@@ -89,6 +99,9 @@ vi.mock("@chipschat/core", async (importOriginal) => {
       // these tests; the card names "your server".
       roundTrip: async () => 38,
       serverFacts: () => Promise.reject(new Error("not read here")),
+      // A room open on screen: read as it is drawn, and nobody arriving in it.
+      markRead: () => undefined,
+      takeArrival: () => undefined,
     } as unknown as Store;
   };
   return {
@@ -115,6 +128,7 @@ vi.mock("@chipschat/core", async (importOriginal) => {
 vi.mock("@tauri-apps/api/core", () => ({ invoke: async () => [] }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => undefined }));
 
+import type { ChipsLink } from "../native.ts";
 import {
   chooseInWorkspaces,
   frontWorkspace,
@@ -158,6 +172,8 @@ afterEach(() => {
   core.connection = "open";
   core.deletedAccount = false;
   core.workspaceNames = {};
+  core.events = [];
+  core.moves.length = 0;
 });
 
 describe("the app over several workspaces", () => {
@@ -302,5 +318,66 @@ describe("the app over several workspaces", () => {
       fireEvent.click(screen.getByRole("button", { name: "OK" }));
     });
     await waitFor(() => expect(core.forgotten).toEqual(["dev_1"]));
+  });
+});
+
+describe("a link from the Mac (M2.2)", () => {
+  const room = (seq: number, spaceId: string, title: string): ClientEvent => ({
+    v: 1,
+    type: "space.created",
+    id: `evt_room${seq}`,
+    ts: "2026-11-11T16:00:00.000Z",
+    workspace_id: home.workspaceId,
+    space_id: spaceId,
+    actor: { kind: "person", id: home.participantId },
+    kind: "group",
+    title,
+    seq,
+  });
+  const said = (seq: number, spaceId: string): ClientEvent => ({
+    v: 1,
+    type: "message.post",
+    id: `evt_said${seq}`,
+    ts: "2026-11-11T16:10:52.000Z",
+    workspace_id: home.workspaceId,
+    space_id: spaceId,
+    actor: { kind: "person", id: home.participantId },
+    text: `Line ${seq}`,
+    seq,
+  });
+  const title = () => screen.getByTestId("room-title").textContent;
+
+  it("opens its room once: the room picked after it stays while the linked one moves on", async () => {
+    // A banner's click or a `chips://` link put Health in front, and every change in the workspace
+    // after it put Health back, from whichever room had been picked since (11 November 2026).
+    core.events = [room(1, "spc_health", "Health"), room(2, "spc_test", "Test join")];
+    let follow: ((link: ChipsLink) => void) | undefined;
+    const desktop = {
+      discover: async () => [],
+      ask: async () => undefined,
+      tell: async () => undefined,
+      badge: async () => undefined,
+      onDecision: async () => () => undefined,
+      onOpen: async (listen: (link: ChipsLink) => void) => {
+        follow = listen;
+        return () => undefined;
+      },
+    };
+    render(<App devices={[home]} desktop={desktop} />);
+    await waitFor(() => expect(follow).toBeDefined());
+    act(() => follow?.({ kind: "space", id: "spc_health" }));
+    await waitFor(() => expect(title()).toContain("Health"));
+
+    fireEvent.click(document.querySelector('[data-space="spc_test"]') as HTMLElement);
+    expect(title()).toContain("Test join");
+    core.events = [...core.events, said(3, "spc_health")];
+    act(() => {
+      for (const move of core.moves) move();
+    });
+    expect(title()).toContain("Test join");
+
+    // The same link again is a new ask, and opens its room again.
+    act(() => follow?.({ kind: "space", id: "spc_health" }));
+    await waitFor(() => expect(title()).toContain("Health"));
   });
 });

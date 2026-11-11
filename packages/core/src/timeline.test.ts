@@ -222,6 +222,7 @@ describe("what a run is doing", () => {
       startedAt: at(0),
       thought: undefined,
       made: [],
+      pausable: false,
     });
     expect(runDoing(undefined)).toBeUndefined();
   });
@@ -320,13 +321,15 @@ describe("what the harnesses in a room are doing", () => {
     expect(doing.map((each) => each.harnessId)).toEqual([SCOUT, TREE]);
   });
 
-  it("leaves out a harness a person paused, or one waiting on somebody", () => {
+  it("keeps a harness a person paused, saying so, and leaves out one waiting on somebody", () => {
     const doing = doingIn([
       begun(2, "run_s", SCOUT, 0),
       begun(3, "run_t", TREE, 1),
       fixture("run.pause", 4, { run_id: "run_s", ts: at(2) }),
     ]);
-    expect(doing.map((each) => each.harnessId)).toEqual([TREE]);
+    expect(doing.map((each) => each.harnessId)).toEqual([SCOUT, TREE]);
+    expect(doing[0]).toMatchObject({ paused: true, heldAt: at(2) });
+    expect(doing[1]?.paused).toBeUndefined();
     const asking = doingIn([
       begun(2, "run_s", SCOUT, 0),
       begun(3, "run_t", TREE, 1),

@@ -16,7 +16,15 @@ import {
 } from "@testing-library/react-native";
 import * as Clipboard from "expo-clipboard";
 import { type ReactElement, type ReactNode, useMemo, useState } from "react";
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  AccessibilityInfo,
+  Animated,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore } from "../testing/fixtures";
 import { avatarHue } from "../ui/Avatar";
@@ -330,6 +338,38 @@ describe("Connect a harness on the phone", () => {
     await userEvent.press(screen.getByLabelText("Open"));
     expect(await screen.findByText("Build your own")).toBeOnTheScreen();
     expect(screen.queryByText("Or build your own")).toBeNull();
+  });
+
+  it("ends the cards with I don't have one yet, which opens chipschat.ai/setup, where some card has steps (ADR 0290)", async () => {
+    const codex: Connector = {
+      ...HERMES,
+      id: "codex",
+      name: "Codex",
+      start: {
+        answer: "I use ChatGPT",
+        suggest: "We'd suggest Codex.",
+        steps: [
+          { says: "Install Codex.", line: "curl -fsSL https://example.test/install.sh | sh" },
+        ],
+      },
+    };
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    mockChips.store = { ...testStore(snapshot()), connectors: async () => [OPENCLAW, codex] };
+    await render(app());
+    await userEvent.press(screen.getByLabelText("Open"));
+    const row = await screen.findByRole("link", { name: "I don't have one yet" });
+    expect(screen.getByText("chipschat.ai/setup says which one to get and how")).toBeOnTheScreen();
+    await userEvent.press(row);
+    expect(open).toHaveBeenCalledWith("https://chipschat.ai/setup/");
+    open.mockRestore();
+  });
+
+  it("shows no I don't have one yet when no card has steps", async () => {
+    mockChips.store = testStore(snapshot());
+    await render(app());
+    await userEvent.press(screen.getByLabelText("Open"));
+    expect(await screen.findByLabelText("OpenClaw, Run a line")).toBeOnTheScreen();
+    expect(screen.queryByRole("link", { name: "I don't have one yet" })).toBeNull();
   });
 
   it("cancels a link while it waits: withdrawn, the gallery again, the tile no longer waiting", async () => {

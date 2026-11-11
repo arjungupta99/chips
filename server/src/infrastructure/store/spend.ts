@@ -16,9 +16,19 @@
  * the ceiling says so.
  */
 
-import { type JobStart, PERSON_ACTS, SPENT_JOBS_SHOWN, type SpentJob } from "@chipschat/protocol";
+import {
+  type JobStart,
+  NO_SPEND_CEILING,
+  PERSON_ACTS,
+  SPENT_JOBS_SHOWN,
+  type SpentJob,
+} from "@chipschat/protocol";
 import { type Kysely, sql } from "kysely";
-import type { JobSpendView, SpendHistoryView } from "../../application/ports/index.js";
+import type {
+  JobSpendView,
+  SpendHistoryView,
+  SpentJobsView,
+} from "../../application/ports/index.js";
 import type { Database } from "../db/schema.js";
 import { lastPersonAct } from "./exchange.js";
 
@@ -141,13 +151,17 @@ export function createSpendReads(db: Kysely<Database>) {
   }
 
   return {
-    async spendCeilingOf(workspaceId: string, spaceId: string): Promise<number | undefined> {
+    async spendCeilingOf(
+      workspaceId: string,
+      spaceId: string,
+    ): Promise<number | typeof NO_SPEND_CEILING | undefined> {
       const row = await db
         .selectFrom("spaces")
-        .select("spend_ceiling_usd")
+        .select(["spend_ceiling_usd", "spend_uncapped"])
         .where("workspace_id", "=", workspaceId)
         .where("id", "=", spaceId)
         .executeTakeFirst();
+      if (row?.spend_uncapped === 1) return NO_SPEND_CEILING;
       return row?.spend_ceiling_usd ?? undefined;
     },
 
@@ -188,15 +202,7 @@ export function createSpendReads(db: Kysely<Database>) {
     },
 
     async spendHistoryOf(workspaceId: string, spaceId: string): Promise<SpendHistoryView> {
-      const [starts, reports, held] = await Promise.all([
-        startsIn(workspaceId, spaceId),
-        datedReportsIn(workspaceId, spaceId),
-        heldJobsIn(workspaceId, spaceId),
-      ]);
-      const jobs = addUp(starts, reports);
-      const last = starts.at(-1);
-      const now = last?.seq ?? 0;
-      const total = jobs.reduce((sum, job) => sum + job.spent, 0);
+      const { last, past, total } = await pastJobsIn(workspaceId, spaceId);
       return {
         started:
           last === undefined
@@ -206,16 +212,50 @@ export function createSpendReads(db: Kysely<Database>) {
                 ...(last.actor_kind === "person" ? { by: last.actor_id } : {}),
                 act: actOf(last),
               },
-        jobs: jobs
-          .filter((job) => job.since_seq !== now)
-          .map((job) => spentJob(job, held))
-          .filter((job) => job.spent_usd > 0 || job.uncounted_runs > 0)
-          .reverse()
-          .slice(0, SPENT_JOBS_SHOWN),
+        jobs: past.slice(0, SPENT_JOBS_SHOWN),
         total_usd: usd(total),
+        jobs_count: past.length,
       };
     },
+
+    async spentJobsOf(
+      workspaceId: string,
+      spaceId: string,
+      page: { readonly before?: number | undefined; readonly limit: number },
+    ): Promise<SpentJobsView> {
+      const { past } = await pastJobsIn(workspaceId, spaceId);
+      const { before, limit } = page;
+      const from = before === undefined ? past : past.filter((job) => job.since_seq < before);
+      const jobs = from.slice(0, limit);
+      const oldest = jobs.at(-1);
+      return from.length > limit && oldest !== undefined
+        ? { jobs, next: oldest.since_seq }
+        : { jobs };
+    },
   };
+
+  /**
+   * The room's jobs before its present one that spent or ran without saying a cost, newest first,
+   * with what began the present one and what every job has spent. Walked from the whole room each
+   * time: a page of them is cut from this, so pages never drift from the list.
+   */
+  async function pastJobsIn(workspaceId: string, spaceId: string) {
+    const [starts, reports, held] = await Promise.all([
+      startsIn(workspaceId, spaceId),
+      datedReportsIn(workspaceId, spaceId),
+      heldJobsIn(workspaceId, spaceId),
+    ]);
+    const jobs = addUp(starts, reports);
+    const last = starts.at(-1);
+    const now = last?.seq ?? 0;
+    const total = jobs.reduce((sum, job) => sum + job.spent, 0);
+    const past = jobs
+      .filter((job) => job.since_seq !== now)
+      .map((job) => spentJob(job, held))
+      .filter((job) => job.spent_usd > 0 || job.uncounted_runs > 0)
+      .reverse();
+    return { last, past, total };
+  }
 
   /** Every point a job began in the room, oldest first: a person's act or a brief handed in. */
   async function startsIn(workspaceId: string, spaceId: string): Promise<Start[]> {

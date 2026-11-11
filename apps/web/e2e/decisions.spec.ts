@@ -3,10 +3,24 @@
  * elsewhere — and, beside them, a question answered, and the dial turning policy so that Chips
  * decides on the spot. The harness is played by the test; `approval-loop.spec.ts` keeps the plain
  * approve with Scout, so it is not repeated here.
+ *
+ * The dial was the Run panel's, for one space, until the panel went (ADR 0293): the tests that
+ * turn or lean on a level have a harness and room of their own, at L1 where a new harness starts,
+ * and turn the agent's own dial on its page, which holds for every space.
  */
 
 import { expect, type Page, test } from "@playwright/test";
-import { demo, Harness, newApprovalId, newRunId, openLog, pair, runPanel } from "./support.ts";
+import {
+  bubble,
+  demo,
+  Harness,
+  newApprovalId,
+  newRunId,
+  openLog,
+  pair,
+  registerSpecialist,
+  type Specialist,
+} from "./support.ts";
 
 /** The newest approval card in the space: the demo space is shared with every test. */
 const card = (page: Page) => page.getByRole("article", { name: /Approval/ }).last();
@@ -42,6 +56,36 @@ async function start(page: Page): Promise<Harness> {
   return harness;
 }
 
+/**
+ * A harness of its own, working in its own room, open in the page: at L1, where a new harness
+ * starts, so a smaller ask waits for a person, and the demo room's policy is left as the other
+ * specs find it.
+ */
+async function startOwn(page: Page, name: string): Promise<[Specialist, Harness]> {
+  const own = await registerSpecialist(name);
+  await pair(page);
+  const harness = await Harness.connect(newRunId(), { token: own.token, space: own.space });
+  await harness.send("run.started", { goal: "Confirm PO #4471.", plan: [] });
+  await page.getByTestId("space-list").locator(`[data-space="${own.space}"]`).click();
+  return [own, harness];
+}
+
+/**
+ * How far it is trusted, on the agent's When it asks you (ADR 0195): a page over its page
+ * (ADR 0254), which its tile on the Agents page's shelf opens (ADR 0266).
+ */
+async function agentDial(page: Page, name: string) {
+  await page.getByRole("button", { name: /^Agents/ }).click();
+  await page
+    .getByTestId("harness-shelf")
+    .getByRole("button", { name: new RegExp(`^${name}\\b`) })
+    .click();
+  await page.getByRole("main", { name }).getByTestId("harness-asks-row").click();
+  return page
+    .getByRole("main", { name: `${name}: When it asks you` })
+    .getByRole("region", { name: "How far it is trusted" });
+}
+
 test("edit: the person's words reach the harness, and the card goes", async ({ page }) => {
   const harness = await start(page);
   try {
@@ -72,8 +116,12 @@ test("edit: the person's words reach the harness, and the card goes", async ({ p
 test("deny: the reason reaches the harness, and the run carries on", async ({ page }) => {
   const harness = await start(page);
   try {
+    // Scout at work: its bubble, once the thinking beat has gone by. The card stands in its place
+    // while it waits (ADR 0268), and once it is answered the bubble is back, the run going on.
+    await expect(bubble(page)).toBeVisible();
     const approvalId = await askToEmail(harness);
-    await expect(runPanel(page).getByRole("button", { name: "Pause" })).toBeDisabled();
+    await expect(card(page)).toBeVisible();
+    await expect(bubble(page)).toHaveCount(0);
     await card(page).getByRole("button", { name: "Deny" }).click();
     const form = page.getByTestId("deny-form");
     await form.getByLabel("Reason").fill("Wrong address. Use the procurement alias.");
@@ -85,7 +133,7 @@ test("deny: the reason reaches the harness, and the run carries on", async ({ pa
       reason: "Wrong address. Use the procurement alias.",
     });
     await expect(cardOf(page, approvalId)).toHaveCount(0);
-    await expect(runPanel(page).getByRole("button", { name: "Pause" })).toBeEnabled();
+    await expect(bubble(page)).toBeVisible();
   } finally {
     harness.close();
   }
@@ -176,23 +224,11 @@ test("a question with a default is answered from its card in the room, and the h
   }
 });
 
-test("the dial: at L1 a write asks; turned to L2, policy approves it on the spot, as an event", async ({
+test("the dial: at L1 a write asks; turned to L2 on the agent's page, policy approves it on the spot, as an event", async ({
   page,
 }) => {
-  const harness = await start(page);
+  const [fern, harness] = await startOwn(page, "Fern");
   try {
-    const dial = runPanel(page).getByRole("group", { name: /Autonomy for/ });
-    // The dial is controlled by the log: it moves when the policy event comes back.
-    await dial.getByLabel("L1 · Ask first").click();
-    const turned = await harness.next("policy.updated");
-    await expect(dial.getByLabel("L1 · Ask first")).toBeChecked();
-    expect(turned).toMatchObject({
-      harness_id: demo().harness.id,
-      space_id: demo().space_id,
-      policy: { autonomy: 1 },
-      changed_by: demo().person.id,
-    });
-
     const write = (id: string) =>
       harness.send("approval.request", {
         approval_id: id,
@@ -200,12 +236,26 @@ test("the dial: at L1 a write asks; turned to L2, policy approves it on the spot
         risk: [],
         expires_in: 3600,
       });
-    await write(newApprovalId());
-    await expect(card(page).getByRole("button", { name: "Approve" })).toBeEnabled();
+    const first = newApprovalId();
+    await write(first);
+    await card(page).getByRole("button", { name: "Approve" }).click();
+    await harness.next("approval.resolved");
+    await expect(cardOf(page, first)).toHaveCount(0);
 
+    // The dial is controlled by the log: it moves when the policy event comes back.
+    const dial = await agentDial(page, "Fern");
+    await expect(dial.getByLabel("L1 · Ask first")).toBeChecked();
     await dial.getByLabel("L2 · Ask when it matters").click();
-    await harness.next("policy.updated");
+    const turned = await harness.next("policy.updated");
     await expect(dial.getByLabel("L2 · Ask when it matters")).toBeChecked();
+    expect(turned).toMatchObject({
+      harness_id: fern.id,
+      policy: { autonomy: 2 },
+      changed_by: demo().person.id,
+    });
+    // The agent's own level, for every space it works in.
+    expect(turned["space_id"]).toBeUndefined();
+
     const second = newApprovalId();
     await write(second);
     const byPolicy = await harness.next("approval.resolved");
@@ -215,23 +265,13 @@ test("the dial: at L1 a write asks; turned to L2, policy approves it on the spot
       resolved_by: "system",
     });
     expect(String(byPolicy["reason"])).toContain("L2");
-    await expect(cardOf(page, second)).toHaveCount(0);
 
     // The workspace's log says so, in words.
     await openLog(page);
     const audit = page.getByTestId("audit");
     await expect(audit).toContainText("Chips");
     await expect(audit).toContainText("approved tracker.write");
-    await expect(audit).toContainText("set autonomy to L2 here");
-
-    // Leave the shared space as it was found: the L1 ask, decided.
-    await page.getByRole("button", { name: /Spaces/ }).click();
-    const pending = page
-      .getByRole("article", { name: /Approval/ })
-      .filter({ has: page.getByRole("button", { name: "Approve" }) })
-      .last();
-    await pending.getByRole("button", { name: "Approve" }).click();
-    await harness.next("approval.resolved");
+    await expect(audit).toContainText("set autonomy to L2");
   } finally {
     harness.close();
   }
@@ -240,14 +280,9 @@ test("the dial: at L1 a write asks; turned to L2, policy approves it on the spot
 test("always at L1: the next ask of its kind is approved by policy (ADR 0080)", async ({
   page,
 }) => {
-  const harness = await start(page);
-  const dial = runPanel(page).getByRole("group", { name: /Autonomy for/ });
+  const [, harness] = await startOwn(page, "Yarrow");
   try {
-    await dial.getByLabel("L1 · Ask first").click();
-    await harness.next("policy.updated");
-    await expect(dial.getByLabel("L1 · Ask first")).toBeChecked();
-
-    // A kind no other test asks for: the rule stays in the shared room.
+    // A kind no other test asks for.
     const note = (id: string) =>
       harness.send("approval.request", {
         approval_id: id,
@@ -272,9 +307,6 @@ test("always at L1: the next ask of its kind is approved by policy (ADR 0080)", 
     expect(String(byPolicy["reason"])).toContain("said always");
     await expect(cardOf(page, second)).toHaveCount(0);
   } finally {
-    // Leave the shared room at L2, where the dial test left it.
-    await dial.getByLabel("L2 · Ask when it matters").click();
-    await harness.next("policy.updated");
     harness.close();
   }
 });
@@ -282,9 +314,8 @@ test("always at L1: the next ask of its kind is approved by policy (ADR 0080)", 
 test("settled in the harness's own tools: the card cools, in its name (ADR 0079); one that matters waits for a person (ADR 0195)", async ({
   page,
 }) => {
-  const harness = await start(page);
-  const dial = runPanel(page).getByRole("group", { name: /Autonomy for/ });
   // A small ask is let through at L2 before the harness could settle it: at L1 it waits.
+  const [, harness] = await startOwn(page, "Clover");
   const write = async () => {
     const approvalId = newApprovalId();
     await harness.send("approval.request", {
@@ -296,10 +327,6 @@ test("settled in the harness's own tools: the card cools, in its name (ADR 0079)
     return approvalId;
   };
   try {
-    await dial.getByLabel("L1 · Ask first").click();
-    await harness.next("policy.updated");
-    await expect(dial.getByLabel("L1 · Ask first")).toBeChecked();
-
     const approvalId = await write();
     await expect(card(page).getByRole("button", { name: "Approve" })).toBeEnabled();
     expect(
@@ -340,9 +367,6 @@ test("settled in the harness's own tools: the card cools, in its name (ADR 0079)
     await card(page).getByRole("button", { name: "Approve" }).click();
     await expect(cardOf(page, matters)).toHaveCount(0);
   } finally {
-    // Leave the shared room at L2, where the dial test left it.
-    await dial.getByLabel("L2 · Ask when it matters").click();
-    await harness.next("policy.updated");
     harness.close();
   }
 });

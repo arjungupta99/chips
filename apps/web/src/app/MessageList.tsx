@@ -17,7 +17,8 @@
  * that moves the ground: measuring a row changes how tall the list is, and a scrollbar that
  * jumps must not be mistaken for a reader who has scrolled away. So while the reader is at the
  * end the window is anchored there rather than derived from the scroll position, the scroller
- * is taken back to the bottom after every render and every change of size in the room, and
+ * is taken back to the bottom after every render, every change of size in the room and every
+ * bubble or card that comes or goes under the rows, and
  * following ends only when the reader actually moves back up the space — not when the ground
  * moves under them. How it goes there is the room's motion (`room/roomMotion.ts`, ADR 0242): on
  * the room's spring, everything drawn where it was until it gets there, as on the phone; at once
@@ -464,7 +465,25 @@ export function MessageList<T>(props: MessageListProps<T>) {
       note(rows);
     });
     observer.current = watcher;
+    // What stands under the rows comes and goes on clocks of its own (`RoomAsks`): an agent's
+    // thinking bubble after its beat, an ask's card after its beat, a card folded away. Nothing of
+    // the list is drawn again as they do, so each was watched only from the list's next drawing,
+    // and the room did not go on to its end as the bubble came: it stood short by the bubble's
+    // height, the bubble under the window, until the agent said something more. The run panel's
+    // column had hidden it, as its width glide put the room back at its end, until ADR 0293 took
+    // the panel away (`e2e/deleting-place.spec.ts`, 11 November 2026). So each is watched as it is
+    // added, and the room goes to its end as one comes or goes.
+    const comings = new MutationObserver((records) => {
+      const came = footChanged(records, indices.current, (node) => watcher.observe(node));
+      // The room taking a new width moves its rows itself, and goes on from where they land.
+      if (!came || gliding.current !== undefined) return;
+      recompute();
+      stick();
+    });
+    const el = list();
+    if (el !== null) comings.observe(el, { childList: true });
     return () => {
+      comings.disconnect();
       watcher.disconnect();
       observer.current = null;
     };
@@ -531,6 +550,27 @@ export function MessageList<T>(props: MessageListProps<T>) {
       <div className="msgs-spacer" ref={foot} style={{ height: visible.after }} />
     </Fragment>
   );
+}
+
+/**
+ * Whether anything under the rows came or went in these changes to the list's children: an agent's
+ * thinking bubble, an ask's card. Not a row, which the list draws itself, nor a spacer. Each that
+ * came is handed to `watch`, so its size is heard from then.
+ */
+function footChanged(
+  records: readonly MutationRecord[],
+  rows: WeakMap<Element, number>,
+  watch: (node: Element) => void,
+): boolean {
+  const under = (node: Node): node is Element =>
+    node instanceof Element && !rows.has(node) && !node.classList.contains("msgs-spacer");
+  let changed = false;
+  for (const record of records) {
+    const came = [...record.addedNodes].filter(under);
+    for (const node of came) watch(node);
+    if (came.length > 0 || [...record.removedNodes].some(under)) changed = true;
+  }
+  return changed;
 }
 
 /** A width glide let go, landed or not, with nothing started again after it. */

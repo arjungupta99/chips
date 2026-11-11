@@ -68,8 +68,8 @@ test("a harness on the SDK hears Not right?, and posts a fix", async ({ page }) 
     await expect(card.getByRole("button", { name: "Approve" })).toBeEnabled({ timeout: 20_000 });
     await card.getByRole("button", { name: "Approve" }).click();
     // The run is over once its summary is the room's last line: Scout's lines are held until the
-    // run closes. Not by its panel going: the panel waits the thinking beat, and a run at its card
-    // within that never showed one (ADR 0268 addendum).
+    // run closes. Not by its bubble going: the bubble waits the thinking beat, and a run at its
+    // card within that never showed one (ADR 0268 addendum).
     const messages = page.getByTestId("messages");
     await expect(messages.locator(".msg").last()).toContainText(SUMMARY, { timeout: 20_000 });
 

@@ -158,6 +158,43 @@ session's earlier turns, say them once a session: keep a `SessionRules`, pass
 `rulesHeld: sessions.holds(session, rules)` to `promptFor`, call `sessions.told(session, rules)`
 once the turn is given, and `sessions.forget(session)` when the session compacts.
 
+An agent takes one turn at a time in a room, so words for it that arrive while it works wait, and
+so does everything it was sent while your harness was away, which Chips sends when you connect
+again. Make one turn of what waited, not one each (ADR 0294): every turn pays for the agent's whole
+context again, and the first of three answers a message the third has changed. Give `promptFor`
+the newest, with the ones that waited ahead of it as `earlier`, oldest first:
+
+```ts
+const waiting = queue.splice(0); // every `message.new` for this agent in this room
+const newest = waiting.pop();
+const words = promptFor(newest, { taker: agent, earlier: waiting, since });
+```
+
+The turn is the newest's: its note, and what was said since. The others are said in full ahead of
+its words and left out of the lines since. `since` is what you heard as `message.overheard` in
+that room after the newest reached you: said last, so the turn has the room as it is when it
+starts. Wait a moment before an idle agent starts, 150 ms in Chips's own bridges, so a burst after
+a reconnect is one turn. Keep a message with `handed` as a turn of its own, since its note is about
+it alone. One run begun after several messages counts as each of them picked up.
+
+Two more things a turn is told, where you give them. `before` is the `catch_up` of the
+`agent.attached` that put the agent in the room: the room's last lines before it joined, said once
+under "Said in this space before you joined:", ahead of the lines since. Keep it by agent and room
+until the agent's first turn there is given, then drop it. `heldPost` is the `Ack` of the agent's
+last post in the room when it said `held: true`, for the agent's next turn in the room, once. The
+first thing a person does in a room after a hold hands each agent the newest held message that was
+for it, and a person's message is usually what starts that next turn. So the turn opens with one
+of two things. Where its message says the agents are held still (`exchange.stage` is `held`), that
+the agents it named do not have the message yet, so the model tells the person what is done and
+what is blocked rather than asking the agents again. Otherwise, that the message was held until a
+person acted and the agents have it now, so the model does not send it again.
+`heldWords(ack)` gives the first to a harness that tells its model as soon as `post` answers, and
+`heldWords(ack, true)` the second.
+
+```ts
+const words = promptFor(newest, { taker: agent, earlier: waiting, since, before, heldPost });
+```
+
 `promptFor` is the order Chips asks for; a harness that wants another reads the same fields:
 `message.exchange?.note`, `message.room?.notes[agent]`, `renderContext(message.context)`, and
 `renderReplyingTo(message.replying_to, { sender, taker })`, with `message.from`'s `kind` and

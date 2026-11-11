@@ -413,9 +413,21 @@ export async function settled(page: Page): Promise<void> {
   });
 }
 
-export const runPanel = (page: Page): Locator => page.getByRole("complementary", { name: "Run" });
-export const steps = (page: Page, status: string): Locator =>
-  runPanel(page).locator(`.ui-timeline__item[data-kind="step"][data-status="${status}"]`);
+/**
+ * An agent's thinking bubble in the open room (ADR 0147), by the name its words start with. It is
+ * where a run is seen working since the Run panel went (ADR 0293), and its right-click menu holds
+ * Pause, Resume and Stop.
+ */
+export const bubble = (page: Page, name = "Scout"): Locator =>
+  page.getByTestId("doing").and(page.getByRole("status", { name: new RegExp(`^${name} · `) }));
+
+/** The bubble's menu, opened as a person opens it: a right-click on the bubble (ADR 0293). */
+export async function runMenu(page: Page, name = "Scout"): Promise<Locator> {
+  await bubble(page, name).locator(".doing-bub").click({ button: "right" });
+  const menu = page.getByTestId("run-menu");
+  await expect(menu).toBeVisible();
+  return menu;
+}
 
 /**
  * One more agent for a harness, registered by a key of its own (ADR 0087): in no room, so a

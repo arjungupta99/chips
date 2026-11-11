@@ -94,6 +94,23 @@ export const roomIdle = z.object({
 });
 export type RoomIdle = z.infer<typeof roomIdle>;
 
+export const roomAway = z.object({
+  participant_id: z.string().min(1).max(120),
+  why: z
+    .enum(["offline", "trouble"])
+    .describe(
+      "`offline`: no connection of its harness is open. `trouble`: its harness is connected and says something is wrong on its side (ADR 0083).",
+    ),
+  reason: z
+    .string()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe("For `trouble`: what its harness said is wrong, in its own words."),
+  minutes: z.int().nonnegative().describe("For how long, in whole minutes."),
+});
+export type RoomAway = z.infer<typeof roomAway>;
+
 export const roomNote = z.object({
   members: z
     .array(roomMember)
@@ -124,6 +141,13 @@ export const roomNote = z.object({
     .describe(
       "The room's other agents that have had a turn here: how long since the last one ended (ADR 0104).",
     ),
+  away: z
+    .array(roomAway)
+    .max(500)
+    .optional()
+    .describe(
+      "The room's agents that can't answer as Chips sends this turn (ADR 0291): offline, or their harness says something is wrong. Work handed to one of them waits.",
+    ),
 });
 export type RoomNote = z.infer<typeof roomNote>;
 
@@ -147,7 +171,12 @@ export interface NoteMember {
 export interface RoomNow {
   readonly working: readonly RoomWork[];
   readonly idle: readonly RoomIdle[];
+  /** Which of the agents can't answer now (ADR 0291). */
+  readonly away?: readonly RoomAway[] | undefined;
 }
+
+/** Why an agent did not pick up a message that was for it (ADR 0291). */
+export type UnpickedWhy = "offline" | "trouble" | "failed" | "silent";
 
 /**
  * What is news to one who takes the turn (ADR 0104), with who did it by name: that it joined the
@@ -177,6 +206,23 @@ export interface TakerNews {
     readonly asked: readonly string[];
     readonly organiser: string;
   };
+  /**
+   * That the message was for another agent that did not pick it up (ADR 0291): who that is and
+   * why, how long ago it was said, who said it, or that the taker said it itself (`yours`), and
+   * which person to tell when the work has to wait.
+   */
+  readonly unpicked?: {
+    readonly by: string;
+    readonly why: UnpickedWhy;
+    readonly reason?: string | undefined;
+    readonly minutes: number;
+    readonly saidBy?: string | undefined;
+    readonly yours?: boolean | undefined;
+    readonly lead?: boolean | undefined;
+    readonly tell?: string | undefined;
+  };
+  /** That the message reaches the taker long after it was said, and how long (ADR 0291). */
+  readonly late?: { readonly minutes: number };
   /**
    * How many lines of what was said since its last turn come with this one, when older ones were
    * left out to fit its harness's budget (ADR 0105).
@@ -451,6 +497,8 @@ function newsLines(members: readonly RoomMember[], youId: string, news?: TakerNe
   const shared = members.some((each) => each.participant_id !== youId && each.kind === "agent");
   return [
     ...nobodysLines(news.nobodys),
+    ...unpickedLines(news.unpicked),
+    ...lateLines(news.late),
     // "It is yours to answer" would say the opposite of "Sanjay says who does what".
     ...(news.yours === undefined || !shared || news.several !== undefined
       ? []
@@ -567,6 +615,60 @@ function nobodysLines(nobodys: TakerNews["nobodys"]): string[] {
   ];
 }
 
+/** Why an agent did not pick a message up, as the note says it. */
+function unpickedWhy(why: UnpickedWhy, reason: string | undefined): string {
+  const said = reason?.trim().replace(/[.!\s]+$/, "");
+  if (why === "offline") return "its harness is offline";
+  if (why === "trouble") {
+    return said === undefined || said === ""
+      ? "its harness says something is wrong on its side"
+      : `its harness says: ${said}`;
+  }
+  if (why === "failed") {
+    return said === undefined || said === "" ? "its turn failed" : `its turn failed: ${said}`;
+  }
+  return "nothing has been heard from it";
+}
+
+/**
+ * That a message for another agent was not picked up, and what to do about it (ADR 0291): to the
+ * lead, or back to the agent that said it. In the Health space an agent could hand work to one
+ * whose harness was down, and the room sat until a person looked.
+ */
+function unpickedLines(unpicked: TakerNews["unpicked"]): string[] {
+  if (unpicked === undefined) return [];
+  const { by } = unpicked;
+  const whose =
+    unpicked.yours === true
+      ? "this message of yours"
+      : `this message from ${unpicked.saidBy ?? "another agent"}`;
+  const tell = unpicked.tell ?? "the people here";
+  const what = `do the work yourself, hand it to another agent with an @, or tell ${tell} it is waiting on ${by}.`;
+  // Away, an @ for it only waits: the first agent told so answered "@Lionel is offline, so…",
+  // which was one more message for Lionel (10 November 2026).
+  const away = unpicked.why === "offline" || unpicked.why === "trouble";
+  return [
+    `${by} hasn't picked up ${whose}, sent ${ago(unpicked.minutes)}: ${unpickedWhy(unpicked.why, unpicked.reason)}.`,
+    unpicked.lead === true && unpicked.yours !== true
+      ? `It comes to you as the lead: ${what}`
+      : `${what[0]?.toUpperCase()}${what.slice(1)}`,
+    ...(away
+      ? [`Write ${by}'s name without an @ until it is back: an @ for it now only waits.`]
+      : []),
+  ];
+}
+
+/**
+ * That a message reaches its taker long after it was said (ADR 0291): its harness was down, or
+ * busy, and the room has moved on meanwhile.
+ */
+function lateLines(late: TakerNews["late"]): string[] {
+  if (late === undefined) return [];
+  return [
+    `This was said ${ago(late.minutes)} and reaches you only now: read what was said since before you act on it.`,
+  ];
+}
+
 /** To one that joined a room already talking, when, by whom, and to work from its files. */
 function joinedLines(joined: TakerNews["joined"]): string[] {
   if (joined === undefined) return [];
@@ -624,6 +726,21 @@ function nowLines(members: readonly RoomMember[], youId: string, now?: RoomNow):
   });
   const lines = [`Working now: ${working.length === 0 ? "nobody else" : working.join("; ")}.`];
   if (idle.length > 0) lines.push(`Not working: ${idle.join(", ")}.`);
+  // Who can't answer (ADR 0291): work handed to one of them waits until it is back.
+  const away = (now.away ?? []).flatMap((gone) => {
+    const name = nameOf(gone.participant_id);
+    if (name === undefined) return [];
+    const why =
+      gone.why === "offline"
+        ? `offline for ${duration(gone.minutes)}`
+        : unpickedWhy("trouble", gone.reason);
+    return [`${name} (${why})`];
+  });
+  if (away.length > 0) {
+    lines.push(
+      `Can't answer now: ${away.join("; ")}. Work you hand ${away.length === 1 ? "it" : "them"} waits until ${away.length === 1 ? "it is" : "they are"} back.`,
+    );
+  }
   return lines;
 }
 
@@ -672,5 +789,6 @@ export function roomNoteFor(
     ),
     rules: Object.fromEntries(takers.map((taker) => [taker, roomRules(listed, taker, project)])),
     ...(now === undefined ? {} : { working: [...now.working], idle: [...now.idle] }),
+    ...(now?.away === undefined || now.away.length === 0 ? {} : { away: [...now.away] }),
   };
 }

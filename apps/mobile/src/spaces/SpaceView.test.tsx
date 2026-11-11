@@ -26,6 +26,7 @@ import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import type { ReactElement } from "react";
 import {
+  AppState,
   Dimensions,
   FlatList,
   Keyboard,
@@ -45,6 +46,7 @@ import { avatarHue, hueColours, sourceColours } from "../ui/sourceColours";
 import { BUBBLE, ICON_GROUNDS, light, SPACE } from "../ui/tokens";
 import { listRoom } from "./AddressInField";
 import { forgetDrafts, quietFoot } from "./Composer";
+import { ARRIVE_MS, LEAVE_MS } from "./PausedBanner";
 import { homeward, madeHere } from "./RoomMotion";
 import { MARKS_MS, PLACING_MS, SpaceView } from "./SpaceView";
 import { CATCH_UP_MS, THINKING_GRACE_MS } from "./Thinking";
@@ -1027,6 +1029,83 @@ describe("the lines a space draws", () => {
     expect(within(screen.getByTestId("space-foot")).getByTestId("doing")).toBeTruthy();
   });
 
+  describe("held, Pause and Stop (ADR 0293)", () => {
+    /** Its harness said a Pause holds the run. */
+    const holds = { ...going, pausable: true };
+    const paused = {
+      ...holds,
+      state: "paused",
+      paused: true,
+      pausedAt: "2026-09-07T10:00:05.000Z",
+      pausedMs: 0,
+    };
+    const target = { spaceId: "sp_1", runId: "run_1" };
+
+    it("lifts on a hold: who and how long, then Pause and, after a rule, Stop in red", async () => {
+      const { element, store } = open(state([line()], { run: holds }));
+      await render(element);
+      await beat();
+      await userEvent.longPress(screen.getByTestId("doing-hold"));
+      const card = screen.getByTestId("lift-card");
+      expect(within(card).getByText(/^Scout · working for \d+:\d{2}$/)).toBeTruthy();
+      expect(within(card).getByTestId("lift-run-pause")).toHaveAccessibleName("Pause");
+      expect(within(card).getByTestId("lift-run-stop")).toHaveAccessibleName("Stop");
+      // No capsule over it: nothing is done to a thought's words.
+      expect(screen.queryByTestId("lift-capsule")).toBeNull();
+      // Done once the bubble is back in its place, so the change is seen on it.
+      await userEvent.press(screen.getByTestId("lift-run-pause"));
+      await beat(2000);
+      expect(store.calls).toContainEqual({ name: "pauseRun", args: target });
+    });
+
+    it("offers Stop alone where its harness never said a Pause holds the run", async () => {
+      const { element, store } = open(state([line()], { run: going }));
+      await render(element);
+      await beat();
+      await userEvent.longPress(screen.getByTestId("doing-hold"));
+      expect(screen.queryByTestId("lift-run-pause")).toBeNull();
+      await userEvent.press(screen.getByTestId("lift-run-stop"));
+      await beat(2000);
+      expect(store.calls).toContainEqual({ name: "stopRun", args: target });
+    });
+
+    it("stays when paused: it says Paused, its clock holds, and a flat Resume resumes it", async () => {
+      const { element, store } = open(state([line()], { run: paused }));
+      await render(element);
+      await beat();
+      expect(screen.getByTestId("doing-label")).toHaveTextContent("Paused");
+      expect(screen.getByTestId("doing-clock")).toHaveTextContent("0:05");
+      await beat(5000);
+      expect(screen.getByTestId("doing-clock")).toHaveTextContent("0:05");
+      await userEvent.press(screen.getByTestId("doing-resume"));
+      expect(store.calls).toContainEqual({ name: "resumeRun", args: target });
+    });
+
+    it("offers Resume and Stop on a paused bubble's card", async () => {
+      await render(open(state([line()], { run: paused })).element);
+      await beat();
+      await userEvent.longPress(screen.getByTestId("doing-hold"));
+      const card = screen.getByTestId("lift-card");
+      expect(within(card).getByText("Scout · paused at 0:05")).toBeTruthy();
+      expect(within(card).getByTestId("lift-run-resume")).toBeTruthy();
+      expect(within(card).queryByTestId("lift-run-pause")).toBeNull();
+    });
+
+    it("gives VoiceOver its items as the bubble's own actions, without the lift", async () => {
+      const { element, store } = open(state([line()], { run: holds }));
+      await render(element);
+      await beat();
+      const hold = screen.getByTestId("doing-hold");
+      expect(hold.props["accessibilityActions"]).toEqual([
+        { name: "pause", label: "Pause" },
+        { name: "stop", label: "Stop" },
+      ]);
+      fireEvent(hold, "accessibilityAction", { nativeEvent: { actionName: "stop" } });
+      expect(store.calls).toContainEqual({ name: "stopRun", args: target });
+      expect(screen.queryByTestId("lift-card")).toBeNull();
+    });
+  });
+
   it("keeps an agent's face still beside its dots: one sign of the work, not two (ADR 0126)", async () => {
     // The face's pins ran round beside the mark running in the bubble, two spinners for one
     // agent (Arjun, 6 October 2026: "disable the agent icon spinner when spinner is going on in
@@ -1644,6 +1723,8 @@ describe("the composer", () => {
         harnessId: "har_scout",
         state: "running",
         paused: false,
+        // Its harness said a Pause holds it (ADR 0293).
+        pausable: true,
         approvals: [],
         questions: [],
         steps: [],
@@ -3507,6 +3588,128 @@ describe("who a message is for (ADR 0081)", () => {
       ),
     );
     expect(screen.queryByTestId("raise-limit")).toBeNull();
+  });
+
+  /** The room held at the spend ceiling, or let go on since, and how its socket stands. */
+  const atCeiling = (held: boolean, connection = "open") => {
+    const snapshot = state(
+      [
+        line({
+          id: "q",
+          seq: 1,
+          authorId: "per_arjun",
+          text: "Read the trials",
+          addressedTo: ["har_scout"],
+        }),
+      ],
+      { members: PAIR, connection },
+    );
+    const [space] = snapshot.model.spaces;
+    const acted = held ? 1 : 12;
+    return {
+      ...snapshot,
+      model: {
+        ...snapshot.model,
+        spaces: [
+          {
+            ...space,
+            actedSeq: acted,
+            pausedSeq: 9,
+            pausedSpend: { spentUsd: 3.02, ceilingUsd: 3 },
+          },
+        ],
+      },
+    } as unknown as Snapshot;
+  };
+  const LEAVING = { includeHiddenElements: true } as const;
+
+  it("keeps the paused banner as it was while the room catches up, then lets it go with a fade (Arjun's iPhone, 11 November 2026)", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = fakeStore(atCeiling(true));
+      const draw = (snapshot: Snapshot) =>
+        onAPhone(<SpaceView store={store} snapshot={snapshot} spaceId="sp_1" selfId="per_arjun" />);
+      const { rerender } = await render(draw(atCeiling(true)));
+      expect(screen.getByTestId("paused-banner")).toBeTruthy();
+      // The socket went while the app was away, and somebody let the agents carry on meanwhile.
+      await rerender(draw(atCeiling(true, "connecting")));
+      await rerender(draw(atCeiling(false, "connecting")));
+      expect(screen.getByTestId("paused-banner")).toHaveTextContent(
+        "This job has spent $3.02 of the $3.00 this space allows.",
+        { exact: false },
+      );
+      // Open again, the catch-up a round trip behind: still as it was, and still a way on.
+      await rerender(draw(atCeiling(false)));
+      expect(screen.getByTestId("carry-on")).toBeTruthy();
+      await beat(CATCH_UP_MS);
+      // Caught up: on its way out it says what it said, but is nothing to tap or read out.
+      expect(screen.queryByTestId("paused-banner")).toBeNull();
+      expect(screen.getByTestId("paused-banner", LEAVING)).toHaveTextContent(
+        "This job has spent $3.02",
+        { exact: false },
+      );
+      await beat(LEAVE_MS);
+      await waitFor(() => expect(screen.queryByTestId("paused-banner", LEAVING)).toBeNull());
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("never draws a pause that the catch-up both brings and ends, back from the background with the socket still open", async () => {
+    jest.useFakeTimers();
+    const heard: ((change: string) => void)[] = [];
+    jest.spyOn(AppState, "addEventListener").mockImplementation((_, then) => {
+      heard.push(then as (change: string) => void);
+      return { remove: () => undefined } as ReturnType<typeof AppState.addEventListener>;
+    });
+    const told = async (change: string) => {
+      await act(async () => {
+        for (const then of heard) then(change);
+      });
+    };
+    try {
+      const store = fakeStore(atCeiling(false));
+      const draw = (snapshot: Snapshot) =>
+        onAPhone(<SpaceView store={store} snapshot={snapshot} spaceId="sp_1" selfId="per_arjun" />);
+      const { rerender } = await render(draw(atCeiling(false)));
+      expect(screen.queryByTestId("paused-banner", LEAVING)).toBeNull();
+      await told("inactive");
+      await told("background");
+      await told("active");
+      // iOS froze the socket rather than closing it: what it missed comes in a page at a time.
+      await rerender(draw(atCeiling(true)));
+      expect(screen.queryByTestId("paused-banner", LEAVING)).toBeNull();
+      await rerender(draw(atCeiling(false)));
+      await beat(CATCH_UP_MS);
+      expect(screen.queryByTestId("paused-banner", LEAVING)).toBeNull();
+      // Control Center over the room is not a return: a pause then is the room's at once.
+      await told("inactive");
+      await told("active");
+      await rerender(draw(atCeiling(true)));
+      expect(screen.getByTestId("paused-banner")).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("brings in a pause heard while in touch at once, ready to tap as it fades in", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = fakeStore(atCeiling(false));
+      const draw = (snapshot: Snapshot) =>
+        onAPhone(<SpaceView store={store} snapshot={snapshot} spaceId="sp_1" selfId="per_arjun" />);
+      const { rerender } = await render(draw(atCeiling(false)));
+      await rerender(draw(atCeiling(true)));
+      expect(screen.getByTestId("paused-banner")).toBeTruthy();
+      await userEvent.press(screen.getByTestId("carry-on"));
+      expect(store.calls.filter((each) => each.name === "setExchange")).toEqual([
+        { name: "setExchange", args: { spaceId: "sp_1", state: "going" } },
+      ]);
+      await beat(ARRIVE_MS);
+      expect(screen.getByTestId("paused-banner")).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   /** Scout and Tree taking turns, from the first of `WORDS` to the `n`th. */

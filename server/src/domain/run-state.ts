@@ -3,17 +3,31 @@
  *
  *   Queued -> Running -> Waiting on you (approval or question) -> Running -> Done | Failed | Cancelled
  *
+ * and a person's Pause holds a running run in Paused until Resume (ADR 0293).
+ *
  * The domain layer is pure (technical-plan 6.1): this file knows the shape of a run's life and
  * nothing about how a run is stored or transported.
  */
 
-/** Appendix C fixes these six states. */
-export type RunState = "queued" | "running" | "waiting" | "done" | "failed" | "cancelled";
+/**
+ * Appendix C fixed six states; `paused` is the seventh (ADR 0293). Until then a paused run was
+ * `waiting`, the state of a run that waits on a person, so an ask answered while it was paused
+ * moved it to `running` and its Resume was refused.
+ */
+export type RunState =
+  | "queued"
+  | "running"
+  | "waiting"
+  | "paused"
+  | "done"
+  | "failed"
+  | "cancelled";
 
 export const RUN_STATES: readonly RunState[] = [
   "queued",
   "running",
   "waiting",
+  "paused",
   "done",
   "failed",
   "cancelled",
@@ -46,15 +60,25 @@ const TRANSITIONS: Readonly<Record<RunState, Partial<Record<RunTransition, RunSt
   running: {
     start: "running",
     await_person: "waiting",
-    pause: "waiting",
+    pause: "paused",
     complete: "done",
     fail: "failed",
     cancel: "cancelled",
   },
   waiting: {
     person_answered: "running",
+    // A run paused before ADR 0293 was kept here, and still resumes.
     resume: "running",
     await_person: "waiting",
+    complete: "done",
+    fail: "failed",
+    cancel: "cancelled",
+  },
+  // An ask raised or answered while paused leaves it paused: only a Resume sets it going.
+  paused: {
+    resume: "running",
+    await_person: "paused",
+    person_answered: "paused",
     complete: "done",
     fail: "failed",
     cancel: "cancelled",
@@ -105,7 +129,8 @@ export type RunAcceptance = { readonly ok: true } | { readonly ok: false; readon
  *
  * Three things are refused: anything into a run that has ended — bar the decision on an
  * approval it asked for, that decision's outcome, and what the run cost — a pause of a run that is not
- * running, and a resume of a run that is not waiting. Everything else is accepted — including a
+ * running, and a resume of a run that is not paused (or `waiting`, where runs paused before ADR
+ * 0293 were kept). Everything else is accepted — including a
  * decision that arrives while the run is already running again, because two approvals can be
  * open at once and answering the second is not a mistake. For those the projector's stay-put
  * rule is the right one; for these three it would hide an error.

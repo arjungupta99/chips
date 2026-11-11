@@ -89,7 +89,8 @@ function fromHandOn(
   if (ask === undefined || approvalId === undefined) return false;
   if (run.harnessId === "") run.harnessId = ask.harness_id;
   if (run.harness === "") run.harness = ask.harness_id;
-  if (!TERMINAL.includes(run.state)) run.state = "waiting";
+  // A paused run stays paused through an ask (ADR 0293): only a Resume sets it going.
+  if (!TERMINAL.includes(run.state) && !run.paused) run.state = "waiting";
   run.approvals.push({
     approvalId,
     runId: run.runId,
@@ -115,7 +116,8 @@ export const APPROVAL_FOLDS: Readonly<Record<string, FoldStep>> = {
   "approval.request": (state, event) => {
     const run = runOf(state, event);
     if (run === undefined) return;
-    if (!TERMINAL.includes(run.state)) run.state = "waiting";
+    // A paused run stays paused through an ask (ADR 0293): only a Resume sets it going.
+    if (!TERMINAL.includes(run.state) && !run.paused) run.state = "waiting";
     const action = required<{ kind: string; input?: unknown } & ActionFlags>(event, "action");
     const preview = field<Preview>(event, "preview");
     const risk = required<string[]>(event, "risk");
@@ -198,7 +200,7 @@ export const APPROVAL_FOLDS: Readonly<Record<string, FoldStep>> = {
         },
       };
     });
-    if (!TERMINAL.includes(run.state)) run.state = "running";
+    if (!TERMINAL.includes(run.state) && !run.paused) run.state = "running";
     if (decision === "approved" || decision === "edited") letWork(state, event, run.harnessId, by);
     state.audit.push({
       seq: event.seq,
@@ -242,7 +244,8 @@ export const APPROVAL_FOLDS: Readonly<Record<string, FoldStep>> = {
     const space = spaceOf(state, event);
     const askId = field<string>(event, "ask_id");
     if (run === undefined || space === undefined || askId === undefined) return;
-    if (!TERMINAL.includes(run.state)) run.state = "waiting";
+    // A paused run stays paused through an ask (ADR 0293): only a Resume sets it going.
+    if (!TERMINAL.includes(run.state) && !run.paused) run.state = "waiting";
     const asked = required<
       {
         question_id: string;
@@ -301,7 +304,11 @@ export const APPROVAL_FOLDS: Readonly<Record<string, FoldStep>> = {
         })),
       },
     };
-    if (!TERMINAL.includes(run.state) && run.approvals.every((a) => a.resolved !== undefined)) {
+    if (
+      !TERMINAL.includes(run.state) &&
+      !run.paused &&
+      run.approvals.every((a) => a.resolved !== undefined)
+    ) {
       run.state = "running";
     }
     state.audit.push({

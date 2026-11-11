@@ -39,6 +39,7 @@ import {
   laneChainCostUsd,
   lanesInSpace,
   lastWords,
+  marginWords,
   mayAnswer,
   mayDelete,
   mayEdit,
@@ -1469,10 +1470,81 @@ describe("the run's timeline, cost and controls (M1.3)", () => {
 
   it("is paused by a person and carries on when resumed", () => {
     const paused = buildModel([...upToTheAsk(), fixture("run.pause", 7)]).spaces[0]?.run;
-    expect(paused).toMatchObject({ state: "waiting", paused: true });
+    expect(paused).toMatchObject({ state: "paused", paused: true });
+    // The ask raised before the pause is still open, so it waits on that once resumed.
     const resumed = buildModel([...upToTheAsk(), fixture("run.pause", 7), fixture("run.resume", 8)])
       .spaces[0]?.run;
-    expect(resumed).toMatchObject({ state: "running", paused: false });
+    expect(resumed).toMatchObject({ state: "waiting", paused: false });
+    const answered = buildModel([
+      ...upToTheAsk(),
+      fixture("approval.resolved", 7, { decision: "approved", resolved_by: "usr_1" }),
+      fixture("run.pause", 8),
+      fixture("run.resume", 9),
+    ]).spaces[0]?.run;
+    expect(answered).toMatchObject({ state: "running", paused: false });
+  });
+
+  it("stays paused through an ask and its answer, so only Resume sets it going (ADR 0293)", () => {
+    const begun = [
+      fixture("space.created", 1),
+      fixture("membership.added", 2),
+      fixture("run.started", 3),
+      fixture("run.pause", 4),
+    ];
+    const asked = buildModel([...begun, fixture("approval.request", 5)]).spaces[0]?.run;
+    expect(asked).toMatchObject({ state: "paused", paused: true });
+    const answered = buildModel([
+      ...begun,
+      fixture("approval.request", 5),
+      fixture("approval.resolved", 6, { decision: "approved", resolved_by: "usr_1" }),
+    ]).spaces[0]?.run;
+    expect(answered).toMatchObject({ state: "paused", paused: true });
+  });
+
+  it("says Pause holds it once its harness says so on a status (ADR 0293)", () => {
+    const begun = [
+      fixture("space.created", 1),
+      fixture("membership.added", 2),
+      fixture("run.started", 3),
+    ];
+    expect(buildModel([...begun, fixture("run.status", 4)]).spaces[0]?.run?.pausable).toBe(false);
+    const said = buildModel([
+      ...begun,
+      fixture("run.status", 4, { pausable: true }),
+      fixture("run.status", 5),
+    ]).spaces[0]?.run;
+    expect(said?.pausable).toBe(true);
+  });
+
+  it("counts the time it stood paused, so its clock counts working time (ADR 0293)", () => {
+    const start = fixture("run.started", 3);
+    const t = Date.parse(String(start.ts));
+    const iso = (ms: number) => new Date(t + ms).toISOString();
+    const run = buildModel([
+      fixture("space.created", 1),
+      fixture("membership.added", 2),
+      start,
+      fixture("run.pause", 4, { ts: iso(10_000) }),
+      fixture("run.resume", 5, { ts: iso(70_000) }),
+      fixture("run.pause", 6, { ts: iso(80_000) }),
+    ]).spaces[0]?.run;
+    expect(run).toMatchObject({ pausedMs: 60_000, pausedAt: iso(80_000), paused: true });
+    const stopped = buildModel([
+      fixture("space.created", 1),
+      fixture("membership.added", 2),
+      start,
+      fixture("run.pause", 4, { ts: iso(10_000) }),
+      fixture("run.cancel", 5, { ts: iso(25_000) }),
+    ]).spaces[0]?.run;
+    expect(stopped).toMatchObject({ pausedMs: 15_000, paused: false, state: "cancelled" });
+  });
+
+  it("says who stopped it where its bubble stood, when a person did (ADR 0293)", () => {
+    const space = buildModel([...upToTheAsk(), fixture("run.cancel", 7)]).spaces[0];
+    const line = space?.lines.at(-1);
+    const run = space?.run;
+    expect(line).toMatchObject({ kind: "system", authorId: run?.harnessId, authorKind: "harness" });
+    expect(line?.text).toMatch(/^was stopped( by .+)?$/);
   });
 
   it("ends as cancelled when stopped, and never moves again", () => {
@@ -3114,6 +3186,25 @@ describe("a group space (M3.3)", () => {
       expect(apart.lines.at(-1)?.text).toBe(
         "let the agents carry on after $3.10. A new $5.00 starts now.",
       );
+
+      // No cap, from Raise the limit, says it took the cap off in the same line (ADR 0292); taken
+      // off some time before, carrying on starts no new allowance.
+      const lifted = fixture("space.spend_ceiling_lifted", 960, {
+        actor: { kind: "person", id: ARJUN },
+      });
+      expect(spaceOf([...room(), started, paused, done, lifted, going]).lines.at(-1)?.text).toBe(
+        "took the cap off and let the agents carry on after $3.10.",
+      );
+      const liftedBefore = fixture("space.spend_ceiling_lifted", 945, {
+        actor: { kind: "person", id: ARJUN },
+      });
+      expect(
+        spaceOf([...room(), liftedBefore, started, paused, done, going]).lines.at(-1)?.text,
+      ).toBe("let the agents carry on after $3.10.");
+      // From No cap to an amount is set, not raised.
+      expect(
+        spaceOf([...room(), liftedBefore, started, paused, done, raised, going]).lines.at(-1)?.text,
+      ).toBe("set the limit to $5.00 and let the agents carry on after $3.10.");
     });
 
     it("says a person's pause in their name though Chips paused at the ceiling before it", () => {
@@ -3221,6 +3312,27 @@ describe("a group space (M3.3)", () => {
       expect(after.lines.at(-1)?.text).toBe("set the spend per job back to the default, $3.00");
     });
 
+    it("has no cap once a person takes it off, in one line, until an amount is set again (ADR 0292)", () => {
+      const lifted = fixture("space.spend_ceiling_lifted", 960, {
+        actor: { kind: "person", id: ARJUN },
+      });
+      const none = spaceOf([...room(), lifted]);
+      expect(none.spendCeiling).toBe("none");
+      expect(spendCeilingOf(none)).toBe("none");
+      expect(none.lines.at(-1)).toMatchObject({
+        kind: "system",
+        authorId: ARJUN,
+        text: "took the cap off the spend per job",
+      });
+      const set = fixture("space.spend_ceiling_set", 961, {
+        actor: { kind: "person", id: ARJUN },
+        usd: 500,
+      });
+      const capped = spaceOf([...room(), lifted, set]);
+      expect(capped.spendCeiling).toBe(500);
+      expect(capped.lines.at(-1)?.text).toBe("set the spend per job to $500.00");
+    });
+
     it("says nothing when a + room's claim chooses its lead, and one quiet line when the lead is handed nobody's turn (ADR 0104)", () => {
       const claimed = fixture("space.lead_set", 960, {
         actor: { kind: "system", id: "system" },
@@ -3242,6 +3354,57 @@ describe("a group space (M3.3)", () => {
         authorId: SCOUT,
         text: "took it as the lead: it was nobody's turn",
       });
+    });
+
+    it("says who took a message its agent did not pick up, and stops waiting on that agent (ADR 0291)", () => {
+      // The lead's own hand-off comes back to it; another agent's goes to the lead.
+      const own = said(SCOUT, "@Ledger reconcile March.", { addressed_to: [LEDGER] });
+      const back = fixture("message.handed", 970, {
+        message_id: `msg_${own.id.slice(4)}`,
+        agent_id: SCOUT,
+        lead: true,
+        unanswered_by: LEDGER,
+        why: "offline",
+      });
+      const returned = spaceOf([...room(), own, back]);
+      expect(returned.lines.find((line) => line.id === own.id)).toMatchObject({
+        passedOn: [LEDGER],
+      });
+      const took = returned.lines.at(-1) as Line;
+      expect(took).toMatchObject({
+        kind: "system",
+        authorId: SCOUT,
+        text: "took it back: it hadn't been picked up",
+        unpicked: { by: LEDGER, back: true },
+      });
+      expect(marginWords(took, DIRECTORY)).toBe("Scout took it back: Ledger hadn't picked it up");
+
+      const theirs = said(LEDGER, "@Scout over to you.", { addressed_to: [SCOUT] });
+      const toSender = fixture("message.handed", 980, {
+        message_id: `msg_${theirs.id.slice(4)}`,
+        agent_id: LEDGER,
+        unanswered_by: SCOUT,
+        why: "silent",
+      });
+      const again = spaceOf([...room(), theirs, toSender]).lines.at(-1) as Line;
+      expect(marginWords(again, DIRECTORY)).toBe("Ledger took it back: Scout hadn't picked it up");
+
+      const asLead = fixture("message.handed", 990, {
+        message_id: `msg_${theirs.id.slice(4)}`,
+        agent_id: "agt_wren",
+        lead: true,
+        unanswered_by: SCOUT,
+        why: "failed",
+      });
+      const led = spaceOf([...room(), theirs, asLead]).lines.at(-1) as Line;
+      expect(led).toMatchObject({ text: "took it as the lead: it hadn't been picked up" });
+      expect(marginWords({ ...led, authorId: LEDGER }, DIRECTORY)).toBe(
+        "Ledger took it as the lead: Scout hadn't picked it up",
+      );
+      // Any other quiet line reads as it did: its agent's name, then its words.
+      expect(
+        marginWords({ ...led, unpicked: undefined, text: "read PO-4471.pdf" }, DIRECTORY),
+      ).toBe("agt_wren read PO-4471.pdf");
     });
   });
 

@@ -78,6 +78,7 @@ get approval cards. Send context usage and you get the context ring.
 | [`message.handed`](/reference/events/message-handed/) | A held message was handed to an agent it was for, once a person acted; or one that was nobody's turn, to the room's lead. |
 | [`space.lead_set`](/reference/events/space-lead_set/) | A room's lead was chosen, or taken away. |
 | [`space.spend_ceiling_set`](/reference/events/space-spend_ceiling_set/) | What a room allows a job to spend was set, or set back to the default. |
+| [`space.spend_ceiling_lifted`](/reference/events/space-spend_ceiling_lifted/) | A room's cap on what a job may spend was taken off: No cap. |
 | [`space.lock_set`](/reference/events/space-lock_set/) | A room's changes were locked, or let go: while locked, no person renames, archives or deletes it. |
 | [`turn.passed`](/reference/events/turn-passed/) | An agent answered that it had nothing to say: nothing is shown or handed on. |
 | [`context.compacted`](/reference/events/context-compacted/) | An agent's context compacted, as its harness said: one quiet line in its room. |

@@ -4,13 +4,21 @@
  * - `GET /v1/spaces/:id/spend`: the job's spend against the room's ceiling, as of now, for anybody
  *   in the room: the same shape a harness is handed as `context.spend` with a message, and with it
  *   what began the job, the jobs before it that spent, and the room's total (ADR 0282).
- * - `POST /v1/spaces/:id/spend-ceiling {usd: number | null, carry_on?: true}`: the workspace's
- *   owner, in the room, sets what it allows a job (ADR 0196), from 0.25 to 100 in steps of 0.25, or
- *   `null` for the default. Setting what it is already changes nothing. With `carry_on`, the
- *   agents Chips held at the ceiling carry on as well, in the same request, so the room hears both
- *   at once (ADR 0282).
+ * - `GET /v1/spaces/:id/spend/jobs?before=<since_seq>&limit=<n>`: those jobs a page at a time,
+ *   newest first, for anybody in the room (ADR 0292 addendum): `{space_id, jobs, next?}`.
+ * - `POST /v1/spaces/:id/spend-ceiling {usd: number | null | "none", carry_on?: true}`: the
+ *   workspace's owner, in the room, sets what it allows a job (ADR 0196), from 0.25 to 1000 in
+ *   steps of 0.25, `null` for the default, or `"none"` to take the cap off (ADR 0292). Setting
+ *   what it is already changes nothing. With `carry_on`, the agents Chips held at the ceiling carry
+ *   on as well, in the same request, so the room hears both at once (ADR 0282).
  */
 
+import {
+  NO_SPEND_CEILING,
+  SPENT_JOBS_PAGE,
+  SPENT_JOBS_PAGE_MAX,
+  type SpendCeilingSetting,
+} from "@chipschat/protocol";
 import type { Hono } from "hono";
 import type { SpendCeilingRefusal } from "../../../application/index.js";
 import { roomSpendFor } from "../../../application/room-spend.js";
@@ -24,7 +32,7 @@ const STATUS = {
 } as const;
 
 function readBody(raw: string | undefined): {
-  readonly usd: number | null;
+  readonly usd: SpendCeilingSetting;
   readonly carryOn: boolean;
 } {
   let body: unknown;
@@ -36,23 +44,55 @@ function readBody(raw: string | undefined): {
   const fields = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
   const usd = fields["usd"];
   const carryOn = fields["carry_on"] === true;
-  if (usd === null || (typeof usd === "number" && Number.isFinite(usd))) return { usd, carryOn };
+  if (usd === null || usd === NO_SPEND_CEILING || (typeof usd === "number" && Number.isFinite(usd)))
+    return { usd, carryOn };
   throw new HttpError(
     "invalid_event",
-    "Say what a job may spend as `usd`, or `null` for the default.",
+    'Say what a job may spend as `usd`, `null` for the default, or `"none"` for No cap.',
   );
 }
 
+/** A whole number from a query, within bounds; nothing when it was not said. */
+function counted(raw: string | undefined, name: string, most: number): number | undefined {
+  if (raw === undefined || raw === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1 || n > most) {
+    throw new HttpError("invalid_event", `Say \`${name}\` as a whole number from 1 to ${most}.`);
+  }
+  return n;
+}
+
 export function registerSpendRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps): void {
-  app.get("/v1/spaces/:id/spend", async (c) => {
-    const principal = c.get("principal");
-    const spaceId = c.req.param("id");
+  /** That this person is in the room, or `not_found` as for a room that is not there. */
+  async function inRoom(
+    principal: { workspaceId: string; participantId: string },
+    spaceId: string,
+  ) {
     const mine = await deps.readModels.spacesForMember(
       principal.workspaceId,
       principal.participantId,
     );
     if (!mine.includes(spaceId))
       throw new HttpError("not_found", "You are in no space with that id.");
+  }
+
+  app.get("/v1/spaces/:id/spend/jobs", async (c) => {
+    const principal = c.get("principal");
+    const spaceId = c.req.param("id");
+    await inRoom(principal, spaceId);
+    const before = counted(c.req.query("before"), "before", Number.MAX_SAFE_INTEGER);
+    const limit = counted(c.req.query("limit"), "limit", SPENT_JOBS_PAGE_MAX) ?? SPENT_JOBS_PAGE;
+    const page = await deps.readModels.spentJobsOf(principal.workspaceId, spaceId, {
+      before,
+      limit,
+    });
+    return c.json({ space_id: spaceId, ...page });
+  });
+
+  app.get("/v1/spaces/:id/spend", async (c) => {
+    const principal = c.get("principal");
+    const spaceId = c.req.param("id");
+    await inRoom(principal, spaceId);
     const [spend, history] = await Promise.all([
       roomSpendFor({ readModels: deps.readModels, workspaceId: principal.workspaceId, spaceId }),
       deps.readModels.spendHistoryOf(principal.workspaceId, spaceId),

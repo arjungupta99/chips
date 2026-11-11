@@ -258,14 +258,15 @@ function useBack(state: AgentState | undefined): number | undefined {
   return at;
 }
 
-/** Whether a run is still going, paused or not: queued, running or waiting on someone. */
+/** Whether a run is still going, paused or not: queued, running, waiting on someone or paused. */
 const runGoing = (state: RunState | undefined) =>
-  state === "queued" || state === "running" || state === "waiting";
+  state === "queued" || state === "running" || state === "waiting" || state === "paused";
 
 /**
  * New agent, and Pause or Resume, in one row under the head. Pause is greyed out while nothing of
  * it is going (Arjun: "Show it greyed out"), so the row keeps its shape between idle and busy; the
- * server refuses to pause a run that has ended.
+ * server refuses to pause a run that has ended. A run whose harness never said a Pause holds it is
+ * greyed out too, since pausing it would hide work that carries on (ADR 0293).
  */
 function Acts(props: HarnessPageProps) {
   const { run } = props;
@@ -282,7 +283,8 @@ function Acts(props: HarnessPageProps) {
       {run !== undefined && (
         <Button
           className="hp-act"
-          disabled={target === undefined}
+          // Pause only where its harness said a Pause holds the run (ADR 0293); Resume always.
+          disabled={target === undefined || (!paused && entry?.pausable !== true)}
           data-testid="harness-pause"
           onClick={() => {
             if (target === undefined) return;

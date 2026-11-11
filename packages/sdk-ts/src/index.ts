@@ -62,7 +62,7 @@ export { RefusedError } from "./outbox.js";
 export type { FolderChange, FolderLook, ProjectOptions, Pushed } from "./project.js";
 export { checkGit, heldNote, Project, pushedInWords, subjectOf } from "./project.js";
 export type { PromptOptions } from "./prompt.js";
-export { promptFor, rulesFor } from "./prompt.js";
+export { BEFORE_HEADING, heldWords, promptFor, rulesFor } from "./prompt.js";
 export { SessionRules } from "./rules.js";
 export type {
   Answer,

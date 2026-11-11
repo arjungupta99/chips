@@ -119,6 +119,7 @@ export function buildFleet(
       runId: run?.runId,
       status: run?.state,
       paused: run?.paused ?? false,
+      pausable: run?.pausable === true,
       statusVerb: run?.statusVerb,
       contextPercent: run === undefined ? undefined : contextPercentOf(run),
     };

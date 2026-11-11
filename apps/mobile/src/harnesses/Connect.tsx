@@ -60,13 +60,16 @@ import {
   linkWaiting,
   makingSteps,
   mayAskFromPage,
+  NO_AGENT_YET,
   nameOf,
   OFFERED,
   RUN_IN_TERMINAL,
   runsInTerminal,
   type Snapshot,
+  START_PAGE,
   type Store,
   stallWords,
+  startAnswers,
 } from "@chipschat/core";
 import type { Connector } from "@chipschat/protocol";
 import * as Clipboard from "expo-clipboard";
@@ -85,6 +88,7 @@ import {
   ActivityIndicator,
   Animated,
   Easing,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -594,6 +598,27 @@ function Gallery({
                 />
               );
             })}
+            {/* Somebody with none of them (ADR 0290): the steps run on a computer, so the site. */}
+            {startAnswers(cards).length === 0 ? null : (
+              <GalleryRow
+                first={false}
+                name={NO_AGENT_YET.name}
+                line={NO_AGENT_YET.onSite}
+                on={false}
+                chosen={false}
+                face={
+                  <Avatar
+                    name={NO_AGENT_YET.name}
+                    kind="harness"
+                    icon={NO_AGENT_YET.face}
+                    size="md"
+                  />
+                }
+                go="globe"
+                onPress={() => void Linking.openURL(START_PAGE.url).catch(() => undefined)}
+                testID="connect-none"
+              />
+            )}
           </View>
         )}
         {/* "Or" only after the gallery: a server told nowhere, and the demo, have none. */}
@@ -636,26 +661,30 @@ function GalleryRow({
   on,
   chosen,
   face,
+  go = "next",
   onPress,
   testID,
 }: {
   readonly first: boolean;
   readonly name: string;
   readonly line: string;
-  readonly tag: string;
+  /** What it is; none for the row for somebody with no agent yet. */
+  readonly tag?: string;
   /** The tag in green: the harness is here already. */
   readonly on: boolean;
   /** Its page stands beside the pane: the row wears the chosen ground, as a list's open row does. */
   readonly chosen: boolean;
   readonly face: ReactNode;
+  /** The mark at its end: the next page, or the globe for a row that opens the site. */
+  readonly go?: "next" | "globe";
   readonly onPress: () => void;
   readonly testID: string;
 }) {
   const palette = usePalette();
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${name}, ${tag}`}
+      accessibilityRole={go === "globe" ? "link" : "button"}
+      accessibilityLabel={tag === undefined ? name : `${name}, ${tag}`}
       accessibilityHint={line}
       accessibilityState={{ selected: chosen }}
       onPress={onPress}
@@ -672,22 +701,24 @@ function GalleryRow({
           <Text style={[styles.galleryName, { color: palette.ink }]} numberOfLines={1}>
             {name}
           </Text>
-          <Text
-            style={[
-              styles.tag,
-              on
-                ? { color: palette.greenInk, backgroundColor: palette.greenSoft }
-                : { color: palette.ink3, backgroundColor: palette.surface3 },
-            ]}
-          >
-            {tag}
-          </Text>
+          {tag === undefined ? null : (
+            <Text
+              style={[
+                styles.tag,
+                on
+                  ? { color: palette.greenInk, backgroundColor: palette.greenSoft }
+                  : { color: palette.ink3, backgroundColor: palette.surface3 },
+              ]}
+            >
+              {tag}
+            </Text>
+          )}
         </View>
         <Text style={[styles.galleryLine, { color: palette.ink3 }]} numberOfLines={1}>
           {line}
         </Text>
       </View>
-      <Icon name="next" size={16} color={palette.ink4} />
+      <Icon name={go} size={16} color={palette.ink4} />
     </Pressable>
   );
 }

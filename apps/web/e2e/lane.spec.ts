@@ -19,7 +19,6 @@ import {
   newRunId,
   pair,
   registerSpecialist,
-  runPanel,
 } from "./support.ts";
 
 test("a lead routes a task to a specialist: one lane, two views, and the cost rolls up", async ({
@@ -91,11 +90,9 @@ test("a lead routes a task to a specialist: one lane, two views, and the cost ro
     await expect(route.getByTestId("lane-reply")).toContainText("4 percent under");
     // Finished, and saying no Done (ADR 0151): the reply is what says so.
     await expect(route.getByText("Done", { exact: true })).toHaveCount(0);
+    // What the lane cost is the route card's: the lead's run panel, which totalled it beneath the
+    // run's own, went with the panel (ADR 0293).
     await expect(route).toContainText("$0.03");
-
-    // And the lead's run panel totals what the lane cost, beneath the run's own.
-    await expect(runPanel(page)).toBeVisible();
-    await expect(runPanel(page).getByTestId("lane-cost")).toContainText("in lanes");
   } finally {
     scout.close();
     ledgerHarness.close();

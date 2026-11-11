@@ -111,6 +111,28 @@ function withoutSshKeygen(home: string): string {
   return bin;
 }
 
+/** A PATH without a working ssh-keygen: OpenSSH 7.9's, as Debian 10 has it, with no -Y. */
+function oldSshKeygen(home: string): string {
+  const bin = withoutSshKeygen(home);
+  writeFileSync(
+    join(bin, "ssh-keygen"),
+    "#!/bin/sh\necho \"ssh-keygen: invalid option -- 'Y'\" >&2\necho 'usage: ssh-keygen [-q] [-b bits]' >&2\nexit 1\n",
+    { mode: 0o755 },
+  );
+  return bin;
+}
+
+/** An openssl here that checks Ed25519 over raw input (1.1.1 or later), if there is one. */
+const EDWARDS = [
+  "/usr/bin/openssl",
+  "/opt/homebrew/opt/openssl@3/bin/openssl",
+  "/usr/local/bin/openssl",
+].find(
+  (path) =>
+    existsSync(path) &&
+    spawnSync(path, ["pkeyutl", "-help"], { encoding: "utf8" }).stderr.includes("-rawin"),
+);
+
 /**
  * A download host on `file://` laid out as GitHub's releases are, with one release on it: its files
  * at `download/v<version>/`, and `latest/download/` the same files, as GitHub redirects it.
@@ -443,18 +465,46 @@ describe("install.sh", () => {
     const { script, key } = trustingOwnKey(home);
     const { base, sums } = host(home, "0.2.0");
     sign(key, sums);
-    const bin = withoutSshKeygen(home);
-    // OpenSSH 7.9's, as Debian 10 has it.
+    const bin = oldSshKeygen(home);
+    // And an openssl from before Ed25519, as CentOS 7's 1.0.2 is.
+    rmSync(join(bin, "openssl"), { force: true });
     writeFileSync(
-      join(bin, "ssh-keygen"),
-      "#!/bin/sh\necho \"ssh-keygen: invalid option -- 'Y'\" >&2\necho 'usage: ssh-keygen [-q] [-b bits]' >&2\nexit 1\n",
-      { mode: 0o755 },
+      join(bin, "openssl"),
+      "#!/bin/sh\necho 'usage: pkeyutl [options]' >&2\nexit 1\n",
+      {
+        mode: 0o755,
+      },
     );
     const ran = run(script, { CHIPS_DOWNLOAD_BASE: base, PATH: bin }, home, "--no-path");
     expect(ran.status).not.toBe(0);
     expect(ran.stderr).toContain("ssh-keygen is older than OpenSSH 8.1");
     expect(ran.stderr).not.toContain("not signed with Chips's release key");
   });
+
+  // RHEL 8's OpenSSH is 8.0, and its OpenSSL 1.1.1 (the onboarding audit, Part 2, item 12).
+  it.skipIf(EDWARDS === undefined)(
+    "checks the signature with OpenSSL where ssh-keygen is older than 8.1, and refuses one changed after",
+    () => {
+      const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+      const { script, key } = trustingOwnKey(home);
+      const { base, sums } = host(home, "0.2.0");
+      sign(key, sums);
+      const bin = oldSshKeygen(home);
+      rmSync(join(bin, "openssl"), { force: true });
+      symlinkSync(EDWARDS ?? "", join(bin, "openssl"));
+      const tryIt = () => run(script, { CHIPS_DOWNLOAD_BASE: base, PATH: bin }, home, "--no-path");
+
+      const checked = tryIt();
+      expect(checked.stderr).toBe("");
+      expect(checked.stdout).toContain("✓ Checked its signature");
+      expect(existsSync(join(home, ".local", "bin", "chips"))).toBe(true);
+
+      writeFileSync(sums, `${readFileSync(sums, "utf8")}\n`);
+      const changed = tryIt();
+      expect(changed.status).not.toBe(0);
+      expect(changed.stderr).toContain("not signed with Chips's release key");
+    },
+  );
 
   it("says how to get ssh-keygen where it's missing, in this machine's package manager's words", () => {
     const home = mkdtempSync(join(tmpdir(), "chips-install-"));

@@ -6,6 +6,12 @@
 
 import { DEFAULT_SPEND_CEILING_USD, type JobSpend, resetsTheCount } from "@chipschat/protocol";
 
+/** The room events that set its ceiling: an amount or the default, or No cap (ADR 0292). */
+const CEILING_EVENTS: ReadonlySet<string> = new Set([
+  "space.spend_ceiling_set",
+  "space.spend_ceiling_lifted",
+]);
+
 /** An event of the fake's log, as much of it as the job reads. */
 interface StoredEvent {
   readonly seq: number;
@@ -56,7 +62,12 @@ function tally(into: Tally, event: StoredEvent, job: boolean): void {
   into.spent += now - was;
 }
 
-export function spendInLog(log: readonly StoredEvent[], spaceId: string, upto: number): JobSpend {
+/** The room's job as of `upto`; nothing in a room with no cap, which hands a harness no spend. */
+export function spendInLog(
+  log: readonly StoredEvent[],
+  spaceId: string,
+  upto: number,
+): JobSpend | undefined {
   const room = log.filter((event) => event.space_id === spaceId && event.seq <= upto);
   const since = jobStart(room);
   const so: Tally = { spent: 0, totals: new Map(), costed: new Set(), silent: new Set() };
@@ -64,9 +75,9 @@ export function spendInLog(log: readonly StoredEvent[], spaceId: string, upto: n
     if (event.type !== "usage" || event.seq > upto) continue;
     tally(so, event, event.seq > since && event.space_id === spaceId);
   }
-  const ceiling = room.findLast((event) => event.type === "space.spend_ceiling_set")?.payload[
-    "usd"
-  ];
+  const set = room.findLast((event) => CEILING_EVENTS.has(event.type));
+  if (set?.type === "space.spend_ceiling_lifted") return undefined;
+  const ceiling = set?.payload["usd"];
   return {
     ceiling_usd: typeof ceiling === "number" ? ceiling : DEFAULT_SPEND_CEILING_USD,
     spent_usd: Math.max(0, Math.round(so.spent * 1e6) / 1e6),

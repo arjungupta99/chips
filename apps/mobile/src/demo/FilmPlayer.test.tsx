@@ -286,6 +286,14 @@ it("opens the pairing code page from Have a pairing code?", async () => {
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/pair", params: { code: "1" } });
 });
 
+it("opens the page that hands the setup page to a computer from Nothing set up yet? (ADR 0290)", async () => {
+  const user = userEvent.setup();
+  await render(<FilmScreen />);
+  await act(() => player().emit("playToEnd"));
+  await user.press(screen.getByRole("button", { name: "Nothing set up yet? Start" }));
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/pair", params: { setup: "1" } });
+});
+
 it("pastes an invite from the end card", async () => {
   jest
     .mocked(Clipboard.getStringAsync)

@@ -1,6 +1,11 @@
 /** What is said in a room, and what is done to what was said. */
 
-import { DEFAULT_SPEND_CEILING_USD, dollars, eventIdOfMessage } from "@chipschat/protocol";
+import {
+  DEFAULT_SPEND_CEILING_USD,
+  dollars,
+  eventIdOfMessage,
+  NO_SPEND_CEILING,
+} from "@chipschat/protocol";
 import { actorKind, type ClientEvent } from "../events.js";
 import { compactedWords } from "../tokens.js";
 import { addLine, lineIndexOf, messageAudit, textLine, withFeedback } from "./lines.js";
@@ -19,6 +24,12 @@ import type { Line, PausedSpend } from "./types.js";
 
 /** The quiet line under what was nobody's turn, handed to the room's lead (ADR 0104). */
 const LEAD_TOOK_IT = "took it as the lead: it was nobody's turn";
+/**
+ * The quiet line where a message for an agent that did not pick it up was handed on (ADR 0291),
+ * as an app that cannot name that agent reads it; `marginWords` names it.
+ */
+const TOOK_IT_BACK = "took it back: it hadn't been picked up";
+const LEAD_TOOK_UNPICKED = "took it as the lead: it hadn't been picked up";
 
 /**
  * A reply goes among the lines replying to its message (ADR 0219), in the order they were said, and
@@ -95,13 +106,28 @@ export const MESSAGE_FOLDS: Readonly<Record<string, FoldStep>> = {
   "message.handed": (state, event) => {
     const space = spaceOf(state, event);
     if (space === undefined) return;
+    const lineId = eventIdOfMessage(required<string>(event, "message_id"));
+    const index = space.lines.findIndex((line) => line.id === lineId);
+    const line = space.lines[index];
+    // What the agent it was for did not pick up (ADR 0291): the message stops waiting on that
+    // agent, and the one Chips handed it to says so, the lead or whoever said it.
+    const unanswered = field<string>(event, "unanswered_by");
+    if (unanswered !== undefined) {
+      const to = required<string>(event, "agent_id");
+      const back =
+        line === undefined ? field<boolean>(event, "lead") !== true : line.authorId === to;
+      if (line !== undefined) {
+        space.lines[index] = { ...line, passedOn: [...(line.passedOn ?? []), unanswered] };
+      }
+      agentLine(space, event, to, back ? TOOK_IT_BACK : LEAD_TOOK_UNPICKED, {
+        unpicked: { by: unanswered, back },
+      });
+      return;
+    }
     if (field<boolean>(event, "lead") === true) {
       agentLine(space, event, required<string>(event, "agent_id"), LEAD_TOOK_IT);
       return;
     }
-    const lineId = eventIdOfMessage(required<string>(event, "message_id"));
-    const index = space.lines.findIndex((line) => line.id === lineId);
-    const line = space.lines[index];
     if (line !== undefined) space.lines[index] = { ...line, handed: true };
   },
 
@@ -154,12 +180,14 @@ export const MESSAGE_FOLDS: Readonly<Record<string, FoldStep>> = {
     if (exchange === "going" && held !== undefined && raisedAndCarriedOn(space, event, held)) {
       return;
     }
-    const ceiling = dollars(space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD);
+    const ceiling = space.spendCeiling ?? DEFAULT_SPEND_CEILING_USD;
+    // With no cap (ADR 0292), no new allowance starts: the room has none.
+    const anew = ceiling === NO_SPEND_CEILING ? "" : ` A new ${dollars(ceiling)} starts now.`;
     const words =
       exchange === "paused"
         ? "paused the agents"
         : held !== undefined
-          ? `let the agents carry on after ${dollars(held.spentUsd)}. A new ${ceiling} starts now.`
+          ? `let the agents carry on after ${dollars(held.spentUsd)}.${anew}`
           : "let the agents carry on";
     addLine(space, { ...textLine(event, words), kind: "system", exchange });
   },
@@ -291,7 +319,9 @@ function raisedAndCarriedOn(space: MutableSpace, event: ClientEvent, held: Pause
   const text =
     set.usd === undefined
       ? `set the limit back to the default, ${dollars(DEFAULT_SPEND_CEILING_USD)}, ${after}`
-      : `${set.usd > set.was ? "raised" : "set"} the limit to ${dollars(set.usd)} ${after}`;
+      : set.usd === NO_SPEND_CEILING
+        ? `took the cap off ${after}`
+        : `${set.was === NO_SPEND_CEILING || set.usd <= set.was ? "set" : "raised"} the limit to ${dollars(set.usd)} ${after}`;
   space.lines[space.lines.length - 1] = { ...last, text, exchange: "going" };
   return true;
 }

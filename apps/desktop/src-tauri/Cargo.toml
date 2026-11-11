@@ -1,6 +1,6 @@
 [package]
 name = "chips-desktop"
-version = "1.2.3"
+version = "1.2.4"
 description = "Chips on the desktop: the web app in a native shell that can find a server, notify you, and be decided from."
 authors = ["Chips"]
 license = "FSL-1.1-ALv2"
@@ -27,6 +27,9 @@ mdns-sd = "0.21.1"
 # `tauri-plugin-notification` shows a banner but gives no Approve and no Deny, and a banner you
 # cannot answer is not what M2.2 asks for.
 mac-notification-sys = "0.6.15"
+
+# getaddrinfo's own answer and the Mac's tunnels, for a link only some devices reach (ADR 0227).
+libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Whether another copy of the app runs already, so a launch at login gives way to it (ADR 0215),

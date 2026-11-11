@@ -37,14 +37,22 @@ export interface ProjectDocuments extends PageProgramProject {
 
 type Reading =
   | { readonly state: "opening" }
-  /** A page loaded by the frame itself, from the Mac's door or the server's. */
-  | { readonly state: "url"; readonly url: string }
+  /**
+   * A page loaded by the frame itself, from the Mac's door or the server's; its words where the
+   * window read them, for the program's banner over it.
+   */
+  | { readonly state: "url"; readonly url: string; readonly html?: string | undefined }
   /** A page or Markdown written into the frame. */
   | { readonly state: "words"; readonly html: string; readonly markdown: boolean }
   /** A PDF or a picture, as an object URL. */
   | { readonly state: "bytes"; readonly url: string; readonly pdf: boolean }
   | { readonly state: "other" }
   | { readonly state: "failed"; readonly why: string };
+
+/** A page's words, where the window read them. */
+function wordsOf(reading: Reading): string | undefined {
+  return reading.state === "url" || reading.state === "words" ? reading.html : undefined;
+}
 
 /** Where a page is loaded from: the Mac's door, the server's, or its words where neither is. */
 async function readPage(
@@ -53,8 +61,9 @@ async function readPage(
   path: string,
 ): Promise<Reading> {
   if (files !== undefined) {
-    const held = await files.holdPage(await project.page(path));
-    if (held !== undefined) return { state: "url", url: held };
+    const html = await project.page(path);
+    const held = await files.holdPage(html);
+    if (held !== undefined) return { state: "url", url: held, html };
   }
   const url = await project.pageUrl(path);
   if (url !== undefined) return { state: "url", url };
@@ -106,13 +115,16 @@ export function ProjectDocument({
   readonly onClose: () => void;
 }) {
   const [reading, setReading] = useState<Reading>({ state: "opening" });
-  // The frame has loaded its page, so it can be seen: until then the planets go round over it.
-  const [loaded, setLoaded] = useState(false);
+  // How many times the frame has loaded its page: once it has, it can be seen, and until then the
+  // planets go round over it. Each load is a page that has to be told again which links to hand
+  // over (a page that reloads itself starts from nothing).
+  const [loads, setLoads] = useState(0);
+  const loaded = loads > 0;
   const frame = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
     let live = true;
     setReading({ state: "opening" });
-    setLoaded(false);
+    setLoads(0);
     let made: string | undefined;
     readDocument(project, files, path).then(
       (next) => {
@@ -151,7 +163,7 @@ export function ProjectDocument({
       onClose={onClose}
     >
       {documentKind(path) === "page" && (
-        <PageProgram project={project} frame={frame} loaded={loaded} />
+        <PageProgram project={project} frame={frame} loads={loads} html={wordsOf(reading)} />
       )}
       {(reading.state === "opening" || reading.state === "url" || reading.state === "words") && (
         <UniverseArrival ready={loaded} words="Opening…">
@@ -168,7 +180,7 @@ export function ProjectDocument({
               title={name}
               sandbox={PAGE_SANDBOX}
               referrerPolicy="no-referrer"
-              onLoad={() => setLoaded(true)}
+              onLoad={() => setLoads((count) => count + 1)}
               data-testid="project-page-view"
             />
           )}

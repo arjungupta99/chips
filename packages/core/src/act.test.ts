@@ -432,11 +432,21 @@ describe("a command about the run", () => {
 
   it("pauses, and will not pause twice", () => {
     const { store, calls } = recorder();
-    expect(act({ kind: "pause" }, context({ store, run: run() }))).toBeUndefined();
+    expect(
+      act({ kind: "pause" }, context({ store, run: run({ pausable: true }) })),
+    ).toBeUndefined();
     expect(calls).toEqual([{ name: "pauseRun", args: { spaceId: "sp_1", runId: "run_1" } }]);
     expect(act({ kind: "pause" }, context({ run: run({ paused: true }) }))).toBe(
       "The run is already paused.",
     );
+  });
+
+  it("will not pause a run whose harness never said a Pause holds it (ADR 0293)", () => {
+    const { store, calls } = recorder();
+    expect(act({ kind: "pause" }, context({ store, run: run() }))).toBe(
+      "This agent can't pause. /stop ends its work.",
+    );
+    expect(calls).toEqual([]);
   });
 
   it("resumes, and will not resume one that is going", () => {

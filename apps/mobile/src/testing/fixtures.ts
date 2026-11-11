@@ -182,6 +182,10 @@ export function fakeStore(snapshot: Snapshot): Store & {
       calls.push({ name: "roomSpend", args: spaceId });
       return { ceiling_usd: 3, spent_usd: 1.23, since_seq: 40, uncounted_runs: 0 };
     },
+    roomJobs: async (spaceId: string, before?: number) => {
+      calls.push({ name: "roomJobs", args: { spaceId, before } });
+      return { space_id: spaceId, jobs: [] };
+    },
     deleteAgent: async (agentId: string, options: unknown) => {
       calls.push({ name: "deleteAgent", args: { agentId, options } });
     },

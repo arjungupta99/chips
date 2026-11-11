@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the main window may ask the shell for, and no other window (ADR 0231): find a server, run the Chips it carries, connect a bridge's card, show a notification and a badge, take a chips:// link, hold a page for its frame, keep a room's folder, say which server runs on this Mac, dim the menus' commands it cannot do, say how large the page is drawn and that it is drawn, hand a link to the browser, and move the window from the strip under its traffic lights. A page in a frame never reaches these: Tauri's invoke key goes to the main frame alone.",
+  "description": "What the main window may ask the shell for, and no other window (ADR 0231): find a server, run the Chips it carries, say which agents are here and whether one is signed in, connect a bridge's card, show a notification and a badge, take a chips:// link, hold a page for its frame, keep a room's folder, say which server runs on this Mac, dim the menus' commands it cannot do, say how large the page is drawn and that it is drawn, hand a link to the browser, look at a link only some devices reach and bring Tailscale up (ADR 0227's addendum of 10 November 2026), and move the window from the strip under its traffic lights. A page in a frame never reaches these: Tauri's invoke key goes to the main frame alone.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -11,6 +11,7 @@
     "deep-link:default",
     "allow-can-run-here",
     "allow-programs-here",
+    "allow-signed-in-here",
     "allow-run-here",
     "allow-connect-here",
     "allow-cancel-connect",
@@ -25,6 +26,8 @@
     "allow-come-forward",
     "allow-set-menu",
     "allow-open-link",
+    "allow-link-reach",
+    "allow-open-tailscale",
     "allow-page-zoom",
     "allow-drawn"
   ]

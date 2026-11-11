@@ -316,6 +316,23 @@ describe("a room's job at its spend ceiling (ADR 0118)", () => {
     expect(spend).toMatchObject({ spent_usd: 0, uncounted_runs: 3 });
   });
 
+  it("never warns or holds a room with no cap, whatever its job spends (ADR 0292)", async () => {
+    const lifted = await ws.gateway.deps.setSpendCeiling({
+      principal: arjun(),
+      spaceId: ws.spaceId,
+      usd: "none",
+    });
+    expect(lifted.ok).toBe(true);
+    await say(arjun(), "@Scout read the trials");
+    await ran(40);
+    await ran(1200);
+    await settled();
+    expect(await logged("budget.warning")).toEqual([]);
+    expect(await logged("exchange.set")).toEqual([]);
+    const spend = await ws.gateway.deps.readModels.jobSpendOf(ws.workspaceId, ws.spaceId);
+    expect(spend).toMatchObject({ spent_usd: 1240 });
+  });
+
   it("pauses no second time where a person paused the agents already, and still tells the harnesses", async () => {
     await allow(1);
     await say(arjun(), "@Scout read the trials");

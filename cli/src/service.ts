@@ -274,6 +274,24 @@ export function stopCommands(kind: ServiceKind, uid: number): readonly Command[]
 }
 
 /**
+ * What says whether this shell has a session a login service can be started in: launchd's
+ * domain for this user, which exists only while somebody is logged in at the Mac's screen, or
+ * the user's systemd manager, which a shell under `su`, in most containers or on WSL has no bus to.
+ */
+export function sessionCommand(kind: ServiceKind, uid: number): Command {
+  return kind === "launchd"
+    ? ["launchctl", "print", `gui/${uid}`]
+    : ["systemctl", "--user", "show-environment"];
+}
+
+/** What launchd and systemctl print when there is no session to start a service in. */
+export const NO_SESSION = {
+  launchd: /Bootstrap failed: (5|125)|Domain does not support|Could not find domain/,
+  systemd:
+    /Failed to connect to (user scope )?bus|DBUS_SESSION_BUS_ADDRESS|not been booted with systemd/,
+} as const;
+
+/**
  * Which commands may fail without anything being wrong: unloading an agent that was not loaded
  * is how a first start begins.
  */
