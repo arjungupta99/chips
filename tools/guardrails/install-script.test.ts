@@ -512,6 +512,16 @@ describe("install.sh", () => {
     const { base, sums } = host(home, "0.2.0");
     sign(key, sums);
     const bin = withoutSshKeygen(home);
+    // And an openssl from before Ed25519: one that can check it (OpenSSL 3, as CI's Ubuntu has)
+    // checks the signature in ssh-keygen's place, and install.sh rightly carries on.
+    rmSync(join(bin, "openssl"), { force: true });
+    writeFileSync(
+      join(bin, "openssl"),
+      "#!/bin/sh\necho 'usage: pkeyutl [options]' >&2\nexit 1\n",
+      {
+        mode: 0o755,
+      },
+    );
     const without = (manager?: string) => {
       for (const name of ["apt-get", "dnf"]) rmSync(join(bin, name), { force: true });
       if (manager !== undefined) writeFileSync(join(bin, manager), "#!/bin/sh\n", { mode: 0o755 });
