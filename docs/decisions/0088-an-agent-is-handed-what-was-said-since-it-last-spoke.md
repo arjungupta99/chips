@@ -178,3 +178,13 @@ say `to` in the same words, each in a commit of its own.
 A bridge on the SDK says it once it is built on an SDK with this, from a Chips that sends `to`.
 An older bridge drops the field unread, and an older Chips sends none, so either side can go
 first.
+
+## Addendum, 14 November 2026: the turn's own message says whom it is for
+
+A line said to another agent has said so since 13 November, and the message the turn is on said
+nothing: after "Arjun (owner), to Check Codex: …" came "Arjun (owner): …", which was the taker's.
+`promptFor` now says it of that line too, beside another agent: "Arjun (owner), to you: …", "to
+you and Kit" when it went to several, and "to Kit" for one that was another's and is handed on.
+It reads `addressed_to` and the room's members, so it says nothing from a Chips that names
+nobody, and a room with one agent reads as it did. The measurements are in ADR 0104's addendum of
+the same day (finding NR-12).

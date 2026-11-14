@@ -1181,6 +1181,18 @@
             "maxLength": 4000
           }
         },
+        "about_message": {
+          "description": "What Chips says of this message to each who takes the turn, by their id: the words their note opens with when it has any. They say that the message is theirs though nothing @-mentions them, that it went to several agents or to all, that it comes to the lead as nobody's turn, that the agent it was for has not picked it up, or that it arrives late. A harness may say them beside the message and the note without them (`noteAndAbout`), as the SDK's `promptFor` does: on a session's first turn the note is far above the message. Absent when no taker's note says anything of the message.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 4000
+          }
+        },
         "working": {
           "description": "The room's agents with a turn going as Chips sends this one (ADR 0104), the takers' own included. A turn nothing has been heard from for ten minutes is not counted.",
           "maxItems": 500,

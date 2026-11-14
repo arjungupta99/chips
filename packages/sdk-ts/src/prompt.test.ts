@@ -243,6 +243,104 @@ describe("a line said to another agent since the taker last spoke (ADR 0088)", (
   });
 });
 
+// Finding NR-12, 13 and 14 November 2026: Arjun picked an agent in the field and asked it for one
+// word. On Claude Code's Haiku at low effort its first turn in the space ended NO_REPLY. The note
+// had opened "Arjun sent this message to you without an @: it is yours to answer", and the
+// space's rules, the project's and what was said before stood between that and the message.
+describe("what Chips says of the message itself (ADR 0104)", () => {
+  const YOURS = "Arjun sent this message to you without an @: it is yours to answer.";
+  const picked = roomNoteFor([ARJUN, HALE, KIT], [HALE.id], undefined, {
+    [HALE.id]: { yours: { saidBy: "Arjun" }, newcomers: [{ id: KIT.id }] },
+  });
+  const rest = (picked.notes[HALE.id] ?? "").slice(YOURS.length + 1);
+  const lines = [line(11, kit, "alpha", "msg_k")];
+  const bravo = (more: Record<string, unknown> = {}) =>
+    said("msg_b", "Reply with the single word bravo", {
+      room: picked,
+      context: { lines, since_seq: 10, truncated: false, before: 11 },
+      ...more,
+    });
+
+  it("is said beside the message, after the note and what was said since", () => {
+    expect(rest).toMatch(/^New since your last turn: Kit/);
+    expect(promptFor(bravo())).toBe(
+      [
+        rest,
+        `${CONTEXT_HEADING}\nKit: alpha`,
+        YOURS,
+        "Arjun (owner): Reply with the single word bravo",
+      ].join("\n\n"),
+    );
+  });
+
+  it("is said there on a turn whose session holds the rules too", () => {
+    const text = promptFor(bravo(), { rulesHeld: true });
+    expect(text.startsWith("New since your last turn: Kit")).toBe(true);
+    expect(text).not.toContain("NO_REPLY");
+    expect(text.endsWith(`${YOURS}\n\nArjun (owner): Reply with the single word bravo`)).toBe(true);
+  });
+
+  it("is said of the newest message, after those that waited", () => {
+    const text = promptFor(bravo(), { earlier: [said("msg_a", "@Hale are you there")] });
+    expect(
+      text.endsWith(
+        [
+          "Arjun (owner): @Hale are you there",
+          YOURS,
+          "Arjun (owner): Reply with the single word bravo",
+        ].join("\n\n"),
+      ),
+    ).toBe(true);
+    expect(text.split(YOURS)).toHaveLength(2);
+  });
+
+  it("says whom the message is for on its own line, beside another agent", () => {
+    const to = (...ids: string[]) =>
+      promptFor(bravo({ addressed_to: ids }))
+        .split("\n\n")
+        .at(-1);
+    expect(to(HALE.id)).toBe("Arjun (owner), to you: Reply with the single word bravo");
+    expect(to(KIT.id, HALE.id)).toBe(
+      "Arjun (owner), to you and Kit: Reply with the single word bravo",
+    );
+    // One that was another's, handed on to the taker: the note beside it says why.
+    expect(to(KIT.id)).toBe("Arjun (owner), to Kit: Reply with the single word bravo");
+    expect(
+      promptFor(bravo({ addressed_to: [HALE.id] }), {
+        earlier: [said("msg_a", "are you there", { room: picked, addressed_to: [HALE.id] })],
+      }),
+    ).toContain("Arjun (owner), to you: are you there\n\n");
+  });
+
+  it("says no more than who said it in a room with one agent, or from a Chips that names nobody", () => {
+    const alone = roomNoteFor([ARJUN, HALE], [HALE.id]);
+    const only = said("msg_b", "Reply with the single word bravo", {
+      room: alone,
+      addressed_to: [HALE.id],
+    });
+    expect(promptFor(only)).toBe(
+      `${alone.notes[HALE.id]}\n\nArjun (owner): Reply with the single word bravo`,
+    );
+    expect(promptFor(bravo()).endsWith("Arjun (owner): Reply with the single word bravo")).toBe(
+      true,
+    );
+    expect(
+      promptFor(bravo({ addressed_to: [HALE.id] }), { sayWho: false }).endsWith(
+        `${YOURS}\n\nReply with the single word bravo`,
+      ),
+    ).toBe(true);
+  });
+
+  it("stays at the top of the note from a Chips that carries none apart", () => {
+    const { about_message: _, ...older } = picked;
+    const text = promptFor(bravo({ room: older }));
+    expect(text.startsWith(`${YOURS} New since your last turn: Kit`)).toBe(true);
+    expect(text.endsWith(`Kit: alpha\n\nArjun (owner): Reply with the single word bravo`)).toBe(
+      true,
+    );
+  });
+});
+
 describe("an agent's first turn in a room it was put in (ADR 0088)", () => {
   const before = {
     lines: [

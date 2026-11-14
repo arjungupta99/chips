@@ -641,7 +641,9 @@ export type {
   UnpickedWhy,
 } from "./room-note.js";
 export {
+  aboutMessage,
   FILE_WORDS,
+  noteAndAbout,
   noteHandle,
   noteWithoutRules,
   REACH_A_PERSON_WORDS,

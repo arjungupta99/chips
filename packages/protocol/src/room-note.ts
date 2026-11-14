@@ -127,6 +127,12 @@ export const roomNote = z.object({
     .describe(
       "How the space works, for each who takes the turn, by their id: the words its note ends with (ADR 0250), that everyone here reads what it writes and, beside other agents, what an @ does and when to answer NO_REPLY. They stay the same while the space's agents do, so a harness whose session keeps its earlier turns may say them once, and the note without them after.",
     ),
+  about_message: z
+    .record(z.string().max(120), z.string().max(4000))
+    .optional()
+    .describe(
+      "What Chips says of this message to each who takes the turn, by their id: the words their note opens with when it has any. They say that the message is theirs though nothing @-mentions them, that it went to several agents or to all, that it comes to the lead as nobody's turn, that the agent it was for has not picked it up, or that it arrives late. A harness may say them beside the message and the note without them (`noteAndAbout`), as the SDK's `promptFor` does: on a session's first turn the note is far above the message. Absent when no taker's note says anything of the message.",
+    ),
   working: z
     .array(roomWork)
     .max(500)
@@ -403,6 +409,26 @@ export function noteWithoutRules(
   return note.slice(0, note.length - rules.length).trimEnd();
 }
 
+/**
+ * A taker's note with what it says of the message taken off its top, and those words apart, for a
+ * harness that says them beside the message (finding NR-12). On a session's first turn the note is
+ * followed by the space's rules, the project's, and what was said before, about 4,000 characters
+ * in a room of four agents, and a small model that answered without thinking passed on a message
+ * that the note's first sentence had said was its own. The note as it is, and nothing apart, from
+ * a Chips that sent none, or where the note does not open with them.
+ */
+export function noteAndAbout(
+  note: string | undefined,
+  room: Pick<RoomNote, "about_message"> | undefined,
+  taker: string,
+): { readonly note: string | undefined; readonly about: string | undefined } {
+  const about = room?.about_message?.[taker];
+  if (note === undefined || about === undefined || about === "" || !note.startsWith(about)) {
+    return { note, about: undefined };
+  }
+  return { note: note.slice(about.length).trimStart(), about };
+}
+
 /** A member as the note lists them: "ASCII Art (Jacobian agent, @ASCIIArt)". */
 function listing(member: RoomMember): string {
   return `${member.name} (${[kindOf(member), member.handle].filter(Boolean).join(", ")})`;
@@ -485,7 +511,10 @@ export const MONTHS = [
   "December",
 ] as const;
 
-/** What is news to the taker, first (ADR 0104); last, that older lines were left out (ADR 0105). */
+/**
+ * What is news to the taker, first (ADR 0104): what Chips says of the message itself, then of the
+ * room; last, that older lines were left out (ADR 0105).
+ */
 function newsLines(members: readonly RoomMember[], youId: string, news?: TakerNews): string[] {
   if (news === undefined) return [];
   const newcomers = (news.newcomers ?? []).flatMap((newcomer) => {
@@ -493,6 +522,21 @@ function newsLines(members: readonly RoomMember[], youId: string, news?: TakerNe
     if (member === undefined || member.participant_id === youId) return [];
     return [`${listing(member)}${newcomer.by === undefined ? "" : `, added by ${newcomer.by}`}`];
   });
+  return [
+    ...messageLines(members, youId, news),
+    ...joinedLines(news.joined),
+    ...(newcomers.length === 0 ? [] : [`New since your last turn: ${newcomers.join("; ")}.`]),
+    ...cutLines(news.cut),
+  ];
+}
+
+/**
+ * What Chips says of the message itself to the one taking the turn: why it comes to it, and whose
+ * it is. The note opens with these, and `roomNoteFor` carries them apart too (`about_message`),
+ * for a harness that says them beside the message.
+ */
+function messageLines(members: readonly RoomMember[], youId: string, news?: TakerNews): string[] {
+  if (news === undefined) return [];
   // Said only where the note goes on to say that an @ is what makes a turn: beside another agent.
   const shared = members.some((each) => each.participant_id !== youId && each.kind === "agent");
   return [
@@ -509,10 +553,19 @@ function newsLines(members: readonly RoomMember[], youId: string, news?: TakerNe
           `${news.toAll.saidBy} sent this message to every agent here, so each of you has it: answer it yourself, and don't pass it on with an @.`,
         ]),
     ...severalLines(members, youId, news.several),
-    ...joinedLines(news.joined),
-    ...(newcomers.length === 0 ? [] : [`New since your last turn: ${newcomers.join("; ")}.`]),
-    ...cutLines(news.cut),
   ];
+}
+
+/**
+ * What a taker's note says of the message itself, as one text: the words the note opens with.
+ * Empty when it says nothing of it.
+ */
+export function aboutMessage(
+  members: readonly RoomMember[],
+  youId: string,
+  news?: TakerNews,
+): string {
+  return messageLines(members, youId, news).join(" ");
 }
 
 /**
@@ -767,7 +820,8 @@ function kindOf(member: RoomMember): string {
  * The room as `message.new` carries it: the members, and a note for each who takes the turn; with
  * who has a turn going when Chips said (ADR 0104), what is news to each taker, what the job has
  * spent (ADR 0117), and each person's time at the instant it is sent (`at`, ADR 0157); and the
- * rules each note ends with (ADR 0250), which say where Universe is in a space with a `project`.
+ * rules each note ends with (ADR 0250), which say where Universe is in a space with a `project`;
+ * and what each note opens with of the message itself, apart too (`about_message`).
  */
 export function roomNoteFor(
   members: readonly NoteMember[],
@@ -779,6 +833,10 @@ export function roomNoteFor(
   project?: boolean,
 ): RoomNote {
   const listed = roomMembers(members);
+  const about = takers.flatMap((taker): [string, string][] => {
+    const said = aboutMessage(listed, taker, news?.[taker]);
+    return said === "" ? [] : [[taker, said]];
+  });
   return {
     members: listed,
     notes: Object.fromEntries(
@@ -788,6 +846,7 @@ export function roomNoteFor(
       ]),
     ),
     rules: Object.fromEntries(takers.map((taker) => [taker, roomRules(listed, taker, project)])),
+    ...(about.length === 0 ? {} : { about_message: Object.fromEntries(about) }),
     ...(now === undefined ? {} : { working: [...now.working], idle: [...now.idle] }),
     ...(now?.away === undefined || now.away.length === 0 ? {} : { away: [...now.away] }),
   };

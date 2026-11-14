@@ -110,3 +110,55 @@ an answer to a person. Twenty seconds later the lead, Nigel, was handed it, and 
   nothing between but that agent's own words and such asides.
 - An agent's words still end the look back, so an agent's answer to another agent's ask, with an
   aside between, is still handed to the lead.
+
+## Addendum, 14 November 2026: what Chips says of a message is said beside it
+
+On 13 and 14 November a Claude Code agent on Haiku 5.5 at low effort was picked in the field, with
+no @, and asked for one word. Both times it was its first turn in a new space, and both times it
+answered `NO_REPLY` (finding NR-12). Its note opened "Arjun sent this message to you without an @:
+it is yours to answer." On a first turn the space's rules, the project's note, how a file is sent
+and what was said before all follow, about 4,000 characters in a room of four agents, and the
+message comes last. Claude Code then adds about 11,000 characters of its own after the message on
+a session's first turn: its tools, agent types and skills.
+
+Both turns were replayed through the same adapter on the same model and effort, each in a new
+session with nothing of the request in the prompt cache, as a first turn after a quiet spell is.
+The turn of 14 November passed 118 times in 160 and the turn of 13 November 19 in 120. Every pass
+came from a turn the model answered without thinking first. Where it thought first it never
+passed. One thing was changed at a time, 30 replays each:
+
+- The long first-turn paragraphs left out: 17 passes.
+- The NO_REPLY sentence without "and nothing else", which the ask shared with it: 24. The ask
+  without those words: 25.
+- The NO_REPLY sentence moved to the top of the note: 15. Taken out: 0.
+- Medium effort: 12. High: 1. Sonnet 5.5 at low: 0 in 14.
+- The same text as a session's second turn, where nothing follows the message: 0 in 14.
+
+So it is where the words are, and the first turn's length is a small part of it.
+
+- **What the note says of the message is said beside it.** `message.new` carries the words a note
+  opens with about the message apart too, as `room.about_message`, by the taker's id: that it is
+  the taker's with no @, that it went to several agents or to all, that it comes to the lead as
+  nobody's turn, that the agent it was for has not picked it up, or that it is late. `promptFor`
+  takes them off the top of the note (`noteAndAbout`) and says them just before the message. With
+  that alone the turn of 14 November passed 5 times in 70.
+- **The message's own line says whom it is for**, beside another agent: "Arjun (owner), to you: …",
+  or "to you and Kit", from `addressed_to`, in the words a line for another agent has had since
+  13 November (ADR 0088's addendum). Among lines marked "to Check Codex", the one line that was the
+  taker's said nothing. With both changes the turn of 14 November passed 3 times in 110 and the
+  turn of 13 November 3 in 80.
+- **The note's own words are unchanged**, and the note still opens with them. A harness that reads
+  `notes` whole, as the OpenClaw bridge and Jacobian do, says what it said. A bridge on the SDK
+  says it beside the message once it is built on an SDK with this, from a Chips that sends
+  `about_message`. An older Chips sends none and the note is said whole, so either side can go
+  first.
+
+Four messages where passing is right were replayed the same way, on main's words and on these.
+A step that is the agent's later: 120 of 120 passed, and 40 of 40. A message sent to it that asks
+nothing of it now: 120 of 120, and 40 of 40. A chain where its step is last: 110 of 120, and 37 of
+40. A message for every agent whose words name another: 116 of 160, and 61 of 80.
+
+Not taken: the sentence about NO_REPLY opening "Answer a message that asks something of you."
+With it and the two changes above nothing passed in 280 replays of the two turns. But a turn
+answered without thinking now answers where it used to pass, and the message for every agent
+that names another was passed 48 times in 90, against 116 in 160.

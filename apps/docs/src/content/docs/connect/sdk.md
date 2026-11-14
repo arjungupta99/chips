@@ -210,6 +210,12 @@ const words = promptFor(newest, { taker: agent, earlier: waiting, since, before,
 `renderReplyingTo(message.replying_to, { sender, taker })`, with `message.from`'s `kind` and
 `workspace_role` in `sender` so a guest's reply says "(guest)" as their other lines do.
 
+It says two things beside the message rather than above everything else. What Chips says of the
+message itself (`message.room?.about_message[agent]`, such as "Arjun sent this message to you
+without an @: it is yours to answer.") comes just before it, taken off the top of the note with
+`noteAndAbout`. And beside another agent, the message's own line says whom it is for, from
+`addressed_to`: "Arjun (owner), to you: …", or "to you and Scout".
+
 A reply carries the message it answers in `replying_to` (ADR 0219): who said it and when, its words
 as they read now, its files, and, when it is older than the lines `context` hands over, up to three
 lines said just before it. Without it, "Make it 8 people" in reply to Tuesday's booking reaches the

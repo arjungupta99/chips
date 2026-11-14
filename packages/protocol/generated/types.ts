@@ -1452,6 +1452,9 @@ export interface MessageNew {
     /** How the space works, for each who takes the turn, by their id: the words its note ends with (ADR 0250), that everyone here reads what it writes and, beside other agents, what an @ does and when to answer NO_REPLY. They stay the same while the space's agents do, so a harness whose session keeps its earlier turns may say them once, and the note without them after. */
     rules?: {
     };
+    /** What Chips says of this message to each who takes the turn, by their id: the words their note opens with when it has any. They say that the message is theirs though nothing @-mentions them, that it went to several agents or to all, that it comes to the lead as nobody's turn, that the agent it was for has not picked it up, or that it arrives late. A harness may say them beside the message and the note without them (`noteAndAbout`), as the SDK's `promptFor` does: on a session's first turn the note is far above the message. Absent when no taker's note says anything of the message. */
+    about_message?: {
+    };
     /** The room's agents with a turn going as Chips sends this one (ADR 0104), the takers' own included. A turn nothing has been heard from for ten minutes is not counted. */
     working?: {
       participant_id: string;

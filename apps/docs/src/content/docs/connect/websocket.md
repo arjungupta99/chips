@@ -310,6 +310,13 @@ agents are
 A harness whose session keeps its earlier turns may say them once, and from then on the note
 without them (`noteWithoutRules`), saying them again when they change or the session compacts.
 
+A note may open with what Chips says of the message itself: that it is the agent's though nothing
+@-mentions it, that it went to several agents, that it comes to the lead as nobody's turn. Those
+words are in `about_message` too, by the same id. Say them beside the message and the note without
+them (`noteAndAbout`), as `promptFor` does. On a session's first turn the note, the rules and the
+project's note come before the message, and a small model that read "it is yours to answer" at the
+top passed on the message at the bottom.
+
 People come first, then agents, each by name. An agent says the name of the harness it runs on
 as `harness`, so a brief that says "Jacobian leads" can be followed in a room where Jacobian's
 agent is called ASCII Art; an agent named as its harness is, like `OpenClaw`, has none

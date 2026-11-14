@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { CEILING } from "./exchange.js";
 import {
+  aboutMessage,
   FILE_WORDS,
   type NoteMember,
+  noteAndAbout,
   noteHandle,
   noteWithoutRules,
   REACH_A_PERSON_WORDS,
+  type RoomNote,
   RUNNING_WORDS,
   renderRoomNote,
   roomNote,
@@ -352,6 +355,86 @@ describe("the rules a room note ends with (ADR 0250)", () => {
     expect(noteWithoutRules(older, ONE.id)).toBe(room.notes[ONE.id]);
     expect(noteWithoutRules(room, HELLO.id)).toBeUndefined();
     expect(noteWithoutRules(undefined, ONE.id)).toBeUndefined();
+  });
+});
+
+// Finding NR-12, 13 and 14 November 2026: a Claude Code agent on Haiku at low effort, picked in the
+// field with no @, answered NO_REPLY on its first turn in a new space. Its note opened "Arjun sent
+// this message to you without an @: it is yours to answer", and the message came 4,000 characters
+// later. So what the note says of the message is carried apart too, to be said beside it.
+describe("what the note says of the message itself, carried apart (ADR 0104)", () => {
+  const YOURS = "Arjun sent this message to you without an @: it is yours to answer.";
+
+  it("is what the note opens with, for each taker it says something to", () => {
+    const room = roomNoteFor([ARJUN, HELLO, ONE, TWO], [ONE.id, TWO.id], undefined, {
+      [ONE.id]: { yours: { saidBy: "Arjun" }, newcomers: [{ id: TWO.id }] },
+      [TWO.id]: { newcomers: [{ id: ONE.id }] },
+    });
+    expect(room.about_message).toEqual({ [ONE.id]: YOURS });
+    expect(room.notes[ONE.id]?.startsWith(`${YOURS} New since your last turn: OpenClaw 2`)).toBe(
+      true,
+    );
+    expect(roomNote.safeParse(room).success).toBe(true);
+  });
+
+  it("is every line about the message, and none about the room", () => {
+    const several = severalAsked({ addressed_to: [HELLO.id, ONE.id] }, [ARJUN, HELLO, ONE, TWO]);
+    const room = roomNoteFor([ARJUN, HELLO, ONE, TWO], [ONE.id], undefined, {
+      [ONE.id]: {
+        late: { minutes: 200 },
+        ...(several === undefined ? {} : { several: { saidBy: "Arjun", ...several } }),
+        joined: { minutes: 3, files: false },
+        cut: { shown: 20 },
+      },
+    });
+    expect(room.about_message?.[ONE.id]).toBe(
+      "This was said 3 hours ago and reaches you only now: read what was said since before you act on it. Arjun sent this to you and Hello too, so each of you already has it: don't pass it on with an @. Give your own answer to a question without waiting for the others. If it says who does what, do your part. If one thing is to be made and it doesn't say who does what, Hello says who does what: answer NO_REPLY and wait for that.",
+    );
+    expect(room.about_message?.[ONE.id]).not.toContain("You joined");
+    expect(room.about_message?.[ONE.id]).not.toContain("Only the newest");
+  });
+
+  it("is absent where no note says anything of the message", () => {
+    const room = roomNoteFor([ARJUN, HELLO, ONE], [ONE.id], undefined, {
+      [ONE.id]: { newcomers: [{ id: HELLO.id }] },
+    });
+    expect(room.about_message).toBeUndefined();
+    expect(aboutMessage(room.members, ONE.id, { newcomers: [{ id: HELLO.id }] })).toBe("");
+    // With no other agent the note never speaks of an @, so a pick is no news.
+    expect(
+      roomNoteFor([ARJUN, J], [J.id], undefined, { [J.id]: { yours: { saidBy: "Arjun" } } })
+        .about_message,
+    ).toBeUndefined();
+  });
+
+  it("comes off the top of the note for a harness that says it beside the message", () => {
+    const room = roomNoteFor([ARJUN, HELLO, ONE], [ONE.id], undefined, {
+      [ONE.id]: { yours: { saidBy: "Arjun" }, newcomers: [{ id: HELLO.id }] },
+    });
+    const whole = room.notes[ONE.id] ?? "";
+    expect(noteAndAbout(whole, room, ONE.id)).toEqual({
+      about: YOURS,
+      note: whole.slice(YOURS.length + 1),
+    });
+    expect(noteAndAbout(whole, room, ONE.id).note).toMatch(/^New since your last turn: Hello/);
+    // And off a note said without its rules, which only lose their end.
+    expect(noteAndAbout(noteWithoutRules(room, ONE.id), room, ONE.id).about).toBe(YOURS);
+  });
+
+  it("leaves the note whole from a Chips that sent none, and where the note does not open with it", () => {
+    const room = roomNoteFor([ARJUN, HELLO, ONE], [ONE.id], undefined, {
+      [ONE.id]: { yours: { saidBy: "Arjun" } },
+    });
+    const whole = room.notes[ONE.id];
+    const { about_message: _, ...rest } = room;
+    const older: RoomNote = rest;
+    expect(noteAndAbout(whole, older, ONE.id)).toEqual({ note: whole, about: undefined });
+    expect(noteAndAbout(whole, room, HELLO.id)).toEqual({ note: whole, about: undefined });
+    expect(noteAndAbout("In this space: nobody.", room, ONE.id)).toEqual({
+      note: "In this space: nobody.",
+      about: undefined,
+    });
+    expect(noteAndAbout(undefined, room, ONE.id)).toEqual({ note: undefined, about: undefined });
   });
 });
 

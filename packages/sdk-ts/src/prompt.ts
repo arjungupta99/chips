@@ -3,10 +3,16 @@
  * agents have been handing work around (ADR 0097), the room's note for the agent taking the turn
  * (ADR 0092), the room's project as the agent's copy stands (ADR 0221), how a file reaches the room
  * when the bridge sends them (`sendAnswer`), what was said
- * since it last spoke and the room's files (ADR 0088, ADR 0099), the message a reply answers
- * (ADR 0219), and the words themselves, with their files and what a voice note said. Both first
- * bridges wrote this themselves; a harness that wants its own order reads the same fields off
- * `message.new`.
+ * since it last spoke and the room's files (ADR 0088, ADR 0099), what Chips says of the message
+ * itself (ADR 0104), the message a reply answers (ADR 0219), and the words themselves, with their
+ * files and what a voice note said. Both first bridges wrote this themselves; a harness that wants
+ * its own order reads the same fields off `message.new`.
+ *
+ * What Chips says of the message, as that it is the taker's though nothing @-mentions it, opens
+ * the room's note, and is said here beside the message instead (`room.about_message`). On a
+ * session's first turn the space's rules, the project's and what was said before came between the
+ * two, and a small model at low effort passed on a message its note had called its own three
+ * times in four (finding NR-12).
  *
  * A turn can be on more than one message (ADR 0294). An agent works on one turn at a time in a
  * room, so what is said to it meanwhile waits, as does all it was sent while its harness was away.
@@ -24,6 +30,8 @@ import {
   type ContextLine,
   type MessageNew,
   type MessageOverheard,
+  namesInWords,
+  noteAndAbout,
   noteWithoutRules,
   type ProjectFacts,
   type RoomContext,
@@ -231,10 +239,34 @@ function waitedWords(count: number): string {
   return `${count} messages for you waited while you were working or away. They follow, oldest first. Answer them together in one reply, and where a later one changes or settles an earlier one, go by the later.`;
 }
 
-/** One message as a turn says it: the message it answers, then its words under who said them, and its files. */
+/**
+ * Whom a turn's own message is for, after who said it: ", to you", ", to you and Kit", as the
+ * lines since say it of a line for another agent (finding NR-13). Among lines marked "to Kit", the
+ * one line that was the taker's said nothing and read as the room's (finding NR-12). Only beside
+ * another agent, so a room with one agent reads as it did, and nothing from a Chips that names
+ * nobody.
+ */
+function forWords(message: MessageNew, taker: string | undefined): string {
+  if (taker === undefined || !othersBeside(message, taker)) return "";
+  const members = message.room?.members ?? [];
+  const to = (message.addressed_to ?? []).flatMap((id) => {
+    const member = members.find((each) => each.participant_id === id);
+    return member === undefined ? [] : [{ id, name: member.name }];
+  });
+  if (to.length === 0) return "";
+  const others = to.filter((each) => each.id !== taker).map((each) => each.name);
+  return `, to ${namesInWords(others.length === to.length ? others : ["you", ...others])}`;
+}
+
+/**
+ * One message as a turn says it: the message it answers, then its words under who said them and
+ * whom to, and its files.
+ */
 function saidOf(message: MessageNew, options: PromptOptions, taker: string | undefined): string[] {
   const who =
-    options.sayWho === false ? "" : `${withRole(message.from.display_name, message.from)}: `;
+    options.sayWho === false
+      ? ""
+      : `${withRole(message.from.display_name, message.from)}${forWords(message, taker)}: `;
   const files = (message.attachments ?? []).map(renderAttachment);
   const replying = renderReplyingTo(message.replying_to, {
     sender: {
@@ -275,8 +307,13 @@ export function promptFor(message: MessageNew, options: PromptOptions = {}): str
   const held = options.rulesHeld === true;
   const earlier = options.earlier ?? [];
   const notes: Readonly<Record<string, string>> = message.room?.notes ?? {};
-  const note =
+  const whole =
     taker === undefined ? undefined : held ? noteWithoutRules(message.room, taker) : notes[taker];
+  // What the note says of the message itself is said beside the message, not at the top.
+  const { note, about } =
+    taker === undefined
+      ? { note: whole, about: undefined }
+      : noteAndAbout(whole, message.room, taker);
   const sending =
     options.sendsFiles === true && !held
       ? sendingFiles({ project: options.project !== undefined })
@@ -299,6 +336,7 @@ export function promptFor(message: MessageNew, options: PromptOptions = {}): str
     renderContext(contextOf(message, options), { taker }),
     earlier.length === 0 ? undefined : waitedWords(earlier.length + 1),
     ...earlier.flatMap((each) => saidOf(each, options, taker)),
+    about,
     ...saidOf(message, options, taker),
     sinceOf(options),
   ]
