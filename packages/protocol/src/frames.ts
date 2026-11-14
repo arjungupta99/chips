@@ -98,6 +98,14 @@ export const clientHelloFrame = z
       .nonnegative()
       .optional()
       .describe("Not read by Chips: a stream resumes from `subscribe`'s `since`."),
+    level: z
+      .int()
+      .positive()
+      .max(10_000)
+      .optional()
+      .describe(
+        "What a person's app understands, as `CATALOGUE_LEVEL` names it (everything in step). An event added at a higher level is sent to it as the line in words its addition came with, or not at all. Absent, from an app before levels, everything is sent as it always was.",
+      ),
     accepts: z
       .array(z.string().min(1).max(40))
       .max(32)

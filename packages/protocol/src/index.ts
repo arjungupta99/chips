@@ -404,6 +404,14 @@ export {
   linkWaiting,
   parseJoinLink,
 } from "./join.js";
+export {
+  atLevel,
+  CATALOGUE_LEVEL,
+  type FallbackLine,
+  LATER_EVENTS,
+  type LaterEvent,
+  LEVEL_ONE_EVENTS,
+} from "./levels.js";
 export type { AttachmentCaps, CapKind } from "./limits.js";
 export {
   attachmentCap,

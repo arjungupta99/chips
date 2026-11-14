@@ -12,7 +12,7 @@ import {
   messageIdOf,
 } from "@chipschat/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HELD_MOST } from "./connect.js";
+import { HELD_MOST, takenUp, UNANSWERED_KEPT_MS } from "./connect.js";
 import {
   ConnectError,
   connect,
@@ -1296,5 +1296,354 @@ describe("agents (ADR 0087)", () => {
     await expect(
       chips.agents.attach(chess.agentId, { spaceId: server.spaceId, replacing: "agt_nobody" }),
     ).rejects.toBeInstanceOf(RefusedError);
+  });
+});
+
+describe("a restart loses nothing it heard", () => {
+  /** A person's words for the harness, and the `seq` the log gave them. */
+  async function say(text: string): Promise<number> {
+    await asPerson({
+      type: "message.post",
+      space_id: server.spaceId,
+      text,
+      to: [server.harnessId],
+      idempotency_key: `restart-${text}`,
+    });
+    return server.gateway.deps.store.head(server.workspaceId);
+  }
+
+  it("hears again a message it had started no run for, and only that one", async () => {
+    const store = memoryStore();
+    const before = await connect({ url: server.url, token: server.token, store });
+    clients.push(before);
+    const heard: string[] = [];
+    before.on("message.new", (message) => {
+      heard.push(message.text);
+    });
+
+    // The first is answered with a run; the second is still waiting when the harness stops, as
+    // a bridge gathers a message for a moment, or queues it behind a turn already going.
+    await say("Answered.");
+    await vi.waitFor(() => expect(heard).toEqual(["Answered."]));
+    await before.runs.start({ spaceId: server.spaceId, goal: "Answer." });
+    const waiting = await say("Still waiting.");
+    await vi.waitFor(() => expect(heard).toEqual(["Answered.", "Still waiting."]));
+    before.close();
+    expect(store.state()?.unanswered).toEqual([waiting]);
+    expect(store.state()?.since).toBeGreaterThanOrEqual(waiting);
+
+    const after = await connect({ url: server.url, token: server.token, store });
+    clients.push(after);
+    const again: string[] = [];
+    const types: string[] = [];
+    after.on("event", (event) => {
+      types.push(event.type);
+    });
+    after.on("message.new", (message) => {
+      again.push(message.text);
+    });
+    await vi.waitFor(() => expect(again).toEqual(["Still waiting."]));
+    // What came between, its own run among it, is not handed over twice.
+    expect(types).not.toContain("run.started");
+    await say("After.");
+    await vi.waitFor(() => expect(again).toEqual(["Still waiting.", "After."]));
+  });
+
+  it("forgets nothing when it stops again before hearing it", async () => {
+    const store = memoryStore();
+    const first = await connect({ url: server.url, token: server.token, store });
+    clients.push(first);
+    first.on("message.new", () => undefined);
+    const waiting = await say("Hello?");
+    await vi.waitFor(() => expect(store.state()?.unanswered).toEqual([waiting]));
+    first.close();
+
+    // Started again, and stopped before anything listened: the message is still kept.
+    const second = await connect({ url: server.url, token: server.token, store });
+    second.close();
+    expect(store.state()?.unanswered).toEqual([waiting]);
+
+    const third = await connect({ url: server.url, token: server.token, store });
+    clients.push(third);
+    const again: string[] = [];
+    third.on("message.new", (message) => {
+      again.push(message.text);
+    });
+    await vi.waitFor(() => expect(again).toEqual(["Hello?"]));
+  });
+});
+
+describe("a restart answers nothing twice", () => {
+  async function say(text: string): Promise<number> {
+    await asPerson({
+      type: "message.post",
+      space_id: server.spaceId,
+      text,
+      to: [server.harnessId],
+      idempotency_key: `twice-${text}`,
+    });
+    return server.gateway.deps.store.head(server.workspaceId);
+  }
+
+  it("doesn't hear again a message a turn already working took in", async () => {
+    const store = memoryStore();
+    const before = await connect({ url: server.url, token: server.token, store });
+    clients.push(before);
+    const heard: { id: string; text: string }[] = [];
+    before.on("message.new", (message) => {
+      heard.push({ id: message.message_id, text: message.text });
+    });
+    const run = await before.runs.start({ spaceId: server.spaceId, goal: "A long turn." });
+    // Said while the turn works: the bridge hands it to the turn, which says it heard it.
+    const waiting = await say("And one more thing.");
+    await vi.waitFor(() => expect(heard).toHaveLength(1));
+    await vi.waitFor(() => expect(store.state()?.unanswered).toEqual([waiting]));
+    await run.heard(heard[0]?.id ?? "");
+    await vi.waitFor(() => expect(store.state()?.unanswered).toBeUndefined());
+    before.close();
+
+    const after = await connect({ url: server.url, token: server.token, store });
+    clients.push(after);
+    const again: string[] = [];
+    after.on("message.new", (message) => {
+      again.push(message.text);
+    });
+    await say("After.");
+    await vi.waitFor(() => expect(again).toEqual(["After."]));
+  });
+
+  it("keeps when each waiting message was heard, and lets one go that waited over an hour", async () => {
+    const store = memoryStore();
+    const before = await connect({ url: server.url, token: server.token, store });
+    clients.push(before);
+    before.on("message.new", () => undefined);
+    const waiting = await say("Yesterday's.");
+    await vi.waitFor(() => expect(store.state()?.unanswered).toEqual([waiting]));
+    before.close();
+    const kept = store.state();
+    const heardAt = kept?.unansweredAt?.[String(waiting)] ?? 0;
+    expect(Date.now() - heardAt).toBeLessThan(60_000);
+
+    // The harness stayed stopped past the hour a message is kept for: it isn't answered now.
+    const stale = memoryStore({
+      ...kept,
+      outbox: kept?.outbox ?? [],
+      runs: kept?.runs ?? [],
+      unansweredAt: { [String(waiting)]: heardAt - UNANSWERED_KEPT_MS - 1000 },
+    });
+    const after = await connect({ url: server.url, token: server.token, store: stale });
+    clients.push(after);
+    const again: string[] = [];
+    after.on("message.new", (message) => {
+      again.push(message.text);
+    });
+    await say("Today's.");
+    await vi.waitFor(() => expect(again).toEqual(["Today's."]));
+    await vi.waitFor(() => expect(stale.state()?.unanswered).toHaveLength(1));
+    expect(stale.state()?.unanswered).not.toContain(waiting);
+  });
+
+  it("lets a message go that has waited over an hour while the harness ran, at its next save", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const store = memoryStore();
+      const chips = await connect({ url: server.url, token: server.token, store });
+      clients.push(chips);
+      chips.on("message.new", () => undefined);
+      const old = await say("Never answered.");
+      await vi.waitFor(() => expect(store.state()?.unanswered).toEqual([old]));
+      vi.setSystemTime(Date.now() + UNANSWERED_KEPT_MS + 1000);
+      // Whatever saves next lets the old one go; the new one waits in its place.
+      const fresh = await say("Just now.");
+      await vi.waitFor(() => expect(store.state()?.unanswered).toEqual([fresh]));
+      expect(Object.keys(store.state()?.unansweredAt ?? {})).toEqual([String(fresh)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("goes on waiting when a turn says it heard some other message", async () => {
+    const store = memoryStore();
+    const chips = await connect({ url: server.url, token: server.token, store });
+    clients.push(chips);
+    const heard: string[] = [];
+    chips.on("message.new", (message) => {
+      heard.push(message.message_id);
+    });
+    const run = await chips.runs.start({ spaceId: server.spaceId, goal: "A long turn." });
+    const first = await say("Still to be heard.");
+    const second = await say("Heard at once.");
+    await vi.waitFor(() => expect(store.state()?.unanswered).toEqual([first, second]));
+    // The turn takes in the second only: the first still waits for a run of its own.
+    await run.heard(heard[1] ?? "");
+    await vi.waitFor(() => expect(store.state()?.unanswered).toEqual([first]));
+    expect(Object.keys(store.state()?.unansweredAt ?? {})).toEqual([String(first)]);
+  });
+
+  it("lets go one a file kept with no time beside it, which says nothing of how long it waited", async () => {
+    const store = memoryStore();
+    const before = await connect({ url: server.url, token: server.token, store });
+    clients.push(before);
+    before.on("message.new", () => undefined);
+    const waiting = await say("Undated.");
+    await vi.waitFor(() => expect(store.state()?.unanswered).toEqual([waiting]));
+    before.close();
+    const kept = store.state();
+    const undated = memoryStore({
+      since: kept?.since,
+      unanswered: [waiting],
+      outbox: [],
+      runs: [],
+    });
+    const after = await connect({ url: server.url, token: server.token, store: undated });
+    clients.push(after);
+    const again: string[] = [];
+    after.on("message.new", (message) => {
+      again.push(message.text);
+    });
+    await say("Dated.");
+    await vi.waitFor(() => expect(again).toEqual(["Dated."]));
+  });
+});
+
+describe("runs that are over", () => {
+  const live = (chips: Awaited<ReturnType<typeof open>>) =>
+    (chips as unknown as { activeRuns: Map<string, unknown> }).activeRuns.size;
+
+  it("lets a run go once it completes or fails, so a harness that runs for weeks keeps none", async () => {
+    const chips = await open();
+    const done = await chips.runs.start({ spaceId: server.spaceId, goal: "One." });
+    const failed = await chips.runs.start({ spaceId: server.spaceId, goal: "Two." });
+    expect(live(chips)).toBe(2);
+    await done.complete({ summary: "Done." });
+    await failed.fail({ error: "No." });
+    expect(live(chips)).toBe(0);
+  });
+
+  it("lets a stopped run go after it has heard the stop", async () => {
+    const chips = await open();
+    const run = await chips.runs.start({ spaceId: server.spaceId, goal: "Long." });
+    const stopped = new Promise<void>((resolve) => run.on("cancel", () => resolve()));
+    await asPerson({
+      type: "run.cancel",
+      space_id: server.spaceId,
+      run_id: run.id,
+      idempotency_key: `cancel-${run.id}`,
+    });
+    await stopped;
+    expect(run.over).toBe(true);
+    expect(live(chips)).toBe(0);
+  });
+});
+
+describe("waiting for the server (a harness kept running)", () => {
+  /** Node's fetch, failing the socket ticket as an unreachable server does, `times` times. */
+  function downFor(times: number): typeof fetch {
+    let left = times;
+    return (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/v1/socket-tickets") && left > 0) {
+        left -= 1;
+        throw new TypeError("fetch failed");
+      }
+      return fetch(input, init);
+    }) as typeof fetch;
+  }
+
+  it("fails at once by default, so a person running it by hand hears it", async () => {
+    await expect(
+      connect({ url: server.url, token: server.token, fetch: downFor(1) }),
+    ).rejects.toBeInstanceOf(ConnectError);
+  });
+
+  it("waits and tries again when told to, saying why each time, and connects once it can", async () => {
+    const waits: string[] = [];
+    const chips = await connect({
+      url: server.url,
+      token: server.token,
+      fetch: downFor(2),
+      waitForServer: true,
+      onWaiting: (why) => waits.push(why),
+    });
+    clients.push(chips);
+    expect(chips.state).toBe("open");
+    expect(waits).toHaveLength(2);
+    expect(waits[0]).toContain("could not get a socket ticket");
+  });
+
+  it("still fails on a refusal: a token the server doesn't take is not a server that is down", async () => {
+    await expect(
+      connect({ url: server.url, token: "chips_at_nope", waitForServer: true }),
+    ).rejects.toBeInstanceOf(ConnectError);
+  });
+
+  /** Sockets that fail `times` times, each as `fails` says, then the real one. */
+  function socketsFailing(times: number, fails: (url: string) => SocketLike) {
+    let left = times;
+    return (url: string): SocketLike => {
+      if (left > 0) {
+        left -= 1;
+        return fails(url);
+      }
+      return new WebSocket(url) as unknown as SocketLike;
+    };
+  }
+  /** A socket the server closes before it says hello, as one starting up or shutting down does. */
+  const closedEarly = (): SocketLike => ({
+    send: () => undefined,
+    close: () => undefined,
+    addEventListener: (name, handler) => {
+      if (name === "close") setTimeout(() => handler({}), 0);
+    },
+  });
+  const cantOpen = (): SocketLike => {
+    throw new Error("no sockets here");
+  };
+
+  it("waits for a server that closes the socket before saying hello, or gives none", async () => {
+    for (const [fails, why] of [
+      [closedEarly, "the server closed the socket before saying hello"],
+      [cantOpen, "could not open a socket: Error: no sockets here"],
+    ] as const) {
+      const waits: string[] = [];
+      const chips = await connect({
+        url: server.url,
+        token: server.token,
+        createSocket: socketsFailing(1, fails),
+        waitForServer: true,
+        onWaiting: (said) => waits.push(said),
+      });
+      clients.push(chips);
+      expect(chips.state).toBe("open");
+      expect(waits).toEqual([why]);
+    }
+  });
+
+  it("says so at once when not told to wait", async () => {
+    await expect(
+      connect({ url: server.url, token: server.token, createSocket: closedEarly }),
+    ).rejects.toThrow("the server closed the socket before saying hello");
+    await expect(
+      connect({ url: server.url, token: server.token, createSocket: cantOpen }),
+    ).rejects.toThrow("could not open a socket: Error: no sockets here");
+  });
+});
+
+describe("who takes up a message that waits", () => {
+  it("is the harness itself, or anyone when the message named nobody", () => {
+    expect(takenUp(new Set(), undefined)).toBe(true);
+    expect(takenUp(new Set(), "agt_a")).toBe(true);
+    expect(takenUp(new Set(["agt_a", "agt_b"]), undefined)).toBe(true);
+  });
+
+  it("is each agent it was for, and it waits until the last of them has", () => {
+    const takers = new Set(["agt_a", "agt_b"]);
+    // An agent it wasn't for takes none of it.
+    expect(takenUp(takers, "agt_c")).toBe(false);
+    expect([...takers]).toEqual(["agt_a", "agt_b"]);
+    expect(takenUp(takers, "agt_a")).toBe(false);
+    expect([...takers]).toEqual(["agt_b"]);
+    // The same agent again changes nothing.
+    expect(takenUp(takers, "agt_a")).toBe(false);
+    expect(takenUp(takers, "agt_b")).toBe(true);
   });
 });

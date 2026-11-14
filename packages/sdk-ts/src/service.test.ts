@@ -15,7 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   appHolding,
   type Command,
@@ -24,6 +24,7 @@ import {
   keepRunning,
   keptNode,
   nodeOnPath,
+  runsKept,
   serviceFile,
   stopKeeping,
 } from "./service.js";
@@ -337,5 +338,59 @@ describe("the node a kept bridge runs on", () => {
     expect(keptNode({ PATH: bin, CHIPS_NODE: chips })).toBe(chips);
     expect(keptNode({ PATH: bin, CHIPS_NODE: "" })).toBe(join(bin, "node"));
     expect(keptNode({ PATH: bin })).toBe(join(bin, "node"));
+  });
+});
+
+describe("whether this run is the copy the machine keeps", () => {
+  const label = "chat.chips.hermes";
+
+  it("is, where launchd started it as the job of that name", () => {
+    expect(runsKept(label, { env: { XPC_SERVICE_NAME: label } })).toBe(true);
+  });
+
+  it("isn't in a shell, which launchd names for the app it was opened from", () => {
+    const env = { XPC_SERVICE_NAME: "application.com.apple.Terminal.1152921500311879966" };
+    expect(runsKept(label, { env, terminal: true })).toBe(false);
+    expect(runsKept(label, { env, terminal: false })).toBe(false);
+  });
+
+  it("isn't under another bridge's name", () => {
+    expect(runsKept(label, { env: { XPC_SERVICE_NAME: "chat.chips.opencode" } })).toBe(false);
+  });
+
+  it("is, where systemd says this is the process it started", () => {
+    const env = { INVOCATION_ID: "0c1f", SYSTEMD_EXEC_PID: "4242" };
+    expect(runsKept(label, { env, pid: 4242, terminal: false })).toBe(true);
+  });
+
+  it("isn't a process started under what systemd started, piped or not", () => {
+    const env = { INVOCATION_ID: "0c1f", SYSTEMD_EXEC_PID: "4242" };
+    expect(runsKept(label, { env, pid: 4301, terminal: false })).toBe(false);
+    expect(runsKept(label, { env, pid: 4301, terminal: true })).toBe(false);
+  });
+
+  it("is, on a systemd that names no process, when a unit started it with no terminal", () => {
+    expect(runsKept(label, { env: { INVOCATION_ID: "0c1f" }, terminal: false })).toBe(true);
+  });
+
+  it("isn't in a terminal a unit opened, on a systemd that names no process", () => {
+    expect(runsKept(label, { env: { INVOCATION_ID: "0c1f" }, terminal: true })).toBe(false);
+  });
+
+  it("isn't, where nothing says a service manager started it", () => {
+    expect(runsKept(label, { env: {}, terminal: false })).toBe(false);
+    expect(runsKept(label, { env: { SYSTEMD_EXEC_PID: "", INVOCATION_ID: "" } })).toBe(false);
+  });
+
+  it("reads this process's own environment, its own id and its own terminal when none is given", () => {
+    vi.stubEnv("XPC_SERVICE_NAME", label);
+    expect(runsKept(label)).toBe(true);
+    vi.stubEnv("XPC_SERVICE_NAME", "");
+    vi.stubEnv("SYSTEMD_EXEC_PID", String(process.pid));
+    expect(runsKept(label)).toBe(true);
+    vi.stubEnv("SYSTEMD_EXEC_PID", "");
+    vi.stubEnv("INVOCATION_ID", "");
+    expect(runsKept(label)).toBe(false);
+    vi.unstubAllEnvs();
   });
 });

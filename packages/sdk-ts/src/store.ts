@@ -1,6 +1,7 @@
 /**
  * What a harness keeps across a restart, so a restart loses nothing and leaves nothing hanging:
- * the last `seq` it heard (a decision made while it was down still reaches it), the events it sent
+ * the last `seq` it heard (a decision made while it was down still reaches it), the messages for
+ * it it had not yet started a run for (heard again, rather than lost), the events it sent
  * that the server never answered (sent again, which the idempotency key makes safe), and the runs
  * it started that never ended (ended for it when it comes back, so no thinking bubble waits for
  * ever). `connect({ store: fileStore(path) })`; without a store, all of it lives as long as the
@@ -20,6 +21,17 @@ export interface OpenRun {
 
 export interface HarnessState {
   readonly since?: number | undefined;
+  /**
+   * The `seq`s of messages for this harness, at or before `since`, that no run had started for
+   * yet: heard again after a restart, since `since` is past them. An older SDK reads the file
+   * without them, as before.
+   */
+  readonly unanswered?: readonly number[] | undefined;
+  /**
+   * When each of them was heard, by `seq`, in milliseconds: one waiting longer than a message is
+   * kept for is not heard again, however long the harness was stopped.
+   */
+  readonly unansweredAt?: Readonly<Record<string, number>> | undefined;
   readonly outbox: readonly Readonly<Record<string, unknown>>[];
   readonly runs: readonly OpenRun[];
 }
@@ -28,6 +40,26 @@ export interface HarnessState {
 export interface HarnessStore {
   readonly load: () => HarnessState | undefined;
   readonly save: (state: HarnessState) => void;
+}
+
+/** What a file held, with anything it shouldn't have left out. */
+function stateOf(parsed: Partial<HarnessState>): HarnessState {
+  const unanswered = Array.isArray(parsed.unanswered)
+    ? parsed.unanswered.filter((seq): seq is number => Number.isInteger(seq))
+    : [];
+  const heardAt = Object.fromEntries(
+    Object.entries(
+      typeof parsed.unansweredAt === "object" && parsed.unansweredAt !== null
+        ? parsed.unansweredAt
+        : {},
+    ).filter((entry): entry is [string, number] => typeof entry[1] === "number"),
+  );
+  return {
+    ...(typeof parsed.since === "number" ? { since: parsed.since } : {}),
+    ...(unanswered.length === 0 ? {} : { unanswered, unansweredAt: heardAt }),
+    outbox: Array.isArray(parsed.outbox) ? parsed.outbox : [],
+    runs: Array.isArray(parsed.runs) ? parsed.runs : [],
+  };
 }
 
 /**
@@ -39,12 +71,7 @@ export function fileStore(path: string): HarnessStore {
     load() {
       if (!existsSync(path)) return undefined;
       try {
-        const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<HarnessState>;
-        return {
-          ...(typeof parsed.since === "number" ? { since: parsed.since } : {}),
-          outbox: Array.isArray(parsed.outbox) ? parsed.outbox : [],
-          runs: Array.isArray(parsed.runs) ? parsed.runs : [],
-        };
+        return stateOf(JSON.parse(readFileSync(path, "utf8")) as Partial<HarnessState>);
       } catch {
         // A file nobody can read is a fresh start, not a harness that cannot start.
         return undefined;

@@ -102,6 +102,15 @@ rest of the handshake. A bad token rejects with a `ConnectError` naming the reas
 URL becomes `ws://…/v1/ws`; give `ws://` or `wss://` directly if you prefer. The socket
 reconnects with backoff when it drops; pass `reconnect: false` to have it stay down instead.
 
+A server that can't be reached fails the first `connect` at once, so a person running a harness
+by hand hears it. A harness kept running by its machine starts at login, perhaps before the
+network or its server is up, and failing there only has its service start it again every few
+seconds. Give it `waitForServer: true` and the first `connect` waits and tries again, as a
+reconnect does, and resolves once it is in; `onWaiting(why)` is told each failed try, for your
+log. A refusal, such as a token the server no longer takes, still rejects. `runsKept(label)` says
+whether this run is that copy, the one launchd or systemd started from the file `keepRunning`
+wrote, so `waitForServer: runsKept(label)` waits there and nowhere else.
+
 ## Hear what people say
 
 ```ts
@@ -650,6 +659,10 @@ const chips = await connect({ url, token, store: fileStore(`${home}/.my-harness/
 ```
 
 It keeps the last `seq` heard, so what happened while you were down is replayed to your handlers;
+the messages for you that you hadn't started a run for yet, heard again rather than lost, since a
+harness often gathers a message for a moment, or queues it behind a turn already going, before it
+starts one (a message counts as taken up once you start a run in its room, or post there outside
+a run, as the agent it was for or as the harness; one you never answer is let go after an hour);
 the events the server never answered, sent again; and the runs you started and never ended, which
 are ended for you when you come back (`run.failed`, *The harness restarted before this run
 ended.*), since their work died with the process and a run nobody ends keeps its thinking bubble.

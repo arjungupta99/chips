@@ -46,6 +46,17 @@ export interface ConnectOptions {
   /** Reconnect with backoff when the socket drops. On unless said otherwise. */
   readonly reconnect?: boolean | undefined;
   /**
+   * Wait for a server that can't be reached yet, trying again as a reconnect does, instead of
+   * failing the first connect. For a harness kept running by its machine (a launch agent, a
+   * systemd unit), which starts at login, perhaps before the network or its server is up: failing
+   * there only has the service start it again every few seconds. A refusal (a token revoked, a
+   * hello refused) still fails it. Off unless said, so a person running a harness by hand hears at
+   * once that the server isn't there.
+   */
+  readonly waitForServer?: boolean | undefined;
+  /** Each failed try while waiting for the server, with why, for the harness's log. */
+  readonly onWaiting?: ((why: string) => void) | undefined;
+  /**
    * How much of a room this harness is handed with each message for it, as `message.new`'s
    * `context` (ADR 0088): 20 lines and 4,000 characters unless said otherwise, 200 and 32,000 at
    * most, and none for `{ lines: 0 }`.
@@ -68,8 +79,9 @@ export interface ConnectOptions {
    */
   readonly settings?: SettingsHandlers | undefined;
   /**
-   * Where to keep what must survive a restart: the last `seq` heard, events the server never
-   * answered, and runs not yet ended, which are ended for the harness when it comes back
+   * Where to keep what must survive a restart: the last `seq` heard, the messages for this
+   * harness it had not yet started a run for (heard again after the restart), events the server
+   * never answered, and runs not yet ended, which are ended for the harness when it comes back
    * (`fileStore(path)`). Without one, a restart starts from `since` and forgets the rest.
    */
   readonly store?: HarnessStore | undefined;
@@ -91,6 +103,29 @@ export interface RestartAsk {
  * otherwise keep every event of its rooms for as long as it ran; past this the oldest go.
  */
 export const HELD_MOST = 20_000;
+
+/**
+ * How long a message for this harness is kept to be heard again after a restart while no run
+ * has started in its room. A harness that answers every message with a run lets it go sooner; one
+ * that chose not to answer, or answers some other way, lets it go after this.
+ */
+export const UNANSWERED_KEPT_MS = 60 * 60_000;
+
+/**
+ * Whether a waiting message is taken up by a run or words from `by`: the harness itself, or a
+ * message that named nobody, takes it whole; an agent takes its own part, and the message is
+ * taken up once every agent it was for has.
+ */
+export function takenUp(takers: Set<string>, by: string | undefined): boolean {
+  if (by === undefined || takers.size === 0) return true;
+  return takers.delete(by) && takers.size === 0;
+}
+
+/**
+ * A server that can't take this harness yet, as the relay says it: busy, or not connected to the
+ * relay (the computer asleep, or starting). Waited for, as no answer at all is.
+ */
+const UNREACHABLE: ReadonlySet<string> = new Set(["busy", "no_such_server"]);
 
 /** What `on` hears that is the connection's own, and no event of the log. */
 const OF_THE_CONNECTION: ReadonlySet<string> = new Set(["hello", "state", "receipt"]);
@@ -239,6 +274,31 @@ export class Chips {
   private helloEvent: Hello | undefined;
   /** What this harness last said is wrong on its side, said again whenever it reconnects. */
   private trouble: string | undefined;
+  /**
+   * Messages for this harness, by `seq`, with no run started in their room since: a bridge
+   * gathers a message for a moment, or queues it behind a turn already going (ADR 0294), before
+   * it starts one. `since` is past them, so they are kept to be heard again after a restart,
+   * which would otherwise lose them for good.
+   */
+  private readonly unanswered = new Map<
+    number,
+    {
+      readonly spaceId: string;
+      /** The message, as `message.new` named it: a turn that says it heard it takes it up. */
+      readonly messageId: string | undefined;
+      /** Its `for`: this connection's agents still to take a turn on it. */
+      readonly takers: Set<string>;
+      readonly at: number;
+    }
+  >();
+  /** When each message a process before this one left waiting was heard, by `seq`. */
+  private readonly leftAt = new Map<number, number>();
+  /**
+   * After a restart that kept messages unanswered: everything up to `upTo` was heard before, so
+   * it is passed over, except the messages in `again`, which are heard as if new. Over once an
+   * event past `upTo` arrives.
+   */
+  private replay: { readonly upTo: number; readonly again: Set<number> } | undefined;
   /** The runs this process started or took up and has not ended, for the store. */
   private readonly openRuns = new Map<string, OpenRun>();
   /** Runs a process before this one left open, ended once this one has said hello. */
@@ -248,6 +308,17 @@ export class Chips {
   private constructor(private readonly options: ConnectOptions) {
     const kept = options.store?.load();
     this.since = options.since ?? kept?.since;
+    // Waiting longer than a message is kept for, it is let go here too: a harness stopped for a
+    // day doesn't answer yesterday's message when it starts.
+    const fresh = Date.now() - UNANSWERED_KEPT_MS;
+    const again = (kept?.unanswered ?? []).filter((seq) => {
+      const at = kept?.unansweredAt?.[String(seq)];
+      return this.since !== undefined && seq <= this.since && at !== undefined && at > fresh;
+    });
+    for (const seq of again) this.leftAt.set(seq, kept?.unansweredAt?.[String(seq)] ?? 0);
+    if (options.since === undefined && this.since !== undefined && again.length > 0) {
+      this.replay = { upTo: this.since, again: new Set(again) };
+    }
     for (const event of kept?.outbox ?? []) {
       this.outbox.add(String(event["idempotency_key"]), event).catch(() => undefined);
     }
@@ -633,7 +704,6 @@ export class Chips {
           ...(input.sessionRef === undefined ? {} : { session_ref: input.sessionRef }),
         });
       } catch (error) {
-        this.activeRuns.delete(runId);
         this.ended(runId);
         throw error;
       }
@@ -653,6 +723,11 @@ export class Chips {
     const event = { type, ...envelope, idempotency_key: key, ...payload };
     const answer = this.outbox.add(key, event);
     if (type === "run.completed" || type === "run.failed") this.ended(String(envelope["run_id"]));
+    if (type === "run.started" || (type === "message.post" && envelope["run_id"] === undefined)) {
+      this.answered(envelope);
+    }
+    // A turn already working took the message in: no run will start for it, and it is answered.
+    if (type === "message.heard") this.heardInTurn(payload["message_id"]);
     this.save();
     if (this.ready && this.socket !== undefined) {
       this.socket.send(JSON.stringify({ frame: "event", event }));
@@ -667,8 +742,88 @@ export class Chips {
     this.save();
   }
 
+  /**
+   * A run is over: it completed, failed, or a person stopped it. It is let go here, so nothing
+   * more reaches it and a harness that runs for weeks doesn't keep every run it ever had.
+   */
   private ended(runId: string): void {
+    this.activeRuns.delete(runId);
     if (this.openRuns.delete(runId)) this.save();
+  }
+
+  /**
+   * Heard before this process started, so passed over: everything up to the replay's `upTo`,
+   * except the messages kept unanswered, which are heard again.
+   */
+  private passedOver(seq: number): boolean {
+    const replay = this.replay;
+    if (replay === undefined) return false;
+    if (seq > replay.upTo) {
+      this.replay = undefined;
+      return false;
+    }
+    return !replay.again.delete(seq);
+  }
+
+  /** A message for this harness waits until a run starts for it in its room. */
+  private waitsForAnswer(event: Frame, seq: number): void {
+    const spaceId = event["space_id"];
+    if (event["type"] !== "message.new" || typeof spaceId !== "string") return;
+    const takers = Array.isArray(event["for"])
+      ? event["for"].filter((each): each is string => typeof each === "string")
+      : [];
+    const messageId = typeof event["message_id"] === "string" ? event["message_id"] : undefined;
+    // Heard again after a restart, it has waited since it was first heard.
+    const at = this.leftAt.get(seq) ?? Date.now();
+    this.unanswered.set(seq, { spaceId, messageId, takers: new Set(takers), at });
+  }
+
+  /** A working turn said it heard this message: it waits for no run of its own any more. */
+  private heardInTurn(messageId: unknown): void {
+    if (typeof messageId !== "string") return;
+    let changed = false;
+    for (const [seq, waiting] of this.unanswered) {
+      if (waiting.messageId === messageId) {
+        this.unanswered.delete(seq);
+        changed = true;
+      }
+    }
+    if (changed) this.save();
+  }
+
+  /**
+   * A run started in a room, or something said there outside a run: the messages waiting there
+   * for whoever did it are taken up. Sent as one of its agents, only those for that agent; sent
+   * as the harness itself, all of them.
+   */
+  private answered(envelope: Readonly<Record<string, unknown>>): void {
+    const spaceId = envelope["space_id"];
+    if (typeof spaceId !== "string") return;
+    const actor = envelope["actor"] as { readonly id?: unknown } | undefined;
+    const by = typeof actor?.id === "string" ? actor.id : undefined;
+    let changed = false;
+    for (const [seq, waiting] of this.unanswered) {
+      if (waiting.spaceId === spaceId && takenUp(waiting.takers, by)) {
+        this.unanswered.delete(seq);
+        changed = true;
+      }
+    }
+    if (changed) this.save();
+  }
+
+  /**
+   * The messages to hear again after a restart, each with when it was first heard: those still
+   * unanswered, and those a process before this one left that are not yet replayed.
+   */
+  private toHearAgain(): Map<number, number> {
+    const now = Date.now();
+    for (const [seq, waiting] of this.unanswered) {
+      if (now - waiting.at > UNANSWERED_KEPT_MS) this.unanswered.delete(seq);
+    }
+    const heardAt = new Map<number, number>();
+    for (const seq of this.replay?.again ?? []) heardAt.set(seq, this.leftAt.get(seq) ?? now);
+    for (const [seq, waiting] of this.unanswered) heardAt.set(seq, waiting.at);
+    return new Map([...heardAt].sort((a, b) => a[0] - b[0]));
   }
 
   /**
@@ -705,8 +860,13 @@ export class Chips {
   }
 
   private saveNow(): void {
-    this.options.store?.save({
+    if (this.options.store === undefined) return;
+    const again = this.toHearAgain();
+    this.options.store.save({
       ...(this.since === undefined ? {} : { since: this.since }),
+      ...(again.size === 0
+        ? {}
+        : { unanswered: [...again.keys()], unansweredAt: Object.fromEntries(again) }),
       outbox: this.outbox.unanswered(),
       runs: [...this.openRuns.values(), ...this.orphans],
     });
@@ -752,9 +912,12 @@ export class Chips {
       this.setState("connecting");
       // Before a socket exists, a failure tells the first caller. A reconnect has nobody to
       // tell, so it tries again: a server still down on this attempt may be up by the next.
+      // So does a first connect told to wait for its server, unless it was refused.
       const failed = (what: string, error: unknown) => {
-        if (first) reject(new ConnectError(`${what}: ${describe(error)}`));
-        else this.scheduleReconnect();
+        const why = `${what}: ${describe(error)}`;
+        if (!first) this.scheduleReconnect();
+        else if (this.waitsFor(error)) this.tryAgain(why, resolve, reject);
+        else reject(new ConnectError(why));
       };
       void this.socketUrl().then(
         (url) => {
@@ -784,8 +947,10 @@ export class Chips {
     reject: (error: ConnectError) => void,
   ): void {
     if (hello === undefined) {
-      if (first) reject(new ConnectError("the server closed the socket before saying hello"));
-      else this.scheduleReconnect();
+      const why = "the server closed the socket before saying hello";
+      if (!first) this.scheduleReconnect();
+      else if (this.options.waitForServer === true) this.tryAgain(why, resolve, reject);
+      else reject(new ConnectError(why));
       return;
     }
     if (hello instanceof ConnectError) {
@@ -870,11 +1035,14 @@ export class Chips {
   private onHello(socket: SocketLike, hello: Hello): void {
     this.helloEvent = hello;
     this.emitter.emit("hello", hello);
+    // After a restart, from just before the first message still to be heard again.
+    const again = this.replay?.again;
+    const from = again !== undefined && again.size > 0 ? Math.min(...again) - 1 : this.since;
     socket.send(
       JSON.stringify({
         frame: "subscribe",
         workspace_id: hello.workspace_id,
-        ...(this.since === undefined ? {} : { since: this.since }),
+        ...(from === undefined ? {} : { since: from }),
       }),
     );
     // Whatever the last socket did not get an answer for goes first: the server acks a resend
@@ -1009,15 +1177,18 @@ export class Chips {
     }
     const seq = event["seq"];
     if (typeof seq === "number") {
+      if (this.passedOver(seq)) return;
       this.since = Math.max(this.since ?? 0, seq);
+      this.waitsForAnswer(event, seq);
       this.save();
-    }
-    if (event["type"] === "run.cancel" && typeof event["run_id"] === "string") {
-      this.ended(event["run_id"]);
     }
     this.settleWaiters(event);
     this.emitter.emit("event", event as unknown as AnyEvent);
     this.routeToRuns(event);
+    // After the run has heard it: a stopped run is let go.
+    if (event["type"] === "run.cancel" && typeof event["run_id"] === "string") {
+      this.ended(event["run_id"]);
+    }
     const asked = this.asks.heard(event);
     const type = event["type"];
     if (typeof type === "string" && type in this.named && !asked) {
@@ -1150,6 +1321,35 @@ export class Chips {
     if (this.connectionState === state) return;
     this.connectionState = state;
     this.emitter.emit("state", state);
+  }
+
+  /**
+   * Whether a first connect waits on this failure: told to wait for its server, and the server
+   * couldn't be reached or couldn't answer (no answer at all, a 5xx, busy, or not on the relay
+   * yet), rather than refusing this harness.
+   */
+  private waitsFor(error: unknown): boolean {
+    if (this.options.waitForServer !== true) return false;
+    if (!(error instanceof RefusedError)) return true;
+    return /^(5\d\d|429)$/.test(error.code) || UNREACHABLE.has(error.code);
+  }
+
+  /** The first connect again after a wait, as a reconnect waits; `connect` resolves once it is in. */
+  private tryAgain(why: string, resolve: () => void, reject: (error: ConnectError) => void): void {
+    if (this.closed) {
+      reject(new ConnectError("the connection was closed while waiting for the server"));
+      return;
+    }
+    this.options.onWaiting?.(why);
+    this.retry += 1;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(
+      () => {
+        this.timer = undefined;
+        this.open(true).then(resolve, reject);
+      },
+      Math.min(500 * this.retry, 5000),
+    );
   }
 
   private scheduleReconnect(): void {

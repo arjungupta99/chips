@@ -297,6 +297,32 @@ function nodeFirst(folder: string, path: string | undefined): string {
 }
 
 /**
+ * Whether this process is the copy its machine keeps running under `label`, started by launchd or
+ * systemd from the file `keepRunning` wrote, and not one a person ran by hand. launchd tells what
+ * it starts the job's name (`XPC_SERVICE_NAME`). systemd says which process it started
+ * (`SYSTEMD_EXEC_PID`, from systemd 248); before that it says only that a unit started this or
+ * something above it (`INVOCATION_ID`), which a shell opened from a unit hands on, so there it
+ * counts only with no terminal to write to. A harness asks this to wait for its server when it
+ * starts (`connect({ waitForServer })`), where a person who runs it by hand hears at once.
+ */
+export function runsKept(
+  label: string,
+  given: {
+    readonly env?: Environment;
+    readonly pid?: number;
+    readonly terminal?: boolean;
+  } = {},
+): boolean {
+  // biome-ignore lint/style/noProcessEnv: what started this process is said in its environment.
+  const env = given.env ?? process.env;
+  if (env["XPC_SERVICE_NAME"] === label) return true;
+  const started = env["SYSTEMD_EXEC_PID"] ?? "";
+  if (started !== "") return started === String(given.pid ?? process.pid);
+  const terminal = given.terminal ?? process.stdout.isTTY === true;
+  return (env["INVOCATION_ID"] ?? "") !== "" && !terminal;
+}
+
+/**
  * The node a kept bridge runs on: the one `chips connect` hands over (`CHIPS_NODE`), named by a
  * path an upgrade of Chips keeps (`~/.local/lib/chips/current/runtime/node`, or inside Chips.app);
  * else the first on the PATH, as `npm start` runs it (`nodeOnPath`).

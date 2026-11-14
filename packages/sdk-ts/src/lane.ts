@@ -46,6 +46,8 @@ export class Lane<R = unknown> {
   private stop: (() => void) | undefined;
   private laneState: LaneState | "flattened" | "opening" = "opening";
   private laneRunId: string | undefined;
+  /** The lane's run, once `work` has taken it up. */
+  private worked: R | undefined;
   private laneSpaceId: string | undefined;
   private lastSummary: string | undefined;
   private lastCost: number | undefined;
@@ -107,7 +109,9 @@ export class Lane<R = unknown> {
           : "the lane has not been acknowledged yet",
       );
     }
-    return this.wire.accept(this.laneRunId, this.laneSpaceId, this.id);
+    // The same run every time, kept here: the connection lets a run go once it is over.
+    this.worked ??= this.wire.accept(this.laneRunId, this.laneSpaceId, this.id);
+    return this.worked;
   }
 
   /** The task's acknowledgement: where the lane is, or that there is none. */

@@ -99,6 +99,7 @@ export {
   keepRunning,
   keptNode,
   nodeOnPath,
+  runsKept,
   serviceFile,
   stopKeeping,
 } from "./service.js";
