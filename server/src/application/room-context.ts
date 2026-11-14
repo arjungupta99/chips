@@ -285,13 +285,24 @@ function asNow(event: ContextEvent, replaced: ReadonlyMap<string, string>): Cont
   };
 }
 
-/** Everybody a line names: who said or did it, and who came, went or took a new name. */
+/**
+ * Everybody a line names: who said or did it, who came, went or took a new name, and the agents a
+ * message was for, which a line for another agent says by name (ADR 0088, addendum).
+ */
 function namedIn(events: readonly ContextEvent[]): Set<string> {
   const ids = new Set<string>();
   for (const event of events) {
     if (event.actor.id !== "system") ids.add(event.actor.id);
     const subject = event.payload["participant_id"];
     if (typeof subject === "string") ids.add(subject);
+    for (const id of addressedIn(event)) ids.add(id);
   }
   return ids;
+}
+
+/** The agents a message was for, as its event says; none for an event that is no message. */
+function addressedIn(event: ContextEvent): string[] {
+  const addressed = event.payload["addressed_to"];
+  if (event.type !== "message.post" || !Array.isArray(addressed)) return [];
+  return (addressed as unknown[]).filter((id) => typeof id === "string");
 }

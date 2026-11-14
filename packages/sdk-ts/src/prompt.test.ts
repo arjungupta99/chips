@@ -176,6 +176,73 @@ describe("a turn on what waited (ADR 0294)", () => {
   });
 });
 
+// Finding NR-13, 13 November 2026: one ask to each of three agents by the field's pick, the same
+// but for a word. The agent asked for "echo" was handed the ask for "delta" as a line of the
+// room's, with nothing saying it was another's, and answered "delta".
+describe("a line said to another agent since the taker last spoke (ADR 0088)", () => {
+  const forThem = (seq: number, text: string, id: string, to: readonly NoteMember[]) => ({
+    ...line(seq, arjun, text, id),
+    addressed_to: to.map((each) => each.id),
+    to: to.map((each) => ({ id: each.id, name: each.name })),
+  });
+  const echo = (lines: readonly unknown[], more: Record<string, unknown> = {}) =>
+    said("msg_e", "Reply with the single word echo", {
+      context: { lines, since_seq: 10, truncated: false, before: 11 },
+      ...more,
+    });
+
+  it("says whom it was for, and nothing more of one for the taker alone", () => {
+    const text = promptFor(
+      echo([
+        forThem(11, "Reply with the single word delta", "msg_d", [KIT]),
+        forThem(12, "Reply with the single word charlie", "msg_c", [HALE]),
+        forThem(13, "Both of you, hold on", "msg_b", [KIT, HALE]),
+        line(14, kit, "delta", "msg_k"),
+      ]),
+    );
+    expect(text).toBe(
+      [
+        note,
+        [
+          CONTEXT_HEADING,
+          "Arjun (owner), to Kit: Reply with the single word delta",
+          "Arjun (owner): Reply with the single word charlie",
+          "Arjun (owner), to you and Kit: Both of you, hold on",
+          "Kit: delta",
+        ].join("\n"),
+        "Arjun (owner): Reply with the single word echo",
+      ].join("\n\n"),
+    );
+  });
+
+  it("says it by the taker the bridge names, for a message with more than one", () => {
+    const lines = [forThem(11, "Reply with the single word delta", "msg_d", [KIT])];
+    const both = echo(lines, { for: [HALE.id, KIT.id] });
+    expect(promptFor(both, { taker: HALE.id })).toContain(
+      "Arjun (owner), to Kit: Reply with the single word delta",
+    );
+    expect(promptFor(both, { taker: KIT.id })).toContain(
+      `${CONTEXT_HEADING}\nArjun (owner): Reply with the single word delta`,
+    );
+  });
+
+  it("says it of a line from before the taker joined", () => {
+    const before = {
+      lines: [forThem(3, "Reply with the single word delta", "msg_d", [KIT])] as never,
+    };
+    expect(promptFor(first, { before })).toContain(
+      `${BEFORE_HEADING}\nArjun (owner), to Kit: Reply with the single word delta`,
+    );
+  });
+
+  it("reads a line from a Chips that names nobody as it always has", () => {
+    const old = { ...line(11, arjun, "Reply with the single word delta", "msg_d") };
+    expect(promptFor(echo([{ ...old, addressed_to: [KIT.id] }]))).toContain(
+      `${CONTEXT_HEADING}\nArjun (owner): Reply with the single word delta`,
+    );
+  });
+});
+
 describe("an agent's first turn in a room it was put in (ADR 0088)", () => {
   const before = {
     lines: [

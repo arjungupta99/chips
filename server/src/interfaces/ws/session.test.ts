@@ -6,7 +6,7 @@
  * disconnects mid-stream and resumes with `since` receiving exactly the missed events, once.
  */
 
-import { CEILING, messageIdOf, schemaFor } from "@chipschat/protocol";
+import { CEILING, type ContextLine, messageIdOf, renderLine, schemaFor } from "@chipschat/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { IncomingEvent, Principal } from "../../application/index.js";
 import { createTestWorkspace, type TestWorkspace } from "../../testing/workspace.js";
@@ -1034,9 +1034,33 @@ describe("what a harness is handed with a question (ADR 0088)", () => {
     expect(context).toMatchObject({ since_seq: spoke, truncated: false });
     // Each line says who it was for, so a harness can leave out what it already answered.
     expect(context?.lines[0]).toMatchObject({ addressed_to: [ledger.id] });
+    // And by name, so the plain form can say a line was for another agent (finding NR-13).
+    expect(context?.lines[0]).toMatchObject({ to: [{ id: ledger.id, name: "Ledger" }] });
+    expect(context?.lines[1]).not.toHaveProperty("to");
     // What it overheard was context itself, and came with none.
     expect(heard(scout, "@Ledger are the quotes in?")).toMatchObject({ type: "message.overheard" });
     expect(heard(scout, "@Ledger are the quotes in?")).not.toHaveProperty("context");
+  });
+
+  it("names whom an earlier line was for when a person chose it in the field, with no @ (finding NR-13)", async () => {
+    const { ledger, scout, arjun } = await everyoneOnline();
+    await say(scout, "Morning, all");
+    // One ask each, the same but for a word: Ledger's is a line of the room's by Scout's turn.
+    await say(arjun, "Reply with the single word delta", { to: [ledger.id] });
+    await say(arjun, "Reply with the single word echo", { to: [ws.scout.participantId] });
+
+    const context = handed(scout, "Reply with the single word echo");
+    expect(context?.lines).toEqual([
+      expect.objectContaining({
+        text: "Reply with the single word delta",
+        addressed_to: [ledger.id],
+        to: [{ id: ledger.id, name: "Ledger" }],
+      }),
+    ]);
+    const [line] = (context?.lines ?? []) as unknown as ContextLine[];
+    expect(renderLine(line as ContextLine, { taker: ws.scout.participantId })).toMatch(
+      /^Arjun(?: \(owner\))?, to Ledger: Reply with the single word delta$/,
+    );
   });
 
   it("counts a turn passed with NO_REPLY as a turn, so what came before it isn't handed again", async () => {

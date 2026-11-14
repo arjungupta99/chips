@@ -12,7 +12,8 @@
  * - `contextLines` keeps the newest that fit a budget, oldest first, and cuts a line longer than
  *   the whole budget rather than dropping it.
  * - `renderContext` writes them as the adapters always have: "Said in this room since you last
- *   spoke:", then `Name: words`, one per line; then the room's files, one per line (ADR 0099).
+ *   spoke:", then `Name: words`, one per line; then the room's files, one per line (ADR 0099). A
+ *   line for another agent says whom it was for, `Name, to Scout: words` (ADR 0088, addendum).
  *
  * A reply hands over the message it answers in the same shape (`replyingTo`, ADR 0219), and
  * `renderReplyingTo` writes it for the turn.
@@ -21,6 +22,7 @@
 import { z } from "zod";
 import { messageIdOf } from "./ids/index.js";
 import { agentId, id, isoTimestamp, MAX_TRANSCRIPT_LENGTH } from "./primitives.js";
+import { namesInWords } from "./project.js";
 import { ROOM_FILES_IN_CONTEXT, renderRoomFiles, roomFiles } from "./room-files.js";
 import { MONTHS } from "./room-note.js";
 import { jobSpend } from "./spend.js";
@@ -120,6 +122,18 @@ export const contextLine = z
       .optional()
       .describe(
         "On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so.",
+      ),
+    to: z
+      .array(
+        z.object({
+          id: agentId.describe("One of `addressed_to`."),
+          name: z.string().min(1).max(120).describe("What it goes by now."),
+        }),
+      )
+      .max(64)
+      .optional()
+      .describe(
+        "On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it.",
       ),
     held: z
       .literal(true)
@@ -320,19 +334,37 @@ function str(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
 
-/** A message's words and what it carried: text as given, voice notes heard, files by name. */
-function saidFields(payload: Readonly<Record<string, unknown>>): Partial<ContextLine> {
+/**
+ * The agents a message was for, each by the name it goes by now. One nobody knows is left out: an
+ * id is no name to say to a model.
+ */
+function toOf(addressed: unknown, who: Who): NonNullable<ContextLine["to"]> {
+  const ids = Array.isArray(addressed) ? (addressed as unknown[]) : [];
+  return ids.flatMap((id) => {
+    if (typeof id !== "string") return [];
+    const name = who(id)?.name.slice(0, 120);
+    return name === undefined || name === "" ? [] : [{ id, name }];
+  });
+}
+
+/**
+ * A message's words and what it carried: text as given, voice notes heard, files by name, and
+ * whom it was for.
+ */
+function saidFields(payload: Readonly<Record<string, unknown>>, who: Who): Partial<ContextLine> {
   const files = Array.isArray(payload["attachments"])
     ? (payload["attachments"] as Record<string, unknown>[])
     : [];
   const heard = files.map((file) => str(file["transcript"])).filter((each) => each !== undefined);
   const names = files.map((file) => str(file["filename"])).filter((each) => each !== undefined);
   const addressed = payload["addressed_to"];
+  const to = toOf(addressed, who);
   return {
     text: typeof payload["text"] === "string" ? payload["text"] : "",
     ...(heard.length === 0 ? {} : { transcript: heard.join(" ").slice(0, MAX_TRANSCRIPT_LENGTH) }),
     ...(names.length === 0 ? {} : { files: names.slice(0, 20) }),
     ...(Array.isArray(addressed) ? { addressed_to: addressed as string[] } : {}),
+    ...(to.length === 0 ? {} : { to }),
     ...(payload["held"] === true ? { held: true as const } : {}),
   };
 }
@@ -358,7 +390,7 @@ function lineOf(event: ContextEvent, who: Who): ContextLine | undefined {
         kind: "said",
         from: fromOf(who, event.actor.id, event.actor.kind),
         message_id: messageIdOf(event.id),
-        ...saidFields(p),
+        ...saidFields(p, who),
       };
     case "membership.added":
     case "membership.removed":
@@ -433,12 +465,41 @@ function wordsOf(line: ContextLine): string {
   return parts.filter((part) => part !== "").join(" ");
 }
 
-/** One line in the plain form; what was said is said under the name with its standing (SEC-15). */
-export function renderLine(line: ContextLine): string {
+/** Who reads a line, when the caller knows. */
+export interface LineReading {
+  /**
+   * The agent taking the turn. A line for it and others reads "to you and Scout", and one for it
+   * alone says nothing more, as it always has. Unsaid, every agent a line was for is named.
+   */
+  readonly taker?: string | undefined;
+}
+
+/**
+ * Whom a line was for, after who said it: ", to Scout", ", to you and Scout". Nothing for a line
+ * that was for no agent, or for the reader alone. A person's pick in the field puts no @ in the
+ * words, so without this a line for another agent reads as the room's, or the reader's: on
+ * 13 November 2026 an agent asked for "echo" answered "delta", the word asked of another one line
+ * earlier (finding NR-13).
+ */
+function toWords(line: ContextLine, taker: string | undefined): string {
+  const to = line.to ?? [];
+  const others = to.filter((each) => each.id !== taker).map((each) => each.name);
+  if (others.length === 0) return "";
+  return `, to ${namesInWords(others.length === to.length ? others : ["you", ...others])}`;
+}
+
+/**
+ * One line in the plain form; what was said is said under the name with its standing (SEC-15),
+ * and whom it was for when that was another agent. Two signatures, so `lines.map(renderLine)`
+ * still reads: an index is no reader.
+ */
+export function renderLine(line: ContextLine): string;
+export function renderLine(line: ContextLine, reading: LineReading | undefined): string;
+export function renderLine(line: ContextLine, reading?: LineReading): string {
   const name = line.from.name;
   switch (line.kind) {
     case "said":
-      return `${withRole(name, line.from)}: ${wordsOf(line)}`;
+      return `${withRole(name, line.from)}${toWords(line, reading?.taker)}: ${wordsOf(line)}`;
     case "joined":
       return `(${name} joined the space)`;
     case "left":
@@ -502,12 +563,13 @@ export function contextLines(
  */
 export function renderContext(
   context: (Pick<RoomContext, "lines"> & Pick<Partial<RoomContext>, "files">) | undefined,
+  reading?: LineReading,
 ): string {
   if (context === undefined) return "";
   const said =
     context.lines.length === 0
       ? ""
-      : [CONTEXT_HEADING, ...context.lines.map(renderLine)].join("\n");
+      : [CONTEXT_HEADING, ...context.lines.map((line) => renderLine(line, reading))].join("\n");
   return [said, renderRoomFiles(context.files)].filter((part) => part !== "").join("\n\n");
 }
 
@@ -566,7 +628,8 @@ export function renderReplyingTo(replying: Quoted | undefined, reading: ReplyRea
     `${replier} is replying to ${whose} from ${saidWhen(replying.at, reading)}${gone}.`,
   ];
   if (replying.before !== undefined && replying.before.length > 0) {
-    said.push(REPLY_BEFORE_HEADING, ...replying.before.map(renderLine));
+    const reader = { taker: reading.taker };
+    said.push(REPLY_BEFORE_HEADING, ...replying.before.map((line) => renderLine(line, reader)));
   }
   if (replying.deleted === true) return said.join("\n");
   const edited = replying.edited === true ? " (edited)" : "";

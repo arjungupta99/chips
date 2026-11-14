@@ -209,7 +209,11 @@ export function heldWords(
 export const BEFORE_HEADING = "Said in this space before you joined:";
 
 /** What was said in the room before the taker joined, without what this turn says as a message. */
-function beforeOf(message: MessageNew, options: PromptOptions): string | undefined {
+function beforeOf(
+  message: MessageNew,
+  options: PromptOptions,
+  taker: string | undefined,
+): string | undefined {
   const said = new Set([
     message.message_id,
     ...(options.earlier ?? []).map((each) => each.message_id),
@@ -217,7 +221,9 @@ function beforeOf(message: MessageNew, options: PromptOptions): string | undefin
   const lines = (options.before?.lines ?? []).filter(
     (line) => line.message_id === undefined || !said.has(line.message_id),
   );
-  return lines.length === 0 ? undefined : [BEFORE_HEADING, ...lines.map(renderLine)].join("\n");
+  return lines.length === 0
+    ? undefined
+    : [BEFORE_HEADING, ...lines.map((line) => renderLine(line, { taker }))].join("\n");
 }
 
 /** That more than one message waited, said ahead of them (ADR 0294). */
@@ -288,8 +294,9 @@ export function promptFor(message: MessageNew, options: PromptOptions = {}): str
     note,
     project,
     sending,
-    beforeOf(message, options),
-    renderContext(contextOf(message, options)),
+    beforeOf(message, options, taker),
+    // A line for another agent says whom it was for; one for the taker alone does not.
+    renderContext(contextOf(message, options), { taker }),
     earlier.length === 0 ? undefined : waitedWords(earlier.length + 1),
     ...earlier.flatMap((each) => saidOf(each, options, taker)),
     ...saidOf(message, options, taker),

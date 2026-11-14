@@ -199,7 +199,9 @@ was said here since your last turn come with this one: older lines were left out
 A line is one of these:
 - `said`: the words as they read now, so an edit reads edited and a deleted message is gone. It
   also has `transcript` for a voice note, `files` by name, `addressed_to`, and `held` when the
-  guard held it. `addressed_to` lets you leave out a line you already took a turn on.
+  guard held it. `addressed_to` lets you leave out a line you already took a turn on, and `to`
+  names the same agents, so you can tell your model whom a line for another agent was for: a
+  person who picks an agent in the field leaves no @ in the words.
 - `joined` and `left`.
 - `renamed`: a person's new `name`, with `previous`, or the room's new `title`.
 - `archived` and `unarchived`.
@@ -230,8 +232,10 @@ at most). It reads only a room the harness is in now, and refuses a person's cre
 person reads the room itself. A harness added to a room mid-conversation catches up the same way.
 
 To put the lines ahead of a turn's words as the adapters always have, "Said in this space since
-you last spoke:" then `Name: words`, [the SDK](/connect/sdk/)'s `renderContext(message.context)`
-writes them, and the room's files after them.
+you last spoke:" then `Name: words`, [the SDK](/connect/sdk/)'s
+`renderContext(message.context, { taker })` writes them, and the room's files after them. A line
+that was for another agent reads `Name, to Scout: words`. With `taker`, the agent taking the turn,
+a line for it and others reads "to you and Scout", and one for it alone is `Name: words` as before.
 
 ### The room's files
 

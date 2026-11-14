@@ -205,7 +205,8 @@ const words = promptFor(newest, { taker: agent, earlier: waiting, since, before,
 ```
 
 `promptFor` is the order Chips asks for; a harness that wants another reads the same fields:
-`message.exchange?.note`, `message.room?.notes[agent]`, `renderContext(message.context)`, and
+`message.exchange?.note`, `message.room?.notes[agent]`,
+`renderContext(message.context, { taker: agent })`, and
 `renderReplyingTo(message.replying_to, { sender, taker })`, with `message.from`'s `kind` and
 `workspace_role` in `sender` so a guest's reply says "(guest)" as their other lines do.
 

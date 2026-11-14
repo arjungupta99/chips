@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AGENT_EVENTS, inLegacyView } from "./agents.js";
+import { type ContextLine, renderLine } from "./context.js";
 
 const JACOBIAN = "hrn_jacobian";
 const view = { harnessId: JACOBIAN, own: new Set(["agt_chess", "agt_hello"]) };
@@ -45,6 +46,30 @@ describe("a harness that has not learnt agents", () => {
         ],
       },
     });
+  });
+
+  it("is shown whom a line was for with its own agent as itself, so the plain form reads it as the taker", () => {
+    const line: ContextLine = {
+      seq: 4,
+      at: "2026-11-13T23:16:00.000Z",
+      kind: "said",
+      from: { id: "usr_arjun", kind: "person", name: "Arjun" },
+      text: "Both of you",
+      addressed_to: ["agt_openclaw", "agt_hello"],
+      to: [
+        { id: "agt_openclaw", name: "OpenClaw" },
+        { id: "agt_hello", name: "Hello" },
+      ],
+    };
+    const shown = inLegacyView(line, view);
+    expect(shown.to).toEqual([
+      { id: "agt_openclaw", name: "OpenClaw" },
+      { id: JACOBIAN, name: "Hello" },
+    ]);
+    // A harness that knows its agent only as itself takes the turn as itself.
+    expect(renderLine(shown, { taker: JACOBIAN })).toBe("Arjun, to you and OpenClaw: Both of you");
+    const alone = inLegacyView({ ...line, to: [{ id: "agt_hello", name: "Hello" }] }, view);
+    expect(renderLine(alone, { taker: JACOBIAN })).toBe("Arjun: Both of you");
   });
 
   it("reads a membership of its agent as its own, and leaves every other word alone", () => {

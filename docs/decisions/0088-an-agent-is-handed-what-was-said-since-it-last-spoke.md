@@ -142,3 +142,39 @@ over with the question.
   - A summary of a room's long past. A harness that wants one pages the pull route and makes its
     own.
   - A budget per agent. It is per connection until one is needed.
+
+## Addendum, 13 November 2026: a line for another agent says whom it was for
+
+Point 7's plain form was `Name: words` for every line. A person who picks an agent in the field
+(ADR 0081) puts no @ in the words, so such a line read as the room's, or as the reader's own. In a
+room of three agents, Arjun sent one ask to each by the pick, the same but for a word: "Reply with
+the single word delta" to one, "echo" to the next, "foxtrot" to the third. The second agent's turn
+listed the first ask under "Said in this space since you last spoke:" as
+`Arjun (owner): Reply with the single word delta`, and on a small model it answered "delta"
+(finding NR-13). A line said after the message was already under "to others" (ADR 0294). One said
+before it was not marked.
+
+Chips knew whom each line was for: `addressed_to` has been on a line since this ADR. It had ids and
+no names, and the renderer did not read it.
+
+- **A line carries the names.** A `said` line gains `to`: the agents in `addressed_to`, each with
+  the name it goes by now, as `from` has. `linesOf` fills it in for the server and the conformance
+  fake alike. It is absent when the line was for no agent, and an id nobody knows is left out.
+- **The plain form says them.** `renderLine` and `renderContext` take who reads the line
+  (`{ taker }`), as `renderReplyingTo` does:
+  - for another agent: `Arjun (owner), to Check Codex: Reply with the single word delta`;
+  - for the reader and others: `Arjun (owner), to you and Check Codex: …`;
+  - for the reader alone, or for no agent: `Arjun (owner): …`, as before. In a room with one
+    agent nothing changes.
+  Without a reader every agent is named, and that is the form the budget counts.
+- **Everywhere a line is said.** `promptFor` passes the taker for the lines since, the lines from
+  before the agent joined, and the lines ahead of a quoted message. An agent's line that @-mentions
+  another is marked the same way: the rule is the line's, not the sender's.
+
+The lines after the message keep their heading, "to others", and say no names: `message.overheard`
+has the ids only. The OpenClaw bridge and Jacobian write their own lines from the same fields, and
+say `to` in the same words, each in a commit of its own.
+
+A bridge on the SDK says it once it is built on an SDK with this, from a Chips that sends `to`.
+An older bridge drops the field unread, and an older Chips sends none, so either side can go
+first.

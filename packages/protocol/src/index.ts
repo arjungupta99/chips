@@ -151,6 +151,7 @@ export type {
   ContextBudget,
   ContextEvent,
   ContextLine,
+  LineReading,
   ReplyingTo,
   ReplyReading,
   RoomContext,

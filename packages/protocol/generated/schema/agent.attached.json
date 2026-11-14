@@ -225,6 +225,31 @@
                   "description": "An agent identifier (`agt_`, ADR 0087), or a harness's (`hrn_`) for one written before agents."
                 }
               },
+              "to": {
+                "description": "On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it.",
+                "maxItems": 64,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^(?:agt|hrn)_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+                      "description": "One of `addressed_to`."
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120,
+                      "description": "What it goes by now."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ]
+                }
+              },
               "held": {
                 "description": "On `said`: the guard held it (ADR 0081), so it was for nobody.",
                 "type": "boolean",

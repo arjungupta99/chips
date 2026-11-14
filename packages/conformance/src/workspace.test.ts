@@ -1666,6 +1666,21 @@ describe("what an agent knows of its room (ADR 0105), as the real door has it", 
     ]);
   });
 
+  it("names whom an earlier line was for, as the real door does (finding NR-13)", () => {
+    const scout = agent();
+    const other = tree();
+    said(OWNER, "Reply with the single word delta", { to: [other] });
+    const next = said(OWNER, "Reply with the single word echo", { to: [scout] });
+    const context = ws.contextFor([scout], space, next.seq, { lines: 20, chars: 4000 });
+    expect(context?.lines.filter((line) => line.kind === "said")).toEqual([
+      expect.objectContaining({
+        text: "Reply with the single word delta",
+        addressed_to: [other],
+        to: [{ id: other, name: "Tree" }],
+      }),
+    ]);
+  });
+
   it("makes an agent's NO_REPLY alone its turn passed, and leaves a person's words be", () => {
     const scout = agent();
     start();

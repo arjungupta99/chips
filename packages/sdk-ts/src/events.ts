@@ -40,7 +40,8 @@ export interface ChipsEvents {
    * Something said to this harness: a person's message, or another harness addressing it. Its
    * `context` is what was said in the room since this harness last spoke there (ADR 0088), and
    * `context.files` the room's files at their current version, each with a URL (ADR 0099);
-   * `renderContext(event.context)` writes both as plain text to go ahead of the turn's words. Its
+   * `renderContext(event.context)` writes both as plain text to go ahead of the turn's words, and
+   * with `{ taker }` a line for the agent taking the turn and others reads "to you and Scout". Its
    * `room` says who is in the room, with the handle that reaches each, and `room.notes[id]` is the
    * note for each agent in `for` (ADR 0092): put it first in that agent's turn.
    */

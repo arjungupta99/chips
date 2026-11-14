@@ -52,6 +52,9 @@ Every event also carries the [envelope](/reference/envelope/).
 | `catch_up.lines[].transcript` | no | `string` | On `said`: what a voice note said, as the server heard it (ADR 0054). |
 | `catch_up.lines[].files` | no | `string[]` | On `said`: the names of the files it carried. |
 | `catch_up.lines[].addressed_to` | no | `string[]` | On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. |
+| `catch_up.lines[].to` | no | `{ /** One of `addressed_to`. */ id: string; /** What it goes by now. */ name: string; }[]` | On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. |
+| `catch_up.lines[].to[].id` | yes | `string` | One of `addressed_to`. |
+| `catch_up.lines[].to[].name` | yes | `string` | What it goes by now. |
 | `catch_up.lines[].held` | no | `true` | On `said`: the guard held it (ADR 0081), so it was for nobody. |
 | `catch_up.lines[].name` | no | `string` | On `renamed`, for a participant: the name they took. |
 | `catch_up.lines[].previous` | no | `string` | On `renamed`, for a participant: the name they went by until then. |

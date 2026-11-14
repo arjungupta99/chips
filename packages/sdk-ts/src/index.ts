@@ -22,6 +22,7 @@
 export type {
   ContextBudget,
   ContextLine,
+  LineReading,
   RoomContext,
   RoomFile,
   RoomMember,

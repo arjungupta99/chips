@@ -1218,6 +1218,13 @@ export interface MessageNew {
     files?: string[];
     /** On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. */
     addressed_to?: string[];
+    /** On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. */
+    to?: {
+      /** One of `addressed_to`. */
+      id: string;
+      /** What it goes by now. */
+      name: string;
+    }[];
     /** On `said`: the guard held it (ADR 0081), so it was for nobody. */
     held?: true;
     /** On `renamed`, for a participant: the name they took. */
@@ -1260,6 +1267,13 @@ export interface MessageNew {
       files?: string[];
       /** On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. */
       addressed_to?: string[];
+      /** On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. */
+      to?: {
+        /** One of `addressed_to`. */
+        id: string;
+        /** What it goes by now. */
+        name: string;
+      }[];
       /** On `said`: the guard held it (ADR 0081), so it was for nobody. */
       held?: true;
       /** On `renamed`, for a participant: the name they took. */
@@ -1342,6 +1356,13 @@ export interface MessageNew {
       files?: string[];
       /** On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. */
       addressed_to?: string[];
+      /** On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. */
+      to?: {
+        /** One of `addressed_to`. */
+        id: string;
+        /** What it goes by now. */
+        name: string;
+      }[];
       /** On `said`: the guard held it (ADR 0081), so it was for nobody. */
       held?: true;
       /** On `renamed`, for a participant: the name they took. */
@@ -1613,6 +1634,13 @@ export interface MessageOverheard {
     files?: string[];
     /** On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. */
     addressed_to?: string[];
+    /** On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. */
+    to?: {
+      /** One of `addressed_to`. */
+      id: string;
+      /** What it goes by now. */
+      name: string;
+    }[];
     /** On `said`: the guard held it (ADR 0081), so it was for nobody. */
     held?: true;
     /** On `renamed`, for a participant: the name they took. */
@@ -1655,6 +1683,13 @@ export interface MessageOverheard {
       files?: string[];
       /** On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. */
       addressed_to?: string[];
+      /** On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. */
+      to?: {
+        /** One of `addressed_to`. */
+        id: string;
+        /** What it goes by now. */
+        name: string;
+      }[];
       /** On `said`: the guard held it (ADR 0081), so it was for nobody. */
       held?: true;
       /** On `renamed`, for a participant: the name they took. */
@@ -2822,6 +2857,13 @@ export interface AgentAttached {
       files?: string[];
       /** On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. */
       addressed_to?: string[];
+      /** On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. */
+      to?: {
+        /** One of `addressed_to`. */
+        id: string;
+        /** What it goes by now. */
+        name: string;
+      }[];
       /** On `said`: the guard held it (ADR 0081), so it was for nobody. */
       held?: true;
       /** On `renamed`, for a participant: the name they took. */

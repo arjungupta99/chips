@@ -69,6 +69,9 @@ Every event also carries the [envelope](/reference/envelope/).
 | `replying_to.transcript` | no | `string` | On `said`: what a voice note said, as the server heard it (ADR 0054). |
 | `replying_to.files` | no | `string[]` | On `said`: the names of the files it carried. |
 | `replying_to.addressed_to` | no | `string[]` | On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. |
+| `replying_to.to` | no | `{ /** One of `addressed_to`. */ id: string; /** What it goes by now. */ name: string; }[]` | On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. |
+| `replying_to.to[].id` | yes | `string` | One of `addressed_to`. |
+| `replying_to.to[].name` | yes | `string` | What it goes by now. |
 | `replying_to.held` | no | `true` | On `said`: the guard held it (ADR 0081), so it was for nobody. |
 | `replying_to.name` | no | `string` | On `renamed`, for a participant: the name they took. |
 | `replying_to.previous` | no | `string` | On `renamed`, for a participant: the name they went by until then. |
@@ -90,6 +93,9 @@ Every event also carries the [envelope](/reference/envelope/).
 | `replying_to.before[].transcript` | no | `string` | On `said`: what a voice note said, as the server heard it (ADR 0054). |
 | `replying_to.before[].files` | no | `string[]` | On `said`: the names of the files it carried. |
 | `replying_to.before[].addressed_to` | no | `string[]` | On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. |
+| `replying_to.before[].to` | no | `{ /** One of `addressed_to`. */ id: string; /** What it goes by now. */ name: string; }[]` | On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. |
+| `replying_to.before[].to[].id` | yes | `string` | One of `addressed_to`. |
+| `replying_to.before[].to[].name` | yes | `string` | What it goes by now. |
 | `replying_to.before[].held` | no | `true` | On `said`: the guard held it (ADR 0081), so it was for nobody. |
 | `replying_to.before[].name` | no | `string` | On `renamed`, for a participant: the name they took. |
 | `replying_to.before[].previous` | no | `string` | On `renamed`, for a participant: the name they went by until then. |
@@ -129,6 +135,9 @@ Every event also carries the [envelope](/reference/envelope/).
 | `context.lines[].transcript` | no | `string` | On `said`: what a voice note said, as the server heard it (ADR 0054). |
 | `context.lines[].files` | no | `string[]` | On `said`: the names of the files it carried. |
 | `context.lines[].addressed_to` | no | `string[]` | On `said`: the agents it was for (ADR 0081, ADR 0087), so a harness can leave out a line one of its agents already took a turn on. Absent on a message from before Chips said so. |
+| `context.lines[].to` | no | `{ /** One of `addressed_to`. */ id: string; /** What it goes by now. */ name: string; }[]` | On `said`: the agents it was for, each by what it goes by now, in `addressed_to`'s order. The plain form says them when the line was for an agent other than the one reading it, `Arjun, to Scout: …`: a person's pick in the field leaves no @ in the words. Absent when it was for no agent, and from a Chips before it. |
+| `context.lines[].to[].id` | yes | `string` | One of `addressed_to`. |
+| `context.lines[].to[].name` | yes | `string` | What it goes by now. |
 | `context.lines[].held` | no | `true` | On `said`: the guard held it (ADR 0081), so it was for nobody. |
 | `context.lines[].name` | no | `string` | On `renamed`, for a participant: the name they took. |
 | `context.lines[].previous` | no | `string` | On `renamed`, for a participant: the name they went by until then. |

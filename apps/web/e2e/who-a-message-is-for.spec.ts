@@ -145,9 +145,9 @@ test("a message reaches the harness it is for, the capsule picks, and the refere
     addressed_to: [demo().harness.id],
   });
   // With it, what Scout has not said a word since: Pilot coming in, and the question it overheard,
-  // its author's standing in the workspace after their name (SEC-15).
+  // its author's standing in the workspace after their name (SEC-15), and whom it was for.
   expect(renderContext(yourTurn["context"] as RoomContext)).toBe(
-    `Said in this space since you last spoke:\n(Pilot joined the space)\n${demo().person.displayName} (owner): @Pilot are the quotes in line?`,
+    `Said in this space since you last spoke:\n(Pilot joined the space)\n${demo().person.displayName} (owner), to Pilot: @Pilot are the quotes in line?`,
   );
   expect(await heard(pilotHarness, "Your turn, Scout: the price list?")).toMatchObject({
     type: "message.overheard",
@@ -240,7 +240,8 @@ test("a message reaches the harness it is for, the capsule picks, and the refere
   expect(context).toMatchObject({ since_seq: pilotBegan, truncated: false });
   const asked: string[] = [];
   for (let n = 1; n <= 47; n += 2) asked.push(`${scoutName}: ${talk(n)[1]}`);
-  expect(renderContext(context)).toBe(
+  // Said as Pilot's turn: Scout's questions were for Pilot alone, so they read as they always have.
+  expect(renderContext(context, { taker: pilot.id })).toBe(
     [
       "Said in this space since you last spoke:",
       ...asked,

@@ -77,8 +77,31 @@ describe("a room's events as lines", () => {
       message_id: `msg_${ulid(3)}`,
       text: "Morning",
       addressed_to: [LEDGER],
+      to: [{ id: LEDGER, name: "Ledger" }],
     });
     expect(roomContext.shape.lines.element.safeParse(first).success).toBe(true);
+  });
+
+  it("names the agents a message was for, and none for one that was for nobody", () => {
+    const [both, nobody, old, gone] = linesOf(
+      [
+        said(3, ARJUN, "Both of you", { addressed_to: [LEDGER, SCOUT] }),
+        said(4, ARJUN, "Lunch?", { addressed_to: [] }),
+        said(5, ARJUN, "From before Chips said who"),
+        said(6, ARJUN, "One of them is gone", {
+          addressed_to: ["hrn_01K4ZQPX00000000000000000Z", SCOUT],
+        }),
+      ],
+      who,
+    );
+    expect(both?.to).toEqual([
+      { id: LEDGER, name: "Ledger" },
+      { id: SCOUT, name: "Scout" },
+    ]);
+    expect(nobody).not.toHaveProperty("to");
+    expect(old).not.toHaveProperty("to");
+    // An id nobody knows is no name to say to a model.
+    expect(gone?.to).toEqual([{ id: SCOUT, name: "Scout" }]);
   });
 
   it("says a person's standing in the workspace with their name, so a guest's line reads as a guest's (SEC-15)", () => {
@@ -304,6 +327,68 @@ describe("the plain form", () => {
     expect(renderContext({ lines: [] })).toBe("");
     expect(renderContext(undefined)).toBe("");
   });
+
+  // Finding NR-13, 13 November 2026: three asks sent with the field's pick, one to each agent,
+  // the same but for a word. The agent asked for "echo" was handed the ask for "delta" with
+  // nothing saying it was another's, and answered "delta".
+  describe("a line that was for an agent", () => {
+    const owner = { id: ARJUN, kind: "person", name: "Arjun", workspace_role: "owner" } as const;
+    const forThem = (to: NonNullable<ContextLine["to"]>, text: string): ContextLine => ({
+      seq: 1,
+      at: "2026-11-13T23:16:00.000Z",
+      kind: "said",
+      from: owner,
+      text,
+      addressed_to: to.map((each) => each.id),
+      to,
+    });
+    const ledger = { id: LEDGER, name: "Ledger" };
+    const scout = { id: SCOUT, name: "Scout" };
+    const delta = forThem([ledger], "Reply with the single word delta");
+
+    it("says whom it was for when that was another agent", () => {
+      expect(renderLine(delta, { taker: SCOUT })).toBe(
+        "Arjun (owner), to Ledger: Reply with the single word delta",
+      );
+      expect(renderContext({ lines: [delta] }, { taker: SCOUT })).toBe(
+        `${CONTEXT_HEADING}\nArjun (owner), to Ledger: Reply with the single word delta`,
+      );
+    });
+
+    it("says nothing more of one for the reader alone, or for no agent", () => {
+      expect(renderLine(delta, { taker: LEDGER })).toBe(
+        "Arjun (owner): Reply with the single word delta",
+      );
+      expect(renderLine(line(2, "Arjun", "Lunch?"), { taker: LEDGER })).toBe("Arjun: Lunch?");
+    });
+
+    it("says you first when it was for the reader and others", () => {
+      const pilot = { id: "hrn_01K4ZQPX000000000000000006", name: "Pilot" };
+      expect(renderLine(forThem([ledger, scout], "Both of you"), { taker: SCOUT })).toBe(
+        "Arjun (owner), to you and Ledger: Both of you",
+      );
+      expect(renderLine(forThem([ledger, scout, pilot], "All three"), { taker: SCOUT })).toBe(
+        "Arjun (owner), to you, Ledger and Pilot: All three",
+      );
+    });
+
+    it("names every agent it was for when nobody says who reads it", () => {
+      expect(renderLine(forThem([ledger, scout], "Both of you"))).toBe(
+        "Arjun (owner), to Ledger and Scout: Both of you",
+      );
+      // As `lines.map(renderLine)` calls it: an index is no reader.
+      expect([delta].map(renderLine)).toEqual([
+        "Arjun (owner), to Ledger: Reply with the single word delta",
+      ]);
+    });
+
+    it("counts the names in what fits a budget, and cuts the words, not the names", () => {
+      const long = forThem([ledger], "x".repeat(200));
+      const [kept] = contextLines([long], { lines: 5, chars: 60 }, { since: 0, before: 9 }).lines;
+      expect(renderLine(kept as ContextLine)).toHaveLength(60);
+      expect(renderLine(kept as ContextLine)).toMatch(/^Arjun \(owner\), to Ledger: x+…$/);
+    });
+  });
 });
 
 describe("the message a reply answers (ADR 0219)", () => {
@@ -406,6 +491,21 @@ describe("the message a reply answers, in the turn (ADR 0219)", () => {
         "Your message:",
         `> ${held}`,
       ].join("\n"),
+    );
+  });
+
+  it("says whom a line before it was for, from where the taker stands", () => {
+    const toScout: ContextLine = {
+      ...said(40, arjun, "Hold Foreign Cinema"),
+      addressed_to: [SCOUT],
+      to: [{ id: SCOUT, name: "Scout" }],
+    };
+    const quote = quoteOf(byJacobian(tuesday, held), {}, [toScout]);
+    expect(renderReplyingTo(quote, reading)).toContain(
+      "Said just before it:\nArjun, to Scout: Hold Foreign Cinema\n",
+    );
+    expect(renderReplyingTo(quote, { ...reading, taker: SCOUT })).toContain(
+      "Said just before it:\nArjun: Hold Foreign Cinema\n",
     );
   });
 
