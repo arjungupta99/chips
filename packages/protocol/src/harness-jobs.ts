@@ -4,7 +4,9 @@
  *
  * Nothing about a job is Chips'. A harness that declares `jobs` sends a copy of all of them
  * (`PUT /v1/harnesses/:id/jobs`), whole, and posts each run it finishes (`POST …/jobs/runs`),
- * which Chips keeps for `JOB_RUNS_KEPT_DAYS`. A person's change goes down the harness's socket as
+ * which Chips keeps for `JOB_RUNS_KEPT_DAYS`. A job may say a run of it is going now
+ * (`running_since`), which is all Chips knows of a run before it ends: enough to leave the harness's
+ * bridge alone until it has (bridges-keep-current.md). A person's change goes down the harness's socket as
  * a `job.change` frame, and is done when the harness sends its copy again, answering it.
  */
 
@@ -68,6 +70,11 @@ const jobFields = {
     .optional()
     .describe("How often, in the harness's words, for a schedule that is not an interval."),
   next_at: isoTimestamp.optional().describe("When it runs next, while it is on."),
+  running_since: isoTimestamp
+    .optional()
+    .describe(
+      "While a run of it is going: when that run began. Sent again without it once the run is over. Chips starts neither the harness's bridge nor itself again on a new release meanwhile.",
+    ),
   for_agents: z
     .array(id("agent"))
     .max(200)

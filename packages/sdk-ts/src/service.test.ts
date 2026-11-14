@@ -77,6 +77,39 @@ describe("the service's file", () => {
     );
     expect(file?.contents).toContain('Environment="CHIPS_URL=https://chips.example"');
     expect(file?.contents).toContain("Restart=always");
+    // The folder as the rest of its line: systemd reads one in quotes as a path that isn't
+    // absolute, and refuses the unit whole.
+    expect(file?.contents).toContain("\nWorkingDirectory=/Users/sam/Work/chips-hermes\n");
+  });
+
+  it("writes each setting of the unit as systemd reads that one", () => {
+    // Tried against systemd 255: with this folder the unit is taken, runs there, and logs there.
+    const folder = "/home/sam/my %h $HOME folder";
+    const unit =
+      serviceFile(
+        {
+          ...spec,
+          command: ["/opt/node/bin/node", `${folder}/main.js`, 'say "hi"'],
+          folder,
+          environment: { GREETING: "100% $HOME" },
+          logFile: `${folder}/bridge.log`,
+        },
+        { platform: "linux", home, env: {} },
+      )?.contents ?? "";
+    const line = (name: string) => unit.split("\n").filter((each) => each.startsWith(`${name}=`));
+    // A `%` alone names something of systemd's own, and a `$` in a command is a variable.
+    expect(line("ExecStart")).toEqual([
+      'ExecStart="/opt/node/bin/node" "/home/sam/my %%h $$HOME folder/main.js" "say \\"hi\\""',
+    ]);
+    // No quotes, and no variables read: the `$` stays as it is.
+    expect(line("WorkingDirectory")).toEqual(["WorkingDirectory=/home/sam/my %%h $HOME folder"]);
+    expect(line("Environment")).toEqual(['Environment="GREETING=100%% $HOME"']);
+    expect(line("StandardOutput")).toEqual([
+      "StandardOutput=append:/home/sam/my %%h $HOME folder/bridge.log",
+    ]);
+    expect(line("StandardError")).toEqual([
+      "StandardError=append:/home/sam/my %%h $HOME folder/bridge.log",
+    ]);
   });
 
   it("names the Mac app its Node is inside, so Login Items say Chips rather than Node", () => {

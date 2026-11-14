@@ -193,9 +193,19 @@ ${env}
 `;
 }
 
-/** The systemd user unit: run from login, run again whenever it stops. */
+/**
+ * The systemd user unit: run from login, run again whenever it stops. Each setting is written as
+ * systemd reads that one. A command's words and an environment's assignments go in quotes. A
+ * folder and a log are the rest of their line and take no quotes: systemd reads a quoted folder
+ * as a path that isn't absolute and refuses the unit whole, which is how every keep on Linux
+ * failed while this wrote one in quotes. A `%` is doubled everywhere, since one alone names
+ * something of systemd's own, and a `$` in the command too, since one alone there is a variable.
+ */
 export function systemdUnit(spec: KeepSpec, logFile: string): string {
-  const quote = (value: string) => `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  const literal = (value: string) => value.replace(/%/g, "%%");
+  const quote = (value: string) =>
+    `"${literal(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  const word = (value: string) => quote(value.replace(/\$/g, "$$$$"));
   const env = Object.entries(spec.environment)
     .map(([key, value]) => `Environment=${quote(`${key}=${value}`)}`)
     .join("\n");
@@ -205,13 +215,13 @@ Description=${spec.label}
 After=network-online.target
 
 [Service]
-ExecStart=${spec.command.map(quote).join(" ")}
-WorkingDirectory=${quote(spec.folder)}
+ExecStart=${spec.command.map(word).join(" ")}
+WorkingDirectory=${literal(spec.folder)}
 ${env}
 Restart=always
 RestartSec=5
-StandardOutput=append:${logFile}
-StandardError=append:${logFile}
+StandardOutput=append:${literal(logFile)}
+StandardError=append:${literal(logFile)}
 
 [Install]
 WantedBy=default.target

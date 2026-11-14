@@ -67,6 +67,17 @@ describe("a harness's own jobs, as it sends them (ADR 0252)", () => {
     expect(put.success).toBe(true);
   });
 
+  it("takes a job that says a run of it is going now, and keeps when it began", () => {
+    const going = { ...dreaming, running_since: "2026-11-01T10:00:04.000Z" };
+    const put = harnessJobsPut.safeParse({ jobs: [heartbeat(), going] });
+    expect(put.success && put.data.jobs[1]?.running_since).toBe("2026-11-01T10:00:04.000Z");
+    expect(put.success && put.data.jobs[0]?.running_since).toBeUndefined();
+    // When it began is a time, not words.
+    expect(
+      harnessJobsPut.safeParse({ jobs: [{ ...dreaming, running_since: "just now" }] }).success,
+    ).toBe(false);
+  });
+
   it("takes none at all, for a harness whose jobs are all gone", () => {
     expect(harnessJobsPut.safeParse({ jobs: [] }).success).toBe(true);
   });
