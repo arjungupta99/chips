@@ -16,6 +16,7 @@ import { useEffect, useRef } from "react";
 import { type Desktop, desktop, type MenuStanding } from "../native.ts";
 
 export type CommandId =
+  | "about"
   | "settings"
   | "new-space"
   | "tab-spaces"
@@ -29,6 +30,7 @@ export type CommandId =
 
 /** Each command's name while nobody has given it another, as the shell's rows are made. */
 const TITLES: Readonly<Record<CommandId, string>> = {
+  about: "About Chips",
   settings: "Settings…",
   "new-space": "New Space",
   "tab-spaces": "Spaces",

@@ -36,7 +36,8 @@ import {
   startDemo,
 } from "@chipschat/core";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { openSqliteCache } from "../cache/sqlite";
+import { appClient } from "../about/build";
+import { deleteSqliteCache, openSqliteCache } from "../cache/sqlite";
 import { deviceStorage } from "../device/storage";
 import { findServers } from "../pairing/finder";
 import { phoneName } from "../pairing/usePairing";
@@ -128,8 +129,10 @@ function made(device: Device, at: DemoStartAt): Held {
   const files = createFileService(device);
   const own = {
     device,
+    client: appClient(),
     deviceStorage,
     openCache: openSqliteCache,
+    deleteCache: deleteSqliteCache,
     onErased: letGoOf,
     findAddresses: foundAt,
   };

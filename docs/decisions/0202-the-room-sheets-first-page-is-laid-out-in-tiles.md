@@ -272,3 +272,23 @@ and no tile line cut short). Looked at in WebKit (a WKWebView, the Mac's engine)
 and in Chromium on a copy of Arjun's data, where Health showed Project and Lead, then Spend per job
 across, then Lock changes and Hide, nothing cut short; the phone's web build on the same copy drew
 the iPhone's sheet with the same rows.
+
+## Addendum, 14 November 2026: the card is Sent in chat
+
+Arjun, 14 November 2026, after Universe had a Media and a Files of its own (ADR 0227's addenda of
+13 and 14 November): "rn the space detail page shows media and files as well. review and tell me
+what wording we can change there. It seems like the media sent by person are shown there?" It
+shows what anybody sent in the room's chat, a person or an agent; Universe shows what the space's
+folder keeps. In Temp-Claude desktop Jacob kept three screenshots in the folder and sent two of
+them in the chat, so the room's details and Universe both said Media and Files over the same
+pictures. From his mock, his A:
+
+- **The card and its page are Sent in chat**, on the phone, the iPad, the web and the Mac, and so
+  are their labels to a screen reader (`Sent in chat, 2 · 2 files`). Media and Files under the
+  page's title keep their names: the title says where they came from. What the card counts and
+  shows, and what its page and See all do, are as they were.
+- **Project's tile is Changes** (ADR 0222's addendum of this day): it says who made the newest
+  change and when, and opens the changes alone.
+
+Proved by `RoomSheet.test.tsx` and `Shell.test.tsx` (the card's words and label, the tile's), and
+`the-room-sheet.spec.ts` (the card's words in the browser).

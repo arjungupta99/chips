@@ -14,6 +14,17 @@ export type {
   UploadsRegistry,
   Videos,
 } from "./attachments.js";
+export type {
+  BridgeHands,
+  BridgeOutcome,
+  BridgeRefusalReason,
+  BridgeTrying,
+  BridgeUpdateState,
+  JournalChange,
+  KeptBridge,
+  LocalBridge,
+} from "./bridges.js";
+export { BridgeRefusal } from "./bridges.js";
 export type { Clock, IdGenerator, IdKind } from "./clock.js";
 export type {
   AppendResult,
@@ -87,6 +98,13 @@ export type {
 } from "./read-models.js";
 export { SNIPPET_CLOSE, SNIPPET_OPEN } from "./read-models.js";
 export type { SearchIndex } from "./search-index.js";
+export type {
+  ComputerUpdates,
+  ComputerUpdatesRegistry,
+  RestartOnto,
+  SelfUpdate,
+  SelfUpdateOutcome,
+} from "./self-update.js";
 export type { ServerKeys, StoredServerKey } from "./server-keys.js";
 export { RELAY_KEY } from "./server-keys.js";
 export type { SessionPin, SessionPinRegistry } from "./session-pins.js";

@@ -130,6 +130,7 @@ import { IconSheet } from "./IconSheet";
 import { Arrive, NoRooms, tellsConnection } from "./NoRooms";
 import { hintWords, keepLeaving, listed } from "./picking";
 import { faceName, RowAvatar } from "./RowAvatar";
+import { heldOrder, RISEN_MS } from "./riseOrder";
 import { type RoomMoves, type Runs, useRoomMoves } from "./roomMoves";
 import {
   type BatchAsk,
@@ -885,7 +886,7 @@ interface RowHandlers {
 
 /** A plain run of rows: no border, no corners, a hairline inset to where the words start. */
 function Group({
-  spaces,
+  spaces: live,
   run,
   snapshot,
   selected,
@@ -919,6 +920,8 @@ function Group({
   readonly gliding?: string | undefined;
 }) {
   const palette = usePalette();
+  // Rising, the rows keep the order they rose in until they are still (`riseOrder.ts`).
+  const spaces = useRiseHold(live, rising);
   const arrived = useArrived(spaces, (id) => rowMove(moves, id, run) === undefined);
   if (spaces.length === 0) return null;
   return (
@@ -1019,6 +1022,24 @@ function useArrived(
     arrived.current.delete(id);
   }
   return arrived.current;
+}
+
+/**
+ * The rows of a run that is rising (`RiseIn`) in the order they rose in, until the rise is over
+ * (`RISEN_MS`), and then the run's own order: a row moved while it rises is left drawn at nothing
+ * (`riseOrder.ts`). Rows that come in the meantime land under them. A run that is not rising is
+ * drawn as it is.
+ */
+function useRiseHold(live: readonly Space[], rising: boolean): readonly Space[] {
+  const [holding, setHolding] = useState(rising);
+  const first = useRef<readonly string[] | undefined>(undefined);
+  first.current ??= live.map((space) => space.id);
+  useEffect(() => {
+    if (!holding) return;
+    const timer = setTimeout(() => setHolding(false), RISEN_MS);
+    return () => clearTimeout(timer);
+  }, [holding]);
+  return holding ? heldOrder(live, first.current) : live;
 }
 
 /** What a row is told of its room's move, if it is moving (ADR 0205's addendum). */

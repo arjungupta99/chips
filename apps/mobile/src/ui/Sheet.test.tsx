@@ -280,7 +280,7 @@ describe("a sheet", () => {
 
   it("says when it has come to rest, so a view on it is measured where it stops and not where it was (ADR 0202)", async () => {
     // On the native driver the layout hears where the panel is only once its spring has finished
-    // and the sheet is drawn again: a square tapped on the room sheet's Media & files page as the
+    // and the sheet is drawn again: a square tapped on the room sheet's Sent in chat page as the
     // sheet glided to it measured 187 points high, and the picture flew from mid-screen.
     const back = onA({ width: 393, height: 852 });
     // The spring's frames run on Jest's clock: on a slow machine the wall clock let one finish

@@ -210,7 +210,11 @@ again on the new version, which keeps running the old one until then. Once it ru
 `chips up` removes the versions older than the one before it, which stays so you can go back with
 `--version`. With Chips for Mac installed, the line installs nothing: `chips` is the app's own.
 
-**Chips for Mac** doesn't update itself yet. Download it again from
+**Chips for Mac** updates itself from 1.3.0. It gets a newer release in the background and
+checks that Chips signed it, then puts it in when you quit, at night when nobody is
+at its window, or when you choose **Restart now** under About ▸ Updates. The Chips it runs for your
+phones starts again on the new release once nothing is going on, and keeps the bridges on this Mac
+current. An earlier copy is replaced by hand once: download it again from
 [chipschat.ai/download](https://chipschat.ai/download), quit Chips, and replace the copy in
 Applications. Then bring each harness's bridge up to date in Terminal:
 
@@ -241,6 +245,10 @@ thousand unacknowledged frames, a ten minute signed URL.
 | `CHIPS_PORT` | Port | `4431` |
 | `CHIPS_PUBLIC_URL` | How clients and harnesses reach this server from outside, when that is not the bound address: through a tunnel, a name, or a tailnet. Also the address a [pairing QR](/operate/mobile/#pair-it) carries. A harness on the server's own machine that connects at `127.0.0.1` is told that address instead. | — |
 | `CHIPS_WEB_DIR` | The built web app to serve at `/`. | A release's own `web/`; from a checkout, `apps/web/dist` |
+| `CHIPS_UPDATES` | Where the server reads which releases of Chips are out, once a day: the site's `releases.json`, and with it the App Store's version from Apple's public lookup. Neither request carries an account, a device or the workspace. The apps show an update from what it read ([ADR 0296](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0296-a-gold-dot-says-an-update-waits.md)). `off` reads nothing. | A release: `https://chipschat.ai/releases.json`; from a checkout, nothing |
+| `CHIPS_BRIDGES` | Where the server reads which bridge releases may arrive on their own, once a day: the site's `bridges.json`, taken only when `bridges.json.sig` beside it is the release key's signature. The bridges in this computer's own data folder are moved to those releases at a quiet moment, one service at a time, and put back if one doesn't come back or doesn't hold up through its first day ([proposal](https://github.com/arjungupta99/chips/blob/main/docs/proposals/bridges-keep-current.md)). The request carries nothing about the machine or workspace. `off` reads nothing, and no bridge changes on its own. | A release: `https://chipschat.ai/bridges.json`; from a checkout, nothing |
+| `CHIPS_BRIDGES_WAIT` | `now` takes an allowed bridge release as soon as the list has it. Otherwise each computer waits until it has been out two days, then up to three more, picked from its own workspace, so a bad release reaches few computers before it is withdrawn. | Two days, then up to three more |
+| `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY`, `NO_PROXY` | The machine's proxy, in either case, as curl reads them: what a release reads the site's two lists and fetches a bridge from npm through. `chips up` carries them from the shell it is run in into the service, which reads no shell profile. On a Mac with none of them set, the proxy in System Settings is used; one chosen by a script (a PAC file) is not read. This machine itself is never reached through it. | No proxy |
 | `CHIPS_CONNECTORS` | Where the gallery's cards come from, when a person brings an agent ([ADR 0171](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0171-the-gallery-is-docs-content-the-server-hands-out.md)), and where `chips connect <id>` looks a harness up: a file, or an `https:` URL, of the docs' `connectors.json`. | A release's own `connectors/connectors.json`; from a checkout, the docs' `apps/docs/public/connectors.json` |
 | `CHIPS_DATA_DIR` | Where the database, attachments and keys live | [The platform's place](#where-a-release-keeps-things); from a checkout, `./.chips` |
 | `CHIPS_DATABASE_URL` | The database | `chips.db` in the data directory |

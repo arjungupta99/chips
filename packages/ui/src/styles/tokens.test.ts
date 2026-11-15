@@ -57,9 +57,12 @@ describe("the palette", () => {
     for (const [name, value] of explicitLight) expect(light.get(name), name).toBe(value);
   });
 
-  it("changes every colour between light and dark, but not the gold", () => {
+  it("changes every colour between light and dark, but the mark's: its gold, red and green", () => {
+    // The mark's red and green stand beside its gold and keep it in both themes, as it does
+    // (ADR 0131's addendum of 12 November 2026); their pins change.
+    const kept = new Set(["gold", "mark-red", "mark-green"]);
     for (const [name, value] of explicitLight) {
-      if (name === "gold") expect(explicitDark.get(name)).toBe(value);
+      if (kept.has(name)) expect(explicitDark.get(name), name).toBe(value);
       else expect(explicitDark.get(name), name).not.toBe(value);
     }
   });

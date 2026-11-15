@@ -5,14 +5,17 @@
  * the answer comes, and what it is.
  */
 
-import type { Device, HeldDevices } from "@chipschat/core";
+import type { Device, HeldDevices, LostDevice } from "@chipschat/core";
 import { AGAIN_MS, type Front, readAgain, readWhenOpen, TRIES_IN_FRONT } from "./held";
 
 jest.mock("./storage", () => ({ deviceStorage: {} }));
 
 const HOME = { deviceId: "dev_home" } as unknown as Device;
-const WHOLE: HeldDevices = { devices: [HOME], unreadable: 0 };
-const SHUT: HeldDevices = { devices: [], unreadable: 1 };
+const NONE_LOST = { lost: [], lostInFront: false } as const;
+const WHOLE: HeldDevices = { devices: [HOME], unreadable: 0, ...NONE_LOST };
+const SHUT: HeldDevices = { devices: [], unreadable: 1, ...NONE_LOST };
+/** What the app is answered with when it holds HOME, and nothing is lost. */
+const HELD_HOME = { devices: [HOME], ...NONE_LOST };
 
 /** Reads that answer each of `answers` in turn, the last one ever after; a thrown one throws. */
 function reads(...answers: (HeldDevices | Error)[]) {
@@ -63,7 +66,7 @@ describe("a read that opened every key", () => {
   it("is the answer, at once, wherever the app is", async () => {
     const { read, made } = reads(WHOLE);
     const { front } = aFront(false);
-    expect(await readWhenOpen(undefined, read, front)).toEqual([HOME]);
+    expect(await readWhenOpen(undefined, read, front)).toEqual(HELD_HOME);
     expect(made()).toBe(1);
   });
 });
@@ -78,7 +81,7 @@ describe("a read that met a shut Keychain", () => {
     expect(listening()).toBe(1);
 
     come();
-    expect(await answer).toEqual([HOME]);
+    expect(await answer).toEqual(HELD_HOME);
     expect(made()).toBe(2);
     expect(listening()).toBe(0);
   });
@@ -89,7 +92,7 @@ describe("a read that met a shut Keychain", () => {
     const answer = readWhenOpen(undefined, read, front);
     expect(await settled(answer)).toBe(false);
     come();
-    expect(await answer).toEqual([HOME]);
+    expect(await answer).toEqual(HELD_HOME);
   });
 
   it("in front, reads again a moment later, and the next whole read is the answer", async () => {
@@ -98,18 +101,18 @@ describe("a read that met a shut Keychain", () => {
     const { front } = aFront(true);
     const answer = readWhenOpen(undefined, read, front);
     await jest.advanceTimersByTimeAsync(AGAIN_MS * 2);
-    expect(await answer).toEqual([HOME]);
+    expect(await answer).toEqual(HELD_HOME);
     expect(made()).toBe(3);
   });
 
   it("in front, goes on with what it could read after the last try", async () => {
     jest.useFakeTimers();
-    const part: HeldDevices = { devices: [HOME], unreadable: 1 };
+    const part: HeldDevices = { devices: [HOME], unreadable: 1, ...NONE_LOST };
     const { read, made } = reads(part);
     const { front } = aFront(true);
     const answer = readWhenOpen(undefined, read, front);
     await jest.advanceTimersByTimeAsync(AGAIN_MS * TRIES_IN_FRONT);
-    expect(await answer).toEqual([HOME]);
+    expect(await answer).toEqual(HELD_HOME);
     expect(made()).toBe(TRIES_IN_FRONT);
   });
 
@@ -127,9 +130,33 @@ describe("a read that met a shut Keychain", () => {
   });
 });
 
+describe("a read that found a key gone (ADR 0228's addendum)", () => {
+  it("is the answer at once, the workspace named, since a key the Keychain no longer has never comes back", async () => {
+    const gone = { deviceId: "dev_old", workspaceName: "Northwind" } as unknown as LostDevice;
+    const { read, made } = reads({ devices: [], unreadable: 0, lost: [gone], lostInFront: true });
+    const { front } = aFront(true);
+    expect(await readWhenOpen(undefined, read, front)).toEqual({
+      devices: [],
+      lost: [gone],
+      lostInFront: true,
+    });
+    expect(made()).toBe(1);
+  });
+
+  it("goes on naming it after the last try, beside a key that would not open", async () => {
+    jest.useFakeTimers();
+    const gone = { deviceId: "dev_old" } as unknown as LostDevice;
+    const { read } = reads({ devices: [], unreadable: 1, lost: [gone], lostInFront: true });
+    const { front } = aFront(true);
+    const answer = readWhenOpen(undefined, read, front);
+    await jest.advanceTimersByTimeAsync(AGAIN_MS * TRIES_IN_FRONT);
+    expect(await answer).toEqual({ devices: [], lost: [gone], lostInFront: true });
+  });
+});
+
 describe("a read again after a change this phone made", () => {
   it("answers the list when it is whole, and nothing when part of it would not open", async () => {
-    expect(await readAgain(reads(WHOLE).read)).toEqual([HOME]);
+    expect(await readAgain(reads(WHOLE).read)).toEqual(HELD_HOME);
     expect(await readAgain(reads(SHUT).read)).toBeUndefined();
     expect(await readAgain(reads(new Error("shut")).read)).toBeUndefined();
   });

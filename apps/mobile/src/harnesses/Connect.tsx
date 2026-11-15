@@ -1077,10 +1077,11 @@ const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
 
 /**
  * The line to run, or the sentence to say, with Copy first and Send… beside it, and the note under
- * them. A line to run says Run in Terminal over it, in its box (ADR 0257). The note stays as it is
- * when Copy is pressed, which says Copied itself, so the page keeps its height.
+ * them, where it has one. A line to run says Run in Terminal over it, in its box (ADR 0257). The
+ * note stays as it is when Copy is pressed, which says Copied itself, so the page keeps its height.
  */
-function Line({
+/** A line to copy, or to run in a terminal, with Copy and Send…; About's `chips update` too. */
+export function Line({
   text,
   standIn,
   failed,
@@ -1097,8 +1098,11 @@ function Line({
   readonly prose: boolean;
   /** A line the person runs in a terminal. */
   readonly run: boolean;
-  /** How it reaches the computer, how long the link lasts, and what else it needs. */
-  readonly note: string;
+  /**
+   * How it reaches the computer, how long the link lasts, and what else it needs. Absent where
+   * what the line is for is said over it already, as on a harness's Bridge group.
+   */
+  readonly note?: string | undefined;
 }) {
   const palette = usePalette();
   const on = useGround();
@@ -1150,9 +1154,11 @@ function Line({
           }}
         />
       </View>
-      <Text style={[styles.under, { color: palette.ink3 }]} testID="connect-note">
-        {note}
-      </Text>
+      {note === undefined ? null : (
+        <Text style={[styles.under, { color: palette.ink3 }]} testID="connect-note">
+          {note}
+        </Text>
+      )}
     </>
   );
 }

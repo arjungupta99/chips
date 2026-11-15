@@ -39,6 +39,23 @@ export {
   opensFor,
   SOCKET_TICKET_TTL_SECONDS,
 } from "./application/index.js";
+export type {
+  BridgeHands,
+  BridgeOutcome,
+  BridgeProving,
+  BridgeRefusalReason,
+  BridgeTrying,
+  BridgeUpdateState,
+  JournalChange,
+  KeptBridge,
+  LocalBridge,
+} from "./application/ports/bridges.js";
+export { BridgeRefusal } from "./application/ports/bridges.js";
+export type {
+  RestartOnto,
+  SelfUpdate,
+  SelfUpdateOutcome,
+} from "./application/ports/self-update.js";
 export type { Change, ProjectionTable, RunState, RunTransition } from "./domain/index.js";
 export {
   applyRunTransition,

@@ -325,6 +325,52 @@ describe("GET /v1/spaces/:id/context (ADR 0088)", () => {
     expect((await read(elsewhere)).status).toBe(404);
   });
 
+  // Finding NR-14, 14 November 2026: a new room's first turn began "(You is now called Arjun)",
+  // a rename from September. A room read from its start listed every rename its members ever
+  // made.
+  it("leaves out a name a person took before they were in the room", async () => {
+    const rename = async (displayName: string) => {
+      const renamed = await ws.gateway.deps.renamePerson({
+        principal: {
+          kind: "person",
+          participantId: ws.arjun.participantId,
+          workspaceId: ws.workspaceId,
+          displayName: "Arjun",
+          via: "device_key",
+          deviceId: ws.arjun.deviceId,
+          role: "owner",
+        },
+        participantId: ws.arjun.participantId,
+        displayName,
+      });
+      expect(renamed.ok).toBe(true);
+    };
+    const kinds = async (spaceId: string) =>
+      ((await read(spaceId, "?limit=50")).body as unknown as Page).lines.map((line) => line.kind);
+    await rename("Arjun G");
+
+    // A room he opens after it, with Scout in it, and a thread opened after it in the room he
+    // was already in.
+    const later = await room("group");
+    await ws.agentInto(later, ws.scout.participantId);
+    await said(later, "Hello");
+    const thread = await room("group", {
+      parent_space_id: ws.spaceId,
+      root_message_id: "msg_01K4ZQPX000000000000000001",
+    });
+    await said(thread, "In the thread");
+    expect(await kinds(later)).toEqual(["joined", "said"]);
+    expect(await kinds(thread)).toEqual(["said"]);
+    // The room he was in when he took it has the line.
+    expect(await kinds(ws.spaceId)).toEqual(["joined", "joined", "joined", "renamed"]);
+
+    // The next name he takes is a line of all three.
+    await rename("Arjun Gupta");
+    expect(await kinds(later)).toEqual(["joined", "said", "renamed"]);
+    expect(await kinds(thread)).toEqual(["said", "renamed"]);
+    expect(await kinds(ws.spaceId)).toEqual(["joined", "joined", "joined", "renamed", "renamed"]);
+  });
+
   it("refuses a cursor that is not a whole number", async () => {
     expect((await read(ws.spaceId, "?before=soon")).status).toBe(400);
     expect((await read(ws.spaceId, "?limit=0")).status).toBe(400);

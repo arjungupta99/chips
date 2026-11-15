@@ -85,6 +85,14 @@ function harness(
     cacheOpened?: (key: string) => void;
     /** Where the device is kept, for what the store learns of it as it connects. */
     deviceStorage?: DeviceStorage;
+    /** The catalogue level the store is made at, when not the catalogue's own. */
+    level?: number;
+    /** The caches kept at earlier levels, by the key each was kept under. */
+    earlier?: Readonly<Record<string, Cache>>;
+    /** Forgets a cache by key, as the apps hand theirs in. */
+    deleteCache?: (key: string) => Promise<void>;
+    /** False for a cache that answers an outbox write it couldn't make as if it had. */
+    outboxLands?: boolean;
   } = {},
 ) {
   const flushes: (() => void)[] = [];
@@ -117,11 +125,13 @@ function harness(
     saveReadState: async (readState) => {
       savedReadState.push(readState);
     },
-    loadOutbox: async () => options.outbox ?? [],
+    // What was last written, as a cache answers; before any write, what the test says it kept.
+    loadOutbox: async () =>
+      (options.outboxLands === false ? undefined : savedOutbox.at(-1)) ?? options.outbox ?? [],
     saveOutbox: async (messages) => {
       savedOutbox.push([...messages]);
     },
-    loadMadeHere: async () => options.madeHere ?? [],
+    loadMadeHere: async () => savedMadeHere.at(-1) ?? options.madeHere ?? [],
     saveMadeHere: async (spaces) => {
       savedMadeHere.push([...spaces]);
     },
@@ -186,8 +196,10 @@ function harness(
     connect,
     openCache: (key) => {
       options.cacheOpened?.(key);
-      return cache;
+      return options.earlier?.[key] ?? cache;
     },
+    ...(options.level === undefined ? {} : { level: options.level }),
+    ...(options.deleteCache === undefined ? {} : { deleteCache: options.deleteCache }),
     now: () => "2026-09-03T00:00:01.000Z",
     randomKey: () => "k1",
     schedule: (flush) => {
@@ -592,6 +604,19 @@ describe("the store", () => {
     h.wire().onEvent({ type: "hello", spaces: [], server: { takes: ["spend_jobs"] } } as never);
     h.flush();
     expect(h.snapshots.at(-1)?.keepsSpendJobs).toBe(true);
+  });
+
+  it("hears the computer's version in each hello, so a tab can tell it was updated under it (everything in step)", async () => {
+    const h = harness();
+    await started();
+    h.flush();
+    expect(h.snapshots.at(-1)?.serverVersion).toBeUndefined();
+    h.wire().onEvent({ type: "hello", spaces: [], server: { version: "1.2.5" } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.serverVersion).toBe("1.2.5");
+    h.wire().onEvent({ type: "hello", spaces: [], server: { version: "1.2.6" } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.serverVersion).toBe("1.2.6");
   });
 
   it("takes a rename the socket brings, and its own from the server's answer, but not one the cache replays (ADR 0194)", async () => {
@@ -5278,5 +5303,329 @@ describe("the cache the store opens (SEC-8)", () => {
       cacheOpened: (key) => opened.push(key),
     });
     expect(opened).toEqual(["ws_1@192.168.1.20:4431"]);
+  });
+});
+
+describe("a cache kept at a level before this app's (everything in step)", () => {
+  /** A cache at an earlier level: what it held unsent, and what is written to it since. */
+  function earlierCache(held: {
+    outbox?: readonly QueuedMessage[];
+    madeHere?: readonly KeptSpace[];
+    loadOutbox?: () => Promise<QueuedMessage[]>;
+  }): Cache {
+    let outbox = [...(held.outbox ?? [])];
+    let madeHere = [...(held.madeHere ?? [])];
+    return {
+      loadEvents: async () => [],
+      saveEvents: async () => undefined,
+      forgetSpaces: async () => undefined,
+      loadCursor: async () => 0,
+      saveCursor: async () => undefined,
+      loadReadState: async () => ({}),
+      saveReadState: async () => undefined,
+      loadOutbox: held.loadOutbox ?? (async () => outbox),
+      saveOutbox: async (messages) => {
+        outbox = [...messages];
+      },
+      loadMadeHere: async () => madeHere,
+      saveMadeHere: async (spaces) => {
+        madeHere = [...spaces];
+      },
+      loadParticipants: async () => undefined,
+      saveParticipants: async () => undefined,
+      loadSpaceIcons: async () => undefined,
+      saveSpaceIcons: async () => undefined,
+      loadHiddenSpaces: async () => undefined,
+      saveHiddenSpaces: async () => undefined,
+      loadPinnedSpaces: async () => undefined,
+      savePinnedSpaces: async () => undefined,
+      loadBanners: async () => undefined,
+      saveBanners: async () => undefined,
+    };
+  }
+
+  /** A level-1 app quit with a room made here and a message in it, neither yet with the server. */
+  async function quitWithUnsent() {
+    const first = harness();
+    await started();
+    const spaceId = first.store.createSpace({
+      kind: "direct",
+      askedOf: "hrn_2",
+      title: "Dude chat",
+    });
+    first.store.addMember({ spaceId, participantId: "hrn_2", kind: "harness", agentName: "Luis" });
+    first.store.send({ spaceId, text: "Plan a dinner" });
+    first.flush();
+    first.store.close();
+    const outbox = first.savedOutbox.at(-1) ?? [];
+    const madeHere = first.savedMadeHere.at(-1) ?? [];
+    expect(outbox).toHaveLength(1);
+    expect(madeHere.map((each) => each.spaceId)).toEqual([spaceId]);
+    return { spaceId, outbox, madeHere };
+  }
+
+  const roomOf = (h: ReturnType<typeof harness>, spaceId: string) =>
+    h.store.getSnapshot().model.spaces.find((space) => space.id === spaceId);
+
+  it("opens its own cache under this level's key", () => {
+    const opened: string[] = [];
+    harness({ level: 2, cacheOpened: (key) => opened.push(key) });
+    expect(opened[0]).toBe("ws_1~L2");
+  });
+
+  it("carries a message not yet sent, and the space it was written in, over to this level", async () => {
+    const unsent = await quitWithUnsent();
+    const deleted: string[] = [];
+    const earlier = earlierCache(unsent);
+    const again = harness({
+      level: 2,
+      earlier: { ws_1: earlier },
+      deleteCache: async (key) => {
+        deleted.push(key);
+      },
+    });
+    await started();
+    again.flush();
+
+    // Still pending in the room made here, and sent: the space first, then what was written in it.
+    expect(roomOf(again, unsent.spaceId)?.title).toBe("Dude chat");
+    expect(roomOf(again, unsent.spaceId)?.lines.at(-1)).toMatchObject({
+      text: "Plan a dinner",
+      pending: true,
+    });
+    expect(again.sent.map((each) => each["type"])).toEqual([
+      "space.created",
+      "membership.added",
+      "message.post",
+    ]);
+    // In this level's cache before the earlier one went, and kept there until it is answered.
+    expect(again.savedOutbox[0]).toEqual(unsent.outbox);
+    expect(again.savedMadeHere[0]).toEqual(unsent.madeHere);
+    expect(again.savedOutbox.at(-1)).toEqual(unsent.outbox);
+    expect(deleted).toEqual(["ws_1"]);
+  });
+
+  it("adds what it carries to what this level's cache already holds, each once", async () => {
+    const unsent = await quitWithUnsent();
+    const typedSince: QueuedMessage = {
+      message: {
+        key: "msg-since",
+        spaceId: unsent.spaceId,
+        authorId: "usr_1",
+        text: "And a film",
+        ts: "2026-09-03T00:00:02.000Z",
+      },
+      event: {
+        type: "message.post",
+        space_id: unsent.spaceId,
+        text: "And a film",
+        idempotency_key: "msg-since",
+      },
+    };
+    // A launch that carried and was closed before the earlier cache was deleted.
+    const again = harness({
+      level: 2,
+      outbox: [...unsent.outbox, typedSince],
+      madeHere: unsent.madeHere,
+      earlier: { ws_1: earlierCache(unsent) },
+      deleteCache: async () => undefined,
+    });
+    await started();
+    again.flush();
+    expect(again.savedOutbox[0]).toEqual([...unsent.outbox, typedSince]);
+    expect(again.sent.filter((each) => each["type"] === "message.post")).toHaveLength(2);
+    expect(again.sent.filter((each) => each["type"] === "space.created")).toHaveLength(1);
+  });
+
+  it("keeps the earlier cache when what it held didn't land in this one, and still sends it", async () => {
+    const unsent = await quitWithUnsent();
+    const deleted: string[] = [];
+    const again = harness({
+      level: 2,
+      earlier: { ws_1: earlierCache(unsent) },
+      outboxLands: false,
+      deleteCache: async (key) => {
+        deleted.push(key);
+      },
+    });
+    await started();
+    again.flush();
+    expect(deleted).toEqual([]);
+    expect(again.sent.map((each) => each["type"])).toContain("message.post");
+    expect(roomOf(again, unsent.spaceId)?.lines.at(-1)).toMatchObject({ pending: true });
+  });
+
+  it("keeps the earlier cache when it can't be read, and starts all the same", async () => {
+    const deleted: string[] = [];
+    const broken = earlierCache({
+      loadOutbox: async () => {
+        throw new Error("the database is locked");
+      },
+    });
+    const again = harness({
+      level: 2,
+      cached: [OPENED],
+      earlier: { ws_1: broken },
+      deleteCache: async (key) => {
+        deleted.push(key);
+      },
+    });
+    await started();
+    again.flush();
+    expect(deleted).toEqual([]);
+    expect(again.store.getSnapshot().model.spaces[0]?.title).toBe("PO-4471");
+  });
+
+  it("forgets each earlier cache that holds nothing unsent, and none at the first level", async () => {
+    const deleted: string[] = [];
+    const forget = async (key: string) => {
+      deleted.push(key);
+    };
+    harness({
+      level: 3,
+      device: { ...DEVICE, serverUrl: "http://192.168.1.20:4431" },
+      earlier: {
+        "ws_1@192.168.1.20:4431": earlierCache({}),
+        "ws_1@192.168.1.20:4431~L2": earlierCache({}),
+      },
+      deleteCache: forget,
+    });
+    await started();
+    expect(deleted).toEqual(["ws_1@192.168.1.20:4431", "ws_1@192.168.1.20:4431~L2"]);
+
+    deleted.length = 0;
+    harness({ deleteCache: forget });
+    await started();
+    expect(deleted).toEqual([]);
+  });
+});
+
+describe("what the computer says of itself, and of what everything runs (ADR 0296, ADR 0297)", () => {
+  const SERVER = {
+    machine: "Mac mini",
+    version: "1.2.5",
+    public_url: "https://mini.example",
+    relay: { url: null, status: "off" },
+  };
+
+  it("reads the releases out and the computer's own updates from GET /v1/server", async () => {
+    const paths: string[] = [];
+    const h = harness({
+      get: async (path) => {
+        paths.push(path);
+        return {
+          ...SERVER,
+          updates: {
+            releases: [{ version: "1.2.6", date: "2026-11-20", line: "Later.", dot: true }],
+            app_store: "1.2.6",
+          },
+          self_update: {
+            available: false,
+            automatic: false,
+            with_app: true,
+            restarts_onto: "1.2.6",
+            last: { state: "updated", from: "1.2.4", to: "1.2.5", at: "2026-11-12T03:10:00.000Z" },
+          },
+        };
+      },
+    });
+    expect(await h.store.serverFacts()).toEqual({
+      machine: "Mac mini",
+      version: "1.2.5",
+      publicUrl: "https://mini.example",
+      relay: { url: undefined, status: "off" },
+      updates: {
+        releases: [{ version: "1.2.6", date: "2026-11-20", line: "Later.", dot: true }],
+        appStore: "1.2.6",
+      },
+      selfUpdate: {
+        available: false,
+        automatic: false,
+        withApp: true,
+        restartsOnto: "1.2.6",
+        last: { state: "updated", from: "1.2.4", to: "1.2.5", at: "2026-11-12T03:10:00.000Z" },
+      },
+    });
+    expect(paths).toContain("/v1/server");
+  });
+
+  it("says nothing of updates for a server older than them", async () => {
+    const h = harness({ get: async () => SERVER });
+    const facts = await h.store.serverFacts();
+    expect(facts).toEqual({
+      machine: "Mac mini",
+      version: "1.2.5",
+      publicUrl: "https://mini.example",
+      relay: { url: undefined, status: "off" },
+    });
+    expect("updates" in facts).toBe(false);
+    expect("selfUpdate" in facts).toBe(false);
+  });
+
+  it("reads what everything runs, and none from a server with no such route", async () => {
+    const answers: (() => Promise<unknown>)[] = [];
+    const h = harness({
+      get: async (path) => {
+        if (path !== "/v1/software") throw new Error(`unexpected ${path}`);
+        const answer = answers.shift();
+        if (answer === undefined) throw new Error("nothing to answer with");
+        return await answer();
+      },
+    });
+    answers.push(async () => ({
+      harnesses: [
+        {
+          harness_id: "hrn_1",
+          name: "chips-hermes",
+          version: "1.0.31",
+          seen_at: "2026-11-13T00:00:00.000Z",
+        },
+      ],
+      devices: [],
+    }));
+    expect((await h.store.software())?.harnesses.map((each) => each.harnessId)).toEqual(["hrn_1"]);
+    // An older server: 404 means it keeps no such list.
+    answers.push(async () => {
+      throw Object.assign(new Error("/v1/software answered 404"), { status: 404 });
+    });
+    expect(await h.store.software()).toBeUndefined();
+  });
+
+  it("fails the read of what everything runs when the server can't answer, so the last is kept", async () => {
+    const failures = [
+      Object.assign(new Error("/v1/software answered 503"), { status: 503 }),
+      new TypeError("Network request failed"),
+    ];
+    const h = harness({
+      get: async () => {
+        throw failures.shift();
+      },
+    });
+    await expect(h.store.software()).rejects.toThrow("answered 503");
+    await expect(h.store.software()).rejects.toThrow("Network request failed");
+  });
+
+  it("turns the night switch with a PUT, and says what the computer then holds", async () => {
+    const puts: [string, unknown][] = [];
+    const h = harness({
+      put: async (path, body) => {
+        puts.push([path, body]);
+        return { available: true, automatic: true };
+      },
+    });
+    expect(await h.store.setSelfUpdate(true)).toEqual({ available: true, automatic: true });
+    expect(puts).toEqual([["/v1/server/self-update", { automatic: true }]]);
+  });
+
+  it("turns a bridge's switch with a PUT to its harness, its id made safe for a path", async () => {
+    const puts: [string, unknown][] = [];
+    const h = harness({
+      put: async (path, body) => {
+        puts.push([path, body]);
+        return {};
+      },
+    });
+    await h.store.keepBridgeCurrent("hrn/1 a", false);
+    expect(puts).toEqual([["/v1/harnesses/hrn%2F1%20a/bridge-updates", { keep_current: false }]]);
   });
 });

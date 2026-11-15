@@ -22,6 +22,11 @@
  * around. It is never written where the device keeps its workspaces, each with a key in the
  * Keychain, and it has none: Look around is a word in this app's preferences, and a launch that
  * finds it builds the demo again from its script, played whole.
+ *
+ * A workspace whose key the Keychain no longer has, as a phone set up from a backup finds, is held
+ * as `lost` when it was the one in front (ADR 0228's addendum): nothing comes in front in its place,
+ * so the first screen names it and offers to pair again, rather than the demo opening as if it had
+ * never been there.
  */
 
 import {
@@ -30,6 +35,7 @@ import {
   demoDevice,
   FILMS,
   isDemo,
+  type LostDevice,
   type Snapshot,
   type Store,
   setDeviceMuted,
@@ -49,7 +55,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { readAgain, readWhenOpen } from "../device/held";
+import { type HeldHere, readAgain, readWhenOpen } from "../device/held";
 import { deviceStorage } from "../device/storage";
 import { readSetting, SETTINGS, writeSetting } from "../prefs";
 import type { FileService } from "../spaces/files";
@@ -160,6 +166,12 @@ interface Chips {
   readonly mute: (deviceId: string, muted: boolean) => Promise<void>;
   /** The made-up workspace and its film (ADR 0213). */
   readonly demo: DemoSession;
+  /**
+   * The workspace that was in front, whose key is gone from this phone (ADR 0228's addendum):
+   * nothing comes in front in its place, and the first screen names it. Nothing otherwise. Pairing
+   * again with its server replaces it; forgetting it (`useLeave`) takes it off.
+   */
+  readonly lost: LostDevice | undefined;
 }
 
 /** A workspace that took over the front from another, and when. */
@@ -199,10 +211,16 @@ const ChipsContext = createContext<Chips>({
   switchTo: async () => {},
   mute: async () => {},
   demo: NO_DEMO,
+  lost: undefined,
 });
 
 /** What this phone holds: its workspaces' devices, and whether the demo was kept (ADR 0213). */
-type OnThisPhone = readonly [readonly Device[], string | undefined];
+type OnThisPhone = readonly [HeldHere, string | undefined];
+
+/** The workspace lost in front, if it was (ADR 0228's addendum). */
+function lostOf(held: HeldHere): LostDevice | undefined {
+  return held.lostInFront ? held.lost[0] : undefined;
+}
 
 function readHeld(signal?: AbortSignal): Promise<OnThisPhone> {
   return Promise.all([readWhenOpen(signal), readSetting(SETTINGS.demo).catch(() => undefined)]);
@@ -226,6 +244,8 @@ export function ChipsProvider({ children }: { readonly children: ReactNode }) {
   const [stored, setStored] = useState<readonly Device[]>([]);
   const [demo, setDemo] = useState<Device | undefined>(undefined);
   const [device, setDevice] = useState<Device | undefined>(undefined);
+  // The workspace in front whose key is gone (ADR 0228's addendum), which nothing replaces.
+  const [lost, setLost] = useState<LostDevice | undefined>(undefined);
   // The film over the demo (ADR 0213), and whether Look around keeps the demo when it ends.
   const [film, setFilm] = useState<string | undefined>(undefined);
   const [kept, setKept] = useState(false);
@@ -243,11 +263,14 @@ export function ChipsProvider({ children }: { readonly children: ReactNode }) {
       // Looked around in last time: the demo made again from its script, played whole.
       const looked = word === LOOK_AROUND ? await demoDevice().catch(() => undefined) : undefined;
       if (!live) return;
-      setStored(found);
+      const gone = lostOf(found);
+      setStored(found.devices);
+      setLost(gone);
       setDemo(looked);
       setKept(looked !== undefined);
-      // A workspace of the person's own comes first; the demo, when it is all there is.
-      setDevice(found[0] ?? looked);
+      // A workspace of the person's own comes first; the demo, when it is all there is. The one in
+      // front, its key gone, is said rather than stood in for: by another workspace, or the demo.
+      setDevice(gone === undefined ? (found.devices[0] ?? looked) : undefined);
       setLoaded(true);
     });
     return () => {
@@ -274,31 +297,39 @@ export function ChipsProvider({ children }: { readonly children: ReactNode }) {
 
   // The list read again after every change, so it says what the storage says: a pairing again
   // with one server replaces its device there (`pairDevice`), and a forgotten one is gone. A read
-  // that could not open every key leaves the list as it was (ADR 0228).
-  const reread = useCallback(() => {
-    void readAgain().then((found) => {
-      if (found !== undefined) setStored(found);
-    });
+  // that could not open every key leaves the list as it was (ADR 0228). Whether the one in front
+  // is lost is read again with it: a pairing or a switch puts another in front, and a forgotten
+  // one is gone (ADR 0228's addendum).
+  const take = useCallback((found: HeldHere | undefined) => {
+    if (found === undefined) return;
+    setStored(found.devices);
+    setLost(lostOf(found));
   }, []);
+  const reread = useCallback(() => {
+    void readAgain().then(take);
+  }, [take]);
   // Read where state is not: in the demo's callbacks, which keep one identity.
   const now = useRef({ device, stored, kept, film });
   now.current = { device, stored, kept, film };
-  const began = useCallback((next: Device) => {
-    setDevice(next);
-    // The demo is never written where the device keeps its workspaces (ADR 0213).
-    if (isDemo(next)) return;
-    // Another workspace in front ends the film, and a demo nobody kept goes with it.
-    setFilm(undefined);
-    if (!now.current.kept) setDemo(undefined);
-    setStored((was) => [next, ...was.filter((each) => each.deviceId !== next.deviceId)]);
-    // In front at the next launch too. A pairing or a join has said so already; a switch has not.
-    void switchDevice(next.deviceId, deviceStorage)
-      .catch(() => undefined)
-      .then(() => readAgain())
-      .then((found) => {
-        if (found !== undefined) setStored(found);
-      });
-  }, []);
+  const began = useCallback(
+    (next: Device) => {
+      setDevice(next);
+      // The demo is never written where the device keeps its workspaces (ADR 0213).
+      if (isDemo(next)) return;
+      // Another workspace in front ends the film, and a demo nobody kept goes with it.
+      setFilm(undefined);
+      if (!now.current.kept) setDemo(undefined);
+      setStored((was) => [next, ...was.filter((each) => each.deviceId !== next.deviceId)]);
+      // A workspace of the person's own is in front: none is lost in front any more.
+      setLost(undefined);
+      // In front at the next launch too. A pairing or a join has said so already; a switch has not.
+      void switchDevice(next.deviceId, deviceStorage)
+        .catch(() => undefined)
+        .then(() => readAgain())
+        .then(take);
+    },
+    [take],
+  );
   const ended = useCallback(
     (next?: Device | undefined) => {
       // Forgotten, so not drawn while the next reads its cache, and its store closed now, not
@@ -366,8 +397,22 @@ export function ChipsProvider({ children }: { readonly children: ReactNode }) {
       switchTo,
       mute,
       demo: demoSession,
+      lost,
     }),
-    [ready, paired, arriving, arrival, devices, others, began, ended, switchTo, mute, demoSession],
+    [
+      ready,
+      paired,
+      arriving,
+      arrival,
+      devices,
+      others,
+      began,
+      ended,
+      switchTo,
+      mute,
+      demoSession,
+      lost,
+    ],
   );
   return <ChipsContext.Provider value={value}>{children}</ChipsContext.Provider>;
 }

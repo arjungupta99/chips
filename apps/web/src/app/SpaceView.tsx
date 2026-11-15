@@ -112,6 +112,7 @@ import {
   type ReactNode,
   type RefObject,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -166,6 +167,7 @@ import { carryOutRunAct, type RunActs } from "./runActs.ts";
 import { Swap } from "./Swap.tsx";
 import { TaskBubble } from "./TaskBubble.tsx";
 import { clockTime, relativeTime } from "./time.ts";
+import { OpenAbout } from "./updates.tsx";
 import { useNarrow } from "./useNarrow.ts";
 import { useNow } from "./useNow.ts";
 import { carriesLocation, type Staged, useStaged } from "./useStaged.ts";
@@ -1374,7 +1376,7 @@ function Top(props: {
   readonly now: number;
   readonly model?: WorkspaceModel | undefined;
   readonly files: FileService;
-  /** The room's lanes, whose files the sheet's Media & files shows (ADR 0202). */
+  /** The room's lanes, whose files the sheet's Sent in chat shows (ADR 0202). */
   readonly lanes: readonly Lane[] | undefined;
   /** The face the person chose for the room, which the sheet's head wears. */
   readonly icon: SpaceIcon | undefined;
@@ -2423,6 +2425,25 @@ function RunDid({ run, onClose }: { readonly run: Run; readonly onClose: () => v
 }
 
 /**
+ * What a newer computer sent that this app can't draw (ADR 0297): Chips's own quiet line, centred
+ * as the room's other notes are, so it reads as Chips speaking, not an agent, with Update beside
+ * it, which opens About.
+ */
+function NewerLine(props: { readonly text: string }) {
+  const openAbout = useContext(OpenAbout);
+  return (
+    <div className="sys newer-line" data-testid="newer-line">
+      <span>{props.text}</span>
+      {openAbout !== undefined && (
+        <button type="button" className="sys-link newer-update" onClick={openAbout}>
+          Update
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
  * The lines drawn in the margin rather than in a bubble: system, checkpoint, status. An agent's
  * context compacting is one (ADR 0146), and a click on it opens the agent's page.
  */
@@ -2442,6 +2463,7 @@ function MarginLine({ line, directory, run, onOpenAgent }: MessageRowProps) {
       </div>
     );
   }
+  if (line.newer === true) return <NewerLine text={line.text} />;
   if (line.kind === "system" && line.whole === true) {
     // Somebody coming into the room or going, said from where the reader stands (JR-5).
     return (

@@ -71,3 +71,63 @@ export function teamOf(described) {
   const team = /^TeamIdentifier=(\S+)$/m.exec(described)?.[1];
   return team === undefined || team === "not set" ? undefined : team;
 }
+
+/**
+ * Chips for Mac's own update (ADR 0298). The app reads `latest.json` from the newest GitHub
+ * release, takes the archive it names, and checks it against the updater key's public half in
+ * `tauri.conf.json` before anything else. The key's private half is kept on the Mac that makes
+ * releases, beside the release key.
+ */
+export const UPDATE_ARCHIVE = "Chips.app.tar.gz";
+export const UPDATE_FEED = "latest.json";
+export const RELEASES_URL = "https://github.com/arjungupta99/chips/releases";
+
+/** The archive's address on the release `v<version>`. */
+export function updateUrl(version) {
+  return `${RELEASES_URL}/download/v${version}/${UPDATE_ARCHIVE}`;
+}
+
+/**
+ * What `latest.json` says, as Tauri's updater reads it: the version, the archive for Apple
+ * silicon and its signature. The DMG is Apple silicon only, and so is this.
+ */
+export function updateFeed({ version, signature, at }) {
+  return {
+    version,
+    notes: `Chips ${version}`,
+    pub_date: at.toISOString(),
+    platforms: { "darwin-aarch64": { signature, url: updateUrl(version) } },
+  };
+}
+
+/**
+ * The key a public key or a signature names, as sixteen hex digits: `tauri signer`'s files are
+ * minisign's text in base64, whose second line holds two letters for the kind, then the key's
+ * eight-byte id. Nothing, for text that isn't one of them.
+ */
+export function keyIdOf(encoded) {
+  const line = Buffer.from(String(encoded).trim(), "base64").toString("utf8").split("\n")[1];
+  const bytes = Buffer.from(line ?? "", "base64");
+  return bytes.length < 10 ? undefined : bytes.subarray(2, 10).toString("hex");
+}
+
+/**
+ * Whether a signature was made with the key the app checks every update against (the public
+ * half in `tauri.conf.json`). One made with another key would be thrown away by every copy.
+ */
+export function signedByUpdaterKey(signature, publicKey) {
+  const id = keyIdOf(signature);
+  return id !== undefined && id === keyIdOf(publicKey);
+}
+
+/** The feed the app is built to read: `latest.json` on the newest release. */
+export const UPDATE_FEED_URL = `${RELEASES_URL}/latest/download/${UPDATE_FEED}`;
+
+/**
+ * `tar`'s words for the archive: the app as its one top folder, as the updater unpacks it, with no
+ * AppleDouble files beside (the environment's `COPYFILE_DISABLE`, set by the caller).
+ */
+export function archiveArgs(archive, app) {
+  const at = app.lastIndexOf("/");
+  return ["-czf", archive, "-C", app.slice(0, at), app.slice(at + 1)];
+}

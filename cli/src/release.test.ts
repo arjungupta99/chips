@@ -50,6 +50,8 @@ describe("a release", () => {
       server: {
         webDir: "/Users/ada/.local/lib/chips/0.2.0/web",
         connectors: "/Users/ada/.local/lib/chips/0.2.0/connectors/connectors.json",
+        updates: "https://chipschat.ai/releases.json",
+        bridges: "https://chipschat.ai/bridges.json",
       },
     });
     expect(releaseDefaults(release, linux).data.dir).toBe("/home/ada/.local/share/chips");

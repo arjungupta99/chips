@@ -1,6 +1,7 @@
 /**
  * The page beside You's list on an iPad (ADR 0256), as Settings stands a page beside its own: People,
- * Invite someone, Relay, Media on this iPad and Connection, each the page a phone pushes, under the
+ * Invite someone, Relay, Media on this iPad, Connection and About Chips (ADR 0295), each the page a
+ * phone pushes, under the
  * pane's bar and on the grouped ground. With nothing open the pane says to choose a row. A person
  * opened from People stands in a third column beside it (`youThird`, ADR 0276), and so does every
  * ask so far, opened from the dots on Allowed always.
@@ -13,8 +14,21 @@
  * its pages held by its own provider, which follows the link they make (ADR 0284's addendum).
  */
 
-import { ASKS_TITLE, type Device, nameOf, type Store } from "@chipschat/core";
+import {
+  ABOUT_TITLE,
+  ASKS_TITLE,
+  type Device,
+  LICENCE_TITLE,
+  NOTICES_TITLE,
+  nameOf,
+  type Store,
+  WHATS_NEW_TITLE,
+} from "@chipschat/core";
 import type { ReactNode } from "react";
+import { AboutPage } from "../about/AboutPage";
+import { LicencePage } from "../about/LicencePage";
+import { NoticesPage } from "../about/NoticesPage";
+import { WhatsNewPage } from "../about/WhatsNewPage";
 import { thisDevice } from "../device/word";
 import { ConnectPane } from "../harnesses/Connect";
 import { AskList } from "../harnesses/parts/AskList";
@@ -114,6 +128,14 @@ export function YouPane({
           </Screen>
         </Pane>
       );
+    case "about":
+      return (
+        <Pane title={ABOUT_TITLE} grouped>
+          <Screen grouped>
+            <AboutPage store={store} />
+          </Screen>
+        </Pane>
+      );
     case "connect":
       return <ConnectPane onClose={() => go({})} />;
     default:
@@ -142,6 +164,14 @@ export function youThird({
   readonly opened: Opened;
   readonly go: (next: Opened) => void;
 }): ReactNode {
+  const about = aboutThird(opened["third"]);
+  if (opened["page"] === "about" && about !== undefined) {
+    return (
+      <Pane title={about.title} onClose={() => go({ page: "about" })} grouped>
+        <Screen grouped>{about.page}</Screen>
+      </Pane>
+    );
+  }
   if (opened["page"] === "always" && opened["third"] === "asks") {
     return (
       <YouAsks store={store} selfId={device.participantId} onClose={() => go({ page: "always" })} />
@@ -157,6 +187,22 @@ export function youThird({
       onClose={() => go({ page: "people" })}
     />
   );
+}
+
+/** What About opens beside itself (ADR 0295): What's new, Licence or Acknowledgements. */
+function aboutThird(
+  third: string | undefined,
+): { readonly title: string; readonly page: ReactNode } | undefined {
+  switch (third) {
+    case "whats-new":
+      return { title: WHATS_NEW_TITLE, page: <WhatsNewPage /> };
+    case "licence":
+      return { title: LICENCE_TITLE, page: <LicencePage /> };
+    case "notices":
+      return { title: NOTICES_TITLE, page: <NoticesPage /> };
+    default:
+      return undefined;
+  }
 }
 
 /** Every ask in the workspace, from Allowed always's dots: the list a harness's own dots open. */

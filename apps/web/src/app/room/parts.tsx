@@ -240,10 +240,10 @@ export function Failed({ words }: { readonly words: string }) {
  * The page on show, as the phone's `SheetPages` turns one (ADR 0110): the new page fades in where it
  * stands while the page it replaces fades out where it stood, and the sheet's height glides from
  * what was drawn to what the page is, with no sideways slide. Not only on a turn: a page that grows
- * or folds as it is read (Media & files as its files come, a row gone) glides too, and a glide that
+ * or folds as it is read (Sent in chat as its files come, a row gone) glides too, and a glide that
  * ends short of what the page has become glides on (ADR 0268 addendum). Until 3 November the page
  * left went in a frame, a page that grew after its turn jumped to its height when the glide ended,
- * and Media & files, laid out before its files had come, glid down to nothing and jumped back up.
+ * and Sent in chat, laid out before its files had come, glid down to nothing and jumped back up.
  */
 export function Pages({ page, children }: { readonly page: string; readonly children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);

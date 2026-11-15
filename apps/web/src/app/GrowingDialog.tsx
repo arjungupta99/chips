@@ -23,7 +23,13 @@
  * instead of popup"): a page where a row's page would stand, which the column turns in and out.
  */
 
-import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
+import {
+  type CSSProperties,
+  type KeyboardEvent as KeyEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+} from "react";
 import { createPortal } from "react-dom";
 import { PANE_MS, type ThirdHost, useThird } from "./Columns.tsx";
 import { boxOf, growFrom } from "./dialogMotion.ts";
@@ -93,13 +99,27 @@ function InPlace(props: GrowingDialogProps) {
       data-in-place="true"
       data-leaving={props.leaving ? "true" : undefined}
       onKeyDown={(event) => {
-        if (event.key !== "Escape" || event.defaultPrevented) return;
+        if (!ownEscape(event)) return;
         event.preventDefault();
         props.onLeave();
       }}
     >
       {props.children}
     </section>
+  );
+}
+
+/**
+ * Escape pressed in this page itself. React hands a key up through portals, so Escape in a dialog
+ * opened from inside it (the viewer over Universe's squares) reaches here as well, and only puts
+ * that dialog away: its target is outside the page.
+ */
+function ownEscape(event: KeyEvent<HTMLElement>): boolean {
+  return (
+    event.key === "Escape" &&
+    !event.defaultPrevented &&
+    event.target instanceof Node &&
+    event.currentTarget.contains(event.target)
   );
 }
 
@@ -138,6 +158,9 @@ function Modal(props: GrowingDialogProps) {
       data-leaving={props.leaving ? "true" : undefined}
       style={props.style}
       onCancel={(event) => {
+        // A dialog opened from inside it (the viewer, from Universe) cancels on its own: React hands
+        // its cancel up here too, through the portal, and this one stays.
+        if (event.target !== event.currentTarget) return;
         // Escape: folded away, not snapped shut.
         event.preventDefault();
         props.onLeave();
@@ -204,7 +227,7 @@ function Docked(props: GrowingDialogProps & { readonly host: ThirdHost }) {
       data-docked="true"
       data-leaving={leaving ? "true" : undefined}
       onKeyDown={(event) => {
-        if (event.key !== "Escape" || event.defaultPrevented) return;
+        if (!ownEscape(event)) return;
         event.preventDefault();
         props.onLeave();
       }}

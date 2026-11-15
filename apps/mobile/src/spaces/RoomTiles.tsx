@@ -1,13 +1,16 @@
 /**
  * The room sheet's first page under who is here (ADR 0202, Arjun's B, 18 October 2026: "make the
  * room detail page bottom sheet layout look more cooler and organized"): one card for everything
- * the room holds, Media & files, and the room's settings as tiles, two to a row.
+ * the room's chat holds, Sent in chat, and the room's settings as tiles, two to a row.
  *
- * - **Media & files** says how many things the room's lines carry and how many files the room has,
+ * - **Sent in chat** says how many things the room's lines carry and how many files the room has,
  *   and shows the newest five as pictures, a voice note's microphone or a document's mark, beside
- *   a tile for the files. It turns the sheet to the Media & files page (`RoomMedia.tsx`). It was
- *   two rows, Media and Files, each with a count and a line of words.
- * - **The tiles** are what the rows were: Lead, Spend per job, Notifications and Lock changes, each
+ *   a tile for the files. It turns the sheet to its page (`RoomMedia.tsx`). It was two rows, Media
+ *   and Files, each with a count and a line of words, and then Media & files, until Universe had a
+ *   Media and a Files of its own (Arjun, 14 November 2026): the card is named for where its things
+ *   came from, the chat, as Universe's are what the space's folder keeps.
+ * - **The tiles** are what the rows were: Changes (the project's, ADR 0222), Lead, Spend per job,
+ *   Notifications and Lock changes, each
  *   with its mark, what it is set to, and its name under that. A tile opens what its row opened,
  *   with a chevron; one that opens nothing for you, as Lead for a guest or Spend for a member, has
  *   none and does not press. Spend per job draws how much of the room's ceiling the job has used,
@@ -25,11 +28,15 @@ import {
   type Attachment,
   type CarriedFile,
   ceilingWords,
+  type Directory,
   formatDuration,
   inAlbum,
   kindOf,
   mediaFilesWords,
+  nameOf,
+  newestChangeWords,
   ROOM_TILE_GROUNDS,
+  type RoomProject,
   type RoomTileGround,
 } from "@chipschat/core";
 import {
@@ -58,7 +65,7 @@ import { LEVEL_WORDS } from "./roomNotify";
 export const CARD_MEDIA = 5;
 
 /**
- * The Media & files card: its name and counts, then the newest things the room's lines carry and a
+ * The Sent in chat card: its name and counts, then the newest things the room's lines carry and a
  * tile for the room's files. With nothing in either, the one line and `None yet`.
  */
 export function MediaCard({
@@ -83,14 +90,14 @@ export function MediaCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Media and files, ${words === "" ? "reading" : words}`}
+      accessibilityLabel={`Sent in chat, ${words === "" ? "reading" : words}`}
       onPress={onPress}
       testID="room-sheet-media"
       style={({ pressed }) => [styles.card, { backgroundColor: pressed ? on.pressed : on.fill }]}
     >
       <View style={styles.cardHead}>
         <Text style={[styles.cardName, { color: palette.ink }]} numberOfLines={1}>
-          Media & files
+          Sent in chat
         </Text>
         <Text style={[styles.count, { color: palette.ink3 }]} numberOfLines={1}>
           {words}
@@ -143,7 +150,7 @@ export function MediaThumb({
 }
 
 /**
- * A square drawn with a thumbnail its caller asked for: the Media & files page's squares open the
+ * A square drawn with a thumbnail its caller asked for: the Sent in chat page's squares open the
  * viewer on the very picture they show, so it flies from them (ADR 0202).
  */
 export function ThumbOf({
@@ -447,21 +454,27 @@ export function RowMark({
   );
 }
 
-/** The room's project (ADR 0222), once it has had a change: how many files, and it opens Project. */
-export function ProjectTile({
-  files,
+/**
+ * The room's project (ADR 0222), once it has had a change: who made the newest change and when,
+ * and it opens Changes. It was Project, saying how many files, until 14 November 2026: the files
+ * are Universe's (ADR 0227), and the tile says what only it opens.
+ */
+export function ChangesTile({
+  project,
+  directory,
   onPress,
 }: {
-  readonly files: number;
+  readonly project: RoomProject;
+  readonly directory: Directory;
   readonly onPress: () => void;
 }) {
-  const words = `${files} file${files === 1 ? "" : "s"}`;
+  const words = newestChangeWords(project, (id) => nameOf(directory, id));
   return (
     <Tile
-      mark={<Mark ground="project" icon="drawers" />}
+      mark={<Mark ground="project" icon="clock" />}
       value={words}
-      name="Project"
-      label={`Project, ${words}`}
+      name="Changes"
+      label={`Changes, ${words}`}
       onPress={onPress}
       testID="room-sheet-project"
     />

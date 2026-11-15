@@ -160,7 +160,7 @@ test("a room's file crosses by its link, comes back as v2, and a change made fro
   await expect(page.getByTestId("messages")).toContainText("Done: F–J");
   await expect(page.getByTestId("messages")).not.toContainText("K–O is in");
 
-  // The Mac's Files (ADR 0100), under Media & files on the room's sheet as on the phone (ADR
+  // The Mac's Files (ADR 0100), under Sent in chat on the room's sheet as on the phone (ADR
   // 0202): v2, by Painter, with v1 behind a tap, each opening on its words.
   const sheet = await roomSheet(page);
   await expect(sheet.getByTestId("room-sheet-media")).toContainText("1 file");

@@ -119,6 +119,7 @@ import { Aside, alpha, Capsule, useGlassy } from "../ui/Glass";
 import { ASIDE, GROWS, GrowingView, RISES } from "../ui/growing";
 import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
+import { keysAway } from "../ui/keysAway";
 import { Clearing } from "../ui/PaneMotion";
 import { useColumn } from "../ui/Screen";
 import { useFootClear } from "../ui/Split";
@@ -1025,7 +1026,7 @@ export function Composer({
                   // The keyboard goes down as the sheet comes up: on iOS it is a window above every
                   // other, and a sheet rising under it would arrive half hidden.
                   onPress={() => {
-                    Keyboard.dismiss();
+                    keysAway();
                     setSheet(true);
                   }}
                 />

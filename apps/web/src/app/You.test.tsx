@@ -14,8 +14,12 @@ import {
   type ClientEvent,
   type Directory,
   type Invite,
+  type MacUpdate,
   type PairedDeviceRecord,
   quietWords,
+  type SelfUpdateFacts,
+  type Software,
+  type UpdateDevice,
   type WorkspaceRole,
 } from "@chipschat/core";
 import {
@@ -25,8 +29,11 @@ import {
 } from "@chipschat/protocol";
 import { FACES_ATTRIBUTE, THEME_ATTRIBUTE } from "@chipschat/ui";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type MacUpdater, UpdatesProvider } from "./updates.tsx";
 import {
+  type AboutService,
   type LimitsService,
   type NotificationsService,
   type PeopleService,
@@ -189,6 +196,7 @@ function renderYou(
   over: Partial<YouProps> = {},
   devices: PairedDeviceRecord[] = [],
   links: Invite[] = [],
+  wrapper?: (props: { children: ReactNode }) => ReactNode,
 ) {
   const { people, done } = fakePeople(devices, links);
   const props: YouProps = {
@@ -207,7 +215,7 @@ function renderYou(
     onSignOut: () => undefined,
     ...over,
   };
-  const { rerender } = render(<You {...props} />);
+  const { rerender } = render(<You {...props} />, wrapper === undefined ? {} : { wrapper });
   /** The screen again, with what changed: the connection closing, or opening again. */
   const again = (more: Partial<YouProps>) => rerender(<You {...props} {...more} />);
   return Object.assign(done, { again, props });
@@ -493,12 +501,13 @@ describe("the words for where it is", () => {
     );
   });
 
-  it("says the role in a line, and the server and the build under This browser", () => {
+  it("says the role in a line, and the server under This browser", () => {
     renderYou();
     expect(screen.getByTestId("my-role").textContent).toBe("Owner · Demo");
     expect(screen.getByTestId("you-workspace").textContent).toBe("Workspace Demo");
     expect(screen.getByTestId("about-server").textContent).toBe("Server chips.example:4431");
-    expect(screen.getByTestId("build").textContent).toMatch(/^Version.+ · .+$/);
+    // The build went to About Chips's page (ADR 0295).
+    expect(screen.queryByTestId("build")).toBeNull();
   });
 
   it("puts Sign out and Delete your account at the foot, red, as the phone does (ADR 0243)", () => {
@@ -1335,5 +1344,490 @@ describe("notifications", () => {
       const named = row.getAttribute("aria-label");
       if (named !== null) expect(named.slice(0, title.length)).toBe(title);
     }
+  });
+});
+
+describe("About Chips (ADR 0295)", () => {
+  const opened: string[] = [];
+  const about = (version = __CHIPS_VERSION__): AboutService => ({
+    computer: async () => ({ machine: "Mac mini", version }),
+    openLink: (url) => opened.push(url),
+  });
+  /** The shell's updates (ADR 0296): a computer on `version`, whose feed has `releases`. */
+  const updates =
+    (
+      version: string,
+      {
+        owner = true,
+        device = "browser" as UpdateDevice,
+        releases = [] as { version: string; date: string; line: string; dot?: boolean }[],
+        mac = undefined as MacUpdater | undefined,
+        selfUpdate = undefined as SelfUpdateFacts | undefined,
+      } = {},
+    ) =>
+    (props: { children: ReactNode }) => (
+      <UpdatesProvider
+        read={async () => ({
+          machine: "Mac mini",
+          version,
+          publicUrl: "https://mini",
+          relay: { url: undefined, status: "off" },
+          updates: { releases },
+          ...(selfUpdate === undefined ? {} : { selfUpdate }),
+        })}
+        owner={owner}
+        device={device}
+        mac={mac === undefined ? undefined : Promise.resolve(mac)}
+      >
+        {props.children}
+      </UpdatesProvider>
+    );
+  beforeEach(() => {
+    opened.length = 0;
+    localStorage.clear();
+  });
+
+  it("stands its row under Send feedback, with the version as its value", () => {
+    renderYou({
+      about: about(),
+      feedback: { openLink: () => undefined, writeWith: () => undefined },
+    });
+    const group = within(screen.getByTestId("feedback"));
+    expect(group.getByTestId("about-row").textContent).toBe(`About Chips ${__CHIPS_VERSION__}`);
+  });
+
+  it("stands its row alone where feedback is off", () => {
+    renderYou({ about: about() });
+    expect(within(screen.getByTestId("feedback")).getByTestId("about-row")).toBeTruthy();
+  });
+
+  it("opens About beside the list: the chip, the name, the build and what Chips is", async () => {
+    renderYou({ about: about() });
+    fireEvent.click(screen.getByTestId("about-row"));
+    const page = await screen.findByTestId("about-page");
+    expect(within(page).getByTestId("about-name").textContent).toBe("Chips");
+    expect(within(page).getByTestId("about-capsule").textContent).toBe(
+      `${__CHIPS_VERSION__} · ${__CHIPS_COMMIT__}`,
+    );
+    expect(page.textContent).toContain(
+      "Chips is a chat app for you and the AI agents you already run. It runs on your own computer, and this browser reaches it.",
+    );
+    expect(await within(page).findByText("Chips on Mac mini")).toBeTruthy();
+    expect(within(page).queryByTestId("about-update")).toBeNull();
+    expect(within(page).getByTestId("about-made").textContent).toContain("Made by Arjun Gupta.");
+  });
+
+  it("says what waits for a computer that is behind, and opens the update steps", async () => {
+    renderYou({ about: about("0.0.1") }, [], [], updates("0.0.1"));
+    fireEvent.click(screen.getByTestId("about-row"));
+    const behind = await screen.findByTestId("about-behind");
+    expect(behind.textContent).toMatch(/^This browser has \S+\. .+ on Mac mini too\.$/);
+    const row = await screen.findByTestId("about-computer-row");
+    expect(row.textContent).toContain(`0.0.1 · ${__CHIPS_VERSION__} is out`);
+    fireEvent.click(within(row).getByTestId("about-update"));
+    expect(opened).toEqual(["https://chipschat.ai/start/install/#updating"]);
+  });
+
+  /** The shell's updates with what everything runs (ADR 0297). */
+  const inStep =
+    (
+      self: SelfUpdateFacts | undefined,
+      software: Software,
+      writes: { night: boolean[]; kept: [string, boolean][]; fails?: boolean },
+      owner = true,
+    ) =>
+    (props: { children: ReactNode }) => (
+      <UpdatesProvider
+        read={async () => {
+          // A computer that has gone away takes no write and answers no read after it.
+          if (writes.fails === true && writes.night.length > 0) throw new Error("offline");
+          return {
+            machine: "hetzner-box",
+            version: "0.0.1",
+            publicUrl: "https://box",
+            relay: { url: undefined, status: "off" },
+            updates: { releases: [], appStore: "9.0.0" },
+            ...(self === undefined ? {} : { selfUpdate: self }),
+          };
+        }}
+        owner={owner}
+        device="browser"
+        server={{
+          software: async () => software,
+          setSelfUpdate: async (automatic) => {
+            writes.night.push(automatic);
+            if (writes.fails === true) throw new Error("offline");
+            return self === undefined ? undefined : { ...self, automatic };
+          },
+          keepBridgeCurrent: async (id, on) => {
+            writes.kept.push([id, on]);
+          },
+          me: "par_me",
+          thisDevice: "dev_me",
+          harnessName: (id) => (id === "har_hermes" ? "Hermes" : undefined),
+          personName: (id) => (id === "par_n" ? "Natalie" : undefined),
+        }}
+      >
+        {props.children}
+      </UpdatesProvider>
+    );
+  const software: Software = {
+    harnesses: [
+      {
+        harnessId: "har_hermes",
+        name: "chips-hermes",
+        version: "1.0.31",
+        seenAt: new Date().toISOString(),
+        keepCurrent: true,
+        bridgeUpdate: {
+          package: "@chipschat/hermes",
+          running: "1.0.31",
+          phase: "refused",
+          since: new Date().toISOString(),
+          target: "1.0.32",
+          reason: "room",
+        },
+      },
+    ],
+    devices: [
+      {
+        deviceId: "dev_n",
+        personId: "par_n",
+        name: "chips-iphone",
+        version: "1.1.0",
+        seenAt: new Date().toISOString(),
+      },
+    ],
+  };
+
+  it("lists what needs the owner under Needs update, each with the dot, a bridge opening its page (ADR 0297)", async () => {
+    const harnesses: string[] = [];
+    const writes = { night: [] as boolean[], kept: [] as [string, boolean][] };
+    renderYou(
+      { about: { ...about("0.0.1"), openHarness: (id) => harnesses.push(id) } },
+      [],
+      [],
+      inStep(undefined, software, writes),
+    );
+    expect(await screen.findByTestId("about-row-dot")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("about-row"));
+    const needs = await screen.findByTestId("about-needs");
+    expect(within(needs).getByText("Needs update")).toBeTruthy();
+    const bridge = within(needs).getByTestId("about-needs-bridge");
+    expect(bridge.textContent).toContain("Hermes bridge");
+    expect(bridge.textContent).toContain(
+      "Couldn't update to 1.0.32: this computer's disk is full.",
+    );
+    expect(bridge.querySelector(".needs-dot")).not.toBeNull();
+    const phone = within(needs).getByTestId("about-needs-device");
+    expect(phone.textContent).toContain("Natalie's iPhone");
+    expect(phone.textContent).toContain("Chips 1.1.0 · 9.0.0 is on the App Store");
+    // A row that opens nothing keeps the chevron's room, so the dots stand in a column.
+    expect(phone.querySelector(".you-chev.is-blank")).not.toBeNull();
+    fireEvent.click(bridge);
+    expect(harnesses).toEqual(["har_hermes"]);
+  });
+
+  it("gives a computer from the install line its night switch, off, and the line to run now (ADR 0297)", async () => {
+    const writes = { night: [] as boolean[], kept: [] as [string, boolean][] };
+    renderYou(
+      { about: about("0.0.1") },
+      [],
+      [],
+      inStep({ available: true, automatic: false }, { harnesses: [], devices: [] }, writes),
+    );
+    fireEvent.click(screen.getByTestId("about-row"));
+    const night = await screen.findByTestId("about-night-switch");
+    expect(night.getAttribute("aria-checked")).toBe("false");
+    expect((await screen.findByTestId("about-night-foot")).textContent).toContain(
+      "With this on, Mac mini updates itself between 2 and 5 in the morning",
+    );
+    fireEvent.click(night);
+    await waitFor(() => expect(writes.night).toEqual([true]));
+    expect(screen.queryByTestId("about-needs")).toBeNull();
+    fireEvent.click(await screen.findByTestId("about-update"));
+    const now = await screen.findByTestId("about-update-now");
+    expect(within(now).getByTestId("about-update-now-command").textContent).toBe("chips update");
+    expect(opened).toEqual([]);
+  });
+
+  it("offers the owner a newer release for the computer, rings it, and wears a dot on its row (ADR 0296)", async () => {
+    const releases = [{ version: "9.0.0", date: "2026-01-05", line: "Later.", dot: true }];
+    renderYou({ about: about() }, [], [], updates(__CHIPS_VERSION__, { releases }));
+    const row = await screen.findByTestId("about-row-dot");
+    expect(row).toBeTruthy();
+    expect(screen.getByTestId("about-row").getAttribute("aria-label")).toBe(
+      `About Chips ${__CHIPS_VERSION__}, an update waits`,
+    );
+    fireEvent.click(screen.getByTestId("about-row"));
+    const update = await screen.findByTestId("about-update");
+    expect(update.parentElement?.className).toBe("update-ring");
+    expect(screen.getByTestId("about-computer-row").textContent).toContain(
+      `${__CHIPS_VERSION__} · 9.0.0 is out`,
+    );
+    // A browser has no version of its own to install.
+    expect(screen.queryByTestId("about-app-row")).toBeNull();
+    // Opening About put the dot out for 9.0.0.
+    expect(JSON.parse(localStorage.getItem("chips.update.seen") ?? "{}")).toMatchObject({
+      version: "9.0.0",
+    });
+  });
+
+  it("offers nobody but the owner the computer's update", async () => {
+    const releases = [{ version: "9.0.0", date: "2026-01-05", line: "Later.", dot: true }];
+    renderYou({ about: about() }, [], [], updates(__CHIPS_VERSION__, { releases, owner: false }));
+    fireEvent.click(screen.getByTestId("about-row"));
+    expect(
+      await within(screen.getByTestId("about-page")).findByText("Chips on Mac mini"),
+    ).toBeTruthy();
+    expect(screen.queryByTestId("about-update")).toBeNull();
+    expect(screen.queryByTestId("about-row-dot")).toBeNull();
+  });
+
+  it("offers Chips for Mac's newer version on the Mac, with Install", async () => {
+    const releases = [{ version: "9.0.0", date: "2026-01-05", line: "Later.", dot: true }];
+    renderYou(
+      { about: about("9.0.0"), desktop: true },
+      [],
+      [],
+      updates("9.0.0", { releases, device: "mac" }),
+    );
+    fireEvent.click(screen.getByTestId("about-row"));
+    const app = await screen.findByTestId("about-app-row");
+    await within(app).findByText(`${__CHIPS_VERSION__} · 9.0.0 is ready`);
+    fireEvent.click(within(app).getByTestId("about-update-app"));
+    expect(opened).toEqual(["https://chipschat.ai/download/"]);
+  });
+
+  it("says Chips for Mac's own update is ready, with Restart now (ADR 0298)", async () => {
+    const releases = [{ version: "9.0.0", date: "2026-01-05", line: "Later.", dot: true }];
+    let restarted = 0;
+    const mac: MacUpdater = {
+      onUpdate: async (listen) => {
+        listen({ state: "ready", version: "9.0.0" });
+        return () => undefined;
+      },
+      updateNow: async () => {
+        restarted += 1;
+      },
+    };
+    renderYou(
+      { about: about(__CHIPS_VERSION__), desktop: true },
+      [],
+      [],
+      updates(__CHIPS_VERSION__, {
+        releases,
+        device: "mac",
+        mac,
+        selfUpdate: { available: false, automatic: false, withApp: true, restartsOnto: "9.0.0" },
+      }),
+    );
+    fireEvent.click(screen.getByTestId("about-row"));
+    const app = await screen.findByTestId("about-app-row");
+    await within(app).findByText("Chips 9.0.0 is ready. It installs when you quit, or tonight.");
+    expect(within(app).queryByTestId("about-update-app")).toBeNull();
+    fireEvent.click(within(app).getByTestId("about-restart-app"));
+    await waitFor(() => expect(restarted).toBe(1));
+    // The computer in the app starts again on its own, and asks for nothing.
+    const computer = screen.getByTestId("about-computer-row");
+    await within(computer).findByText("Starts again on 9.0.0 when nothing is going on");
+    expect(within(computer).queryByTestId("about-update")).toBeNull();
+    // What the computer said has been read, and a release is out for both: nobody has to do
+    // anything, so About Chips wears no dot for either, and the update dot stays out.
+    expect(screen.getByTestId("about-row").getAttribute("aria-label")).toBeNull();
+    expect(screen.queryByTestId("about-row-dot")).toBeNull();
+  });
+
+  /** How many times Restart now reached the shell. */
+  const restarts = { asked: 0 };
+  /** Chips for Mac at this build with 9.0.0 out, its own update standing as `update`. */
+  const macAbout = async (update: MacUpdate, carried = true) => {
+    restarts.asked = 0;
+    const releases = [{ version: "9.0.0", date: "2026-01-05", line: "Later.", dot: true }];
+    const mac: MacUpdater = {
+      onUpdate: async (listen) => {
+        listen(update);
+        return () => undefined;
+      },
+      updateNow: async () => {
+        restarts.asked += 1;
+      },
+    };
+    renderYou(
+      { about: about(__CHIPS_VERSION__), desktop: true },
+      [],
+      [],
+      updates(__CHIPS_VERSION__, {
+        releases,
+        device: "mac",
+        mac,
+        ...(carried ? { selfUpdate: { available: false, automatic: false, withApp: true } } : {}),
+      }),
+    );
+    fireEvent.click(screen.getByTestId("about-row"));
+    const app = await screen.findByTestId("about-app-row");
+    // The computer's row says a release is out once the provider's read has landed.
+    await within(await screen.findByTestId("about-computer-row")).findByText(/9\.0\.0/);
+    return app;
+  };
+
+  it("says Chips for Mac is getting its update, with nothing to press (ADR 0298)", async () => {
+    const app = await macAbout({ state: "getting", version: "9.0.0" });
+    expect(app.textContent).toContain(`${__CHIPS_VERSION__} · Getting 9.0.0`);
+    expect(app.querySelector("button")).toBeNull();
+    expect(screen.queryByTestId("about-row-dot")).toBeNull();
+  });
+
+  it("says Chips for Mac couldn't update and why, with Install, and lights its row (ADR 0298)", async () => {
+    const app = await macAbout({ state: "failed", version: "9.0.0", why: "The disk is full" });
+    expect(app.textContent).toContain(
+      `Couldn't update to 9.0.0. The disk is full. Still on ${__CHIPS_VERSION__}.`,
+    );
+    expect(within(app).queryByTestId("about-restart-app")).toBeNull();
+    fireEvent.click(within(app).getByTestId("about-update-app"));
+    expect(opened).toEqual(["https://chipschat.ai/download/"]);
+    expect(screen.getByTestId("about-row-dot")).toBeTruthy();
+    expect(screen.getByTestId("about-row").getAttribute("aria-label")).toBe(
+      `About Chips ${__CHIPS_VERSION__}, an update waits`,
+    );
+  });
+
+  it("says a release ready on a Mac that asks for a password needs Restart now, and lights its row", async () => {
+    const app = await macAbout({ state: "ready", version: "9.0.0", asks: true });
+    expect(app.textContent).toContain(
+      "Chips 9.0.0 is ready. Restart now to install it: this Mac asks for an administrator's password.",
+    );
+    expect(within(app).getByTestId("about-restart-app").textContent).toBe("Restart now");
+    expect(within(app).queryByTestId("about-update-app")).toBeNull();
+    // Nothing goes in on its own here, so the person is told as for any update.
+    expect(screen.getByTestId("about-row-dot")).toBeTruthy();
+    fireEvent.click(within(app).getByTestId("about-restart-app"));
+    await waitFor(() => expect(restarts.asked).toBe(1));
+  });
+
+  it("says a release out comes on its own to a Chips for Mac that is current, with nothing to press", async () => {
+    const app = await macAbout({ state: "current" });
+    expect(app.textContent).toContain(`${__CHIPS_VERSION__} · 9.0.0 is out, and comes on its own`);
+    expect(app.querySelector("button")).toBeNull();
+    expect(screen.queryByTestId("about-row-dot")).toBeNull();
+  });
+
+  it("offers Install to a Chips for Mac that doesn't update itself", async () => {
+    const app = await macAbout({ state: "off" });
+    expect(app.textContent).toContain(`${__CHIPS_VERSION__} · 9.0.0 is ready`);
+    expect(within(app).getByTestId("about-update-app").textContent).toBe("Install");
+    expect(screen.getByTestId("about-row-dot")).toBeTruthy();
+  });
+
+  it("says a release comes with Chips for Mac to the computer the app carries, with no Update (ADR 0298)", async () => {
+    await macAbout({ state: "current" });
+    const computer = screen.getByTestId("about-computer-row");
+    expect(computer.textContent).toContain(`${__CHIPS_VERSION__} · 9.0.0 comes with Chips for Mac`);
+    expect(within(computer).queryByTestId("about-update")).toBeNull();
+    expect(screen.queryByTestId("about-row-dot")).toBeNull();
+  });
+
+  it("offers Update for a computer of its own beside a Chips for Mac that updates itself", async () => {
+    await macAbout({ state: "current" }, false);
+    const computer = screen.getByTestId("about-computer-row");
+    expect(computer.textContent).toContain(`${__CHIPS_VERSION__} · 9.0.0 is out`);
+    expect(within(computer).getByTestId("about-update")).toBeTruthy();
+    expect(screen.getByTestId("about-row-dot")).toBeTruthy();
+  });
+
+  it("says the same of a computer the app carries from the owner's browser, with no dot", async () => {
+    const releases = [{ version: "9.0.0", date: "2026-01-05", line: "Later.", dot: true }];
+    renderYou(
+      { about: about() },
+      [],
+      [],
+      updates(__CHIPS_VERSION__, {
+        releases,
+        selfUpdate: { available: false, automatic: false, withApp: true },
+      }),
+    );
+    fireEvent.click(screen.getByTestId("about-row"));
+    const computer = await screen.findByTestId("about-computer-row");
+    await within(computer).findByText(`${__CHIPS_VERSION__} · 9.0.0 comes with Chips for Mac`);
+    expect(within(computer).queryByTestId("about-update")).toBeNull();
+    expect(screen.queryByTestId("about-night")).toBeNull();
+    expect(screen.queryByTestId("about-row-dot")).toBeNull();
+    // Nothing lit the dot, so opening About had nothing to put out.
+    expect(localStorage.getItem("chips.update.seen")).toBeNull();
+  });
+
+  it("puts the night switch back when the computer didn't take it", async () => {
+    const writes = { night: [] as boolean[], kept: [] as [string, boolean][], fails: true };
+    renderYou(
+      { about: about("0.0.1") },
+      [],
+      [],
+      inStep({ available: true, automatic: false }, { harnesses: [], devices: [] }, writes),
+    );
+    fireEvent.click(screen.getByTestId("about-row"));
+    const night = await screen.findByTestId("about-night-switch");
+    fireEvent.click(night);
+    expect(night.getAttribute("aria-checked")).toBe("true");
+    await waitFor(() => expect(writes.night).toEqual([true]));
+    // The write failed, and so did the read after it: the switch says what the computer holds.
+    await waitFor(() =>
+      expect(screen.getByTestId("about-night-switch").getAttribute("aria-checked")).toBe("false"),
+    );
+    expect(screen.getByTestId("about-night-foot").textContent).toContain("With this on,");
+  });
+
+  it("shows a member no night switch, no Needs update list and no Update for the computer", async () => {
+    const writes = { night: [] as boolean[], kept: [] as [string, boolean][] };
+    // The computer tells only its owner of its own updates; what everything runs is the owner's too.
+    renderYou({ about: about("0.0.1") }, [], [], inStep(undefined, software, writes, false));
+    fireEvent.click(screen.getByTestId("about-row"));
+    const computer = await screen.findByTestId("about-computer-row");
+    await within(computer).findByText("0.0.1");
+    expect(screen.queryByTestId("about-night")).toBeNull();
+    expect(screen.queryByTestId("about-needs")).toBeNull();
+    expect(screen.queryByTestId("about-update")).toBeNull();
+    expect(screen.queryByTestId("about-row-dot")).toBeNull();
+    // What waits for the computer is still said to anyone.
+    expect(screen.getByTestId("about-behind")).toBeTruthy();
+  });
+
+  it("turns the update dot off on this device, and says what that leaves", async () => {
+    renderYou({ about: about() }, [], [], updates(__CHIPS_VERSION__));
+    fireEvent.click(screen.getByTestId("about-row"));
+    const foot = await screen.findByTestId("about-dot-foot");
+    expect(foot.textContent).toBe(
+      "A gold dot shows at the top of the sidebar when a release adds something new. Opening About puts it out. Updates always show here.",
+    );
+    fireEvent.click(screen.getByTestId("about-dot-switch"));
+    expect(localStorage.getItem("chips.update.dot")).toBe("off");
+    expect(screen.getByTestId("about-dot-foot").textContent).toBe(
+      "No update dot on this device. Updates still show here, with a small dot on About Chips in You.",
+    );
+  });
+
+  it("opens a page under it in its place, with ‹ About", async () => {
+    renderYou({ about: about() });
+    fireEvent.click(screen.getByTestId("about-row"));
+    fireEvent.click(await screen.findByTestId("about-licence"));
+    const licence = await screen.findByTestId("licence-page");
+    expect(licence.textContent).toContain("Neither licence covers the name Chips or the mark.");
+    fireEvent.click(screen.getByRole("button", { name: "‹ About" }));
+    expect(await screen.findByTestId("about-page")).toBeTruthy();
+  });
+
+  it("lists the web app's packages, each folding its licence text open", async () => {
+    renderYou({ about: about() });
+    fireEvent.click(screen.getByTestId("about-row"));
+    fireEvent.click(await screen.findByTestId("about-notices"));
+    const react = await screen.findByTestId("notice-react");
+    expect(react.querySelector("summary")?.textContent).toMatch(/^react\S+MIT$/);
+    expect(react.textContent).toContain("Permission is hereby granted");
+  });
+
+  it("opens when asked from outside, as the Mac's About Chips asks", async () => {
+    const you = renderYou({ about: about() });
+    expect(screen.queryByTestId("about-page")).toBeNull();
+    you.again({ about: { ...about(), reveal: 1 } });
+    expect(await screen.findByTestId("about-page")).toBeTruthy();
   });
 });

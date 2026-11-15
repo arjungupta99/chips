@@ -3,8 +3,8 @@
  * 0202 (its addendum, Arjun's 2, 18 October 2026): the room's face beside its name, renamed where it
  * stands (ADR 0112), and who is here under it; *In this room* and how many, with Add at its right
  * (agents or people; never for a guest); who is in it, scrolling in what the page leaves it and
- * fading at its foot while there is more, Leave its last row; one Media & files card, which turns
- * to its page; Project, Lead and Spend per job as tiles two to a row, Lock changes (ADR 0156) and
+ * fading at its foot while there is more, Leave its last row; one Sent in chat card, which turns
+ * to its page; Changes, Lead and Spend per job as tiles two to a row, Lock changes (ADR 0156) and
  * Hide on a row of their own under them, as the phone's; and at the foot Pin, Archive and Delete. While the room's changes are locked its name has no pen and the foot has no
  * Archive or Delete, as core says; who is in it and the tiles but Lock are not locked. An agent's
  * row opens its page in Agents once the sheet has gone (ADR 0111's addendum); Remove stands beside
@@ -31,6 +31,7 @@ import {
   maySetSpend,
   nameOf,
   type RoomFileOf,
+  type RoomProject,
   roomAgents,
   roomByline,
   roomLeadOf,
@@ -58,11 +59,11 @@ import { SharedTag } from "../SharedTag.tsx";
 import type { SpaceActions } from "./actions.ts";
 import { Chev, CloseX, Face, Group, Row } from "./parts.tsx";
 import {
+  ChangesTile,
   HideTile,
   LeadTile,
   LockTile,
   MediaCard,
-  ProjectTile,
   Section,
   SpendTile,
   Tiles,
@@ -83,7 +84,7 @@ export function Who(props: {
    * Without it the face opens nothing.
    */
   readonly onIcon?: (() => void) | undefined;
-  /** What the room's lines carry, newest first: the Media & files card's (ADR 0202). */
+  /** What the room's lines carry, newest first: the Sent in chat card's (ADR 0202). */
   readonly media: readonly CarriedFile[];
   /** The room's files, once the server has said (ADR 0100): how many the card says. */
   readonly listed: readonly RoomFileOf[] | undefined;
@@ -393,15 +394,15 @@ function standingIn(
   };
 }
 
-/** How many files the room's project has, once it has had a change (ADR 0222): for anybody in the room. */
-function projectFiles(props: Parameters<typeof Who>[0]): number | undefined {
+/** The room's project, once it has had a change (ADR 0222): for anybody in the room. */
+function projectOf(props: Parameters<typeof Who>[0]): RoomProject | undefined {
   if (props.actions.project === undefined) return undefined;
-  return props.space.project?.files;
+  return props.space.project;
 }
 
 /**
- * The room's settings as tiles (ADR 0202), in the order the rows were: the Project once it has had
- * a change; Lead where the room has no Main agent to lead it and Spend per job, in a room with
+ * The room's settings as tiles (ADR 0202), in the order the rows were: Changes once the project has
+ * had a change; Lead where the room has no Main agent to lead it and Spend per job, in a room with
  * agents and for whoever may see it. Under them, on a row of their own as on the phone, Lock
  * changes for anybody but a guest and Hide for whoever may hide the room. Nothing at all for a
  * guest in a Main room.
@@ -413,17 +414,22 @@ function Settings(props: Parameters<typeof Who>[0]) {
   return <Tiles foot={foot}>{tiles}</Tiles>;
 }
 
-/** The tiles above the foot: the Project, Lead and Spend per job, each where the room has it. */
+/** The tiles above the foot: Changes, Lead and Spend per job, each where the room has it. */
 function roomTiles(props: Parameters<typeof Who>[0]): ReactNode[] {
   const { space, directory, selfId, model } = props;
   const agents = roomAgents(space, directory).here.length;
   const leads = roomLeadOf(space);
   const { chooses, sees, spends, setBy } = standingIn(space, directory, selfId, model);
-  const project = projectFiles(props);
+  const project = projectOf(props);
   const tiles: ReactNode[] = [];
   if (project !== undefined) {
     tiles.push(
-      <ProjectTile key="project" files={project} onClick={() => props.onPage("project")} />,
+      <ChangesTile
+        key="project"
+        project={project}
+        directory={directory}
+        onClick={() => props.onPage("project")}
+      />,
     );
   }
   if (leadOf(space, directory) === undefined && agents > 0) {

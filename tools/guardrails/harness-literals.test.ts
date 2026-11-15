@@ -51,6 +51,10 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
     count: 10,
     why: "participant kinds, `isAgent` and `faceKind` themselves, the Harnesses list and a harness's first connection",
   },
+  "packages/core/src/inStep.ts": {
+    count: 4,
+    why: "why a bridge's release is held: the harness behind it is older than the release works with (ADR 0297)",
+  },
   "packages/core/src/model/build.ts": { count: 1, why: "a harness's connection checklist" },
   "packages/core/src/model/exchange.ts": {
     count: 1,

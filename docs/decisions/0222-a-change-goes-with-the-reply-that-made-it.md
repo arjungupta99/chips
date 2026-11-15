@@ -86,3 +86,23 @@ didn't attach already has: the SDK's `heldNote`, Jacobian's own copy of it.
 Words, not a field: every client draws them today, the other agents in the room read them in its
 history, and the change mark stays what it was, the change that did go. Nothing is added when the
 change went, or when the turn changed nothing.
+
+## Addendum, 14 November 2026: Project is Changes
+
+Universe lists every file of the project and opens each on the file page Project's Files opened
+(ADR 0227's addendum of 14 November 2026), so the room sheet listed the project's files twice.
+Arjun picked A from his mock of the room's details (ADR 0202's addendum of this day):
+
+- **The tile is Changes**, with a clock for its mark: who made the newest change and when on the
+  clock, `Jacob · 9:10 PM`, or the day before today (core's `newestChangeWords`), as a file's row
+  says them; `None yet` before the first. It was Project, saying how many files.
+- **Its page is Changes**: every change newest first, as its tab listed them, with nothing above,
+  and under them "The files themselves are in Universe." A change opens with its diffs and Undo as
+  before; a file a change touched opens on the file page, with its history; back from either is
+  Changes. The Files tab and its list are gone from the phone, the web and the Mac.
+- **The clock is the design system's**, from the phone's, which the web's Search drew as a mark of
+  its own until now; the phone's icon test checks the two are one.
+
+Proved by `RoomSheet.test.tsx` and `Shell.test.tsx` (the tile's words, Changes with no Files, an
+HTML file a change touched opening as a page, a guest's change with no Undo) and core's
+`projectPage.test.ts` (the tile's words today, before today, for somebody gone, and before any).

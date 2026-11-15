@@ -761,6 +761,7 @@ export function registerHarnessRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps):
     }
     const trouble = readStatusBody(c.get("rawBody"));
     const state = deps.presence.report(principal.workspaceId, principal.participantId, trouble);
+    deps.bridgeSaid?.(principal.participantId);
     c.get("logger").info(
       { harnessId: principal.participantId, trouble: trouble ?? null },
       trouble === undefined ? "harness says it is fine" : "harness says it is in trouble",

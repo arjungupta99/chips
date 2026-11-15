@@ -347,3 +347,129 @@ the link, *Labs needs Tailscale*), then "ok build it".
   (`tailscale status`), since the tunnel and the name say the same without running its command; on
   the phone, telling that Tailscale isn't installed (it would need a query scheme), so Open
   Tailscale falls back to the App Store.
+
+## Addendum, 13 November 2026: Media and Pages under Phone
+
+Arjun, 13 November 2026, in a space of three screenshots: "In the universe section we list out the
+screenshots, but the opening experience is poor. I think it might be good to have sub tabs under the
+'phone | desktop' tabs. 'Media' and 'pages', under the media section, we could have the media shown
+in tiles, as we show in the media viewer." He chose layout A of the mocks
+(https://claude.ai/artifact/BRVjpY1wyCUxKykzwv8PjZ), saw it drawn for the Health space too, and
+answered "Keep both tabs" to hiding one that would be empty.
+
+The screenshots were three rows of file names whose names differed in their last digit, under *3
+documents and no start page yet. Ask the agents for one.* A tap fetched the whole file through the
+relay, 13 MB for the 5120 × 2880 one, with nothing to show it was coming, and opened Quick Look.
+
+- **Two shelves under Phone.** The phone's (and iPad's) own tab has *Media* and *Pages* on a
+  hairline under Phone | Desktop, each with its count, and a gold line that slides to the one
+  chosen. Both are always there, an empty one with words for what would go in it. Desktop doesn't
+  change. Universe opens on Pages when the space has a start page or one document, else on Media
+  when it has pictures, so a space with a start page opens as it did.
+- **What goes where** is core's `shelvesOf`, read with the files by `readUniverse`; `universeOf`,
+  the Mac's and the web's, is as it was. Media is every picture (PNG, JPEG, GIF, WebP, HEIC), except,
+  in a space with a program, those in a folder of the program's pages or under it (Health's
+  `web/assets/` icons): they are its parts, as its pages are. A page at the project's top claims no
+  folder, since a sprite shown by mistake costs less than an agent's screenshot hidden. Pages is the
+  start page and the documents beside it that aren't pictures; a start page's HTML pages and a
+  program's stay out, reached from the start page as before, while Markdown, PDFs and the rest stay
+  in, so a program's notes now show with no start page as well.
+- **Media is the room's squares**: three across on a phone, five on a wide sheet, four points apart,
+  newest first by the change that last brought each (`mediaInOrder`), under the day it came. A gold
+  dot marks a picture somebody else brought after the change Universe was last opened at here
+  (`isNewSince`, `seenBefore`), so the dots and the button's call clear together.
+- **The computer makes the copies.** `GET /v1/spaces/:id/project/picture?path=&edge=small|screen`
+  answers a WebP no longer than 640 or 2,048 pixels on its longer side, made with the `sharp` the
+  attachments' view copies use, kept per change (96 copies, 48 MB). A square draws the small copy, so
+  a grid of screenshots fills from a few tens of kilobytes each. A file it can't read as a picture is
+  `not_found`, as is the route on a server from before it, and the phone fetches the file itself in
+  its place: older computers still show Media, more slowly.
+- **The room's viewer.** A square is a tile of the room's own viewer, which a page can hand a deck
+  whole (`MediaProvider` with no room). Its pictures reach it as attachments through a `FileService`
+  that reads the project (`universeMedia.ts`): the flight from the square, the small copy at once
+  and the screen copy when it lands, swiping through Media in Media's order, Share, Save, Copy and
+  Details as for a photo. *Go to message* closes Universe onto the reply that carried the change, or
+  only closes it when no reply did.
+- **Pages draws the start page with chips** above it for the documents beside it (*Space page*,
+  then each by its name), shown when there are two or more; a chip draws its document in the same
+  place. The program's banner stands over the start page alone, whose links need the program, and
+  folds away on a note. Several documents with no start page are listed as before.
+- **Not done:** videos in Media (a project's video has no measured length or poster, and the viewer
+  needs both to play it the room's way); the change's message under the viewer's picture (its bars
+  say who and when); page previews on the Pages chips or list; the same split on the web and the Mac
+  (done 14 November: the last addendum).
+
+## Addendum, 14 November 2026: Files beside Media and Pages
+
+Arjun, 14 November 2026, of the TV control space: "I think we need a 'files' section as well? 'tv
+control' showed a file in universe which disappeared". That space's agent kept one file, `tv.py`.
+Universe had never listed it: before Media and Pages it said *Nothing here opens on the phone yet*,
+and with them it drew two empty tabs. The file was only under the room's details, in Project ›
+Files. He chose the mocked third tab (https://claude.ai/artifact/FNsGSDTM74PZeh2dLRtNYG), "Build
+Files".
+
+- **A third shelf, Files**, after Media and Pages, with its count, always there as they are. It
+  lists every file of the project but `.chips`, the same list as Project › Files (`shownFiles`),
+  Media's pictures and Pages' documents included, so nothing the agents keep is missing from
+  Universe. Media and Pages stay the views made for looking and reading.
+- **Rows under their folders**, the project's top first, each by name (core's `filesInOrder`, on
+  `filesByFolder`): the file's small copy for a picture, a code mark for words that are no document,
+  a page mark for the rest; the name cut in the middle so its end shows; its size, who changed it
+  last and when, from the newest of the room's changes that names it; and Media's gold dot while it
+  is new (`isNewSince`). `Shelves.sizes` now holds every file's bytes, not only Media's.
+- **A tap opens a file where it belongs** (core's `fileOpensIn`): one of Media's pictures in the
+  viewer, paging on through Media's; any other picture (a program's icon) in the viewer alone; a
+  document of Pages on Pages, drawn with its chip chosen; a program's page or note in the page sheet;
+  words (code, text, data: `readsAsWords`, the rule Project's file page draws by) on Project's own
+  file page in Files' place, with its history, and a change from that history there too, each with
+  its way back; anything else (a video, an archive) in Quick Look.
+- **Where Universe opens** keeps what it did and adds one last step: Pages when there is a start
+  page or one document; else Media when there are pictures; else Pages for several documents, or for
+  a program, which Pages says runs on the Mac; else Files when there is a file. TV control opens on
+  Files.
+- **No server change.** Files reads the listing, the files and their history through the routes
+  Project › Files already uses; its pictures' rows use the copies of the 13 November addendum.
+- **Not done:** the same tab on the web and the Mac, which follow with Media and Pages (done the
+  same day: the addendum below).
+
+## Addendum, 14 November 2026: Media, Pages and Files on the web and the Mac
+
+Arjun, 14 November 2026: "Bring Media, Pages and Files to web and Mac". Chips for Mac draws the web
+app, so one change brings both. Before it, the web's Universe drew the folder card and, under it,
+the start page's *Open page* or the list of documents, and nothing of a space of screenshots or of
+TV control's `tv.py`.
+
+- **The same three shelves**, under the folder card (*Your folder* or *Folder on Mac*, and the
+  programs), which stays on top as before: the web has no Phone | Desktop split, as everything opens
+  on a computer. Media, Pages and Files sit on the same hairline with their counts and the gold line
+  that slides to the one chosen; a shelf fades in when it is chosen. Universe opens on the shelf the
+  phone does, the rule now core's `universeOpensOn`.
+- **Media** is the phone's grid in the room sheet's card, three across, three pixels apart, newest
+  first under the day each came, with the gold dot (`seenBefore`, now kept per page on the web as
+  well). A square draws the computer's small copy and opens the room's own viewer (`ViewerHost` with
+  no lanes), which pages through Media and draws the screen copy; Download takes the file. What the
+  phone and the web hand the viewer is shared in core (`picturesOf`, `pictureDeckOf`,
+  `pictureIdOf`), each reading the project through its own files (`universePictures.ts` here). A
+  server from before the copies, or a picture it can't read, answers 404 and the file is drawn in
+  its place, measured in the page.
+- **Pages** keeps the web's *Open page* for the start page, with the documents beside it listed
+  under it, so the page still opens in the dialog it did; a space with no page says so.
+- **Files** lists every file under its folder with the phone's rows: the small copy, the code mark
+  or the page mark, the name cut in the middle, size, who and when, and the gold dot. A picture opens
+  in the viewer (on through Media's when it is one of them), a document or a program's page or note
+  in the page dialog, and anything else on Project's own file page in Universe's place, with its
+  history and a way back to Files.
+- **Not done:** Pages' chips over the start page, as the phone draws them (the web keeps its dialog);
+  videos in Media, as on the phone.
+
+## Addendum, 14 November 2026: Pages first
+
+Arjun, 14 November 2026: "I need the pages section to show first, then media, then files." The
+tabs read Pages, Media, Files on the phone, the iPad, the web and the Mac. Where Universe opens is
+as it was (`universeOpensOn`): on Pages for a start page, else Media for pictures, else Pages for
+documents or a program, else Files. So Temp-Claude desktop still opens on Media, now the middle
+tab, Health on Pages and TV control on Files.
+
+The room's details stopped repeating these shelves the same day (ADR 0202's and ADR 0222's
+addenda): what was sent in the chat is under *Sent in chat*, and Project is Changes, its Files
+being Universe's.

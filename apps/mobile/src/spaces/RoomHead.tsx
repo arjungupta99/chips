@@ -22,12 +22,13 @@ import {
 } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Keyboard, Pressable, StyleSheet, type View } from "react-native";
+import { Pressable, StyleSheet, type View } from "react-native";
 import { ArrivingTitle, Sweep } from "../newSpace/Naming";
 import { useDrawnUnderWindow, useUnderWindow } from "../newSpace/NewSpace";
 import { useNamed } from "../newSpace/useNamed";
 import { useSnapshot } from "../store/provider";
 import { Capsule } from "../ui/Glass";
+import { keysAway } from "../ui/keysAway";
 import { usePalette } from "../ui/theme";
 import { RADIUS, SPACE } from "../ui/tokens";
 import { CallingMark } from "../ui/UniverseMark";
@@ -124,8 +125,8 @@ export function useRoom({
   const show = useCallback((page: RoomPage = "who") => {
     // The keys go before the sheet comes up, as they do for the room's other sheets: iOS hands the
     // caret back to a field that held it under a sheet as the sheet leaves, and the keys jumped
-    // back up with it (Arjun, 19 October 2026).
-    Keyboard.dismiss();
+    // back up with it (Arjun, 19 October 2026). Gone at once, ahead of the sheet (`ui/keysAway.ts`).
+    keysAway();
     setOpensOn(page);
     setOpen(true);
   }, []);
@@ -219,7 +220,14 @@ export function UniverseButton({
       accessibilityRole="button"
       accessibilityLabel={calling === undefined ? "Universe" : "Universe, updated"}
       hitSlop={SLOP}
-      onPress={onPress}
+      onPress={() => {
+        // The keys go before Universe comes up, as they do for the room's sheet (`show`): left
+        // up, iOS took them down in a frame as its modal came, and handed the caret back to the
+        // composer as it went, the keys jumping back up (Arjun, 11 November 2026). React Native's
+        // own dismiss lost the race to Universe's modal (`ui/keysAway.ts`).
+        keysAway();
+        onPress();
+      }}
       style={({ pressed }) => [styles.universe, pressed ? styles.pressed : null]}
       testID="room-universe-button"
     >

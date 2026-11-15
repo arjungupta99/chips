@@ -191,6 +191,17 @@ describe("authentication", () => {
     expect(status).toBe(200);
   });
 
+  it("reads a person's events the same with the level their app says, as every event is at level 1", async () => {
+    const path = "/v1/events?since=0";
+    const plain = await call("GET", path, signed(ws.arjun, "GET", path));
+    const leveled = await call("GET", path, {
+      headers: { ...ws.arjun.sign("GET", path, ""), "chips-level": "1" },
+    });
+    expect(leveled.status).toBe(200);
+    expect((leveled.body["events"] as unknown[]).length).toBeGreaterThan(0);
+    expect(leveled.body["events"]).toEqual(plain.body["events"]);
+  });
+
   it("refuses a signature made for a different path", async () => {
     const headers = ws.arjun.sign("GET", "/v1/health", "");
     const { status } = await call("GET", "/v1/events?since=0", { headers });

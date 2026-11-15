@@ -1,6 +1,7 @@
 /**
  * The shell's hold on the Mac's menu commands (ADR 0267; `menuBar.ts`): what each does here, as
- * the iPad's tab bar holds them there (ADR 0256). The sections and Settings go where the rail's
+ * the iPad's tab bar holds them there (ADR 0256). About Chips opens You with About beside the list
+ * (ADR 0295). The sections and Settings go where the rail's
  * rows go; New Space opens the dialog out of the rail's +; Search Everything puts the caret in
  * Search's field; the space before and after are down the rail as it draws them, while Spaces is
  * in front; and Send Feedback opens GitHub's form as You's Feedback card does.
@@ -25,10 +26,13 @@ export interface MenuCommandsOptions {
   readonly open: (spaceId: string) => void;
   /** "Chips 1.0.1 · 1a2b3c4", for the form's version field. */
   readonly build: string;
+  /** About Chips: You, with About open beside the list (ADR 0295). */
+  readonly onAbout: () => void;
 }
 
 export function useMenuCommands(options: MenuCommandsOptions): void {
   const { tab, selectTab, onNewSpace, open, selectedId } = options;
+  useMenuCommand("about", options.onAbout);
   useMenuCommand("settings", () => selectTab("you"));
   useMenuCommand("tab-spaces", () => selectTab("spaces"));
   useMenuCommand("tab-agents", () => selectTab("agents"));

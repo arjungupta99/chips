@@ -42,8 +42,9 @@ test("Send feedback opens the feedback form with this build filled in", async ({
   expect(`${link.origin}${link.pathname}`).toBe("https://github.com/arjungupta99/chips/issues/new");
   expect([...link.searchParams.keys()]).toEqual(["template", "version"]);
   expect(link.searchParams.get("template")).toBe("feedback-prompt.yml");
-  // The build You's Version row names ("0.0.0 · b770067c"), then the system.
-  const build = (await page.getByTestId("build").locator("small").textContent()) ?? "";
+  // The build About Chips's capsule names ("0.0.0 · b770067c"), then the system (ADR 0295).
+  await page.getByTestId("about-row").click();
+  const build = (await page.getByTestId("about-capsule").locator("span").textContent()) ?? "";
   expect(link.searchParams.get("version")).toBe(`Chips ${build} · web`);
 });
 

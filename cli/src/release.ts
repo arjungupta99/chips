@@ -58,17 +58,24 @@ export function versionLine(release: Release | undefined, checkoutVersion = "0.0
 /**
  * What a release starts from, under whatever the environment says: the workspace in the
  * platform's place (its database follows, ADR 0120), the pages unpacked beside the bundle, and the
- * gallery's cards it carries (HS-1). `CHIPS_CONNECTORS` still wins, as every setting here does.
+ * gallery's cards it carries (HS-1), the site's list of releases for the update dot (ADR 0296),
+ * and its signed list of bridge releases this computer may take on its own (bridges-keep-current.md).
+ * `CHIPS_CONNECTORS`, `CHIPS_UPDATES` and `CHIPS_BRIDGES` still win, as every setting here does.
  */
 export function releaseDefaults(
   release: Release,
   machine: Machine,
-): { data: { dir: string }; server: { webDir: string; connectors: string } } {
+): {
+  data: { dir: string };
+  server: { webDir: string; connectors: string; updates: string; bridges: string };
+} {
   return {
     data: { dir: platformDataDir(machine) },
     server: {
       webDir: join(release.root, "web"),
       connectors: join(release.root, "connectors", "connectors.json"),
+      updates: "https://chipschat.ai/releases.json",
+      bridges: "https://chipschat.ai/bridges.json",
     },
   };
 }

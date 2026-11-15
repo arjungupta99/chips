@@ -179,6 +179,25 @@ A bridge on the SDK says it once it is built on an SDK with this, from a Chips t
 An older bridge drops the field unread, and an older Chips sends none, so either side can go
 first.
 
+## Addendum, 14 November 2026: a name taken before the person was in the room is no line of it
+
+A person's new name is the workspace's, so it is a line of every room they are in: an agent that
+knew "Dana" reads "(Dana is now called Dana K)" and knows who is speaking. The read took every
+rename of a room's members that fell in the window. A window that starts at the room's start has
+every rename they ever made in it, and three reads start there: an agent's catch-up as it joins
+(point 5), the pull route, and the lines ahead of a quoted message (ADR 0219). In a room made on
+14 November, both agents' first turns began "(You is now called Arjun)", a rename from September
+(finding NR-14).
+
+A rename is now a line of a room only when it came while the person was in it: after they came
+into the room or opened it, and after the room itself began, which for a thread is later than its
+parent's members came in. A name taken earlier was never seen in the room, and its lines read
+under the name the person goes by now, so nothing is lost. A rename made while they are in the
+room is a line of it, as before.
+
+The conformance fake has the rename branch and nothing in it renames a person, so it is left as it
+was.
+
 ## Addendum, 14 November 2026: the turn's own message says whom it is for
 
 A line said to another agent has said so since 13 November, and the message the turn is on said

@@ -7,15 +7,16 @@
 
 import {
   CHIPS_FOLDER,
+  projectFileType,
   RUN_FILE,
   RUN_FILE_BEFORE,
   type RunRecipe,
   runRecipe,
   START_PAGE,
 } from "@chipschat/protocol";
-import type { RoomProject } from "./model/types.js";
+import type { ProjectChange, RoomProject } from "./model/types.js";
 import { myRole, type WorkspaceModel } from "./model.js";
-import { fileNameOf } from "./projectPage.js";
+import { fileNameOf, filesByFolder } from "./projectPage.js";
 import type { RecipeRead } from "./projectRun.js";
 import type { Store } from "./store.js";
 import { type MacsHeard, unheardWords } from "./yourFolder.js";
@@ -84,6 +85,203 @@ export interface Universe {
   readonly program?: (RunRecipe & { readonly run: string }) | undefined;
   /** What is wrong with the run file, when it can't be used. */
   readonly why?: string | undefined;
+  /**
+   * The phone's Media, Pages and Files, read with the files (`readUniverse`); `universeOf` leaves it
+   * out, since the Mac and the web don't split them.
+   */
+  readonly shelves?: Shelves | undefined;
+}
+
+/**
+ * What the phone's Phone tab has under Media, Pages and Files (ADR 0227's addenda of 13 and 14
+ * November 2026). Arjun, 13 November 2026: "sub tabs under the 'phone | desktop' tabs. 'Media' and
+ * 'pages', under the media section, we could have the media shown in tiles, as we show in the media
+ * viewer"; and on 14 November, of a space whose agent wrote one Python file: "I think we need a
+ * 'files' section as well?".
+ */
+export interface Shelves {
+  /** The pictures, by name; `mediaInOrder` puts them newest first. */
+  readonly media: readonly string[];
+  /** What Pages has: the start page first when there is one, then the documents beside it. */
+  readonly pages: readonly string[];
+  /**
+   * Every file of the project but Chips' own `.chips`, by path: what the room's Project › Files
+   * lists, so nothing the agents keep is missing from Universe. `filesInOrder` groups them.
+   */
+  readonly files: readonly string[];
+  /**
+   * What Pages draws when it opens: the start page, or the one document when there is only one.
+   * With several and no start page, Pages lists them.
+   */
+  readonly first?: string | undefined;
+  /** Each file's bytes as the files were listed (`readUniverse`): the viewer's details, Files' rows. */
+  readonly sizes?: Readonly<Record<string, number>> | undefined;
+}
+
+/**
+ * Media and Pages, from the project's files at `main` and its run file:
+ * - **Media** is every picture, except, in a space with a program, the pictures in a folder of the
+ *   program's own pages or under it (Health's `web/assets/` icons), which are its parts as its pages
+ *   are. A page at the project's top claims no folder: an agent's screenshot saved beside a program
+ *   is still to be seen, and a sprite shown by mistake costs less than a picture hidden.
+ * - **Pages** is the start page and the documents beside it that aren't pictures. A start page's
+ *   HTML pages are its own and stay out, as do a program's; Markdown, PDFs and the rest stay in.
+ * - **Files** is every file, Media's and Pages' too, as Project › Files has them.
+ */
+export function shelvesOf(paths: readonly string[], recipe: RecipeRead): Shelves {
+  const usable = recipe === undefined || "why" in recipe ? undefined : recipe;
+  const program = usable?.run !== undefined;
+  const start = startIn(paths, program ? undefined : usable?.opens);
+  const documents = documentsIn(paths);
+  const pictures = documents.filter((path) => documentKind(path) === "picture");
+  const parts = program ? pageFolders(documents) : [];
+  const media = pictures.filter((path) => !parts.some((folder) => within(path, folder)));
+  const others = documents.filter((path) => {
+    const kind = documentKind(path);
+    if (kind === "picture" || path === start) return false;
+    // A start page's pages, or a program's, are theirs: reached from the start page, if at all.
+    return !(kind === "page" && (start !== undefined || program));
+  });
+  const pages = start === undefined ? others : [start, ...others];
+  const [only] = pages;
+  const first = start ?? (pages.length === 1 ? only : undefined);
+  const files = paths.filter((path) => !isChips(path)).sort((a, b) => a.localeCompare(b));
+  return { media, pages, files, ...(first === undefined ? {} : { first }) };
+}
+
+/** A shelf of Universe's own tab: the pictures, the pages, or every file. */
+export type ShelfName = "media" | "pages" | "files";
+
+/**
+ * Where Universe opens, on the phone, the web and the Mac: Pages for a start page or one document;
+ * else Media when there are pictures; else Pages for several documents, or for a program, which
+ * Pages says runs on the Mac; else Files when there is a file.
+ */
+export function universeOpensOn(universe: Universe | undefined): ShelfName {
+  const shelves = universe?.shelves;
+  if (shelves === undefined || shelves.first !== undefined) return "pages";
+  if (shelves.media.length > 0) return "media";
+  if (shelves.pages.length > 0 || universe?.program !== undefined) return "pages";
+  return shelves.files.length > 0 ? "files" : "pages";
+}
+
+/** The folders under the top that hold a page of the project, outside `.chips`. */
+function pageFolders(documents: readonly string[]): string[] {
+  const folders = documents
+    .filter((path) => documentKind(path) === "page" && path.includes("/"))
+    .map((path) => path.slice(0, path.lastIndexOf("/")));
+  return [...new Set(folders)];
+}
+
+/** Whether a file sits in this folder, or in one under it. */
+function within(path: string, folder: string): boolean {
+  return path.startsWith(`${folder}/`);
+}
+
+/**
+ * A file of Media or Files, and the change that last brought it, when the room's changes name it.
+ */
+export interface MediaItem {
+  readonly path: string;
+  readonly change?: ProjectChange | undefined;
+}
+
+/** The newest change that names each file, and its place among the room's (0 is the newest). */
+function newestChanges(
+  changes: readonly ProjectChange[],
+): ReadonlyMap<string, { readonly change: ProjectChange; readonly at: number }> {
+  const by = new Map<string, { change: ProjectChange; at: number }>();
+  changes.forEach((change, at) => {
+    for (const file of change.files) {
+      if (!by.has(file.path)) by.set(file.path, { change, at });
+    }
+  });
+  return by;
+}
+
+/**
+ * Media newest first: by the newest change that names each picture, then those no change names
+ * (one past a change's listed files), by name. The change also says who made it, when, and the
+ * reply that carries it, for the viewer's Go to message.
+ */
+export function mediaInOrder(
+  media: readonly string[],
+  changes: readonly ProjectChange[],
+): readonly MediaItem[] {
+  const by = newestChanges(changes);
+  return [...media]
+    .sort((a, b) => {
+      const one = by.get(a)?.at ?? Number.POSITIVE_INFINITY;
+      const two = by.get(b)?.at ?? Number.POSITIVE_INFINITY;
+      return one === two ? a.localeCompare(b) : one - two;
+    })
+    .map((path) => {
+      const change = by.get(path)?.change;
+      return change === undefined ? { path } : { path, change };
+    });
+}
+
+/**
+ * Files as Project › Files lists them: under their folders, the project's top first, each by name,
+ * with the newest change that names it, which says who changed it last and when.
+ */
+export function filesInOrder(
+  files: readonly string[],
+  changes: readonly ProjectChange[],
+): readonly { readonly folder: string; readonly items: readonly MediaItem[] }[] {
+  const by = newestChanges(changes);
+  return filesByFolder(files.map((path) => ({ path }))).map(({ folder, files: inFolder }) => ({
+    folder,
+    items: inFolder.map(({ path }) => {
+      const change = by.get(path)?.change;
+      return change === undefined ? { path } : { path, change };
+    }),
+  }));
+}
+
+/**
+ * Whether a picture or a file is new to this device's reader: a change somebody else made after the one
+ * Universe was last opened at (`seen`). Nothing is new before Universe was ever opened here, or
+ * when the change it was opened at is no longer among the room's.
+ */
+export function isNewSince(
+  item: MediaItem,
+  changes: readonly ProjectChange[],
+  selfId: string,
+  seen: string | undefined,
+): boolean {
+  const change = item.change;
+  if (change === undefined || seen === undefined || change.by === selfId) return false;
+  const at = changes.findIndex((each) => each.commit === seen);
+  if (at === -1) return false;
+  return changes.indexOf(change) < at;
+}
+
+/**
+ * Where a file tapped in Files opens: a picture of Media in the viewer among Media's, a document
+ * of Pages on Pages, a program's page or note in the page sheet, any other picture in the viewer
+ * alone, words (code, text, data) on the file's own page with its history, and anything else in
+ * the system's preview.
+ */
+export type FileOpens = "media" | "pages" | "sheet" | "picture" | "words" | "preview";
+
+export function fileOpensIn(path: string, shelves: Pick<Shelves, "media" | "pages">): FileOpens {
+  if (shelves.media.includes(path)) return "media";
+  if (shelves.pages.includes(path)) return "pages";
+  const kind = documentKind(path);
+  if (kind === "page" || kind === "markdown") return "sheet";
+  if (kind === "picture") return "picture";
+  return readsAsWords(projectFileType(path)) ? "words" : "preview";
+}
+
+/** Whether a file of this type is words the phone draws as they are, as Project's file page does. */
+export function readsAsWords(type: string): boolean {
+  return type.startsWith("text/") || type === "application/json" || type === "image/svg+xml";
+}
+
+/** What a document of Pages is called on its chip: its name without the folder. */
+export function pageChipName(path: string): string {
+  return path === START_PAGE ? "Space page" : fileNameOf(path);
 }
 
 /**
@@ -136,9 +334,27 @@ export async function readUniverse(
     : paths.includes(RUN_FILE_BEFORE)
       ? RUN_FILE_BEFORE
       : undefined;
-  if (file === undefined) return universeOf(paths, undefined);
+  if (file === undefined) {
+    return { ...universeOf(paths, undefined), shelves: sized(shelvesOf(paths, undefined), files) };
+  }
   const { bytes } = await store.projectFile(spaceId, file);
-  return universeOf(paths, runRecipe(new TextDecoder().decode(bytes), file));
+  const recipe = runRecipe(new TextDecoder().decode(bytes), file);
+  return { ...universeOf(paths, recipe), shelves: sized(shelvesOf(paths, recipe), files) };
+}
+
+/** The shelves' files' sizes, from the listing, when there are files. */
+function sized(
+  shelves: Shelves,
+  files: readonly { readonly path: string; readonly bytes?: number }[],
+): Shelves {
+  if (shelves.files.length === 0) return shelves;
+  const shown = new Set(shelves.files);
+  const sizes = Object.fromEntries(
+    files.flatMap((file) =>
+      shown.has(file.path) && file.bytes !== undefined ? [[file.path, file.bytes]] : [],
+    ),
+  );
+  return { ...shelves, sizes };
 }
 
 /** What Open page opens: the start page, or the one document; nothing for a list or none. */

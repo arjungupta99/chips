@@ -89,7 +89,6 @@ import {
   Animated,
   AppState,
   Easing,
-  Keyboard,
   Platform,
   Pressable,
   type StyleProp,
@@ -106,6 +105,7 @@ import { alpha } from "../ui/Glass";
 import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
 import type { IconName } from "../ui/icons";
+import { keysAway } from "../ui/keysAway";
 import { usePalette } from "../ui/theme";
 import { BUBBLE, LEADING_PHONE, type Palette, SPACE, TEXT } from "../ui/tokens";
 import { useReduceMotion } from "../ui/useReduceMotion";
@@ -494,7 +494,7 @@ function Hold({
       }}
       testID="doing-hold"
       onLongPress={() => {
-        Keyboard.dismiss();
+        keysAway();
         feel.lift();
         onHold();
       }}

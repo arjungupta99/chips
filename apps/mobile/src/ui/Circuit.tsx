@@ -5,7 +5,8 @@
  * pad (`traces.ts`). While the phone is reaching its server, a spark leaves each pin as the pin
  * lights and runs down its trace, and the pad flashes as it lands. Not connected, the board goes
  * dim under a red mark, which shakes once as it turns. Connected again, the green spreads out from
- * the mark along every trace to its pad, and every pin is lit.
+ * the mark along every trace to its pad, and every pin is lit. The red and the green are the mark's
+ * own (`connectionPaint`), and the traces fill in the mark's green.
  *
  * Everything that moves moves on the native driver, the change from one look to another included,
  * because that change comes when the app is busiest: the connection has just dropped or just come
@@ -25,7 +26,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Platform, StyleSheet, View } from "react-native";
 import { Circle, Path, Svg } from "react-native-svg";
-import { ChipPulse, ROUND } from "./ChipPulse";
+import { ChipPulse, connectionPaint, ROUND } from "./ChipPulse";
 import { fromOklch, toOklch } from "./lit";
 import { BODY_WITH_PINS } from "./outline";
 import { usePalette, useScheme } from "./theme";
@@ -162,7 +163,7 @@ export function Circuit({
   const fill = useFill(look === "back", still);
   const lit = useEase(look === "failed" ? DIM : 1, still);
   const shake = useShake(look === "failed", still);
-  const body = look === "failed" ? palette.red : look === "back" ? palette.green : palette.gold;
+  const paint = connectionPaint(look, palette);
 
   // Read off the clock once per board: interpolations are nodes the native driver keeps.
   const moving = useMemo(
@@ -233,14 +234,14 @@ export function Circuit({
               key={trace.key}
               d={trace.d}
               fill="none"
-              stroke={palette.green}
+              stroke={palette.markGreen}
               strokeWidth={2.6}
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           ))}
           {PADS.map((pad) => (
-            <Circle key={pad.key} cx={pad.x} cy={pad.y} r={PAD.r} fill={palette.green} />
+            <Circle key={pad.key} cx={pad.x} cy={pad.y} r={PAD.r} fill={palette.markGreen} />
           ))}
           {PADS.map((pad) => (
             <Circle
@@ -295,14 +296,7 @@ export function Circuit({
       )}
       <View style={styles.middle}>
         <Animated.View style={{ transform: [{ translateX: shake.interpolate(SHAKE) }] }}>
-          <ChipPulse
-            gold={body}
-            ink={palette.ink3}
-            lit={palette.ink}
-            working={look === "reaching"}
-            allLit={look === "back"}
-            size={SIZE.mark}
-          />
+          <ChipPulse {...paint} working={look === "reaching"} size={SIZE.mark} />
         </Animated.View>
       </View>
     </View>

@@ -3,7 +3,7 @@
     "name": "Chips",
     "slug": "chips",
     "scheme": "chips",
-    "version": "1.2.4",
+    "version": "1.3.0",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

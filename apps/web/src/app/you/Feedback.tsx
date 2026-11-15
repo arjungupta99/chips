@@ -23,7 +23,7 @@ import {
   feedbackWithWords,
 } from "@chipschat/core";
 import { Icon } from "@chipschat/ui";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { FormPage } from "./Form.tsx";
 import { Group, ListRow, RowMark } from "./list.tsx";
 import { Face } from "./PeopleParts.tsx";
@@ -50,6 +50,8 @@ export function FeedbackRow(props: {
   /** The version box's words: "Chips 0.0.0 · b888e96 · Mac". */
   readonly version: string;
   readonly service: FeedbackService;
+  /** About Chips's row, which stands under Send feedback in its group (ADR 0295). */
+  readonly children?: ReactNode;
 }) {
   const { agent, service } = props;
   const [from, setFrom] = useState<HTMLElement | null | undefined>(undefined);
@@ -63,6 +65,7 @@ export function FeedbackRow(props: {
         onOpen={(row) => (agent === undefined ? github() : setFrom(row))}
         testId="feedback-row"
       />
+      {props.children}
       {from !== undefined && agent !== undefined && (
         <FeedbackPage
           from={from}

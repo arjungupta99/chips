@@ -63,6 +63,7 @@ import { inBar, TAB_ORDER, TABS, type TabName, tabsShown } from "../../src/ui/ta
 import { usePalette } from "../../src/ui/theme";
 import type { Palette } from "../../src/ui/tokens";
 import { useReduceMotion } from "../../src/ui/useReduceMotion";
+import { UpdateDot } from "../../src/updates/UpdateDot";
 
 export default function TabsLayout() {
   const { ready, paired } = useChips();
@@ -181,6 +182,8 @@ function Tabs({ store, selfId }: { readonly store: Store; readonly selfId: strin
             plus={<BarPlus plus={plus} onPress={grow} away={aside} shrink={shrink} />}
             gold={gold}
           />
+          {/* An update waits (ADR 0296): over the four tabs, under whatever is pushed over them. */}
+          <UpdateDot />
         </View>
         {pad ? (
           <PadBar

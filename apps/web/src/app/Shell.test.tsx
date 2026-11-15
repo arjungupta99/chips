@@ -664,6 +664,13 @@ function fakeStore(initial: Snapshot): FakeStore {
     async revokePasskey(passkeyId) {
       store.passkeysRevoked.push(passkeyId);
     },
+    async software() {
+      return undefined;
+    },
+    async setSelfUpdate() {
+      return undefined;
+    },
+    async keepBridgeCurrent() {},
     async serverFacts() {
       return store.server;
     },
@@ -873,6 +880,9 @@ function fakeStore(initial: Snapshot): FakeStore {
     },
     async projectFile() {
       return { bytes: new Uint8Array(), type: "text/plain" };
+    },
+    async projectPicture() {
+      throw new Error("no copy of that picture");
     },
     async projectHistory(_spaceId, path) {
       return { path, versions: [] };
@@ -4460,12 +4470,16 @@ describe("a group space (M3.3)", () => {
     expect(within(sheet).getByText("+a = 2")).toBeTruthy();
     expect(within(sheet).getByTestId("project-undo").textContent).toBe("Undo");
     fireEvent.click(within(sheet).getByTestId("room-sheet-change-back"));
-    expect(within(sheet).getByTestId("project-tab-files")).toBeTruthy();
+    // Back is Changes: the files are Universe's (14 November 2026), so it has no Files beside.
+    expect(within(sheet).getByText("The files themselves are in Universe.")).toBeTruthy();
+    expect(within(sheet).queryByTestId("project-tab-files")).toBeNull();
     fireEvent.click(within(sheet).getByTestId("room-sheet-project-back"));
-    expect(within(sheet).getByTestId("room-sheet-project").textContent).toContain("2 files");
+    const tile = within(sheet).getByTestId("room-sheet-project");
+    expect(tile.getAttribute("aria-label")).toMatch(/^Changes, Scout · \S/);
+    expect(tile.textContent).not.toContain("2 files");
   });
 
-  it("opens an HTML file of the project as a page from the door, built on the server (ADR 0223)", async () => {
+  it("opens an HTML file a change touched as a page from the door, built on the server (ADR 0223)", async () => {
     const events = [
       ...group(),
       fixture("project.changed", 5, {
@@ -4487,10 +4501,28 @@ describe("a group space (M3.3)", () => {
       bytes: new TextEncoder().encode("<h1>Game</h1>"),
       type: "text/html",
     });
+    writable.projectChange = async (_spaceId, commit) => ({
+      commit,
+      parent: null,
+      by: { name: "Scout", id: SCOUT },
+      at: "2026-09-07T10:00:00.000Z",
+      message: "The game",
+      files: [
+        {
+          path: "index.html",
+          added: 3,
+          removed: 0,
+          patch: "@@ -0,0 +1 @@\n+<h1>Game</h1>",
+          cut: false,
+        },
+      ],
+    });
     render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
     const sheet = openSheet();
     fireEvent.click(within(sheet).getByTestId("room-sheet-project"));
-    fireEvent.click(await within(sheet).findByTestId("project-file-index.html"));
+    fireEvent.click(within(sheet).getByTestId(`project-change-${"a".repeat(7)}`));
+    const diff = await within(sheet).findByTestId("project-diff-index.html");
+    fireEvent.click(within(diff).getByRole("button", { name: /^index\.html/ }));
     // Open page comes before the page's words, which a long page would push it under.
     const words = await within(sheet).findByTestId("project-file-words");
     const open = within(sheet).getByTestId("project-open-page");
@@ -4522,7 +4554,7 @@ describe("a group space (M3.3)", () => {
     expect(screen.queryByTestId("project-document-browser")).toBeNull();
   });
 
-  it("keeps Project to files and changes, with no Your folder or zip, and .chips left out (ADR 0227)", async () => {
+  it("keeps Changes to the changes, with no files, Your folder or zip (ADR 0227)", async () => {
     const events = [
       ...group(),
       fixture("project.changed", 5, {
@@ -4546,9 +4578,16 @@ describe("a group space (M3.3)", () => {
     render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
     const sheet = openSheet();
     fireEvent.click(within(sheet).getByTestId("room-sheet-project"));
-    expect(await within(sheet).findByTestId("project-file-index.html")).toBeTruthy();
-    expect(within(sheet).queryByTestId("project-file-.chips/index.html")).toBeNull();
-    for (const gone of ["project-on-mac", "project-zip", "your-folder", "run-bar"]) {
+    expect(within(sheet).getByRole("heading", { name: "Changes" })).toBeTruthy();
+    expect(within(sheet).getByTestId(`project-change-${"a".repeat(7)}`)).toBeTruthy();
+    expect(within(sheet).queryByTestId(/^project-file-/)).toBeNull();
+    for (const gone of [
+      "project-on-mac",
+      "project-zip",
+      "your-folder",
+      "run-bar",
+      "project-tab-files",
+    ]) {
       expect(within(sheet).queryByTestId(gone)).toBeNull();
     }
   });
@@ -6485,7 +6524,7 @@ describe("the room's files (ADR 0100)", () => {
     };
   }
 
-  /** The room's sheet, turned to Media & files from the card on its first page (ADR 0202). */
+  /** The room's sheet, turned to Sent in chat from the card on its first page (ADR 0202). */
   function openFiles(store: FakeStore): HTMLElement {
     render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
     const sheet = openSheet();
@@ -6493,7 +6532,7 @@ describe("the room's files (ADR 0100)", () => {
     return sheet;
   }
 
-  it("lists them under Media & files newest first, without a voice note or a picked photo", async () => {
+  it("lists them under Sent in chat newest first, without a voice note or a picked photo", async () => {
     const store = fakeStore(snapshotOf(opened()));
     store.files = [
       version("gallery.html", 2, "text/html", SCOUT),
@@ -6534,7 +6573,7 @@ describe("the room's files (ADR 0100)", () => {
     render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
     const card = within(openSheet()).getByTestId("room-sheet-media");
     expect(await within(card).findByText("2 files")).toBeTruthy();
-    expect(card.getAttribute("aria-label")).toBe("Media and files, 2 files");
+    expect(card.getAttribute("aria-label")).toBe("Sent in chat, 2 files");
     expect(within(card).getByTestId("room-sheet-media-strip").textContent).toBe("2");
   });
 
@@ -6649,7 +6688,7 @@ describe("the room sheet's first page in tiles (ADR 0202's addendum)", () => {
     expect(within(foot).getByTestId("archive-space")).toBeTruthy();
   });
 
-  it("shows the newest five and the files' square on Media & files, and its page the newest eight, See all the rest", async () => {
+  it("shows the newest five and the files' square on Sent in chat, and its page the newest eight, See all the rest", async () => {
     const store = fakeStore(snapshotOf([...opened(), ...photos()]));
     store.files = [
       {
@@ -7076,11 +7115,32 @@ describe("You (ADR 0034)", () => {
     expect(passkeysWorkHere(at("localhost", { __TAURI_INTERNALS__: {} }))).toBe(false);
   });
 
-  it("names the server and the build under This browser", async () => {
+  it("names the server under This browser, and the version on About Chips's row", async () => {
     const store = fakeStore(snapshotOf(withPeople()));
     await openYou(store);
     expect(screen.getByTestId("about-server").textContent).toBe(`Server ${location.host}`);
-    expect(screen.getByTestId("build").textContent).toMatch(/^Version \S+ · \S+$/);
+    expect(screen.getByTestId("about-row").textContent).toMatch(/^About Chips \S+$/);
+  });
+
+  it("lights the update dot in the rail's top row for the owner, which opens About and goes out (ADR 0296)", async () => {
+    localStorage.removeItem("chips.update.seen");
+    const store = fakeStore(snapshotOf(withPeople()));
+    store.server = {
+      ...store.server,
+      version: "1.2.3",
+      updates: {
+        releases: [{ version: "1.3.0", date: "2026-01-05", line: "New.", dot: true }],
+      },
+    };
+    render(<Shell store={store} device={DEVICE} files={fakeFiles()} />);
+    const rail = screen.getByRole("complementary", { name: "Workspace" });
+    const dot = await within(rail).findByTestId("update-dot");
+    expect(dot.dataset["place"]).toBe("rail");
+    fireEvent.click(dot);
+    expect(await screen.findByTestId("about-page")).toBeTruthy();
+    expect(await screen.findByTestId("about-update")).toBeTruthy();
+    await waitFor(() => expect(screen.queryAllByTestId("update-dot")).toHaveLength(0));
+    localStorage.removeItem("chips.update.seen");
   });
 
   it("keeps a failure on screen through the next refresh, until a change goes through", async () => {
@@ -8035,6 +8095,27 @@ describe("the Agents page (ADR 0087, Phase 5)", () => {
     expect(line.textContent).toBe("Tree compacted its context · 214k → 21k tokens");
     fireEvent.click(line);
     expect(screen.getByRole("heading", { name: "Tree", level: 1 })).toBeTruthy();
+  });
+
+  it("draws what a newer computer sent as one quiet line, whose Update opens About (ADR 0297)", async () => {
+    // Two events this app's catalogue doesn't have, one after the other, as a newer computer sends.
+    const newer = (seq: number) => ({
+      ...fixture("message.post", seq, { actor: { kind: "agent", id: TREE, harness_id: SCOUT } }),
+      id: `evt_newer_${seq}`,
+      type: "poll.opened",
+    });
+    renderShell([...treeIn(), newer(7), newer(8)], { directory: agents });
+    const lines = screen.getAllByTestId("newer-line");
+    expect(lines).toHaveLength(1);
+    const line = lines[0] as HTMLElement;
+    expect(line.textContent).toBe("Something here needs a newer Chips.Update");
+    // Chips's own note in the margin, as the room's other notes are: nobody's bubble, no name.
+    expect(line.className).toBe("sys newer-line");
+    expect(line.closest(".msg")).toBeNull();
+    expect(line.textContent).not.toContain("Tree");
+    expect(screen.queryByTestId("about-page")).toBeNull();
+    fireEvent.click(within(line).getByRole("button", { name: "Update" }));
+    expect(await screen.findByTestId("about-page")).toBeTruthy();
   });
 
   it("renames an agent in the field its name is, and says why a name is refused (ADR 0091)", async () => {

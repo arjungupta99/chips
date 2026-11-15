@@ -6,12 +6,21 @@
  * both matter.
  */
 
-import type { Snapshot } from "@chipschat/core";
-import { fireEvent, render, screen, userEvent, within } from "@testing-library/react-native";
+import type { BridgeUpdate, HarnessSoftware, Snapshot, Store } from "@chipschat/core";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  userEvent,
+  waitFor,
+  within,
+} from "@testing-library/react-native";
 import { Text } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore } from "../testing/fixtures";
 import { Split } from "../ui/Split";
+import { UpdatesProvider } from "../updates/updates";
 import { Profile } from "./Profile";
 import { WhenItAsks } from "./parts/WhenItAsks";
 import { harnessRuns } from "./words";
@@ -1010,5 +1019,194 @@ describe("When it asks you (ADR 0195)", () => {
   it("has no dots before the harness has asked anything", async () => {
     await open(asking({ asks: [] }));
     expect(screen.queryByTestId("asking-history")).toBeNull();
+  });
+});
+
+describe("a harness's Bridge group (ADR 0297)", () => {
+  const at = new Date().toISOString();
+  /** Scout's bridge, kept by this computer, as the computer says it. */
+  const kept = (
+    update: Partial<BridgeUpdate> = {},
+    rest: Partial<HarnessSoftware> = {},
+  ): HarnessSoftware => ({
+    harnessId: "har_scout",
+    name: "chips-hermes",
+    version: "1.0.31",
+    seenAt: at,
+    keepCurrent: true,
+    bridgeUpdate: {
+      package: "@chipschat/hermes",
+      running: "1.0.31",
+      phase: "current",
+      since: at,
+      ...update,
+    },
+    ...rest,
+  });
+  /** Scout's bridge kept on another machine, with a release out for it. */
+  const elsewhere: HarnessSoftware = {
+    harnessId: "har_scout",
+    name: "chips-hermes",
+    version: "1.0.29",
+    seenAt: at,
+    keepCurrent: true,
+    releaseOut: "1.0.31",
+  };
+
+  /** Scout's page under the updates provider, the computer saying `harnesses` run. */
+  async function bridge(harnesses: HarnessSoftware[], role: "owner" | "member" = "owner") {
+    const snapshot = state({ role });
+    const asked = { software: 0, kept: [] as [string, boolean][] };
+    const store = {
+      ...fakeStore(snapshot),
+      // As the computer answers: with the switch as last turned.
+      software: async () => {
+        asked.software += 1;
+        const on = asked.kept.at(-1)?.[1];
+        return {
+          harnesses: harnesses.map((each) =>
+            on === undefined ? each : { ...each, keepCurrent: on },
+          ),
+          devices: [],
+        };
+      },
+      keepBridgeCurrent: async (harnessId: string, on: boolean) => {
+        asked.kept.push([harnessId, on]);
+      },
+    } as unknown as Store;
+    const page = (focus = 0) => (
+      <SafeAreaProvider initialMetrics={WINDOW}>
+        <UpdatesProvider store={store} owner={role === "owner"} me="per_arjun">
+          <Profile
+            store={store}
+            snapshot={snapshot}
+            harnessId="har_scout"
+            selfId="per_arjun"
+            focus={focus}
+          />
+        </UpdatesProvider>
+      </SafeAreaProvider>
+    );
+    const view = await render(page());
+    return { asked, front: (focus: number) => view.rerender(page(focus)) };
+  }
+
+  const putBack = { outcome: "put-back" as const, from: "1.0.31", to: "1.0.32", at };
+  const updated = { outcome: "updated" as const, from: "1.0.30", to: "1.0.31", at };
+  const STATES: [string, HarnessSoftware, RegExp, "still" | "needs"][] = [
+    [
+      "has updated",
+      kept({ last: updated }),
+      /^Bridge 1\.0\.31Updated \d+ \w+, at a quiet moment\.$/,
+      "still",
+    ],
+    [
+      "has a release ready, waiting for a quiet moment",
+      kept({ phase: "waiting", target: "1.0.32" }),
+      /^1\.0\.32 is readyWaiting for a quiet moment, when nothing is going on for Scout\.$/,
+      "still",
+    ],
+    [
+      "is starting a release",
+      kept({ phase: "watching", target: "1.0.32" }),
+      /^Starting 1\.0\.32Back in a moment\. If it doesn't come back, 1\.0\.31 goes back on\.$/,
+      "still",
+    ],
+    [
+      "couldn't update because it didn't come back",
+      kept({ last: putBack }),
+      /^Couldn't update to 1\.0\.32It didn't come back, so 1\.0\.31 is back on\. Chips tries again when the next release is out\.$/,
+      "needs",
+    ],
+    [
+      "couldn't update for a reason Chips names",
+      kept({ phase: "refused", target: "1.0.32", reason: "room" }),
+      /^Couldn't update to 1\.0\.32This computer's disk is full\. Still on 1\.0\.31\.$/,
+      "needs",
+    ],
+    [
+      "has updates off with a release out",
+      kept({ phase: "off", target: "1.0.32" }, { keepCurrent: false }),
+      /^Updates are offBridge 1\.0\.31 · 1\.0\.32 is out\.$/,
+      "needs",
+    ],
+    [
+      "is kept on another machine with a release out",
+      elsewhere,
+      /^Bridge 1\.0\.29 · 1\.0\.31 is outOn the computer this bridge runs on:$/,
+      "needs",
+    ],
+  ];
+
+  it.each(STATES)("says its line when it %s", async (_state, harness, words, dot) => {
+    await bridge([harness]);
+    const line = await screen.findByTestId("harness-bridge-line");
+    expect(line).toHaveTextContent(words);
+    // The breathing gold dot where the owner has something to do; a still one otherwise.
+    expect(within(line).queryByTestId("needs-dot") !== null).toBe(dot === "needs");
+  });
+
+  it("says where to run the line once, over the command", async () => {
+    await bridge([elsewhere]);
+    const group = await screen.findByTestId("harness-bridge");
+    expect(within(group).getAllByText("On the computer this bridge runs on:")).toHaveLength(1);
+    expect(within(group).getByTestId("connect-line-words")).toHaveTextContent(
+      "chips connect --update",
+    );
+    expect(within(group).getByTestId("connect-line-run")).toBeTruthy();
+    // Nothing is said again under the command.
+    expect(within(group).queryByTestId("connect-note")).toBeNull();
+    // A bridge kept elsewhere is not this computer's to keep current: no switch.
+    expect(screen.queryByTestId("harness-bridge-switch")).toBeNull();
+  });
+
+  it("gives the owner the switch, and turns it", async () => {
+    const { asked } = await bridge([kept()]);
+    const keep = await screen.findByTestId("harness-bridge-switch");
+    expect(keep).toHaveProp("value", true);
+    expect(screen.getByText("Keep this bridge up to date")).toBeTruthy();
+    await act(async () => {
+      fireEvent(keep, "valueChange", false);
+    });
+    await waitFor(() => expect(asked.kept).toEqual([["har_scout", false]]));
+    // What the bridge runs is read again, and its line follows the switch.
+    await waitFor(() =>
+      expect(screen.getByTestId("harness-bridge-line")).toHaveTextContent(/Updates are off\./),
+    );
+    expect(screen.getByTestId("harness-bridge-switch")).toHaveProp("value", false);
+  });
+
+  it("shows a member the line, and no switch", async () => {
+    await bridge([kept({ phase: "waiting", target: "1.0.32" })], "member");
+    expect(await screen.findByTestId("harness-bridge-line")).toHaveTextContent(/1\.0\.32 is ready/);
+    expect(screen.queryByTestId("harness-bridge-switch")).toBeNull();
+    expect(screen.queryByText("Keep this bridge up to date")).toBeNull();
+  });
+
+  it("draws nothing for a harness the computer says nothing of", async () => {
+    const { asked } = await bridge([kept({}, { harnessId: "har_other" })]);
+    await waitFor(() => expect(asked.software).toBeGreaterThan(0));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId("harness-bridge")).toBeNull();
+  });
+
+  it("asks what the bridge runs as the page opens, and each time it comes to the front", async () => {
+    const { asked, front } = await bridge([kept()]);
+    await screen.findByTestId("harness-bridge-line");
+    // Once for the page and once as the app's provider started, which here is the same moment.
+    const opened = asked.software;
+    expect(opened).toBeGreaterThanOrEqual(1);
+    await front(1);
+    await waitFor(() => expect(asked.software).toBe(opened + 1));
+    await front(2);
+    await waitFor(() => expect(asked.software).toBe(opened + 2));
+    // Drawn again where it stands, it asks nothing.
+    await front(2);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(asked.software).toBe(opened + 2);
   });
 });

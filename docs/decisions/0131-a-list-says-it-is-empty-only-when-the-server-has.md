@@ -176,3 +176,28 @@ at once and shown by it, coming up over the room's last part, rather than mounte
 (`INTO_ROOM_MS` is gone). Measured the same way: the room opened over 30, 23 and 30 frames, every
 frame on time but one of 34 ms, at most 4.4 points a step. Closing, as the connection comes up,
 can still lose a frame or two in the launch's second busy spell, as it did before.
+
+## Addendum: the mark's own red and green, 12 November 2026
+
+Arjun asked for the loader's red and green to be redone and the yellow kept, and picked 1A from
+running mocks (all three colours drawn from the outline, on light and dark, at real size in the
+bar). What was wrong:
+
+- The red mark's pins stayed the reaching mark's resting grey at half strength. In the dark they
+  all but went, and the chip read as a red blob with a bite; in the light they looked washed out.
+- The green mark lit every pin in ink: black pins on a dark green chip, heavy for good news.
+- Both bodies were the status colours, far darker than the gold (OKLCH lightness about 0.6
+  against 0.84), and the green leaned teal, so the three did not read as one set.
+- The Mac and the web drew the red mark's pins in ink at 55%, the phone in grey at 50%.
+
+Now the mark has a red and a green of its own, `--mark-red` (#f45246) and `--mark-green`
+(#46c865): OKLCH 0.66 and 0.74, warmer, and the same in both themes, as the gold is. Every pin is
+lit in a shade of the chip's own colour, deep on paper and pale in the dark (`--mark-red-pin`,
+`--mark-green-pin`), so the chip reads as one thing at 20 points. The red mark stays still and the
+green beat is as long as it was; only the paint changed. The sheet's board fills its traces in the
+mark's green. Nothing else wears these: anything else that says something is wrong is still
+`--red`.
+
+On the phone `connectionPaint` (`ui/ChipPulse.tsx`) gives the bar's mark and the board's the same
+colours; on the Mac and the web `mark.css` does, so the rail's mark changes, and with it the large
+red marks over a dead invite and over being removed from a workspace or a room.

@@ -3,8 +3,8 @@
  * Settings opens its pages there (ADR 0256). A row asks for its page here, and on an iPad wears
  * the chosen ground while its page is the one open.
  *
- * Two kinds. People, Invite someone, Relay, Media and Connection are screens of their own on a
- * phone, pushed over the tab (`usePage`). The shorter settings are sheets on a phone, and on an
+ * Two kinds. People, Invite someone, Relay, Media, Connection and About Chips (ADR 0295) are
+ * screens of their own on a phone, pushed over the tab (`usePage`). The shorter settings are sheets on a phone, and on an
  * iPad pages beside the list too (`useSheetPage`, 3 November 2026): they came up as popovers and
  * cards over the split, and Arjun wanted them in the pane, as the Mac's and the web's went there
  * the same day. The sheet and the page hold the same body, and the part of You that holds the
@@ -20,7 +20,7 @@ import { Screen, UnderName, useColumn } from "../ui/Screen";
 import { SPACE } from "../ui/tokens";
 
 /** Screens of their own on a phone: pushed over the tab there, by the same name. */
-export const YOU_ROUTES = ["people", "invite", "relay", "media", "connection"] as const;
+export const YOU_ROUTES = ["people", "invite", "relay", "media", "connection", "about"] as const;
 
 /**
  * Sheets on a phone: beside the list, they are pages too. Connect a harness's pages are its own
@@ -59,9 +59,10 @@ export function isYouSheet(page: string | undefined): page is YouSheet {
 
 /**
  * What a page beside the list opens in a third column beside itself (ADR 0276): every ask so far,
- * from Allowed always's dots. On a phone each is a screen of its own, by the same name.
+ * from Allowed always's dots, and About's What's new, Licence and Acknowledgements (ADR 0295). On
+ * a phone each is a screen of its own, by the same name.
  */
-export const YOU_THIRDS = ["asks"] as const;
+export const YOU_THIRDS = ["asks", "whats-new", "licence", "notices"] as const;
 
 export type YouThird = (typeof YOU_THIRDS)[number];
 

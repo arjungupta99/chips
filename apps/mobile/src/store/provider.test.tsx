@@ -16,7 +16,7 @@
  * two open, and none is made twice.
  */
 
-import type { Cache, Device } from "@chipschat/core";
+import type { Cache, Device, LostDevice } from "@chipschat/core";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 import { AppState } from "react-native";
 import { phoneName } from "../pairing/usePairing";
@@ -39,6 +39,9 @@ const mockStores: MockMade[] = [];
 let mockDevices: Device[] = [];
 /** How many reads from here on meet a Keychain shut to the app, a locked phone's (ADR 0228). */
 let mockShutReads = 0;
+/** The records whose key is gone (ADR 0228's addendum), and whether the one in front is one. */
+let mockLost: LostDevice[] = [];
+let mockLostInFront = false;
 /** Whether a store made from here on has read its cache by the time anyone listens. */
 let mockReadAtOnce = true;
 type MockListener = (heard: object) => void;
@@ -58,12 +61,15 @@ const mockNowhere = { nowhere: true };
 
 jest.mock("@chipschat/core", () => ({
   readDevices: async () => {
-    if (mockShutReads === 0) return { devices: [...mockDevices], unreadable: 0 };
+    const lost = { lost: [...mockLost], lostInFront: mockLostInFront };
+    if (mockShutReads === 0) return { devices: [...mockDevices], unreadable: 0, ...lost };
     mockShutReads -= 1;
-    return { devices: [], unreadable: mockDevices.length };
+    return { devices: [], unreadable: mockDevices.length, ...lost };
   },
   switchDevice: async (deviceId: string) => {
     mockSwitched.push(deviceId);
+    // The pointer moves: the one in front is no longer the lost one.
+    mockLostInFront = false;
     const chosen = mockDevices.find((device) => device.deviceId === deviceId);
     if (chosen === undefined) return undefined;
     mockDevices = [chosen, ...mockDevices.filter((device) => device !== chosen)];
@@ -185,6 +191,8 @@ afterEach(() => {
   mockStores.length = 0;
   mockDevices = [];
   mockShutReads = 0;
+  mockLost = [];
+  mockLostInFront = false;
   mockReadAtOnce = true;
   mockSwitched.length = 0;
   mockPrefs.clear();
@@ -656,5 +664,63 @@ describe("the demo's made-up workspace (ADR 0213)", () => {
     expect(hook.result.current.ready).toBe(true);
     await waitFor(() => expect(mockPrefs.get("demo")).toBe(""));
     expect(demoStores().every((store) => store.closed)).toBe(true);
+  });
+});
+
+describe("a workspace in front whose key is gone (ADR 0228's addendum)", () => {
+  const NORTHWIND = {
+    deviceId: "dev_lost",
+    participantId: "per_noor",
+    workspaceId: "ws_northwind",
+    displayName: "Noor",
+    workspaceName: "Northwind",
+  } as LostDevice;
+
+  it("is said rather than stood in for by the kept demo: nothing comes in front", async () => {
+    // A phone set up from a backup: the record and the demo's word came back, the key did not.
+    mockLost = [NORTHWIND];
+    mockLostInFront = true;
+    mockPrefs.set("demo", "look-around");
+    const { hook, seen } = await mount();
+
+    expect(hook.result.current.lost).toEqual(NORTHWIND);
+    expect(hook.result.current.paired).toBeUndefined();
+    expect(seen.some((value) => value.paired?.device === mockDemo)).toBe(false);
+    // The demo is still kept, behind, for Look around.
+    expect(hook.result.current.demo.kept).toBe(true);
+    expect(hook.result.current.devices.map((each) => each.deviceId)).toEqual([mockDemo.deviceId]);
+  });
+
+  it("is said rather than stood in for by another workspace of the person's own", async () => {
+    mockLost = [NORTHWIND];
+    mockLostInFront = true;
+    const { hook } = await mount(HOME);
+    expect(hook.result.current.lost).toEqual(NORTHWIND);
+    expect(hook.result.current.paired).toBeUndefined();
+    expect(hook.result.current.devices).toEqual([HOME]);
+  });
+
+  it("goes once a workspace of the person's own comes in front, as pairing again brings it", async () => {
+    mockLost = [NORTHWIND];
+    mockLostInFront = true;
+    const { hook } = await mount();
+    expect(hook.result.current.lost).toEqual(NORTHWIND);
+
+    // Paired again with the same server: the record whose key is gone is replaced there.
+    const again = { deviceId: "dev_again", participantId: "per_noor" } as unknown as Device;
+    mockDevices = [again];
+    mockLost = [];
+    await act(() => hook.result.current.began(again));
+
+    await waitFor(() => expect(hook.result.current.paired?.device).toBe(again));
+    expect(hook.result.current.lost).toBeUndefined();
+  });
+
+  it("is not said when another is in front: that one opens, as before", async () => {
+    mockLost = [NORTHWIND];
+    mockLostInFront = false;
+    const { hook } = await mount(HOME);
+    await waitFor(() => expect(hook.result.current.paired?.device).toBe(HOME));
+    expect(hook.result.current.lost).toBeUndefined();
   });
 });

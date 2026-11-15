@@ -25,6 +25,16 @@ export interface Palette {
   readonly goldDeep: string;
   readonly goldSoft: string;
   /**
+   * The mark's own red and green, for the connection's two still looks: a server it cannot reach,
+   * and the beat after it is reached again. Brighter and warmer than `red` and `green`, so they sit
+   * with the gold as one set, and the same in both themes, as the gold is. Only the mark wears them.
+   */
+  readonly markRed: string;
+  readonly markGreen: string;
+  /** The mark's pins on those: a deep shade of the chip's own colour in light, a pale one in dark. */
+  readonly markRedPin: string;
+  readonly markGreenPin: string;
+  /**
    * What a tap lands on: the chosen tab, Cancel, a tick, a sheet's action (ADR 0192). Not a status,
    * so not `amber`, though dark keeps the amber it wore before.
    */
@@ -85,6 +95,10 @@ export const light: Palette = {
   gold: "#f7c431",
   goldDeep: "#7d5b00",
   goldSoft: "#fff3c3",
+  markRed: "#f45246",
+  markGreen: "#46c865",
+  markRedPin: "#a52a26",
+  markGreenPin: "#21763c",
   accent: "#a06306",
   accentInk: "#905400",
   blue: "#1d6aff",
@@ -124,6 +138,10 @@ export const dark: Palette = {
   gold: "#f7c431",
   goldDeep: "#f7ce54",
   goldSoft: "#3c3005",
+  markRed: "#f45246",
+  markGreen: "#46c865",
+  markRedPin: "#fba89e",
+  markGreenPin: "#9fe9ae",
   accent: "#f38b00",
   accentInk: "#f38b00",
   blue: "#5f91ff",
@@ -164,6 +182,10 @@ export const CSS_NAMES: Readonly<Record<keyof Palette, string>> = {
   gold: "--gold",
   goldDeep: "--gold-deep",
   goldSoft: "--gold-soft",
+  markRed: "--mark-red",
+  markGreen: "--mark-green",
+  markRedPin: "--mark-red-pin",
+  markGreenPin: "--mark-green-pin",
   accent: "--accent",
   accentInk: "--accent-ink",
   blue: "--blue",

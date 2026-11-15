@@ -54,6 +54,22 @@ export function changeRow(
   return { title, under: under.join(" · ") };
 }
 
+/**
+ * What the room sheet's Changes tile says (ADR 0222's addendum of 14 November 2026): who made the
+ * newest change and when, `Jacob · 9:10 PM`, or `Jacob · Nov 13` before today; `None yet` before
+ * the first. It was Project's tile, saying how many files; the files are Universe's.
+ */
+export function newestChangeWords(
+  project: RoomProject,
+  nameOf: (participantId: string) => string | undefined,
+  now: number = Date.now(),
+): string {
+  const newest = project.changes[0];
+  if (newest === undefined) return "None yet";
+  const who = nameOf(newest.by) ?? (newest.byKind === "person" ? "Someone" : "An agent");
+  return `${who} · ${clockOf(newest.at, now)}`;
+}
+
 /** The change a reply carries, from the room's project, when the room has it. */
 export function changeOf(
   project: RoomProject | undefined,

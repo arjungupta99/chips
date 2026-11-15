@@ -562,7 +562,15 @@ function Failed({ onRetry }: { readonly onRetry: () => Promise<void> }) {
       testID="no-agents-failed"
       title="Couldn't load your agents"
       words="Your server is connected, but its list of agents didn't come through. Trying again usually does it."
-      mark={<ChipPulse gold={palette.ink4} ink={palette.ink3} lit={palette.ink} working={asking} />}
+      mark={(size) => (
+        <ChipPulse
+          gold={palette.ink4}
+          ink={palette.ink3}
+          lit={palette.ink}
+          working={asking}
+          size={size}
+        />
+      )}
     >
       <View style={styles.button}>
         <Button

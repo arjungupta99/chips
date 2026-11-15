@@ -798,6 +798,24 @@ describe("the settings a service keeps (the new-person sweep's finding 6)", () =
       ),
     ).toEqual({ CHIPS_FFMPEG: "/f", HTTPS_PROXY: "http://proxy" });
   });
+
+  it("carries the proxy the shell names, in either case, for a service that reads no profile", () => {
+    expect(
+      carriedSettings({
+        HTTPS_PROXY: "http://proxy.example:8080",
+        no_proxy: ".corp.example",
+        http_proxy: "",
+        EDITOR: "vi",
+      }),
+    ).toEqual({ HTTPS_PROXY: "http://proxy.example:8080", no_proxy: ".corp.example" });
+    // The shell's wins over what the file had, and one it exports empty is taken out.
+    expect(
+      carriedSettings(
+        { HTTPS_PROXY: "http://new.example:1", ALL_PROXY: "" },
+        { HTTPS_PROXY: "http://old.example:1", ALL_PROXY: "http://all.example:1" },
+      ),
+    ).toEqual({ HTTPS_PROXY: "http://new.example:1" });
+  });
 });
 
 describe("a Chips already running in a terminal (the new-person sweep's finding 7)", () => {

@@ -11,6 +11,7 @@
 
 import {
   type AgentState,
+  atLevel,
   budgetOf,
   cappedSpend,
   clientFrame,
@@ -144,6 +145,10 @@ export interface SessionOptions {
   readonly submitEvent: SubmitEvent;
   readonly ids: IdGenerator;
   readonly serverVersion: string;
+  /** A client said what it runs in its hello: its name and version (everything in step). */
+  readonly heard?:
+    | ((principal: Principal, client: { readonly name: string; readonly version: string }) => void)
+    | undefined;
   /** Decision 5: a consumer this far behind is dropped and resumes with `since`. */
   readonly maxUnackedFrames: number;
   /** Milliseconds. Injected so a heartbeat test does not have to wait. */
@@ -263,6 +268,8 @@ export const CLOSE_PERSON_REMOVED = 4003;
  * was opened with the old one, so it ends; the apps open the next on their own.
  */
 export const CLOSE_ROLE_CHANGED = 4005;
+/** The standard "service restart": a harness's bridge being started again on a new release. */
+export const CLOSE_SERVICE_RESTART = 1012;
 
 /** Who somebody is, as a session remembers them: their kind and name, and a person's standing (SEC-15). */
 type Known = NonNullable<ReturnType<Who>>;
@@ -271,6 +278,11 @@ export class Session {
   private negotiatedVersion: number | undefined;
   /** Server frames beyond the base set this client understands, from its `hello` (ADR 0043). */
   private accepts: ReadonlySet<string> = new Set();
+  /**
+   * What this app understands, as its hello said (everything in step); none from an app before
+   * levels, or a harness, which is sent everything as it always was.
+   */
+  private level: number | undefined;
   /** How much of a room a harness is handed with a message for it, from its `hello` (ADR 0088). */
   private budget = budgetOf();
   /**
@@ -385,8 +397,10 @@ export class Session {
 
   private async onHello(frame: {
     protocol: { min: number; max: number };
+    client?: { name: string; version: string } | undefined;
     since?: number | undefined;
     accepts?: readonly string[] | undefined;
+    level?: number | undefined;
     context?: { lines?: number | undefined; chars?: number | undefined } | undefined;
   }): Promise<void> {
     const version = negotiateProtocol(frame.protocol, {
@@ -404,6 +418,9 @@ export class Session {
     }
     this.negotiatedVersion = version;
     this.accepts = new Set(frame.accepts ?? []);
+    this.level = frame.level;
+    // What it runs, kept for whoever has to know it is behind (everything in step).
+    if (frame.client !== undefined) this.options.heard?.(this.options.principal, frame.client);
     this.budget = budgetOf(frame.context);
 
     const principal = this.options.principal;
@@ -1373,7 +1390,9 @@ export class Session {
     // Awaited only for feedback: the cursor has moved, and every other event keeps the path
     // it had, tick for tick.
     if (event.type === "feedback" && !(await this.meantFor(event))) return undefined;
-    return await this.asDelivered(event);
+    const delivered = await this.asDelivered(event);
+    // An event newer than this app understands: the line it came with, or nothing.
+    return this.level === undefined ? delivered : atLevel(delivered, this.level);
   }
 
   /** Whether this viewer is told who every person is: a person who is not a guest (ADR 0034). */

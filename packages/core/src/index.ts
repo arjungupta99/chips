@@ -5,6 +5,42 @@
  * else of ours, so mobile can share it without dragging the web components along.
  */
 
+export {
+  ABOUT_LINK_ROWS,
+  ABOUT_LINKS,
+  ABOUT_ROW,
+  ABOUT_TITLE,
+  aboutBlurb,
+  BUILD_COPIED,
+  bugReportLine,
+  buildCapsule,
+  CHIPS_HEADING,
+  COMPUTER_HEADING,
+  COMPUTER_UNREACHED,
+  type ComputerFacts,
+  computerBehind,
+  computerRow,
+  LEGAL_HEADING,
+  LICENCE_TITLE,
+  LICENCE_WORDS,
+  MADE_BY,
+  NAMED_FOR,
+  NOTICE_NO_TEXT,
+  NOTICES_TITLE,
+  noticeLicence,
+  noticesLead,
+  olderThan,
+  type PackageNotice,
+  RELEASES,
+  type Release,
+  releaseDay,
+  releaseOf,
+  SHARE_CHIPS,
+  UPDATE_ROW,
+  UPDATE_SUB,
+  WHATS_NEW_TITLE,
+  whatsNewRow,
+} from "./about.js";
 export type { ActContext } from "./act.js";
 export { act } from "./act.js";
 export {
@@ -346,6 +382,13 @@ export {
 export type { Command } from "./commands.js";
 export { COMMANDS, parseCommand } from "./commands.js";
 export type {
+  ComputerCalls,
+  ComputerRead,
+  ComputerReader,
+  ComputerSays,
+} from "./computerSays.js";
+export { NOTHING_SAID, readComputer } from "./computerSays.js";
+export type {
   CardFace,
   ConnectChoice,
   ConnectStep,
@@ -514,6 +557,7 @@ export type {
   DeviceStorage,
   HeldDevices,
   InvitePeek,
+  LostDevice,
   ServerReach,
 } from "./device.js";
 export {
@@ -707,6 +751,46 @@ export {
 } from "./harnessShelf.js";
 export { harnessUnder, heldNamesFor, roomDirectory, roomSnapshot } from "./heldNames.js";
 export { withHidden } from "./hidden.js";
+export type {
+  BridgeLine,
+  BridgePhase,
+  BridgeRefusalReason,
+  BridgeTone,
+  BridgeUpdate,
+  DeviceSoftware,
+  HarnessSoftware,
+  NeedsUpdateRow,
+  SelfUpdateFacts,
+  Software,
+} from "./inStep.js";
+export {
+  aboutRowLit,
+  BRIDGE_HEADING,
+  BRIDGE_UPDATE_COMMAND,
+  bridgeLine,
+  computerFollowsApp,
+  computerLine,
+  DEVICE_SEEN_MS,
+  KEEP_BRIDGE_FOOT,
+  KEEP_BRIDGE_SWITCH,
+  NEEDS_UPDATE_DOT,
+  NEEDS_UPDATE_FOOT,
+  NEEDS_UPDATE_HEADING,
+  NIGHT_SWITCH,
+  needsUpdate,
+  nightFoot,
+  ownerDotKey,
+  ownerDotLit,
+  PUT_BACK_SHOWN_MS,
+  readSelfUpdate,
+  readSoftware,
+  restartsOntoLine,
+  SELF_UPDATE_COMMAND,
+  sameNeeds,
+  showsBridgeSwitch,
+  UPDATE_NOW_HEADING,
+  updateNowNote,
+} from "./inStep.js";
 export type {
   CapabilityWords,
   JoinCard,
@@ -928,6 +1012,7 @@ export {
   messageRoute,
   myRole,
   NEW_SPACE_NAME,
+  NEWER_LINE,
   namesAuthors,
   nextAddress,
   nextAim,
@@ -1088,6 +1173,7 @@ export {
   fileNameOf,
   filesByFolder,
   linesWords,
+  newestChangeWords,
   projectZipName,
   projectZipWords,
   undoOffer,
@@ -1431,6 +1517,7 @@ export type {
   MemberInput,
   PairedDeviceRecord,
   Passkey,
+  ProjectPicture,
   ResolveApprovalInput,
   RouteApprovalInput,
   RunInput,
@@ -1512,27 +1599,85 @@ export {
   type Turned,
   turnsOf,
 } from "./turns.js";
-export type { DocumentKind, Universe } from "./universe.js";
+export type {
+  DocumentKind,
+  FileOpens,
+  MediaItem,
+  ShelfName,
+  Shelves,
+  Universe,
+} from "./universe.js";
 export {
   documentKind,
+  fileOpensIn,
+  filesInOrder,
   GUEST_READS_PROJECT,
+  isNewSince,
   MAC_ROWS,
   mayChangeProject,
   mayUseMac,
+  mediaInOrder,
   NOT_THIS_MAC,
   noStartPageWords,
   PROGRAMS_ON_MAC,
   PROGRAMS_ON_OWNERS_MAC,
+  pageChipName,
   pageOnMacWords,
   pageRowWords,
+  readsAsWords,
   readUniverse,
+  shelvesOf,
   shownFiles,
   startName,
   startOf,
   universeCalling,
   universeOf,
+  universeOpensOn,
   universeSeenAt,
 } from "./universe.js";
+export type { PictureWhere, ShownPicture } from "./universePictures.js";
+export {
+  isRoomLine,
+  NO_LINE,
+  pictureDeckOf,
+  pictureIdOf,
+  picturesOf,
+} from "./universePictures.js";
+export type {
+  DotSeen,
+  FeedRelease,
+  MacUpdate,
+  UpdateDevice,
+  UpdateFacts,
+  UpdateFeed,
+  UpdatesWaiting,
+  UpdateWaiting,
+} from "./updates.js";
+export {
+  appUpdateLine,
+  computerFollowsLine,
+  computerUpdateLine,
+  DOT_GAP_MS,
+  DOT_LABEL,
+  DOT_SETTLE_MS,
+  DOT_SWITCH,
+  dotFoot,
+  INSTALL_BUTTON,
+  isReleaseVersion,
+  knownReleases,
+  MAC_DOWNLOAD,
+  macUpdateLine,
+  macUpdatesItself,
+  RESTART_NOW,
+  readMacUpdate,
+  readUpdateFeed,
+  releaseTime,
+  UPDATE_BUTTON,
+  UPDATES_HEADING,
+  updateDot,
+  updatesAsking,
+  updatesWaiting,
+} from "./updates.js";
 export type {
   CarriedFile,
   DeckItem,

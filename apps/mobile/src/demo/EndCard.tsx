@@ -77,7 +77,15 @@ export function EndCard({
       >
         {over ? (
           <Big scale={2.6}>
-            <ChipPulse gold={palette.gold} ink={palette.ink3} lit={palette.ink} working={false} />
+            {(size) => (
+              <ChipPulse
+                gold={palette.gold}
+                ink={palette.ink3}
+                lit={palette.ink}
+                working={false}
+                size={size}
+              />
+            )}
           </Big>
         ) : null}
         <EndWords words={words} />

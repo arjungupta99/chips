@@ -42,12 +42,15 @@ export function PairElsewhereSheet({ ask }: { readonly ask: ElsewhereAsk }) {
         room={{
           face: (
             <Big scale={1.8}>
-              <ChipPulse
-                gold={palette.gold}
-                ink={palette.ink3}
-                lit={palette.ink}
-                working={ask.busy}
-              />
+              {(size) => (
+                <ChipPulse
+                  gold={palette.gold}
+                  ink={palette.ink3}
+                  lit={palette.ink}
+                  working={ask.busy}
+                  size={size}
+                />
+              )}
             </Big>
           ),
           name: hostOf(ask.server),

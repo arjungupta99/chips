@@ -48,11 +48,12 @@ import type { Directory, Lane } from "@chipschat/core";
 import { cantAnswer, nameOf } from "@chipschat/core";
 import type { SpaceIcon } from "@chipschat/protocol";
 import { Fragment, useState } from "react";
-import { Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { faceProps } from "../agents/face";
 import { Avatar, type AvatarSize, avatarCorner, avatarSide, faceGround } from "../ui/Avatar";
 import { Dots } from "../ui/Dots";
 import { Icon } from "../ui/Icon";
+import { keysAway } from "../ui/keysAway";
 import { Pill } from "../ui/Pill";
 import { avatarHue, hueColours } from "../ui/sourceColours";
 import { usePalette, useScheme } from "../ui/theme";
@@ -432,7 +433,7 @@ export function LaneChain({
   const across = acrossOf(lane, kind, here);
   const open = across === undefined || onOpen === undefined ? undefined : () => onOpen(across);
   const details = () => {
-    Keyboard.dismiss();
+    keysAway();
     setSheet("open");
   };
   const said = live === undefined ? trail : `${trail}, ${STATUS[live].label.toLowerCase()}`;

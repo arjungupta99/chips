@@ -69,6 +69,9 @@ import * as joinCheck from "./migrations/0059-join-check.js";
 import * as rulesForAWhile from "./migrations/0060-rules-for-a-while.js";
 import * as banners from "./migrations/0061-banners.js";
 import * as roomNoCap from "./migrations/0062-room-no-cap.js";
+import * as softwareSeen from "./migrations/0063-software-seen.js";
+import * as computerUpdates from "./migrations/0064-computer-updates.js";
+import * as bridgeSwitches from "./migrations/0065-bridge-switches.js";
 import type { Database } from "./schema.js";
 
 /** A migration is written against the schema of its own moment, not today's `Database`. */
@@ -145,6 +148,9 @@ export const MIGRATIONS: readonly Migration[] = [
   rulesForAWhile,
   banners,
   roomNoCap,
+  softwareSeen,
+  computerUpdates,
+  bridgeSwitches,
 ];
 
 export interface MigrationResult {

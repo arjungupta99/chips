@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { BODY_WITH_PINS } from "../face/outline.js";
@@ -54,5 +57,27 @@ describe("ChipMark", () => {
     render(<ChipMark label="Chips" size={16} />);
     const mark = screen.getByRole("img", { name: "Chips" });
     expect(mark.getAttribute("width")).toBe("16");
+  });
+
+  it("wears its own red and green for the connection, its pins a shade of the chip's colour", () => {
+    // ADR 0131's addendum of 12 November 2026, as the phone's `connectionPaint` does.
+    // From this file's own path: Vite rewrites a URL built on it, in a component's test, to its server's.
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "mark.css"), "utf8");
+    const rule = (selector: string) => {
+      const at = css.indexOf(`${selector} {`);
+      return at === -1 ? "" : css.slice(at, css.indexOf("}", at));
+    };
+    expect(rule('.ui-mark[data-state="failed"]')).toContain("--mark-body: var(--mark-red);");
+    expect(rule('.ui-mark[data-state="failed"] .ui-mark__pins')).toContain(
+      "fill: var(--mark-red-pin);",
+    );
+    expect(rule('.ui-mark[data-state="back"]')).toContain("--mark-body: var(--mark-green);");
+    expect(rule('.ui-mark[data-state="back"] .ui-mark__pins')).toContain(
+      "fill: var(--mark-green-pin);",
+    );
+    expect(rule('.ui-mark:is([data-state="failed"], [data-state="back"]) .ui-mark__pin')).toContain(
+      "opacity: 1;",
+    );
+    expect(css).not.toMatch(/var\(--(red|green)\)/);
   });
 });

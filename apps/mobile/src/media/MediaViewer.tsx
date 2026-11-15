@@ -61,7 +61,6 @@ import {
 import {
   type AccessibilityActionEvent,
   AccessibilityInfo,
-  Keyboard,
   Modal,
   type ModalProps,
   Platform,
@@ -76,6 +75,7 @@ import type { FileService, Viewed } from "../spaces/files";
 import { base64Of, canSaveToLibrary, saveToLibrary } from "../spaces/local";
 import { clockTime, dayLabel, separatorLabel } from "../spaces/when";
 import { Button } from "../ui/Button";
+import { keysAway } from "../ui/keysAway";
 import { isWide } from "../ui/layout";
 import { useSheetRest } from "../ui/Sheet";
 import { SPACE, TEXT } from "../ui/tokens";
@@ -198,7 +198,7 @@ export function MediaProvider({
         // 2026). The tile has been measured by the time this is called, so the picture still flies
         // from where the thumb found it, and the frame it flies home to is asked for at the close,
         // by which time the room has settled behind the opaque stage.
-        Keyboard.dismiss();
+        keysAway();
         setOpening((now) => now ?? next);
       },
     }),
@@ -235,7 +235,7 @@ export function MediaProvider({
  * or with no line to hang under, a tile opens nothing.
  *
  * A last tile that says +N also stands for the pictures past it (`beyond`), which have no tile of
- * their own: an album's, and the room sheet's Media & files' newest eight. They fly home to it, and
+ * their own: an album's, and the room sheet's Sent in chat's newest eight. They fly home to it, and
  * it hides while one of them is up. Without it, the viewer resting on an album's fifth photo found
  * no tile, took it to be off the glass, and sent the room to centre a line that was already in
  * view; and every one of them shrank and faded as the viewer closed (Foodie, 24 October 2026).
@@ -254,7 +254,7 @@ export function useViewerTile(
 } {
   const host = useContext(HostContext);
   // A tile on a sheet is measured once the sheet is drawn at rest: one tapped as the room sheet
-  // glides to its Media & files page measured where the page had been (ADR 0202's second addendum).
+  // glides to its Sent in chat page measured where the page had been (ADR 0202's second addendum).
   const rested = useSheetRest();
   const ref = useRef<View>(null);
   const [hidden, setHidden] = useState(false);

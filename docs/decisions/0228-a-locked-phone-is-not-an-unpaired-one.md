@@ -67,3 +67,49 @@ opening it again brings her rooms back, it was the first. Either way the fix is 
   locked Keychain.
 - The web and the Mac read as before. Their records hold the key itself and they have no
   `loadKey`.
+
+## Addendum, 13 November 2026: a key that is gone is said
+
+Arjun, 13 November 2026: a phone in his workspace "somehow lost pairing with me, and when I opened
+the app I directly saw the demo server. It was a bit confusing why that happened", then "Yes, fix
+it" to the page below.
+
+On the server nothing had refused that phone. Its device paired on 26 October at 00:24 PDT, was
+connected for two minutes, and never knocked again; it was not revoked until a new pairing replaced
+it on 12 November at 22:22 PST. So the phone had stopped offering the workspace by itself, as in
+the first case above, except that this time it did not come back on a later launch. Nothing in the
+app forgets a workspace without a tap, and the storage's settings have not changed since September,
+so the likeliest cause is the one the consequences above name: the record came back with a backup
+and the key, made this-device-only, did not. Which it was is not proved from here.
+
+What it showed is what the decision above does with such a key. A device whose key is gone was left
+out without a word, and the launch put the next thing in front. On that phone the next thing was the
+demo, kept by an earlier Look around (ADR 0213, point 7), whose word lives in the app's preferences
+and comes back with a backup too. Nothing said the workspace had been there.
+
+1. **A read names the devices whose key is gone.** `readDevices` answers `lost`, their records with
+   no key, the one in front first, and `lostInFront`, whether the device in front is one of them.
+   A key that will not open just now is still counted and read again (point 4); one that is gone is
+   not read again, since it never comes back.
+2. **The one in front, lost, is said rather than stood in for.** The phone's provider holds it as
+   `lost` and puts nothing in front at the launch: not another workspace of the person's own, and
+   not the kept demo, which stays behind for Look around. A lost device that was not in front is
+   left as before, and the one in front opens.
+3. **The first screen names it** (`KeyGone`, in place of the film): "This phone can't open Northwind
+   any more", why (a phone restored from a backup or moved to a new one comes back without its
+   keys), and how to get back in, in the words the connection's sheet already uses for a phone the
+   server no longer knows: an owner reconnects you from your page in People and you scan the code,
+   or on your own computer You → Devices → Pair another device. Under them **Scan a QR code**,
+   **Other ways in** (That's Chips, where the page steps aside) and **Remove Northwind from this
+   phone**, which forgets the record and its cache as Sign out does (`useLeave`, by its id).
+4. **Pairing again puts it away.** Pairing with the same server replaces the record (point 3), and
+   a workspace of the person's own coming in front clears `lost`.
+
+Walked on the iPhone 17 Pro simulator (iOS 27.2) with the release build from main `3eb10bf14` and
+this change's bundle, in the state a restored phone is in: the record in `chips-devices.db` naming
+a Keychain entry that is not there, and the demo's word in `chips-prefs.db`. Before, the app opened
+on Chips demo. After, it opens on the page, light and dark. The simulator's Keychain answered the
+missing entry with nothing rather than a refusal, so the read named it lost at once with no tries
+again. The page's buttons are covered by the phone's tests, not tapped on the simulator.
+
+The web and the Mac are unchanged: their storage holds the key itself, so nothing is ever lost.

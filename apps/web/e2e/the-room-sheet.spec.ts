@@ -2,7 +2,7 @@
  * ADR 0202's addendum on the Mac (Arjun's 2, 18 October 2026): the room sheet's first page is the
  * phone's, laid out in tiles. The room's face stands beside its name; *In this room* has Add at its
  * right; Leave is who is here's last row, though not for the owner, who has Hide at the foot (ADR
- * 0205); one Media & files card shows the newest things the room
+ * 0205); one Sent in chat card shows the newest things the room
  * carries and turns to its page, where a photo opens the viewer; Lead, Spend per job and Lock
  * changes are tiles in one row, and two to a row at a phone's width. Lock changes takes the pen off
  * the name and Archive and Delete off the foot, and gives them back.
@@ -144,7 +144,7 @@ test("the room sheet's first page is laid out in tiles, two to a row as the phon
   await expect(sheet.getByTestId("archive-space")).toBeVisible();
   await expect(sheet.getByTestId("room-sheet-title")).toBeVisible();
 
-  // Media & files says None yet until something is sent.
+  // Sent in chat says None yet until something is sent.
   const card = sheet.getByTestId("room-sheet-media");
   await expect(card).toContainText("None yet");
   await closeSheet(page);
@@ -159,7 +159,7 @@ test("the room sheet's first page is laid out in tiles, two to a row as the phon
 
   // The card counts them and shows them, the photos as their thumbnails.
   await roomSheet(page);
-  await expect(card).toContainText(/^Media & files3/);
+  await expect(card).toContainText(/^Sent in chat3/);
   const strip = card.getByTestId("room-sheet-media-strip");
   await expect(strip.locator("img")).toHaveCount(2);
   await expect(strip.locator("img").first()).toHaveAttribute("src", /^blob:/);

@@ -21,7 +21,7 @@ import {
   joinCommitText,
   serverKey as serverKeyShape,
 } from "@chipschat/protocol";
-import { cacheKey } from "./cacheKey.js";
+import { cacheKey, earlierCacheKeys } from "./cacheKey.js";
 import {
   directLink,
   establishLink,
@@ -210,13 +210,25 @@ async function keptAsNow(storage: DeviceStorage, stored: StoredDevice): Promise<
 }
 
 /**
+ * A device whose key is gone from the storage that kept it, as a phone set up from a backup has
+ * none of its Keychain's: its record as stored, with nothing that can sign (ADR 0228's addendum).
+ * Enough to say which workspace it was, and to forget it.
+ */
+export type LostDevice = Omit<Device, "privateKey">;
+
+/**
  * What a read of the device storage answers: the devices whose keys came back, the one in front
  * first, and how many keys could not be read just now (ADR 0228). A device whose key is gone is
- * in neither: nothing can sign for it again, and pairing again replaces it.
+ * in neither: nothing can sign for it again, and pairing again replaces it. It is named in `lost`
+ * instead, so the app can say so rather than open on something else (ADR 0228's addendum).
  */
 export interface HeldDevices {
   readonly devices: Device[];
   readonly unreadable: number;
+  /** The devices whose key is gone, the one in front first. */
+  readonly lost: readonly LostDevice[];
+  /** Whether the device in front is one of them: the workspace last open here cannot open now. */
+  readonly lostInFront: boolean;
 }
 
 /**
@@ -257,36 +269,49 @@ async function readAll(
  * The private halves back from wherever the storage put them (M4.2), each on a copy of its
  * record. A browser's records hold the key itself. One key that will not come back costs only its
  * own device: until ADR 0228 it emptied the whole list, and a phone started while locked showed
- * Welcome to somebody paired all along.
+ * Welcome to somebody paired all along. One whose key is gone is named as lost: until ADR 0228's
+ * addendum it was left out without a word, and a phone set up from a backup opened on the kept demo
+ * as if its workspace had never been there.
  */
 async function withKeys(
   storage: DeviceStorage,
   records: readonly StoredDevice[],
 ): Promise<HeldDevices> {
   const load = storage.loadKey;
-  if (load === undefined) return { devices: [...records], unreadable: 0 };
+  if (load === undefined)
+    return { devices: [...records], unreadable: 0, lost: [], lostInFront: false };
   const devices: StoredDevice[] = [];
+  const lost: LostDevice[] = [];
   let unreadable = 0;
   for (const record of records) {
     try {
       const privateKey = await load(record.privateKey);
       if (privateKey !== undefined) devices.push({ ...record, privateKey });
+      else lost.push(withoutKey(record));
     } catch {
       unreadable += 1;
     }
   }
-  return { devices, unreadable };
+  // `records` has the one in front first.
+  const lostInFront = lost[0] !== undefined && lost[0].deviceId === records[0]?.deviceId;
+  return { devices, unreadable, lost, lostInFront };
+}
+
+/** A record with its key, or the reference to it, taken off. */
+function withoutKey(record: StoredDevice): LostDevice {
+  const { privateKey: _key, ...rest } = record;
+  return rest;
 }
 
 /**
- * Every workspace this device holds, and how many of their keys could not be read just now
- * (ADR 0228). Where `loadDevices` answers a storage that will not open with nothing, this throws:
- * a phone whose Keychain and files iOS keeps shut until it is unlocked is not a phone with
- * nothing paired, and only its caller can tell when to read again.
+ * Every workspace this device holds, how many of their keys could not be read just now (ADR 0228),
+ * and those whose key is gone (its addendum). Where `loadDevices` answers a storage that will not
+ * open with nothing, this throws: a phone whose Keychain and files iOS keeps shut until it is
+ * unlocked is not a phone with nothing paired, and only its caller can tell when to read again.
  */
 export async function readDevices(storage: DeviceStorage = browserStorage): Promise<HeldDevices> {
-  const { devices, unreadable } = await readAll(storage);
-  return { devices, unreadable };
+  const { devices, unreadable, lost, lostInFront } = await readAll(storage);
+  return { devices, unreadable, lost, lostInFront };
 }
 
 /** The device in front, or nothing when this browser is paired with no workspace. */
@@ -471,7 +496,11 @@ export async function forgetDevice(
     const next = gone === current ? left[0] : devices.find((device) => device.deviceId === current);
     if (next === undefined) await storage.remove(RECORD);
     else await storage.put(RECORD, { pointer: next.deviceId });
-    if (forgotten !== undefined) await cache.delete(cacheKey(forgotten)).catch(() => undefined);
+    if (forgotten !== undefined) {
+      for (const key of [cacheKey(forgotten), ...earlierCacheKeys(forgotten)]) {
+        await cache.delete(key).catch(() => undefined);
+      }
+    }
     return next;
   } catch {
     // Storage the browser will not open. There was nothing to forget.

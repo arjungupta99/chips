@@ -20,10 +20,10 @@ import {
 import { type ReactElement, type ReactNode, useState } from "react";
 import { Alert, type AlertButton, Dimensions, Share } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { buildWords } from "../about/build";
 import { drawLibrary } from "../testing/picker";
 import { chooseFaceTheme } from "../ui/faceTheme";
 import type { Opened } from "../ui/opened";
-import { buildWords } from "./About";
 import { ARRIVAL_POLL_MS, arrivedSince } from "./PairSheet";
 import { isYouPage, isYouThird, YouBeside, type YouPage } from "./pages";
 import { useYou, You } from "./You";
@@ -492,8 +492,14 @@ describe("what is gone, and why", () => {
 
   it("draws Send feedback, now that the repository is public (ADR 0237)", async () => {
     await render(<You device={DEVICE} store={fake()} />);
-    expect(screen.getByTestId("about-version")).toBeTruthy();
     expect(screen.getByTestId("feedback-row")).toBeTruthy();
+  });
+
+  it("stands About Chips under Send feedback, with the version as its value (ADR 0295)", async () => {
+    await render(<You device={DEVICE} store={fake()} />);
+    const group = within(screen.getByTestId("feedback"));
+    expect(group.getByTestId("about-row")).toHaveTextContent(/About Chips/);
+    expect(screen.queryByTestId("about-version")).toBeNull();
   });
 });
 
@@ -984,12 +990,12 @@ describe("the workspace's own group", () => {
 });
 
 describe("about this phone", () => {
-  it("names the server by its host, and the build", async () => {
+  it("names the server by its host, and leaves the build to About Chips", async () => {
     await render(<You device={DEVICE} store={fake()} />);
     expect(screen.getByTestId("about-server")).toHaveTextContent(
       /adas-mac-mini\.tail2f9c1e\.ts\.net/,
     );
-    expect(screen.getByTestId("about-version")).toHaveTextContent(/ · /);
+    expect(within(screen.getByTestId("about")).queryByText("Version")).toBeNull();
   });
 
   it("says the build number as TestFlight does, in brackets after the version", () => {

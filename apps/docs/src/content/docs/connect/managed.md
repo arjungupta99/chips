@@ -74,9 +74,12 @@ The jobs a harness runs by itself, outside any space, show on its page with a sw
 runs, and what each run cost. Unlike the others here, the copy is the harness's, not an agent's.
 
 - `PUT /v1/harnesses/:id/jobs`: `{ jobs: [...] }`, every job whole, up to 24. Each is
-  `{ job_id, name, about, kind, every?, when?, next_at?, for_agents?, on, editable, why_read_only?, choices? }`:
+  `{ job_id, name, about, kind, every?, when?, next_at?, running_since?, for_agents?, on, editable, why_read_only?, choices? }`:
   `kind` is `heartbeat`, `memory`, `skills` or `other`; `every` is in minutes, or `when` says it
   in words; `choices` are the intervals a person may pick. A job left out is gone, runs and all.
+  While a run of a job is going, send the copy with that job's `running_since` (when the run
+  began), and again without it once the run is over: Chips starts neither your bridge nor itself
+  again on a new release while a job says it is running, for up to six hours.
 - `POST /v1/harnesses/:id/jobs/runs`: `{ runs: [...] }`, up to 200, each
   `{ job_id, run_id, started_at, ended_at, outcome, quiet?, waited?, error?, agent_id?, cost_usd?, tokens?, model? }`.
   `outcome` is `done`, `failed` or `stopped`. A run posted again replaces the one before, so post

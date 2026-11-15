@@ -1,13 +1,14 @@
 /**
  * The room sheet's first page under who is here, as the phone's (ADR 0202, and its addendum for
- * the desktop: Arjun's 2, 18 October 2026): one card for everything the room holds, Media & files,
- * and the room's settings as tiles.
+ * the desktop: Arjun's 2, 18 October 2026): one card for everything the room's chat holds, Sent in
+ * chat, and the room's settings as tiles.
  *
- * - **Media & files** says how many things the room's lines carry and how many files the room has
+ * - **Sent in chat** says how many things the room's lines carry and how many files the room has
  *   (core's `mediaFilesWords`), and shows the newest five as pictures, a voice note's microphone or
- *   a document's kind, beside a square for the files. It turns the sheet to the Media & files page
- *   (`RoomMedia.tsx`). It was the Files row.
- * - **The tiles** are what the rows were: Project, Lead, Spend per job and Lock changes, each with
+ *   a document's kind, beside a square for the files. It turns the sheet to its page
+ *   (`RoomMedia.tsx`). It was the Files row, and then Media & files until Universe had a Media and
+ *   a Files of its own (Arjun, 14 November 2026).
+ * - **The tiles** are what the rows were: Changes (Project until 14 November 2026), Lead, Spend per job and Lock changes, each with
  *   its mark, what it is set to, and its name under that. The desktop has no Notifications (ADR
  *   0198 sends them to the phone alone). They go two to a row, an odd last one taking its row, and
  *   Lock changes and Hide share a row of their own under the rest, as the phone's and the iPad's
@@ -24,11 +25,15 @@ import {
   type Attachment,
   type CarriedFile,
   ceilingWords,
+  type Directory,
   formatDuration,
   inAlbum,
   kindOf,
   mediaFilesWords,
+  nameOf,
+  newestChangeWords,
   ROOM_TILE_GROUNDS,
+  type RoomProject,
   type RoomTileGround,
 } from "@chipschat/core";
 import {
@@ -50,7 +55,7 @@ import { Chev } from "./parts.tsx";
 export const CARD_MEDIA = 5;
 
 /**
- * The Media & files card: its name and counts, then the newest things the room's lines carry and a
+ * The Sent in chat card: its name and counts, then the newest things the room's lines carry and a
  * square for the room's files. With nothing in either, the one line and `None yet`.
  */
 export function MediaCard({
@@ -74,11 +79,11 @@ export function MediaCard({
       type="button"
       className="sheet-media"
       onClick={onOpen}
-      aria-label={`Media and files, ${words === "" ? "reading" : words}`}
+      aria-label={`Sent in chat, ${words === "" ? "reading" : words}`}
       data-testid="room-sheet-media"
     >
       <span className="sheet-media-head">
-        <span className="sheet-media-name">Media &amp; files</span>
+        <span className="sheet-media-name">Sent in chat</span>
         <span className="sheet-media-count">{words}</span>
         <Chev />
       </span>
@@ -308,25 +313,31 @@ function Mark({
   );
 }
 
-/** The room's project (ADR 0222): how many files it has; it opens the Project page. */
-export function ProjectTile({
-  files,
+/**
+ * The room's project (ADR 0222), once it has had a change: who made the newest change and when,
+ * and it opens Changes. It was Project, saying how many files, until 14 November 2026: the files
+ * are Universe's (ADR 0227), and the tile says what only it opens.
+ */
+export function ChangesTile({
+  project,
+  directory,
   onClick,
 }: {
-  readonly files: number;
+  readonly project: RoomProject;
+  readonly directory: Directory;
   readonly onClick: () => void;
 }) {
-  const words = `${files} file${files === 1 ? "" : "s"}`;
+  const words = newestChangeWords(project, (id) => nameOf(directory, id));
   return (
     <Tile
       mark={
         <Mark ground="project">
-          <Icon name="drawers" size={18} />
+          <Icon name="clock" size={18} />
         </Mark>
       }
       value={words}
-      name="Project"
-      label={`Project, ${words}`}
+      name="Changes"
+      label={`Changes, ${words}`}
       onClick={onClick}
       testId="room-sheet-project"
     />

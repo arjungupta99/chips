@@ -4,7 +4,7 @@
  * pages inside it:
  *
  * - **The first page** (ADR 0202, Arjun's B, 18 October 2026: "more cooler and organized"): the
- *   room's face beside its name at the head, then who is here, then one Media & files card and the
+ *   room's face beside its name at the head, then who is here, then one Sent in chat card and the
  *   room's settings as tiles, two to a row (`RoomTiles.tsx`). The head stays put and everything
  *   under it is one scroll (ADR 0202's addendum of 23 October 2026), so the member list is laid out
  *   whole and never gives its height to the tiles: three rows show before anything is scrolled.
@@ -30,13 +30,16 @@
  * - **Move.** An agent is in one room at a time: picking one that is busy elsewhere asks first,
  *   and says what the move does to the room it leaves. Where its harness makes copies, the same
  *   page offers Fork here (ADR 0087, Fork): a copy joins this room, and it stays where it is.
- * - **Media & files.** One card on the first page (ADR 0202, Arjun: "We have media and files
- *   separate possibly could be combined"), with the newest things the room's lines carry and a
- *   tile for its files, turning to a page of both (`RoomMedia.tsx`): the newest eight photos,
- *   videos, voice notes and documents (ADR 0165), then the room's files at their current version
- *   (ADR 0100, `RoomFiles.tsx`). Its *See all* closes the sheet and, once it has gone, opens the
- *   space's own Media, Media on this phone's page for one space: everything shown, opened in the
- *   viewer or Quick Look, and let go of off this phone only.
+ * - **Sent in chat.** One card on the first page (ADR 0202, Arjun: "We have media and files
+ *   separate possibly could be combined"; Media & files until 14 November 2026), with the newest
+ *   things the room's lines carry and a tile for its files, turning to a page of both
+ *   (`RoomMedia.tsx`): the newest eight photos, videos, voice notes and documents (ADR 0165), then
+ *   the room's files at their current version (ADR 0100, `RoomFiles.tsx`). Its *See all* closes the
+ *   sheet and, once it has gone, opens the space's own Media, Media on this phone's page for one
+ *   space: everything shown, opened in the viewer or Quick Look, and let go of off this phone only.
+ * - **Changes.** The room's project's changes, newest first, each with its diffs and Undo (ADR
+ *   0222), from a tile saying who made the newest and when. It was Project, with the project's
+ *   files beside its changes, until Universe listed every file (ADR 0227, 14 November 2026).
  * - **New agent.** A blank agent made for this room (ADR 0108, Arjun's B): one row on Add when a
  *   harness here makes them, then a page with the harnesses' faces, as the + window shows them,
  *   and the name it is to be called, which may be left empty for its harness's next free name.
@@ -163,15 +166,15 @@ import { AgentPage } from "./RoomAgent";
 import { useRoomFiles } from "./RoomFiles";
 import { IconPage } from "./RoomIcon";
 import { MediaFilesPage } from "./RoomMedia";
-import { ChangePage, ProjectFilePage, ProjectPage, projectActions } from "./RoomProject";
+import { ChangePage, ChangesPage, ProjectFilePage, projectActions } from "./RoomProject";
 import { AllJobsPage, SpendPage, useRoomSpend } from "./RoomSpend";
 import {
+  ChangesTile,
   HideTile,
   LeadTile,
   LockTile,
   MediaCard,
   NotifyTile,
-  ProjectTile,
   RowMark,
   Section,
   SpendTile,
@@ -267,7 +270,7 @@ export function RoomSheet({
   readonly onOpenAgent: (agentId: string) => void;
   /** Another space, named by an agent's card or history inside the column. */
   readonly onOpenSpace?: ((spaceId: string) => void) | undefined;
-  /** See all on Media & files: the space's own Media, which opens once the sheet has gone (ADR 0165). */
+  /** See all on Sent in chat: the space's own Media, which opens once the sheet has gone (ADR 0165). */
   readonly onOpenMedia?: (() => void) | undefined;
   /**
    * Left the room from its sheet, or hid it (ADR 0205): once the sheet has gone, the screen goes
@@ -326,7 +329,7 @@ export function RoomSheet({
   const opening = useRef<string | undefined>(undefined);
   // Left from Leave: the room screen goes back once the sheet has gone.
   const left = useRef(false);
-  // See all on Media & files: the space's own Media opens once the sheet has gone, as an agent's card does.
+  // See all on Sent in chat: the space's own Media opens once the sheet has gone, as an agent's card does.
   const media = useRef(false);
   useEffect(() => {
     if (!open) return;
@@ -482,18 +485,16 @@ export function RoomSheet({
       />
     );
   };
-  // The room's project (ADR 0222): Files and Changes, a change, a file; back from a change or a
-  // file goes to the project, which holds them all.
+  // The room's project (ADR 0222): its Changes, a change, a file of one; back from a change or a
+  // file goes to Changes.
   const project = projectActions(store, space.id);
   const projectPage = (shown: Extract<Page, { readonly kind: "project" | "change" | "file" }>) =>
     shown.kind === "project" ? (
-      <ProjectPage
+      <ChangesPage
         space={space}
         directory={snapshot.directory}
-        project={project}
         onBack={() => go({ kind: "who" })}
         onChange={(commit) => go({ kind: "change", commit })}
-        onFile={(path) => go({ kind: "file", path })}
       />
     ) : shown.kind === "change" ? (
       <ChangePage
@@ -515,7 +516,7 @@ export function RoomSheet({
         onChange={(commit) => go({ kind: "change", commit })}
       />
     );
-  // See all on Media & files: down, and then the space's own Media (ADR 0165).
+  // See all on Sent in chat: down, and then the space's own Media (ADR 0165).
   const seeAll =
     onOpenMedia === undefined
       ? undefined
@@ -560,7 +561,7 @@ export function RoomSheet({
   const allJobs = offersAllJobs(spend, snapshot.keepsSpendJobs)
     ? () => go({ kind: "jobs" })
     : undefined;
-  // The pages that come off the first: Lead, Spend per job, Media & files and those that put an agent in
+  // The pages that come off the first: Lead, Spend per job, Sent in chat and those that put an agent in
   // the room.
   const further = (
     shown: Exclude<
@@ -1035,11 +1036,11 @@ function Who({
   /** The title, renamed where it stands (ADR 0112). */
   readonly onRename: (title: string) => void;
   readonly onMoveBack: (agentId: string) => void;
-  /** The room's files, once the server has said (ADR 0100): how many the Media & files card says. */
+  /** The room's files, once the server has said (ADR 0100): how many the Sent in chat card says. */
   readonly files: readonly RoomFileOf[] | undefined;
   /** What the card's pictures are fetched with. */
   readonly service: FileService | undefined;
-  /** The Media & files page (ADR 0202). */
+  /** The Sent in chat page (ADR 0202). */
   readonly onMedia: () => void;
   /** Who leads the room's page (ADR 0104). */
   readonly onLead: () => void;
@@ -1305,7 +1306,7 @@ function Head({
 }
 
 /**
- * The room's settings as tiles (ADR 0202): its Project once it has one (ADR 0222), then in the
+ * The room's settings as tiles (ADR 0202): its Changes once it has a project (ADR 0222), then in the
  * order the rows were: Lead where the room has no
  * Main agent to lead it and Spend per job, in a room with agents; Notifications. Lock changes and
  * Hide are the foot's (`footTiles`).
@@ -1342,7 +1343,14 @@ function roomTiles({
     // The room's project once it has had a change (ADR 0222), for anybody in the room.
     ...(space.project === undefined
       ? []
-      : [<ProjectTile key="project" files={space.project.files} onPress={onProject} />]),
+      : [
+          <ChangesTile
+            key="project"
+            project={space.project}
+            directory={snapshot.directory}
+            onPress={onProject}
+          />,
+        ]),
     ...(roomAgents(space, snapshot.directory).here.length > 0
       ? agentTiles({ snapshot, space, selfId, lead, leads, spend, onLead, onSpend })
       : []),

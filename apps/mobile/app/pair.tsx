@@ -21,6 +21,9 @@
  * beside it on its side, the mark and the film's name over them; under it upright, in two columns.
  * Nothing waits for the film to end, so there is no Skip, and where it ends its frame gives way to
  * That's Chips (`WideFilm`).
+ *
+ * A phone whose workspace in front has lost its key (ADR 0228's addendum) opens on that instead
+ * (`KeyGone`): the workspace named, the camera for the code an owner gets, and the ways in.
  */
 
 import { filmOf, lengthWords, workspaceLabel } from "@chipschat/core";
@@ -42,8 +45,10 @@ import { Fades } from "../src/demo/FilmMotion";
 import { type Film, FilmBar, FilmFace, moreThan, Skip, useFilm } from "../src/demo/FilmPlayer";
 import { useLookAround, WAYS_IN } from "../src/demo/home";
 import { VIDEOS, videoNamed } from "../src/demo/videos";
+import { useLeave } from "../src/device/leave";
 import { thisDevice } from "../src/device/word";
 import { Big } from "../src/pairing/JoinCard";
+import { KeyGone } from "../src/pairing/KeyGone";
 import { FinderView, type HeldServer, OnThisWifi, useFinder } from "../src/pairing/OnThisWifi";
 import { ScanSheet } from "../src/pairing/ScanSheet";
 import { StartOnComputer } from "../src/pairing/StartOnComputer";
@@ -58,7 +63,8 @@ import { LEADING_PHONE, RADIUS, SPACE, TEXT } from "../src/ui/tokens";
 import { useReduceMotion } from "../src/ui/useReduceMotion";
 
 export default function PairScreen() {
-  const { began, paired } = useChips();
+  const { began, paired, lost } = useChips();
+  const leave = useLeave();
   const lookAround = useLookAround();
   const router = useRouter();
   const { problem, ways, code, setup } = useLocalSearchParams<{
@@ -94,6 +100,22 @@ export default function PairScreen() {
         join={join}
         onBack={() => (router.canGoBack() ? router.back() : router.replace(WAYS_IN))}
       />
+    );
+  }
+
+  // The workspace that was in front, its key gone (ADR 0228's addendum): named before anything else
+  // is offered, unless its Other ways in brought the person here.
+  if (lost !== undefined && paired === undefined && ways !== "1" && setup !== "1") {
+    return (
+      <>
+        <KeyGone
+          lost={lost}
+          onScan={() => setScanning(true)}
+          onWays={() => router.push(WAYS_IN)}
+          onRemove={() => void leave(lost, [])}
+        />
+        {scanSheet}
+      </>
     );
   }
 
@@ -153,7 +175,15 @@ function Brand({ start = false }: { readonly start?: boolean }) {
       accessibilityLabel="Chips"
     >
       <Big scale={2}>
-        <ChipPulse gold={palette.gold} ink={palette.ink3} lit={palette.ink} working={turning} />
+        {(size) => (
+          <ChipPulse
+            gold={palette.gold}
+            ink={palette.ink3}
+            lit={palette.ink}
+            working={turning}
+            size={size}
+          />
+        )}
       </Big>
       <Text style={[styles.brandWord, { color: palette.ink }]}>Chips</Text>
     </View>

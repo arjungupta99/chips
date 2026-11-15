@@ -8643,6 +8643,237 @@ button.you-lrow:disabled {
 .you-page .you-gfoot {
   margin-top: -8px;
 }
+
+/* About Chips (ADR 0295): the chip, the name, the build to copy, and one sentence; then its rows. */
+.you-mark.about-row-mark {
+  background: transparent;
+}
+.about-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 4px;
+  text-align: center;
+}
+.about-mark {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+.about-mark:focus-visible,
+.about-capsule:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.about-name {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.about-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 12px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font: 500 12px var(--font-mono);
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease);
+}
+.about-capsule > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.about-capsule:hover {
+  border-color: var(--line-2);
+}
+.about-capsule:active {
+  transform: scale(0.97);
+}
+.about-capsule.is-copied {
+  color: var(--green-ink);
+}
+.about-blurb {
+  max-width: 34ch;
+  margin: 4px 0 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.about-made {
+  margin: 8px 24px 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: center;
+}
+.about-rel {
+  display: grid;
+  gap: 2px;
+  padding: 4px 12px 0;
+}
+.about-rel h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.about-rel span,
+.about-lead {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+.about-lead {
+  margin: 0 12px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.about-changes,
+.about-words {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+.about-changes {
+  padding: 2px 0;
+  list-style: none;
+}
+.about-changes li {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.about-changes li + li {
+  border-top: 1px solid var(--line);
+}
+.about-change-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 6px;
+  background: var(--gold);
+  color: #231a00;
+}
+.about-words {
+  padding: 2px 16px;
+}
+.about-words p {
+  margin: 12px 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.about-notices details + details {
+  border-top: 1px solid var(--line);
+}
+.about-notices summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 44px;
+  padding: 7px 12px;
+  cursor: pointer;
+  list-style: none;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+.about-notices summary::-webkit-details-marker {
+  display: none;
+}
+.about-notices summary:hover {
+  background: color-mix(in oklab, var(--surface), var(--ink) 4%);
+}
+.about-notices summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.about-notices .you-chev {
+  transition: transform var(--motion-fast) var(--ease);
+}
+.about-notices details[open] .you-chev {
+  transform: rotate(135deg);
+}
+.about-notice-name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.about-notice-name > span {
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+.about-notice-name > small {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+.about-notice-licence {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.about-notice-texts {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+/* The licence fades in as the rows under it slide down to make room (`you/motion.ts`). */
+.about-notices details[open] .about-notice-texts {
+  animation: turn-over var(--motion-base) var(--ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .about-notices details[open] .about-notice-texts {
+    animation: none;
+  }
+}
+.about-notice-texts figure {
+  margin: 0;
+}
+.about-notice-texts figcaption {
+  margin-bottom: 4px;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.about-notice-texts pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: 11px / 1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.about-notice-texts p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
 .you-pane-empty {
   display: flex;
   flex: 1;
@@ -12092,7 +12323,7 @@ button.ctx-row:focus-visible {
   background: var(--sunk);
 }
 /* The first page as the phone's since ADR 0202 (its addendum, Arjun's 2): the room's face beside its
-   name, who is here under a heading with Add, one Media & files card and the settings as tiles. */
+   name, who is here under a heading with Add, one Sent in chat card and the settings as tiles. */
 .sheet-head {
   gap: 12px;
 }
@@ -12244,7 +12475,7 @@ button.sheet-room-face:focus-visible {
   font-size: var(--text-md);
   font-weight: 500;
 }
-/* Media & files: its name and counts, then the newest five and a square for the files. */
+/* Sent in chat: its name and counts, then the newest five and a square for the files. */
 .sheet-media {
   flex: none;
   display: flex;
@@ -12443,7 +12674,7 @@ button.sheet-box:hover {
 .sheet-box-bar i[data-stage="ceiling"] {
   background: var(--red);
 }
-/* The Media & files page: the newest eight, four to a row, each rounded on its own; then the files. */
+/* The Sent in chat page: the newest eight, four to a row, each rounded on its own; then the files. */
 .sheet-media-grid {
   flex: none;
   display: grid;
@@ -16327,28 +16558,7 @@ li[data-lifted]::after {
   }
 }
 
-/* The room's project (ADR 0222): the Project page's tabs, a change's diff, a file's words. */
-.project-tabs {
-  display: flex;
-  gap: 4px;
-  margin: 0 0 8px;
-}
-.project-tab {
-  flex: 1;
-  height: 32px;
-  border: 0;
-  border-radius: var(--radius-lg);
-  background: transparent;
-  color: var(--ink-3);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
-.project-tab[aria-selected="true"] {
-  background: var(--surface-2);
-  color: var(--ink);
-}
+/* The room's project (ADR 0222): a change's diff, a file's words. */
 .project-change-head {
   display: flex;
   flex-direction: column;
@@ -16438,6 +16648,198 @@ li[data-lifted]::after {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+/* Media, Pages and Files under the folder (ADR 0227's addenda of 13 and 14 November 2026): words
+   with their counts on a hairline, and a gold line that slides to the one chosen. */
+.universe-shelves {
+  position: relative;
+  display: flex;
+  gap: 24px;
+  margin: 4px 4px 6px;
+  border-bottom: 0.5px solid var(--line);
+}
+.universe-shelf {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 2px 0 10px;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--motion-base) var(--ease);
+}
+.universe-shelf:hover,
+.universe-shelf[aria-selected="true"] {
+  color: var(--ink);
+}
+.universe-shelf-count {
+  color: var(--ink-4);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transition: color var(--motion-base) var(--ease);
+}
+.universe-shelf[aria-selected="true"] .universe-shelf-count {
+  color: var(--ink-3);
+}
+.universe-shelf-line {
+  position: absolute;
+  left: 0;
+  bottom: -0.5px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: var(--gold);
+  pointer-events: none;
+}
+.universe-shelf-line[data-moves] {
+  transition:
+    transform var(--motion-slow) var(--ease),
+    width var(--motion-slow) var(--ease);
+}
+/* A shelf turned to fades in where the other was; the first is simply there. */
+.universe-shelved {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.universe-shelved[data-turned] {
+  animation: sheet-page-in var(--motion-base) var(--ease) both;
+}
+.universe-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 36px 24px 28px;
+  text-align: center;
+}
+.universe-empty b {
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+.universe-empty p {
+  max-width: 300px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+/* Media: the room's squares, three across, under the day each picture came. */
+.universe-media {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.universe-day {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.universe-day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 4px;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.universe-day-head span {
+  color: var(--ink-4);
+  font-weight: 500;
+}
+.universe-squares {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+}
+.universe-square {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-3);
+  cursor: zoom-in;
+  transition:
+    transform var(--motion-base) var(--ease),
+    filter var(--motion-base) var(--ease);
+}
+.universe-square:hover {
+  filter: brightness(1.06);
+}
+.universe-square:active {
+  transform: scale(0.97);
+}
+.universe-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.universe-thumb[data-loaded] {
+  opacity: 1;
+}
+/* The gold dot on something new since Universe was last opened here. */
+.universe-new {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.35);
+}
+/* Files: each folder's card, the project's top first; a picture's row wears its small copy. */
+.universe-files {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.universe-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.universe-folder-name {
+  margin: 0 4px;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.universe-file-face {
+  position: relative;
+}
+.universe-file-face[data-code] {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+.universe-file-picture .universe-thumb {
+  border-radius: inherit;
+}
+.universe-file-face .universe-new {
+  top: -3px;
+  right: -3px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+@media (prefers-reduced-motion: reduce) {
+  .universe-shelf-line[data-moves] {
+    transition: none;
+  }
+  .universe-shelved[data-turned] {
+    animation-name: universe-dissolves;
+  }
 }
 .your-folder {
   display: flex;
@@ -17563,6 +17965,370 @@ button.ctx-row:active,
   inset: 0 0 auto;
   height: var(--mac-bar);
   z-index: 1;
+}
+
+/* ---------- A tab whose computer was updated under it (everything in step, `updated.tsx`) ---------- */
+
+/* When no quiet moment came to reload it by itself: a line over the page, with Reload. */
+.updated-line {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+  transform: translateX(-50%);
+  animation: updated-line-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes updated-line-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .updated-line {
+    animation: none;
+  }
+}
+.updated-line-reload {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  background: var(--ink);
+  color: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- The update dot (ADR 0296, `updates.tsx`) ---------- */
+
+/* A gold dot that says an update waits, and opens About. It drops in from the top with one ring as
+   it lands, then swells and glows about every three seconds while it is lit, as the phone's does.
+   It stands at the right end of a bar, never over a title: in Chips for Mac's window, the strip the
+   traffic lights stand in; with no strip, in a browser or in full screen, the rail's top row, before
+   the +, folding with the workspace's name when the list steps aside; at a phone's width, the bar
+   over the page. Each place draws its own, and only the one that fits is shown. */
+.update-dot {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+}
+.update-dot:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+.update-dot-core,
+.update-dot::before,
+.update-dot::after {
+  grid-area: 1 / 1;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  pointer-events: none;
+}
+/* The dot: it lands, overshooting a little, then breathes. */
+.update-dot-core {
+  background: var(--gold);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent);
+  animation:
+    update-dot-land 640ms cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    update-dot-breathe 3400ms ease-in-out 1200ms infinite;
+}
+/* The glow behind it, which swells with it. */
+.update-dot::before {
+  content: "";
+  background: var(--gold);
+  opacity: 0.28;
+  transform: scale(1.7);
+  animation:
+    update-dot-glow-in 640ms ease-out both,
+    update-dot-glow 3400ms ease-in-out 1200ms infinite;
+}
+/* The one ring it sends out as it lands. */
+.update-dot::after {
+  content: "";
+  border: 1.5px solid var(--gold);
+  opacity: 0;
+  animation: update-dot-ring 1150ms cubic-bezier(0.215, 0.61, 0.355, 1) 320ms;
+}
+@keyframes update-dot-land {
+  from {
+    opacity: 0;
+    transform: translateY(-26px) scale(0.3);
+  }
+  45% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes update-dot-breathe {
+  50% {
+    transform: scale(1.24);
+  }
+}
+@keyframes update-dot-glow-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+@keyframes update-dot-glow {
+  50% {
+    opacity: 0.58;
+    transform: scale(2.3);
+  }
+}
+@keyframes update-dot-ring {
+  from {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(3.8);
+  }
+}
+/* Chips for Mac in a window: the right end of the strip over the columns, its full height, over
+   the strip the window is moved by. Only there; and there, not in the rail, nor in the bar a
+   phone's width draws, which a window zoomed with ⌘+ can reach. */
+.update-dot[data-place="bar"] {
+  display: none;
+}
+:root[data-shell="mac"]:not([data-full-screen="true"]) .update-dot[data-place="bar"] {
+  display: grid;
+  position: fixed;
+  top: 0;
+  right: 8px;
+  width: 28px;
+  height: var(--mac-bar);
+  border-radius: 6px;
+  z-index: 2;
+}
+:root[data-shell="mac"]:not([data-full-screen="true"])
+  .update-dot:is([data-place="rail"], [data-place="narrow"]) {
+  display: none;
+}
+/* The rail's top row: at its end with the +, which it brings along, a little apart from it so the
+   two never read as a pair of buttons. */
+.side-top > .update-dot {
+  margin-left: auto;
+  margin-right: 8px;
+}
+.side-top > .update-dot + .side-new {
+  margin-left: 0;
+}
+/* A phone's width: the bar's right end, and not again in the rail the bar opens. */
+.narrow-bar > .update-dot {
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .side-top > .update-dot {
+    display: none;
+  }
+}
+
+/* About's Install and Update buttons (ADR 0296): a gold capsule, solid for this app and soft for
+   the computer. As About opens each sends out the dot's ring twice, a glow that widens from behind
+   it and fades, a beat after the one above it (`--ring-at`). */
+.update-ring {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  isolation: isolate;
+}
+.update-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 999px;
+  background: var(--gold);
+  opacity: 0;
+  pointer-events: none;
+  animation: update-btn-ring 1050ms cubic-bezier(0.215, 0.61, 0.355, 1) var(--ring-at, 280ms) 2;
+}
+@keyframes update-btn-ring {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3, 1.55);
+  }
+}
+.update-btn {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #231a00;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease);
+}
+.update-btn:hover {
+  background: color-mix(in oklab, var(--gold) 88%, #231a00);
+}
+.update-btn.is-soft {
+  background: var(--gold-soft);
+  color: var(--gold-deep);
+}
+.update-btn.is-soft:hover {
+  background: color-mix(in oklab, var(--gold-soft) 80%, var(--gold));
+}
+.update-btn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.update-btn:active {
+  transform: scale(0.96);
+}
+
+/* About Chips's row in You, while an update waits: a small gold dot on the chip's corner. */
+.about-row-mark {
+  position: relative;
+}
+.about-row-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* What a newer computer sent that this app can't draw (ADR 0297): the room's quiet note, Update
+   beside it in the accent. */
+.newer-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+}
+.newer-update {
+  font-weight: 600;
+  color: var(--accent);
+}
+/* A harness's Bridge group (ADR 0297): one line, and the owner's switch under it. */
+.hp-bridge-box {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+.hp-bridge-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.hp-bridge-line .update-dot,
+.hp-bridge-dot {
+  flex: none;
+  margin-top: -2px;
+}
+.hp-bridge-dot {
+  width: 24px;
+  height: 24px;
+  background: radial-gradient(circle, var(--green) 0 4px, transparent 4.5px);
+}
+.hp-bridge-line[data-tone="working"] .hp-bridge-dot {
+  background: radial-gradient(circle, var(--blue) 0 4px, transparent 4.5px);
+}
+.hp-bridge-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.hp-bridge-words small {
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.hp-bridge-keep {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+/* The update dot at the end of a row in About's Needs update list (ADR 0297): the same dot, which
+   lands and breathes, in a box as wide as its glow at its fullest so the glow never reaches the
+   chevron, and its ring no wider than that. A row that opens nothing keeps the chevron's room,
+   so the dots stand in one column. */
+.needs-end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 11px;
+}
+.update-dot.needs-dot {
+  cursor: default;
+}
+.update-dot.needs-dot::after {
+  animation-name: needs-dot-ring;
+}
+@keyframes needs-dot-ring {
+  from {
+    opacity: 0.95;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.3);
+  }
+}
+.you-chev.is-blank {
+  visibility: hidden;
+}
+.about-update-now {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+.about-update-now p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.4;
+}
+@media (prefers-reduced-motion: reduce) {
+  .update-dot-core,
+  .update-dot::before,
+  .update-dot::after,
+  .update-ring::before {
+    animation: none;
+  }
 }
 
 /* ---------- The shell's motion, on the web and the Mac (ADR 0274) ---------- */

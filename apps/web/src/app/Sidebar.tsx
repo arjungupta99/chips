@@ -68,6 +68,7 @@ import {
 import { type RoomActs, useRoomPicking } from "./select/rooms.tsx";
 import type { RowPick } from "./select/usePick.ts";
 import { relativeTime } from "./time.ts";
+import { UpdateDot } from "./updates.tsx";
 import { WorkspaceMenu, type WorkspaceTab } from "./WorkspaceMenu.tsx";
 
 export type Tab = "spaces" | "agents" | "audit" | "you" | "search";
@@ -125,6 +126,8 @@ export interface SidebarProps {
   readonly tab: Tab;
   readonly onSelectTab: (tab: Tab) => void;
   readonly onSelectSpace: (spaceId: string) => void;
+  /** Opens About, from the update dot in the rail's top row (ADR 0296). */
+  readonly onAbout?: (() => void) | undefined;
   /**
    * Open the new-space dialog out of the + (`useNewSpaceDialog`, in the shell). Absent for
    * somebody who may not open a space, and then there is no + (ADR 0196).
@@ -196,6 +199,7 @@ export function Sidebar(props: SidebarProps & { readonly rooms?: boolean | undef
             desktop={props.desktop}
           />
           {props.workspaces?.find((each) => each.current)?.demo === true ? <DemoTag /> : null}
+          {props.onAbout === undefined ? null : <UpdateDot place="rail" onOpen={props.onAbout} />}
           {props.onNewSpace === undefined ? null : (
             <NewSpaceButton onNew={props.onNewSpace} away={folded} />
           )}

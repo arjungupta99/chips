@@ -6,17 +6,32 @@
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  archiveArgs,
   isDeveloperId,
+  keyIdOf,
   NODE_ENTITLEMENTS,
   notarizeArgs,
   signArgs,
+  signedByUpdaterKey,
   teamOf,
+  UPDATE_FEED_URL,
+  updateFeed,
+  updateUrl,
 } from "../desktop/sign.mjs";
+
+const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+const TAURI_CONFIG = JSON.parse(read("apps/desktop/src-tauri/tauri.conf.json"));
+// A key made for this test with `tauri signer generate` and thrown away: its public half, and
+// its signature of a scratch file, as `tauri signer sign` writes one.
+const TEST_KEY =
+  "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY0RjZERjg3RTg4N0E2NzgKUldSNHBvZm9oOS8yWkVxWkY1YlFVQ2M3RXoxUmRkUldRNzY1VVh3N2dBV2tqWmd1c2JIRUxFMk0K";
+const TEST_SIGNATURE =
+  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSNHBvZm9oOS8yWkt2U0RxeHN5Q3FNMGw2a1RHVjlOWmZzeS81MGtSK0twRk5XUFY2aitVWEEwbHVwTlp0WEpYd0p2ZHltL0RzZjZiRGdUVUJ2VmJCb1Fpc2tJbEN3cWdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NjAzOTk1CWZpbGU6ZmlsZS50YXIuZ3oKclVkd2dXd3ZvQWQ5MjN5ZVExRXRFcFV6WFNHZnhLTUczTE9aYkU1UlByNDNQa0ZKQU9qZU5SUEtIYW1kZzdMRkJ5bHFDSDBlMitqVXJlbVpGZ255RHc9PQo=";
 
 const NEEDED = [
   "com.apple.security.cs.allow-jit",
@@ -116,4 +131,115 @@ describe("the Node Chips for Mac carries", () => {
       }
     },
   );
+});
+
+describe("Chips for Mac's own update (ADR 0298)", () => {
+  it("names the archive on its release, for Apple silicon, with its signature", () => {
+    expect(updateUrl("1.2.6")).toBe(
+      "https://github.com/arjungupta99/chips/releases/download/v1.2.6/Chips.app.tar.gz",
+    );
+    expect(
+      updateFeed({ version: "1.2.6", signature: "c2ln", at: new Date("2026-11-20T08:00:00Z") }),
+    ).toEqual({
+      version: "1.2.6",
+      notes: "Chips 1.2.6",
+      pub_date: "2026-11-20T08:00:00.000Z",
+      platforms: {
+        "darwin-aarch64": {
+          signature: "c2ln",
+          url: "https://github.com/arjungupta99/chips/releases/download/v1.2.6/Chips.app.tar.gz",
+        },
+      },
+    });
+  });
+
+  it("writes the feed the updater reads: the one file both sides are held to", () => {
+    // `apps/desktop/src-tauri/src/update.rs` parses the same file as the updater does.
+    expect(
+      `${JSON.stringify(
+        updateFeed({
+          version: "1.2.6",
+          signature: "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZQ==",
+          at: new Date("2026-11-13T12:00:00.000Z"),
+        }),
+        null,
+        2,
+      )}\n`,
+    ).toBe(read("tools/desktop/fixtures/latest.json"));
+  });
+
+  it("is read from the feed the release tool uploads to, over https", () => {
+    expect(TAURI_CONFIG.plugins.updater.endpoints).toEqual([UPDATE_FEED_URL]);
+    expect(UPDATE_FEED_URL).toBe(
+      "https://github.com/arjungupta99/chips/releases/latest/download/latest.json",
+    );
+  });
+
+  it("is one version everywhere a build reads it", () => {
+    // The feed names the root package's version and the app compares its own, from the Tauri
+    // config: apart, a release would go in and still be older than the feed, every night.
+    const version = JSON.parse(read("package.json")).version;
+    expect(TAURI_CONFIG.version).toBe(version);
+    expect(JSON.parse(read("apps/desktop/package.json")).version).toBe(version);
+    expect(/^version = "(.+)"$/m.exec(read("apps/desktop/src-tauri/Cargo.toml"))?.[1]).toBe(
+      version,
+    );
+    const locked = /name = "chips-desktop"\nversion = "(.+)"/.exec(
+      read("apps/desktop/src-tauri/Cargo.lock"),
+    )?.[1];
+    expect(locked).toBe(version);
+  });
+
+  it("knows the key a signature was made with, so one from another key never leaves the Mac", () => {
+    expect(keyIdOf(TEST_KEY)).toBe("78a687e887dff664");
+    expect(keyIdOf(TEST_SIGNATURE)).toBe("78a687e887dff664");
+    expect(signedByUpdaterKey(TEST_SIGNATURE, TEST_KEY)).toBe(true);
+    // The key every copy carries is another: a signature from the test's key isn't its.
+    const carried = TAURI_CONFIG.plugins.updater.pubkey;
+    expect(keyIdOf(carried)).toBe("629e5087187f0bce");
+    expect(signedByUpdaterKey(TEST_SIGNATURE, carried)).toBe(false);
+    // The id is the one minisign prints in the key's first line, low byte first.
+    const named = Buffer.from(carried, "base64").toString("utf8").split("\n")[0];
+    expect(named).toBe("untrusted comment: minisign public key: CE0B7F1887509E62");
+    // Text that is no key and no signature names none, and matches nothing.
+    for (const not of ["", "c2ln", "not base64 at all", undefined]) {
+      expect(keyIdOf(not)).toBeUndefined();
+      expect(signedByUpdaterKey(not, carried)).toBe(false);
+      expect(signedByUpdaterKey(TEST_SIGNATURE, not)).toBe(false);
+    }
+  });
+
+  it("packs a real app so the updater finds it under one top folder, with nothing beside", () => {
+    const scratch = mkdtempSync(join(tmpdir(), "chips-update-archive-"));
+    try {
+      const app = join(scratch, "built", "Chips.app");
+      mkdirSync(join(app, "Contents", "MacOS"), { recursive: true });
+      writeFileSync(join(app, "Contents", "Info.plist"), "<plist/>");
+      writeFileSync(join(app, "Contents", "MacOS", "chips-desktop"), "program");
+      const archive = join(scratch, "Chips.app.tar.gz");
+      execFileSync("tar", archiveArgs(archive, app), {
+        env: { PATH: "/usr/bin:/bin", COPYFILE_DISABLE: "1" },
+      });
+      const listed = execFileSync("tar", ["-tzf", archive], { encoding: "utf8" })
+        .trim()
+        .split("\n");
+      // The updater drops each entry's first folder and unpacks the rest as the app.
+      expect(listed.every((entry) => entry.startsWith("Chips.app/"))).toBe(true);
+      expect(listed).toContain("Chips.app/Contents/Info.plist");
+      expect(listed).toContain("Chips.app/Contents/MacOS/chips-desktop");
+      expect(listed.some((entry) => entry.includes("/._"))).toBe(false);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("packs the app as the archive's one top folder", () => {
+    expect(archiveArgs("/r/dist/Chips.app.tar.gz", "/r/target/bundle/macos/Chips.app")).toEqual([
+      "-czf",
+      "/r/dist/Chips.app.tar.gz",
+      "-C",
+      "/r/target/bundle/macos",
+      "Chips.app",
+    ]);
+  });
 });

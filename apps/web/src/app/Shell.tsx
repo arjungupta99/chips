@@ -115,6 +115,8 @@ import {
 import { type LineFocus, type SheetFor, SpaceView, seedField } from "./SpaceView.tsx";
 import type { RoomActs } from "./select/rooms.tsx";
 import { Turns } from "./Turns.tsx";
+import { takePlace, UpdatedLine, useUpdatedUnder } from "./updated.tsx";
+import { OpenAbout, UpdateDot, UpdatesProvider, type UpdatesServer } from "./updates.tsx";
 import { type Messaging, useMessaging } from "./useMessaging.ts";
 import { useNarrow } from "./useNarrow.ts";
 import { usePatience } from "./usePatience.ts";
@@ -172,6 +174,7 @@ export function passkeysWorkHere(where: typeof globalThis = globalThis): boolean
 
 import { browserPermission } from "./useNotifications.ts";
 import {
+  type AboutService,
   BUILD,
   type FeedbackService,
   type LimitsService,
@@ -263,8 +266,10 @@ export function Shell({
   const empty = usePatientEmpty(snapshot);
   const { workspaceName, workspace } = calledNow(device, snapshot);
 
-  const [tab, setTab] = useState<Tab>("spaces");
-  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  // Where a reload for an update left this tab (everything in step): taken once, at the first draw.
+  const [restored] = useState(takePlace);
+  const [tab, setTab] = useState<Tab>(restored?.tab ?? "spaces");
+  const [selectedId, setSelectedId] = useState<string | undefined>(restored?.spaceId);
   // At a phone's width the rail is a menu over the page, open or not (JR-15).
   const [menu, setMenu] = useState(false);
   // The room on screen, taken from this reader by somebody else: its place says by whom (JR-6).
@@ -283,6 +288,8 @@ export function Shell({
   // a page opens it on its list again.
   const [agentOpened, setAgentOpened] = useState<string | undefined>(undefined);
   const [permissionsOpened, setPermissionsOpened] = useState(false);
+  // A harness's own page opened from elsewhere, as About's Needs update list does (ADR 0297).
+  const [harnessPageOpened, setHarnessPageOpened] = useState(false);
   // You's Connect a harness (ADR 0185's addendum): the Agents page opens with its dialog up, where
   // the harness lands once it has said hello. Any other way to the page opens it without.
   const [connecting, setConnecting] = useState(false);
@@ -290,6 +297,10 @@ export function Shell({
   // count of the asks, so asking again while You is open lights it again; 0 is none.
   const [revealRelay, setRevealRelay] = useState(0);
   const relayAsks = useRef(0);
+  // About Chips in the Mac's Chips menu (ADR 0295): You, with About open beside the list. A count
+  // of the asks, as the relay's is.
+  const [revealAbout, setRevealAbout] = useState(0);
+  const aboutAsks = useRef(0);
   // A section from the top: its list, or You at the relay card when `reveal` asks.
   const goTo = useCallback((next: Tab, reveal: number) => {
     setAgentOpened(undefined);
@@ -300,6 +311,11 @@ export function Shell({
     setMenu(false);
   }, []);
   const selectTab = useCallback((next: Tab) => goTo(next, 0), [goTo]);
+  const openAbout = useCallback(() => {
+    aboutAsks.current += 1;
+    goTo("you", 0);
+    setRevealAbout(aboutAsks.current);
+  }, [goTo]);
   const openRelay = useCallback(() => {
     relayAsks.current += 1;
     goTo("you", relayAsks.current);
@@ -307,12 +323,21 @@ export function Shell({
   const openAgent = useCallback((agentId: string) => {
     setAgentOpened(agentId);
     setPermissionsOpened(false);
+    setHarnessPageOpened(false);
+    setConnecting(false);
+    setTab("agents");
+  }, []);
+  const openHarness = useCallback((harnessId: string) => {
+    setAgentOpened(harnessId);
+    setPermissionsOpened(false);
+    setHarnessPageOpened(true);
     setConnecting(false);
     setTab("agents");
   }, []);
   const openPermissions = useCallback((asker: string) => {
     setAgentOpened(asker);
     setPermissionsOpened(true);
+    setHarnessPageOpened(false);
     setConnecting(false);
     setTab("agents");
   }, []);
@@ -568,12 +593,14 @@ export function Shell({
     selectedId,
     open,
     build: BUILD,
+    onAbout: openAbout,
   });
 
   const middle = (
     <MiddlePane
       tab={tab}
       revealRelay={revealRelay}
+      revealAbout={revealAbout}
       model={model}
       joins={snapshot.joins}
       directory={directory}
@@ -631,6 +658,8 @@ export function Shell({
       onAgentsList={() => selectTab("agents")}
       agentOpened={agentOpened}
       permissionsOpened={permissionsOpened}
+      harnessPageOpened={harnessPageOpened}
+      onOpenHarness={openHarness}
       onOpenPermissions={openPermissions}
       banners={bannerServiceOf(store, snapshot)}
       onOpenAgent={openAgent}
@@ -664,6 +693,7 @@ export function Shell({
     tab,
     onSelectTab: selectTab,
     onSelectSpace: open,
+    onAbout: openAbout,
     onNewSpace: after(() => setMenu(false), newSpaceFrom),
     workspaces: workspaces ?? [],
     onSwitch,
@@ -681,68 +711,119 @@ export function Shell({
   };
   // At a phone's width the rooms are in the rail's menu; at a desk's, Spaces' first column.
   const narrow = useNarrow();
+  // What waits to be updated, for the update dot and About (ADR 0296).
+  const readFacts = useCallback(() => store.serverFacts(), [store]);
+  // What each harness and device runs, for About's Needs update list and the harness page (ADR 0297).
+  const updatesServer = useMemo<UpdatesServer>(
+    () => ({
+      software: () => store.software(),
+      setSelfUpdate: (automatic) => store.setSelfUpdate(automatic),
+      keepBridgeCurrent: (harnessId, keepCurrent) =>
+        store.keepBridgeCurrent(harnessId, keepCurrent),
+      me: device.participantId,
+      thisDevice: device.deviceId,
+      harnessName: (harnessId) => directory[harnessId]?.displayName,
+      personName: (personId) => directory[personId]?.displayName.split(" ")[0],
+    }),
+    [store, device.participantId, device.deviceId, directory],
+  );
+  // Chips for Mac's own update (ADR 0298), from a shell that has one.
+  const macUpdater = useMemo(
+    () =>
+      inDesktop()
+        ? desktop().then((shell) => {
+            const onUpdate = shell?.onUpdate;
+            const updateNow = shell?.updateNow;
+            return onUpdate === undefined || updateNow === undefined
+              ? undefined
+              : { onUpdate, updateNow };
+          })
+        : undefined,
+    [],
+  );
+
+  // A computer updated under this tab: it reloads at a quiet moment, or says so (everything in step).
+  const updatedUnder = useUpdatedUnder({
+    serverVersion: snapshot.serverVersion,
+    enabled: !inDesktop(),
+    connected: connection === "open",
+    place: () => ({ tab, spaceId: selectedId }),
+  });
 
   return (
-    <OpenRelay.Provider value={openRelay}>
-      <ColumnsShellFrame room={roomShown(tab, selected, searchBeside)} menu={menu}>
-        <NarrowBar
-          workspace={workspace}
-          demo={demo}
-          open={menu}
-          onToggle={() => setMenu((open) => !open)}
-          unread={model.spaces.some(
-            (space) =>
-              space.id !== selectedId &&
-              space.parentSpaceId === undefined &&
-              space.state !== "closed" &&
-              hiddenSpaces?.has(space.id) !== true &&
-              unreadCount(space, readState) > 0,
-          )}
-        />
-        <Sidebar {...railProps} rooms={narrow} />
+    <UpdatesProvider
+      read={readFacts}
+      owner={myRole(model, device.participantId) === "owner"}
+      device={inDesktop() ? "mac" : "browser"}
+      server={updatesServer}
+      mac={macUpdater}
+    >
+      <OpenAbout.Provider value={openAbout}>
+        <OpenRelay.Provider value={openRelay}>
+          <ColumnsShellFrame room={roomShown(tab, selected, searchBeside)} menu={menu}>
+            {inDesktop() && <UpdateDot place="bar" onOpen={openAbout} />}
+            {updatedUnder.asking && <UpdatedLine onReload={updatedUnder.reloadNow} />}
+            <NarrowBar
+              workspace={workspace}
+              demo={demo}
+              open={menu}
+              onToggle={() => setMenu((open) => !open)}
+              onAbout={openAbout}
+              unread={model.spaces.some(
+                (space) =>
+                  space.id !== selectedId &&
+                  space.parentSpaceId === undefined &&
+                  space.state !== "closed" &&
+                  hiddenSpaces?.has(space.id) !== true &&
+                  unreadCount(space, readState) > 0,
+              )}
+            />
+            <Sidebar {...railProps} rooms={narrow} />
 
-        {/* The section, which fades through to the next one (ADR 0274), in its columns (ADR 0284). */}
-        <Turns at={tab} depth={0} way={THROUGH} name="section">
-          <SpacesColumns
-            on={tab === "spaces"}
-            rail={railProps}
-            narrow={narrow}
-            middle={middle}
-            room={selected !== undefined}
-          />
-        </Turns>
-        {newSpace.dialog}
-        {firstRun.phone}
-        {firstRun.welcome}
+            {/* The section, which fades through to the next one (ADR 0274), in its columns (ADR 0284). */}
+            <Turns at={tab} depth={0} way={THROUGH} name="section">
+              <SpacesColumns
+                on={tab === "spaces"}
+                rail={railProps}
+                narrow={narrow}
+                middle={middle}
+                room={selected !== undefined}
+              />
+            </Turns>
+            {newSpace.dialog}
+            {firstRun.phone}
+            {firstRun.welcome}
 
-        <JoinAsks
-          store={store}
-          joins={snapshot.joins}
-          model={model}
-          directory={directory}
-          selfId={device.participantId}
-          workspaceName={workspaceName}
-          onOpen={open}
-        />
-        <DirectAsks
-          store={store}
-          asks={snapshot.directAsks}
-          kept={snapshot.keptShareLink}
-          model={model}
-          directory={directory}
-          selfId={device.participantId}
-        />
+            <JoinAsks
+              store={store}
+              joins={snapshot.joins}
+              model={model}
+              directory={directory}
+              selfId={device.participantId}
+              workspaceName={workspaceName}
+              onOpen={open}
+            />
+            <DirectAsks
+              store={store}
+              asks={snapshot.directAsks}
+              kept={snapshot.keptShareLink}
+              model={model}
+              directory={directory}
+              selfId={device.participantId}
+            />
 
-        <PageAsked
-          asked={pageAsked}
-          store={store}
-          folders={folders}
-          selfId={device.participantId}
-          files={files}
-          onClose={closeAsked}
-        />
-      </ColumnsShellFrame>
-    </OpenRelay.Provider>
+            <PageAsked
+              asked={pageAsked}
+              store={store}
+              folders={folders}
+              selfId={device.participantId}
+              files={files}
+              onClose={closeAsked}
+            />
+          </ColumnsShellFrame>
+        </OpenRelay.Provider>
+      </OpenAbout.Provider>
+    </UpdatesProvider>
   );
 }
 
@@ -827,6 +908,8 @@ function NarrowBar(props: {
   readonly onToggle: () => void;
   /** Words waiting in a room that is not on screen: a dot, so the menu is worth opening. */
   readonly unread: boolean;
+  /** Opens About, from the update dot at the bar's right end (ADR 0296). */
+  readonly onAbout: () => void;
 }) {
   const { open, onToggle } = props;
   useEffect(() => {
@@ -854,6 +937,7 @@ function NarrowBar(props: {
           <span className="narrow-dot" data-testid="narrow-unread" role="img" aria-label="Unread" />
         ) : null}
       </button>
+      <UpdateDot place="narrow" onOpen={props.onAbout} />
     </header>
   );
 }
@@ -914,6 +998,8 @@ interface MiddlePaneProps {
   readonly runActs: RunActs;
   /** You opened from the setup card's Away from home, to the relay card: which ask (ADR 0245). */
   readonly revealRelay?: number | undefined;
+  /** Asks to open About from the Mac's menu (ADR 0295): a count, 0 for none. */
+  readonly revealAbout?: number | undefined;
   readonly model: Snapshot["model"];
   readonly joins: Snapshot["joins"];
   readonly directory: Snapshot["directory"];
@@ -992,6 +1078,8 @@ interface MiddlePaneProps {
   /** An agent a search result opened, which the Agents page opens on. */
   readonly agentOpened: string | undefined;
   readonly permissionsOpened: boolean;
+  readonly harnessPageOpened: boolean;
+  readonly onOpenHarness: (harnessId: string) => void;
   readonly onOpenPermissions: (asker: string) => void;
   readonly banners: BannerService;
   readonly onOpenAgent: (agentId: string) => void;
@@ -1217,10 +1305,20 @@ function MiddlePane(p: MiddlePaneProps) {
     [p.store],
   );
   const feedback = useFeedback(p.open);
+  const about = useMemo<AboutService>(
+    () => ({
+      computer: () => p.store.serverFacts(),
+      openLink: (url) => void window.open(url, "_blank", "noopener,noreferrer"),
+      reveal: p.revealAbout,
+      openHarness: p.onOpenHarness,
+    }),
+    [p.store, p.revealAbout, p.onOpenHarness],
+  );
   if (p.tab === "you") {
     return (
       <You
         feedback={feedback}
+        about={about}
         way={{
           connection: p.connection,
           link: p.link,
@@ -1327,6 +1425,7 @@ function MiddlePane(p: MiddlePaneProps) {
         agents={agents}
         initialAgent={p.agentOpened}
         initialPermissions={p.permissionsOpened}
+        initialHarnessPage={p.harnessPageOpened}
         banners={p.banners}
         initialAdding={p.connecting}
         files={p.files}
@@ -1695,6 +1794,7 @@ function projectMade(
     undo: (commit) => store.undoChange(spaceId, commit),
     page: (path, at) => store.projectPage(spaceId, path, at),
     pageUrl: (path, at) => store.projectPageUrl(spaceId, path, at),
+    picture: (path, edge, at) => store.projectPicture(spaceId, path, edge, at),
     folders,
     universe: () => readUniverse(store, spaceId),
     // Run and Open on the Mac are an owner's, and in the Mac app only for this Mac's server (ADR 0231).

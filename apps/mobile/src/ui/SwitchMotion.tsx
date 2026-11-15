@@ -55,6 +55,10 @@ const BAR = 0.3;
  * that drew the row again from React's props put it back there for good, though the rise had ended,
  * and the sheet opened over a workspace just switched to did, row by row (Arjun's iPhone, 19 October
  * 2026: "space tab is rendering blank"; the simulator, rows risen to 1 and drawn at 0).
+ *
+ * So a row must not move while it rises: one moved mid-rise is put back at its first frame and left
+ * there, drawn at nothing, and Spaces holds its rows in the order they rose in until the rise is
+ * over (`spaces/riseOrder.ts`; a re-paired iPhone, 12 November 2026).
  */
 export function RiseIn({
   order,

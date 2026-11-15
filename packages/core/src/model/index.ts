@@ -23,7 +23,7 @@ export {
   stopFits,
 } from "./exchange-limits.js";
 export { fileLinesKey, inFiles, postedBy, type RoomFileOf } from "./files.js";
-export { buildModel, createFold, type Fold, type FoldOptions } from "./fold.js";
+export { buildModel, createFold, type Fold, type FoldOptions, NEWER_LINE } from "./fold.js";
 export { capsDraft, capsFromDraft, capsSentence, capsWords } from "./limits.js";
 export { replyLane } from "./origin.js";
 export { changedCount, changeWords, filesChangedWords } from "./project.js";

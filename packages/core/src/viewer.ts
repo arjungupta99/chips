@@ -214,7 +214,7 @@ export function filesOf(space: Space, lanes: readonly Lane[]): readonly CarriedF
 }
 
 /**
- * What a room's lines carry, newest first: what the room sheet's Media & files card and page show
+ * What a room's lines carry, newest first: what the room sheet's Sent in chat card and page show
  * (ADR 0202), the phone's and the desktop's alike.
  */
 export function newestFilesOf(space: Space, lanes: readonly Lane[]): readonly CarriedFile[] {
@@ -222,7 +222,7 @@ export function newestFilesOf(space: Space, lanes: readonly Lane[]): readonly Ca
 }
 
 /**
- * A room's every photo and video for the viewer, newest first: the deck Media & files opens on,
+ * A room's every photo and video for the viewer, newest first: the deck Sent in chat opens on,
  * in the order its page lists them, so the next picture is the next square (ADR 0202). The room
  * itself keeps the oldest first, as its lines run.
  */
@@ -236,7 +236,7 @@ export function newestDeckOf(
 }
 
 /**
- * What the Media & files card says of what the room holds (ADR 0202): how many things its lines
+ * What the Sent in chat card says of what the room holds (ADR 0202): how many things its lines
  * carry and how many files it has, `12 · 3 files`; `None yet` once the server has said there are
  * no files and the lines carry nothing; nothing at all while the files are still being read.
  */

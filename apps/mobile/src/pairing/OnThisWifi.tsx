@@ -163,12 +163,15 @@ export function FinderView({
               room={{
                 face: (
                   <Big scale={1.8}>
-                    <ChipPulse
-                      gold={palette.gold}
-                      ink={palette.ink3}
-                      lit={palette.ink}
-                      working={false}
-                    />
+                    {(size) => (
+                      <ChipPulse
+                        gold={palette.gold}
+                        ink={palette.ink3}
+                        lit={palette.ink}
+                        working={false}
+                        size={size}
+                      />
+                    )}
                   </Big>
                 ),
                 name: state.server.name,

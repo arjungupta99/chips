@@ -61,7 +61,15 @@ CI does the building (`.github/workflows/release.yml`):
 
 - [ ] `pnpm check` and the e2e suites pass on the Mac, and CI is green on the public repository.
 - [ ] The version is bumped: root `package.json` is the version every tarball and `chips --version`
-      carry. One version across the repository.
+      carry. One version across the repository: `apps/desktop/package.json`, the Tauri config and
+      `Cargo.toml` (with its lock) say the same, and the gate fails while they don't, since Chips
+      for Mac compares its own version with the one its update feed names.
+- [ ] The new version's entry heads `RELEASES` in `packages/core/src/about.ts` (ADR 0295): its date,
+      one sentence, its changes as the App Store's What's New says them, what needs the
+      computer too, and `dot: true` when the release adds something new enough to light the update
+      dot (ADR 0296; a fix release leaves it out). About's What's new, chipschat.ai/about/ and the
+      site's `releases.json` read it, and the gate fails while the newest entry is not the root
+      `package.json`'s version.
 - [ ] Tag the green commit `v<version>` and push the tag (**Arjun's**: pushing is his).
 - [ ] The workflow builds the four tarballs on their own runners, walks the journeys on the macOS
       and Linux ones, runs the installer in clean Debian and Ubuntu containers with no Node, and
@@ -72,13 +80,42 @@ CI does the building (`.github/workflows/release.yml`):
 - [ ] Chips for Mac, on his Mac, where the Developer ID and the App Store Connect key are:
       `pnpm desktop release` builds the app with the release's Chips inside, signs every binary with
       the Developer ID, has Apple notarize the app and then the DMG, staples both, and checks
-      Gatekeeper takes them. Then `gh release upload v<version> dist/release/Chips.dmg`. The DMG is
-      for Apple silicon; an Intel Mac installs with `install.sh`.
+      Gatekeeper takes them, then packs the same app as `Chips.app.tar.gz`, signs it with the
+      updater key (`~/.ssh/chips_mac_update.key`) and writes `latest.json` (ADR 0298). It writes
+      no feed when the signature isn't from the key `tauri.conf.json` carries: no copy would take
+      that update. Then
+      `gh release upload v<version> dist/release/Chips.dmg dist/release/Chips.app.tar.gz
+      dist/release/Chips.app.tar.gz.sig dist/release/latest.json`. Chips for Mac reads
+      `latest/download/latest.json`, so the published release is what every copy updates to. The DMG
+      and the update are for Apple silicon; an Intel Mac installs with `install.sh`.
+- [ ] The first release Chips for Mac takes on its own (the one after the release that first
+      carries the updater): on his Mac, **Restart now** in About brings the new copy up by itself,
+      and a logout with a release waiting comes back on the new copy. Neither can be tried with a
+      test copy, which `open` would run as its person (ADR 0298).
 - [ ] Publishing the draft is **Arjun's**, and waits on his word that something may be public.
       Once published, it is what `latest/download/` serves.
 
 `workflow_dispatch` runs the same thing without a tag, attaching nothing: the artifacts stay on the
 run for seven days.
+
+## After a bridge release
+
+A computer keeps the bridges in its own data folder on the releases a signed list names
+(`docs/proposals/bridges-keep-current.md`, rule 6): `bridges.json` and `bridges.json.sig` at
+chipschat.ai. Signing it is **Arjun's**, on the Mac that holds the release key, after each bridge
+release, and the two files go to the site with his word.
+
+```sh
+pnpm release:sign-bridges --out ~/Work/Chips/chips-website/public
+```
+
+- `--out` is the folder that holds the list signed before, since the withdrawn and urgent marks
+  are kept from it. With no list there the script stops; `--first` is for the very first one.
+- `--withdraw @chipschat/acp@1.0.31` takes a release back: computers on it go to the newest still
+  allowed. `--urgent @chipschat/acp@1.0.32` skips the two days' wait. A mark that names a package
+  the cards don't, or a version npm doesn't list, stops the script before anything is signed.
+- The list says when it was signed. A computer never takes a list signed before the one it holds,
+  and stops acting on one it couldn't read again for a week.
 
 ## Installing one, while releases are private
 
@@ -92,8 +129,8 @@ chips up
 
 ## What a release does not do yet
 
-- **The desktop app** is built on his Mac, not by the workflow, and has no auto-update; an Intel
-  Mac has no DMG.
+- **The desktop app** is built on his Mac, not by the workflow; an Intel Mac has no DMG, and no
+  update of its own.
 - **The phone app** is a development build until TestFlight (Phase 6).
 - **Homebrew** waits for a published release; the formula will install the tarball.
 - **Docker** is in the install plan's §3.1 and not built.

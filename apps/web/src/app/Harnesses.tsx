@@ -160,6 +160,8 @@ export interface HarnessesProps {
   readonly initialAgent?: string | undefined;
   /** That agent's Permissions beside its card, as its band in a room opened (ADR 0286). */
   readonly initialPermissions?: boolean | undefined;
+  /** `initialAgent` is a harness whose own page opens, as from About's Needs update list. */
+  readonly initialHarnessPage?: boolean | undefined;
   /** What the person chose for the banner, and what changes it (ADR 0286). */
   readonly banners?: BannerService | undefined;
   /** Open with Connect a harness's dialog up: You's card opened the page for it (ADR 0185). */
@@ -209,6 +211,31 @@ export interface AddOptions {
 }
 
 /**
+ * The pages open over the list as Agents opens: an agent's, or a harness's own page, as About's
+ * Needs update list opens it (ADR 0297). A harness without agents has no Permissions of its own:
+ * its band opens its page and its asks.
+ */
+function firstPages(
+  opened: string | undefined,
+  directory: Directory,
+  ask: { readonly permissions: boolean; readonly harnessPage: boolean },
+): readonly ContextPage[] {
+  if (opened === undefined) return [];
+  const harness = directory[opened]?.kind === "harness";
+  if (harness && ask.harnessPage) return [{ kind: "harness_page", harnessId: opened }];
+  if (harness && ask.permissions) {
+    return [
+      { kind: "harness_page", harnessId: opened },
+      { kind: "harness_part", harnessId: opened, part: "asks" },
+    ];
+  }
+  return [
+    { kind: "agent", agentId: opened },
+    ...(ask.permissions ? [{ kind: "agent_permissions", agentId: opened } as const] : []),
+  ];
+}
+
+/**
  * Connect a harness's dialog, open: what it grows out of (nothing, opened from You: the page's
  * middle), and the card it opens at, when one was picked on the empty page (ADR 0261).
  */
@@ -227,20 +254,10 @@ export function Harnesses(props: HarnessesProps) {
   // The pages opened over the list, each going back to the one under it: an agent's page (one a
   // search result opened, ADR 0132, is the first), a harness's and the pages it opens, files, jobs.
   const [over, setOver] = useState<readonly ContextPage[]>(() =>
-    props.initialAgent === undefined
-      ? []
-      : // A harness without agents has no Permissions of its own: its band opens its asks.
-        props.initialPermissions === true && props.directory[props.initialAgent]?.kind === "harness"
-        ? [
-            { kind: "harness_page", harnessId: props.initialAgent },
-            { kind: "harness_part", harnessId: props.initialAgent, part: "asks" },
-          ]
-        : [
-            { kind: "agent", agentId: props.initialAgent },
-            ...(props.initialPermissions === true
-              ? [{ kind: "agent_permissions", agentId: props.initialAgent } as const]
-              : []),
-          ],
+    firstPages(props.initialAgent, props.directory, {
+      permissions: props.initialPermissions === true,
+      harnessPage: props.initialHarnessPage === true,
+    }),
   );
   // In the demo, connecting a harness needs a server: the page says so in its place.
   const setUp = useNotInDemo();

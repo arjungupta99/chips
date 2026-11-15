@@ -237,6 +237,7 @@ export function RoomPane({
       title={name}
       open={universe}
       onClose={() => setUniverse(false)}
+      onGoTo={(lineId) => setGoTo({ lineId, nonce: Date.now() })}
     />
   );
   // In a column beside the room, or over the window from the foot; and so is Universe.

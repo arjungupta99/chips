@@ -22,18 +22,23 @@
  */
 
 import {
+  ABOUT_ROW,
+  ABOUT_TITLE,
   type Directory,
   FACE_PICKER_WORDS,
   feedbackAgent,
   guestStandingWords,
+  LICENCE_TITLE,
   mayInvite,
   mayRenameWorkspace,
   myRole,
+  NOTICES_TITLE,
   nameOf,
   type SetRulesInput,
   type StopLetWorkInput,
   standingWords,
   WAY_VALUE,
+  WHATS_NEW_TITLE,
   type WorkspaceModel,
   type WorkspaceRole,
   wayOf,
@@ -45,6 +50,15 @@ import { Columns, ListButton } from "./Columns.tsx";
 import { YourFace } from "./face/YourFace.tsx";
 import { Turns, type Way } from "./Turns.tsx";
 import { useNarrow } from "./useNarrow.ts";
+import {
+  AboutPage,
+  AboutRow,
+  type AboutService,
+  type AboutSub,
+  LicencePage,
+  NoticesPage,
+  WhatsNewPage,
+} from "./you/About.tsx";
 import { ConnectionPage, type WayFacts } from "./you/ConnectionCard.tsx";
 import { DeleteAccountRow } from "./you/DeleteAccount.tsx";
 import { Devices, Passkeys } from "./you/Devices.tsx";
@@ -70,6 +84,7 @@ import {
   WorkspaceGroup,
 } from "./you/Workspace.tsx";
 
+export type { AboutService } from "./you/About.tsx";
 export type { FeedbackService } from "./you/Feedback.tsx";
 export type { HeldWorkspace } from "./you/Profile.tsx";
 export type {
@@ -131,6 +146,8 @@ export interface YouProps {
    * then the row is not drawn.
    */
   readonly feedback?: FeedbackService | undefined;
+  /** About Chips (ADR 0295): its row under Send feedback, and its page. Absent, no row. */
+  readonly about?: AboutService | undefined;
   /** The workspaces this device holds, which the Workspace row switches between. */
   readonly workspaces?: readonly HeldWorkspace[] | undefined;
   readonly onSwitch?: ((deviceId: string) => void) | undefined;
@@ -139,10 +156,11 @@ export interface YouProps {
 /** "Chips 0.0.0 · b888e96": the build, as `vite.config.ts` wrote it in. */
 export const BUILD = `Chips ${__CHIPS_VERSION__} · ${__CHIPS_COMMIT__}`;
 
-/** What is open beside the list: a page, and on People a person's. */
+/** What is open beside the list: a page, on People a person's, and on About a page under it. */
 interface Opened {
   readonly page?: YouPage | undefined;
   readonly person?: string | undefined;
+  readonly sub?: AboutSub | undefined;
 }
 
 export function You(props: YouProps) {
@@ -157,6 +175,7 @@ export function You(props: YouProps) {
   const { opened, show, forms, host } = useOpened(split);
   const links = useLinks(props.people, props.connected && mayInvite(role), directory);
   const relay = useRelayLine(props, role, () => show({ page: "relay" }));
+  useAboutReveal(props.about?.reveal ?? 0, () => show({ page: "about" }));
   const open = (page: YouPage) => show({ page });
   const peopleProps: PeopleProps = {
     model,
@@ -235,14 +254,11 @@ export function You(props: YouProps) {
           chosen={shown === "connection"}
           onConnection={() => open("connection")}
         />
-        {props.feedback !== undefined && (
-          <FeedbackRow
-            agent={feedbackAgent(model, directory, selfId)}
-            directory={directory}
-            version={versionWords(props.desktop)}
-            service={props.feedback}
-          />
-        )}
+        <FeedbackAndAbout
+          {...props}
+          aboutChosen={shown === "about"}
+          onAbout={() => open("about")}
+        />
         <Devices service={props.people} connected={props.connected} desktop={props.desktop} />
         {props.passkeysWork && <Passkeys service={props.people} connected={props.connected} />}
         <SignOut {...props} heading={heading} workspace={workspace} />
@@ -254,7 +270,9 @@ export function You(props: YouProps) {
     split,
     peopleProps,
     onPerson: (person) => show({ page: "people", person }),
+    onSub: (sub) => show({ page: "about", sub }),
     onBack: () => show({}),
+    desktop: props.desktop,
     ...pagesOf(props, links, workspace, standing),
   });
 
@@ -321,6 +339,7 @@ function viewAt(opened: Opened, page: boolean, form: boolean): string {
   if (page && opened.page === "people" && opened.person !== undefined) {
     return `people/${opened.person}`;
   }
+  if (page && opened.page === "about" && opened.sub !== undefined) return `about/${opened.sub}`;
   if (page && opened.page !== undefined) return opened.page;
   return form ? "form" : "~";
 }
@@ -393,7 +412,52 @@ function useRelayLine(
   return { on: props.model.relay?.on ?? read.on };
 }
 
-/** This computer, or this browser: the server it talks to, the way it goes, and the build. */
+/**
+ * Send feedback, and About Chips under it in its group (ADR 0295); About alone where feedback's
+ * switch is off.
+ */
+function FeedbackAndAbout(
+  props: YouProps & { readonly aboutChosen: boolean; readonly onAbout: () => void },
+) {
+  const { model, directory, selfId } = props;
+  const about =
+    props.about === undefined ? undefined : (
+      <AboutRow chosen={props.aboutChosen} onOpen={props.onAbout} />
+    );
+  if (props.feedback === undefined) {
+    return about === undefined ? null : (
+      <Group label={ABOUT_ROW} testId="feedback">
+        {about}
+      </Group>
+    );
+  }
+  return (
+    <FeedbackRow
+      agent={feedbackAgent(model, directory, selfId)}
+      directory={directory}
+      version={versionWords(props.desktop)}
+      service={props.feedback}
+    >
+      {about}
+    </FeedbackRow>
+  );
+}
+
+/**
+ * Asked from outside to open About, as the Mac's About Chips does (ADR 0295): each ask a count, so
+ * asking again while You is open opens it again.
+ */
+function useAboutReveal(reveal: number, onReveal: () => void) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each ask opens it once
+  useEffect(() => {
+    if (reveal !== 0) onReveal();
+  }, [reveal]);
+}
+
+/**
+ * This computer, or this browser: the server it talks to and the way it goes. The build it ended
+ * with went to About Chips's page (ADR 0295), where the version is the row's value.
+ */
 function ThisDevice(props: {
   readonly desktop: boolean;
   readonly serverHost: string;
@@ -421,12 +485,6 @@ function ThisDevice(props: {
           testId="about-connection"
         />
       )}
-      <ListRow
-        label="Version"
-        sub={`${__CHIPS_VERSION__} · ${__CHIPS_COMMIT__}`}
-        mark={<RowMark icon="info" />}
-        testId="build"
-      />
     </Group>
   );
 }
@@ -473,8 +531,9 @@ function pagesOf(
   workspace: string,
   standing: string,
 ) {
-  const { model, directory, selfId, way } = props;
+  const { model, directory, selfId, way, about } = props;
   return {
+    about: about === undefined ? undefined : about,
     face: (
       <YourFace
         name={nameOf(directory, selfId)}
@@ -506,6 +565,7 @@ function pagesOf(
 }
 
 const TITLES: Readonly<Record<YouPage, string>> = {
+  about: ABOUT_TITLE,
   face: FACE_PICKER_WORDS.yourFace,
   people: "People",
   invite: "Invite someone",
@@ -525,7 +585,11 @@ function pageOf(
     readonly peopleProps: PeopleProps;
     /** A person's page from People, or back to People's list. */
     readonly onPerson: (id: string | undefined) => void;
+    /** A page under About, or back to About. */
+    readonly onSub: (sub: AboutSub | undefined) => void;
     readonly onBack: () => void;
+    readonly about: AboutService | undefined;
+    readonly desktop: boolean;
     readonly face: ReactNode;
     readonly invite: ReactNode;
     readonly relay: ReactNode | undefined;
@@ -536,6 +600,7 @@ function pageOf(
   const { page, person } = opened;
   if (page === undefined) return undefined;
   const toYou = parts.split ? {} : { back: "You", onBack: parts.onBack };
+  if (page === "about") return aboutPageOf(opened.sub, parts, toYou);
   if (page === "people" && person !== undefined) {
     const { directory } = parts.peopleProps;
     return (
@@ -565,6 +630,54 @@ function pageOf(
   return (
     <Pane key={page} path={page} title={TITLES[page]} testId="you-pane" {...toYou}>
       {body}
+    </Pane>
+  );
+}
+
+const SUB_TITLES: Readonly<Record<AboutSub, string>> = {
+  "whats-new": WHATS_NEW_TITLE,
+  licence: LICENCE_TITLE,
+  notices: NOTICES_TITLE,
+};
+
+/**
+ * About (ADR 0295), or a page under it in its place with ‹ About: What's new, Licence or
+ * Acknowledgements, as a person opens from People.
+ */
+function aboutPageOf(
+  sub: AboutSub | undefined,
+  parts: {
+    readonly about: AboutService | undefined;
+    readonly desktop: boolean;
+    readonly onSub: (sub: AboutSub | undefined) => void;
+  },
+  toYou: { readonly back?: string; readonly onBack?: () => void },
+): ReactNode {
+  const { about } = parts;
+  if (about === undefined) return undefined;
+  if (sub === undefined) {
+    return (
+      <Pane key="about" path="about" title={ABOUT_TITLE} testId="you-pane" {...toYou}>
+        <AboutPage service={about} desktop={parts.desktop} sub={undefined} onSub={parts.onSub} />
+      </Pane>
+    );
+  }
+  return (
+    <Pane
+      key={`about-${sub}`}
+      path={`about/${sub}`}
+      title={SUB_TITLES[sub]}
+      back={ABOUT_TITLE}
+      onBack={() => parts.onSub(undefined)}
+      testId="you-pane"
+    >
+      {sub === "whats-new" ? (
+        <WhatsNewPage service={about} />
+      ) : sub === "licence" ? (
+        <LicencePage service={about} />
+      ) : (
+        <NoticesPage />
+      )}
     </Pane>
   );
 }

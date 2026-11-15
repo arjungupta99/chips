@@ -1,9 +1,10 @@
 /**
- * The room's project in the room's sheet (ADR 0222), for the web and the Mac: the Project page
- * with its two tabs, Files at `main` and every Change newest first; one change with its files'
- * diffs and Undo; and one file with its history. A file opens here as its words, or its picture,
- * with Download for the rest; a page runs once the server builds it (ADR 0223). Files is the files
- * alone, `.chips` left out: the folder, Open page and Run program are Universe's (ADR 0227).
+ * The room's project in the room's sheet (ADR 0222), for the web and the Mac: the Changes page,
+ * every change newest first; one change with its files' diffs and Undo; and one file with its
+ * history, which Universe's Files opens too. A file opens here as its words, or its picture, with
+ * Download for the rest; a page runs once the server builds it (ADR 0223). The sheet's page was
+ * Project, with Files at `main` beside Changes, until Universe listed every file (ADR 0227's
+ * addendum of 14 November 2026); the folder, Open page and Run program were Universe's already.
  */
 
 import {
@@ -11,13 +12,12 @@ import {
   changeRow,
   type Directory,
   fileNameOf,
-  filesByFolder,
   filesChangedWords,
   linesWords,
   type MacsHeard,
   nameOf,
+  type ProjectPicture,
   type Space,
-  shownFiles,
   type Universe,
   undoOffer,
 } from "@chipschat/core";
@@ -48,6 +48,14 @@ export interface ProjectActions {
   /** A page of the project built into one document (ADR 0223), and where a frame loads it from. */
   readonly page: (path: string, at?: string) => Promise<string>;
   readonly pageUrl: (path: string, at?: string) => Promise<string | undefined>;
+  /**
+   * A picture of the project as a small copy for a square or a row, or a screen copy for the
+   * viewer (ADR 0227's addendum of 13 November 2026), with the picture's own size. A server from
+   * before the copies refuses with a 404, and the file itself is read in its place.
+   */
+  readonly picture?:
+    | ((path: string, edge: "small" | "screen", at?: string) => Promise<ProjectPicture>)
+    | undefined;
   /** The Mac's folders, for Your folder (ADR 0224); none where nothing keeps one. */
   readonly folders?: Folders | undefined;
   /**
@@ -123,7 +131,7 @@ export function useRead<T>(
 
 const who = (directory: Directory) => (id: string) => nameOf(directory, id);
 
-/** The project's pages as the sheet turns between them: back from a change or a file is the project. */
+/** The project's pages as the sheet turns between them: back from a change or a file is Changes. */
 export function ProjectPages(
   props: Omit<PageProps, "onBack" | "project"> & {
     /** The store's reads of the project, where this client has them. */
@@ -147,12 +155,11 @@ export function ProjectPages(
   const toFile = (path: string) => go({ kind: "file", path });
   if (page.kind === "project") {
     return (
-      <ProjectPage
+      <ChangesPage
         {...props}
         project={project}
         onBack={() => go({ kind: "who" })}
         onChange={toChange}
-        onFile={toFile}
       />
     );
   }
@@ -178,68 +185,56 @@ export function ProjectPages(
   );
 }
 
-/** Files and Changes, under one title. */
-export function ProjectPage(
+/**
+ * Every change to the project, newest first, under its title. It was Project, with the project's
+ * files on a tab beside, until 14 November 2026: Universe lists every file and opens each on the
+ * same page (ADR 0227), so the foot says where they went.
+ */
+export function ChangesPage(
   props: PageProps & {
     readonly onChange: (commit: string) => void;
-    readonly onFile: (path: string) => void;
   },
 ) {
-  const [tab, setTab] = useState<"files" | "changes">("files");
   const changes = props.space.project?.changes ?? [];
   return (
     <>
       <Back
         titleId={props.titleId}
-        title="Project"
+        title="Changes"
         onBack={props.onBack}
         testId="room-sheet-project-back"
       />
-      <div className="project-tabs" role="tablist">
-        {(["files", "changes"] as const).map((each) => (
-          <button
-            key={each}
-            type="button"
-            role="tab"
-            aria-selected={tab === each}
-            className="project-tab"
-            onClick={() => setTab(each)}
-            data-testid={`project-tab-${each}`}
-          >
-            {each === "files" ? "Files" : "Changes"}
-          </button>
-        ))}
-      </div>
       <div className="sheet-scroll">
-        {tab === "files" ? (
-          <ProjectFiles project={props.project} space={props.space} onFile={props.onFile} />
-        ) : changes.length === 0 ? (
+        {changes.length === 0 ? (
           <p className="sheet-hint">No changes yet.</p>
         ) : (
-          <Group>
-            {changes.map((change) => {
-              const row = changeRow(
-                props.space.project ?? { files: 0, changes },
-                change,
-                who(props.directory),
-              );
-              return (
-                <Row
-                  key={change.commit}
-                  face={
-                    <Tile>
-                      <Icon name={change.undoes === undefined ? "doc" : "reply"} size={14} />
-                    </Tile>
-                  }
-                  name={row.title}
-                  under={row.under}
-                  onClick={() => props.onChange(change.commit)}
-                  trailing={<Chev />}
-                  testId={`project-change-${change.commit.slice(0, 7)}`}
-                />
-              );
-            })}
-          </Group>
+          <>
+            <Group>
+              {changes.map((change) => {
+                const row = changeRow(
+                  props.space.project ?? { files: 0, changes },
+                  change,
+                  who(props.directory),
+                );
+                return (
+                  <Row
+                    key={change.commit}
+                    face={
+                      <Tile>
+                        <Icon name={change.undoes === undefined ? "doc" : "reply"} size={14} />
+                      </Tile>
+                    }
+                    name={row.title}
+                    under={row.under}
+                    onClick={() => props.onChange(change.commit)}
+                    trailing={<Chev />}
+                    testId={`project-change-${change.commit.slice(0, 7)}`}
+                  />
+                );
+              })}
+            </Group>
+            <p className="sheet-hint">The files themselves are in Universe.</p>
+          </>
         )}
       </div>
     </>
@@ -258,51 +253,6 @@ export function useFolders(folders: Folders | undefined): boolean | undefined {
     };
   }, [folders]);
   return can;
-}
-
-function ProjectFiles(props: {
-  readonly project: ProjectActions;
-  readonly space: Space;
-  readonly onFile: (path: string) => void;
-}) {
-  const { space, project } = props;
-  // Read again as the project moves on, a Send of the person's own included.
-  const head = space.project?.changes[0]?.commit ?? "";
-  const read = useRead(() => project.files(), `${space.id}:${head}`, true);
-  const files = shownFiles(read.value?.files ?? []);
-  return (
-    <>
-      {read.failed !== undefined && <Failed words={read.failed} />}
-      {read.value === undefined && read.failed === undefined && (
-        <p className="sheet-hint">Reading the project…</p>
-      )}
-      {read.value !== undefined && files.length === 0 && (
-        <p className="sheet-hint">No files yet.</p>
-      )}
-      {filesByFolder(files).map(({ folder, files: inFolder }) => (
-        <section key={folder}>
-          {folder !== "" && <Heading>{`${folder}/`}</Heading>}
-          <Group>
-            {inFolder.map((file) => (
-              <Row
-                key={file.path}
-                face={
-                  <Tile>
-                    <Icon name="doc" size={14} />
-                  </Tile>
-                }
-                name={fileNameOf(file.path)}
-                under={bytesWords(file.bytes)}
-                onClick={() => props.onFile(file.path)}
-                trailing={<Chev />}
-                testId={`project-file-${file.path}`}
-              />
-            ))}
-          </Group>
-        </section>
-      ))}
-    </>
-  );
 }
 
 /** One change: what it said, its files' diffs, and Undo or Put it back. */
@@ -568,7 +518,8 @@ function OpenPage(props: {
   );
 }
 
-function bytesWords(bytes: number): string {
+/** A file's size as Files says it: bytes, KB, then MB to a tenth. */
+export function bytesWords(bytes: number): string {
   if (bytes < 1024) return `${bytes} bytes`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;

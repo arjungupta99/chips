@@ -101,7 +101,7 @@ import {
   NO_BANNERS,
   withBannerChanges,
 } from "./banners.js";
-import { type Cache, cacheKey, openCache } from "./cache.js";
+import { type Cache, cacheKey, deleteCache, earlierCacheKeys, openCache } from "./cache.js";
 import {
   type Device,
   type DeviceStorage,
@@ -128,6 +128,7 @@ import type { LinkKind, LinkStretch } from "./link.js";
 
 export type { LinkStretch } from "./link.js";
 
+import { readSelfUpdate, readSoftware, type SelfUpdateFacts, type Software } from "./inStep.js";
 import {
   heardMadeHere,
   type KeptSpace,
@@ -147,6 +148,7 @@ import {
   type SteerMode,
   type WorkspaceModel,
 } from "./model.js";
+import { onTheirWay } from "./onTheirWay.js";
 import type { OutboxEvent } from "./outbox.js";
 import { type PendingMessage, type QueuedMessage, withPending } from "./pending.js";
 import {
@@ -169,6 +171,7 @@ import {
   putJson,
   type Transport,
 } from "./transport.js";
+import { readUpdateFeed, type UpdateFeed } from "./updates.js";
 
 export interface Snapshot {
   readonly connection: ConnectionState;
@@ -323,6 +326,11 @@ export interface Snapshot {
    * said: Spend per job's See all. False from an older one.
    */
   readonly keepsSpendJobs?: boolean | undefined;
+  /**
+   * The computer's version, as its last hello said (everything in step): a browser tab that sees
+   * it change has the old code of a computer that was updated under it. Absent until a hello.
+   */
+  readonly serverVersion?: string | undefined;
 }
 
 /** What the server takes at most (ADR 0047), as `GET /v1/limits` says it. */
@@ -689,6 +697,18 @@ export interface Store {
     at?: string,
     signal?: AbortSignal,
   ) => Promise<{ readonly bytes: Uint8Array; readonly type: string }>;
+  /**
+   * A picture of the room's project as a copy (ADR 0227's addendum of 13 November 2026): `small`
+   * for a square of Universe's Media, `screen` for the viewer. A server from before the copies, or
+   * a file it can't read as a picture, refuses with a 404, and the file itself is what to ask for.
+   */
+  readonly projectPicture: (
+    spaceId: string,
+    path: string,
+    edge: "small" | "screen",
+    at?: string,
+    signal?: AbortSignal,
+  ) => Promise<ProjectPicture>;
   /** The room's project's files as one zip (ADR 0224): Download as zip, on the phone and the web. */
   readonly projectArchive: (spaceId: string) => Promise<Uint8Array>;
   /**
@@ -984,6 +1004,16 @@ export interface Store {
   readonly revokeDevice: (deviceId: string) => Promise<void>;
   /** Which machine Chips runs on, and how far it reaches (ADR 0170): the welcome and the setup card. */
   readonly serverFacts: () => Promise<ServerFacts>;
+  /**
+   * What each harness and device runs (everything in step); none from a server older than it,
+   * which has no such route. A read that fails for anything else rejects, so what the last one
+   * said is kept.
+   */
+  readonly software: () => Promise<Software | undefined>;
+  /** The owner's night switch for a computer from the install line; what it says now. */
+  readonly setSelfUpdate: (automatic: boolean) => Promise<SelfUpdateFacts | undefined>;
+  /** The owner's switch "Keep this bridge up to date" on a harness page. */
+  readonly keepBridgeCurrent: (harnessId: string, keepCurrent: boolean) => Promise<void>;
   /** The gallery's cards from the docs (ADR 0171); none when the server has none to hand out. */
   readonly connectors: () => Promise<Connector[]>;
   /**
@@ -1171,6 +1201,16 @@ export interface ServerFacts {
   readonly relay: { readonly url: string | undefined; readonly status: string };
   /** Absent from a server older than the field, which is taken to push as it always did. */
   readonly pushes?: ServerPushes | undefined;
+  /**
+   * Which releases of Chips are out, and the App Store's version, as the server last read them
+   * (ADR 0296). Absent from a server that read none, or is older than the field.
+   */
+  readonly updates?: UpdateFeed | undefined;
+  /**
+   * For an owner: whether this computer can update itself, its night switch, and how the last
+   * update went (everything in step). Absent for anyone else, and from a server older than it.
+   */
+  readonly selfUpdate?: SelfUpdateFacts | undefined;
 }
 
 export interface PairedDeviceRecord {
@@ -1318,6 +1358,8 @@ export type FeedbackInput = {
 
 export interface StoreOptions {
   readonly device: Device;
+  /** What this app is and runs, said in every hello (everything in step). */
+  readonly client?: { readonly name: string; readonly version: string } | undefined;
   /**
    * Where the device is kept, so a relay its server names later is kept with it (ADR 0144). The
    * browser's IndexedDB by default; the phone hands in its own.
@@ -1327,6 +1369,16 @@ export interface StoreOptions {
   readonly connect?: typeof connectSocket;
   /** Opens the cache under `cacheKey(device)`: the workspace and the server it was paired with (SEC-8). */
   readonly openCache?: (key: string) => Cache;
+  /**
+   * Forgets a cache under a key, for the ones kept at a level before this app's (everything in
+   * step): IndexedDB's with the default cache; the phone hands in its own.
+   */
+  readonly deleteCache?: ((key: string) => Promise<void>) | undefined;
+  /**
+   * The catalogue level this app is at, which its cache is kept under (everything in step):
+   * `CATALOGUE_LEVEL` unless said. A test's stands in for a later one.
+   */
+  readonly level?: number | undefined;
   /** Swapped in tests: the signed writes behind `addHarness` and the token screens. */
   readonly post?: typeof postJson;
   readonly get?: typeof getJson;
@@ -1382,6 +1434,76 @@ function erasedBy(events: readonly ClientEvent[]): string[] {
   return out;
 }
 
+/** What a cache at an earlier level held that only this device has, to go on with. */
+interface Carried {
+  readonly outbox: readonly QueuedMessage[];
+  readonly made: readonly KeptSpace[];
+}
+
+const NOTHING_CARRIED: Carried = { outbox: [], made: [] };
+
+/** A list with each key once, the first of each kept. */
+function oncePerKey<T>(list: readonly T[], keyOf: (each: T) => string): T[] {
+  const byKey = new Map<string, T>();
+  for (const each of list) if (!byKey.has(keyOf(each))) byKey.set(keyOf(each), each);
+  return [...byKey.values()];
+}
+
+/**
+ * What an earlier cache held unsent, put into this level's cache: the messages sent and not yet
+ * answered, and the spaces made here the computer hasn't taken. `landed` says whether all of it
+ * is now in this cache, which is read back to know: a cache answers a write it couldn't make as
+ * if it had.
+ */
+async function carryInto(
+  cache: Cache,
+  earlier: Cache,
+): Promise<Carried & { readonly landed: boolean }> {
+  const outbox = await earlier.loadOutbox();
+  const made = await earlier.loadMadeHere();
+  if (outbox.length === 0 && made.length === 0) return { outbox, made, landed: true };
+  const keyOf = (each: QueuedMessage) => each.message.key;
+  const idOf = (each: KeptSpace) => each.spaceId;
+  // What this cache already holds comes first, so a launch that carried and was closed before the
+  // earlier cache was deleted puts nothing in twice.
+  await cache.saveOutbox(oncePerKey([...(await cache.loadOutbox()), ...outbox], keyOf));
+  await cache.saveMadeHere(oncePerKey([...(await cache.loadMadeHere()), ...made], idOf));
+  const keys = new Set((await cache.loadOutbox()).map(keyOf));
+  const ids = new Set((await cache.loadMadeHere()).map(idOf));
+  const landed =
+    outbox.every((each) => keys.has(keyOf(each))) && made.every((each) => ids.has(idOf(each)));
+  return { outbox, made, landed };
+}
+
+/**
+ * A cache kept at a level before this app's may hold lines sent in place of events it now
+ * understands: forgotten, and the rooms read again (everything in step). It also holds what only
+ * this device has, the messages sent and not yet answered and the spaces made here the computer
+ * hasn't taken, so those are carried into this level's cache first, and handed to the store to go
+ * on with. An earlier cache is deleted only once what it held is seen to be in this one; one
+ * whose carrying failed is kept, and carried again at the next launch. IndexedDB's with the
+ * default cache; the phone's when it hands in its deleter; none in a test that opens its own.
+ */
+async function carryEarlierCaches(options: StoreOptions, cache: Cache): Promise<Carried> {
+  const forget = options.deleteCache ?? (options.openCache === undefined ? deleteCache : undefined);
+  if (forget === undefined) return NOTHING_CARRIED;
+  const open = options.openCache ?? openCache;
+  const outbox: QueuedMessage[] = [];
+  const made: KeptSpace[] = [];
+  for (const key of earlierCacheKeys(options.device, options.level)) {
+    try {
+      const earlier = open(key);
+      const carried = await carryInto(cache, earlier);
+      outbox.push(...carried.outbox);
+      made.push(...carried.made);
+      if (carried.landed) await forget(key);
+    } catch {
+      // Kept as it is: the next launch carries it again.
+    }
+  }
+  return { outbox, made };
+}
+
 export function createStore(options: StoreOptions): Store {
   const { device } = options;
   const connect = options.connect ?? connectSocket;
@@ -1390,7 +1512,9 @@ export function createStore(options: StoreOptions): Store {
   const remove = options.remove ?? deleteJson;
   const put = options.put ?? putJson;
   const patch = options.patch ?? patchJson;
-  const cache = (options.openCache ?? openCache)(cacheKey(device));
+  const cache = (options.openCache ?? openCache)(cacheKey(device, options.level));
+  // Under way from the start, and waited for before this cache's own outbox is read.
+  const carrying = carryEarlierCaches(options, cache);
   const now = options.now ?? (() => new Date().toISOString());
   const randomKey = options.randomKey ?? (() => crypto.randomUUID());
   const schedule = options.schedule ?? nextFrame;
@@ -1628,6 +1752,7 @@ export function createStore(options: StoreOptions): Store {
   let keepsHeldStart: boolean | undefined;
   let keepsNoCap: boolean | undefined;
   let keepsSpendJobs: boolean | undefined;
+  let serverVersion: string | undefined;
   /** The snapshot's `banners`: the cache's or the server's, with the changes on their way. */
   let banners: Banners = NO_BANNERS;
   let bannersFrom: "cache" | "server" | undefined;
@@ -1725,6 +1850,7 @@ export function createStore(options: StoreOptions): Store {
       keepsHeldStart,
       keepsNoCap,
       keepsSpendJobs,
+      serverVersion,
       ...gone(),
       ...onItsWay(),
     };
@@ -2110,6 +2236,14 @@ export function createStore(options: StoreOptions): Store {
     }
   };
 
+  /** The computer's version, as the hello says it. */
+  const heardVersion = (server: unknown): void => {
+    const said = (server as { version?: unknown } | undefined)?.version;
+    if (typeof said !== "string" || said === serverVersion) return;
+    serverVersion = said;
+    notify();
+  };
+
   /** What the hello says the server keeps: nothing, from one older than saying so. */
   const heardTakes = (server: unknown): void => {
     const takes = (server as { takes?: unknown } | undefined)?.takes;
@@ -2383,6 +2517,7 @@ export function createStore(options: StoreOptions): Store {
     });
     transport = connect({
       device,
+      client: options.client,
       since: cursor,
       greetAfter: withFirstMarks(folded),
       ...(options.silenceMs === undefined ? {} : { silenceMs: options.silenceMs }),
@@ -2431,6 +2566,7 @@ export function createStore(options: StoreOptions): Store {
         reconcile(event);
         heardName((event["workspace"] as { name?: unknown } | undefined)?.name);
         heardTakes(event["server"]);
+        heardVersion(event["server"]);
         // Every hello after the first is the socket come back — from a sleep, a lost network, the
         // app brought to the front — and what a harness declared it takes in the meantime is a
         // registry write with no event of its own (ADR 0046), so the directory is read again: a
@@ -2493,8 +2629,18 @@ export function createStore(options: StoreOptions): Store {
     const cached = await cache.loadEvents();
     // The server's marks, read first on a device never sent anything, are kept over the cache's.
     readState = furthest(await cache.loadReadState(), readState);
-    const held = await cache.loadOutbox();
-    const made = await cache.loadMadeHere();
+    // What a cache at an earlier level held unsent goes on from here, whether or not it was seen
+    // to land in this one: kept in memory, it is sent, and the next flush writes it.
+    const carried = await carrying;
+    const held = oncePerKey(
+      [...(await cache.loadOutbox()), ...carried.outbox],
+      (each) => each.message.key,
+    );
+    const made = oncePerKey(
+      [...(await cache.loadMadeHere()), ...carried.made],
+      (each) => each.spaceId,
+    );
+    if (carried.made.length > 0) madeHereDirty = true;
     const kept = await cache.loadParticipants();
     const keptIcons = await cache.loadSpaceIcons();
     const keptHidden = await cache.loadHiddenSpaces();
@@ -3799,8 +3945,12 @@ export function createStore(options: StoreOptions): Store {
         public_url: string;
         relay: { url: string | null; status: string };
         pushes?: unknown;
+        updates?: unknown;
+        self_update?: unknown;
       }>(device, "/v1/server");
       const pushes = answer.pushes;
+      const updates = readUpdateFeed(answer.updates);
+      const selfUpdate = readSelfUpdate(answer.self_update);
       return {
         machine: answer.machine,
         version: answer.version,
@@ -3809,7 +3959,32 @@ export function createStore(options: StoreOptions): Store {
         ...(typeof pushes === "string" && SERVER_PUSHES.includes(pushes)
           ? { pushes: pushes as ServerPushes }
           : {}),
+        ...(updates === undefined ? {} : { updates }),
+        ...(selfUpdate === undefined ? {} : { selfUpdate }),
       };
+    },
+
+    async software() {
+      try {
+        return readSoftware(await read<unknown>(device, "/v1/software"));
+      } catch (error) {
+        // A server older than everything in step has no such route: nothing is known then. Any
+        // other failure, the network's or the server's, says nothing either way, and is thrown
+        // so the caller keeps what the last read said.
+        if (statusOf(error) === 404) return undefined;
+        throw error;
+      }
+    },
+
+    async setSelfUpdate(automatic) {
+      const answer = await put<unknown>(device, "/v1/server/self-update", { automatic });
+      return readSelfUpdate(answer);
+    },
+
+    async keepBridgeCurrent(harnessId, keepCurrent) {
+      await put<unknown>(device, `/v1/harnesses/${encodeURIComponent(harnessId)}/bridge-updates`, {
+        keep_current: keepCurrent,
+      });
     },
 
     async connectors() {
@@ -4141,6 +4316,18 @@ export function createStore(options: StoreOptions): Store {
       );
     },
 
+    async projectPicture(spaceId, path, edge, at, signal) {
+      const query = `path=${encodeURIComponent(path)}&edge=${edge}${at === undefined ? "" : `&at=${encodeURIComponent(at)}`}`;
+      const { bytes, type, said } = await (options.getBytes ?? getBytes)(
+        device,
+        `/v1/spaces/${encodeURIComponent(spaceId)}/project/picture?${query}`,
+        signal,
+      );
+      const width = Number(said?.(PICTURE_WIDTH));
+      const height = Number(said?.(PICTURE_HEIGHT));
+      return width > 0 && height > 0 ? { bytes, type, width, height } : { bytes, type };
+    },
+
     async projectArchive(spaceId) {
       const { bytes } = await (options.getBytes ?? getBytes)(
         device,
@@ -4423,6 +4610,21 @@ const ICON_RETRY_MS = DIRECTORY_RETRY_MS;
 const MARKS_WAIT_MS = 1500;
 
 /** The status a failed read or write was answered with, when it was answered. */
+/**
+ * A picture's copy, and the picture's own size in pixels where the server says it: the viewer
+ * draws a photo at its shape from the start (ADR 0227's addendum of 13 November 2026).
+ */
+export interface ProjectPicture {
+  readonly bytes: Uint8Array;
+  readonly type: string;
+  readonly width?: number | undefined;
+  readonly height?: number | undefined;
+}
+
+/** The headers a picture's copy says its picture's size in. */
+export const PICTURE_WIDTH = "x-chips-picture-width";
+export const PICTURE_HEIGHT = "x-chips-picture-height";
+
 function statusOf(error: unknown): number | undefined {
   const status = (error as { status?: unknown } | undefined)?.status;
   return typeof status === "number" ? status : undefined;
@@ -4866,68 +5068,6 @@ function iconsOf(raw: Readonly<Record<string, unknown>>): ReadonlyMap<string, Sp
     if (parsed.ok) icons.set(spaceId, parsed.value);
   }
   return icons;
-}
-
-/**
- * Something of the person's own that is not on the log (a room's face, the rooms hidden, the rooms
- * pinned, somebody's face): what the server holds, so far as the store knows, and the changes to
- * it asked here and not yet answered, drawn over it for `show`. A change shows at once; taken, it
- * joins what the server holds; refused, it is dropped. Nothing is put back from what showed when
- * a change was asked, which could be an earlier change, refused in turn: two quick picks the
- * server both turned away left the first one showing (3 November 2026).
- */
-interface OnTheirWay<T, C> {
-  /** What the server holds: what it or the cache last said, and the changes it took since. */
-  readonly held: () => T;
-  /** What the server or the cache says it holds now; what shows is drawn again. */
-  readonly heard: (now: T) => void;
-  /**
-   * A change asked for, by key, shown at once. Its answer, taken or refused, says whether what
-   * shows moved: a later change for the same key, still on its way, settles what shows instead.
-   */
-  readonly ask: (
-    key: string,
-    change: C,
-  ) => { readonly taken: () => boolean; readonly refused: () => boolean };
-}
-
-function onTheirWay<T, C>(
-  draw: (held: T, changes: ReadonlyMap<string, C>) => T,
-  start: T,
-  show: (now: T) => void,
-): OnTheirWay<T, C> {
-  let held = start;
-  const changes = new Map<string, C>();
-  const drawn = () => show(draw(held, changes));
-  return {
-    held: () => held,
-    heard: (now) => {
-      held = now;
-      drawn();
-    },
-    ask: (key, change) => {
-      changes.set(key, change);
-      drawn();
-      const mine = () => changes.get(key) === change;
-      return {
-        taken: () => {
-          held = draw(held, new Map([[key, change]]));
-          if (mine()) {
-            changes.delete(key);
-            return false;
-          }
-          drawn();
-          return true;
-        },
-        refused: () => {
-          if (!mine()) return false;
-          changes.delete(key);
-          drawn();
-          return true;
-        },
-      };
-    },
-  };
 }
 
 /** The rooms hidden, with the hides and unhides still on their way to the server drawn over them. */

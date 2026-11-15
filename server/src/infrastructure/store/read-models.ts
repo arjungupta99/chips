@@ -272,6 +272,33 @@ function parsedIds(column: string | null): readonly string[] {
 /** The events in a space that are lines of it (ADR 0088); a member's new name is read apart. */
 const ROOM_LINE_TYPES = ["message.post", "membership.added", "membership.removed", "space.updated"];
 
+/**
+ * Whether a `person.renamed` in `events` came while the person was in the room: after they came
+ * into it, or opened it (ADR 0018), and after the room itself began, which for a thread is later
+ * than its parent's members came in. A name taken before that is no line of the room. A room read
+ * from its start (an agent's catch-up as it joins, the pull route, the lines ahead of a quoted
+ * message) listed every rename its members ever made: on 14 November 2026 a new room's first turn
+ * began "(You is now called Arjun)", a rename from September (finding NR-14).
+ */
+function renamedWhileIn(workspaceId: string, spaceId: string, membersIn: string) {
+  const who = sql`json_extract(events.payload, '$.participant_id')`;
+  return sql<boolean>`exists (
+    select 1 from events as came
+    where came.workspace_id = ${workspaceId}
+      and came.space_id = ${membersIn}
+      and came.seq < events.seq
+      and (
+        (came.type = 'membership.added' and json_extract(came.payload, '$.participant_id') = ${who})
+        or (came.type = 'space.created' and came.actor_id = ${who})
+      )
+  ) and exists (
+    select 1 from events as began
+    where began.workspace_id = ${workspaceId}
+      and began.space_id = ${spaceId}
+      and began.seq < events.seq
+  )`;
+}
+
 const LINE_COLUMNS = [
   "events.seq",
   "events.id",
@@ -849,12 +876,14 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
         .orderBy("events.seq", "desc")
         .limit(window.limit + 1)
         .execute();
-      // A person's new name is the workspace's; it is a line of every room they are in.
+      // A person's new name is the workspace's; it is a line of every room they are in, from
+      // when they were in it. A thread's members are its parent's (M5.4).
+      const membersIn = (await parentOf(workspaceId, spaceId)) ?? spaceId;
       const members = db
         .selectFrom("memberships")
         .select("participant_id")
         .where("workspace_id", "=", workspaceId)
-        .where("space_id", "=", (await parentOf(workspaceId, spaceId)) ?? spaceId);
+        .where("space_id", "=", membersIn);
       const renamed = await db
         .selectFrom("events")
         .select(LINE_COLUMNS)
@@ -863,6 +892,7 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
         .where("events.space_id", "is", null)
         .where("events.type", "=", "person.renamed")
         .where(sql<string>`json_extract(events.payload, '$.participant_id')`, "in", members)
+        .where(renamedWhileIn(workspaceId, spaceId, membersIn))
         .orderBy("events.seq", "desc")
         .limit(window.limit + 1)
         .execute();

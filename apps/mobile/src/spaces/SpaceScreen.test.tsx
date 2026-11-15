@@ -9,6 +9,7 @@ import type { Snapshot, Space } from "@chipschat/core";
 import { act, render as renderBare, screen, userEvent } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { Dimensions, Keyboard } from "react-native";
+import { KeyboardController } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import SpaceScreen from "../../app/spaces/[id]";
 import { fakeStore, snapshot } from "../testing/fixtures";
@@ -152,6 +153,32 @@ describe("Universe, at the bar's right (ADR 0227)", () => {
     expect(screen.getByTestId("room-sheet")).toHaveTextContent("down");
   });
 
+  // 11 November 2026: with the keys up, Universe took them down in a frame and they jumped back
+  // up as it went. They go first, at once on the main thread (`ui/keysAway.ts`), and stay down.
+  it("puts the keys away as it brings Universe up, so they don't jump back as it goes", async () => {
+    const away = jest.spyOn(Keyboard, "dismiss").mockImplementation(() => undefined);
+    const now = jest.mocked(KeyboardController.dismiss);
+    now.mockClear();
+    try {
+      Object.assign(mockParams, { id: "sp_1" });
+      const current = mockPaired.current as { store: unknown; snapshot: Snapshot };
+      const [room] = current.snapshot.model.spaces;
+      const withProject = { ...room, project: { files: 3, changes: [] } } as unknown as Space;
+      const whole = {
+        ...current.snapshot,
+        model: { ...current.snapshot.model, spaces: [withProject] },
+      } as Snapshot;
+      mockPaired.current = { store: fakeStore(whole), snapshot: whole };
+      await render(<SpaceScreen />);
+      await userEvent.press(screen.getByTestId("room-universe-button"));
+      expect(now).toHaveBeenCalledTimes(1);
+      expect(away).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("universe")).toHaveTextContent("up");
+    } finally {
+      away.mockRestore();
+    }
+  });
+
   // 3 November 2026: "when file becomes available / updated in universe, the button should
   // animate to get attention", and "it should keep pulsing until person taps it".
   it("calls while the project has another's change, until Universe is opened", async () => {
@@ -210,10 +237,13 @@ describe("a room's route", () => {
 
   it("puts the keys away as its name brings the sheet up, so they don't jump back as it goes", async () => {
     const away = jest.spyOn(Keyboard, "dismiss").mockImplementation(() => undefined);
+    const now = jest.mocked(KeyboardController.dismiss);
+    now.mockClear();
     try {
       Object.assign(mockParams, { id: "sp_1" });
       await render(<SpaceScreen />);
       await userEvent.press(screen.getByTestId("room-capsule"));
+      expect(now).toHaveBeenCalledTimes(1);
       expect(away).toHaveBeenCalledTimes(1);
       expect(screen.getByTestId("room-sheet")).toHaveTextContent("up on who");
     } finally {

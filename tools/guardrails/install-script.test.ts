@@ -96,16 +96,21 @@ function sign(key: string, sums: string): void {
 
 /**
  * A folder for PATH with every program the system has but ssh-keygen and the package managers
- * install.sh names, so a test can stand in one of its own.
+ * install.sh names, so a test can stand in one of its own. The first folder to have a name wins,
+ * as on PATH. Which names are taken is kept here, not asked of the disk: `existsSync` follows a
+ * link, so a program whose own link goes nowhere (`/usr/bin/grub-ntldr-img` on GitHub's Ubuntu
+ * runner, November 2026) looked untaken, and its copy in `/bin` failed with EEXIST.
  */
 function withoutSshKeygen(home: string): string {
   const bin = join(home, "bin");
   mkdirSync(bin);
+  const taken = new Set<string>();
   for (const dir of ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]) {
     for (const name of readdirSync(dir)) {
-      const there = join(bin, name);
       if (name === "ssh-keygen" || /^(apt-get|dnf|yum|zypper|pacman)$/.test(name)) continue;
-      if (!existsSync(there)) symlinkSync(join(dir, name), there);
+      if (taken.has(name)) continue;
+      taken.add(name);
+      symlinkSync(join(dir, name), join(bin, name));
     }
   }
   return bin;
@@ -190,6 +195,88 @@ describe("install.sh", () => {
     expect(ran()).toBe("chips 0.3.0 ran: connect --update\n");
     install(home, "--from", fakeRelease(join(home, "c"), "0.3.0"), "--no-path");
     expect(ran()).toBe("chips 0.3.0 ran: connect --update\n");
+  });
+
+  it("leaves the bridges to the computer with --no-bridges, as `chips update` runs it", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    install(home, "--from", fakeRelease(join(home, "a"), "0.2.0"), "--no-path");
+    const ran = install(
+      home,
+      "--from",
+      fakeRelease(join(home, "b"), "0.3.0"),
+      "--no-path",
+      "--no-bridges",
+    );
+    expect(ran.status, ran.stderr).toBe(0);
+    expect(existsSync(join(home, "ran"))).toBe(false);
+  });
+
+  it("with --if-newer, downloads and replaces nothing when the release there is the one here", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    const { script, key } = trustingOwnKey(home);
+    const { base, sums } = host(home, "0.2.0");
+    sign(key, sums);
+    expect(run(script, { CHIPS_DOWNLOAD_BASE: base }, home, "--no-path").status).toBe(0);
+    // Something the running server wrote beside its files: a second install would take it away.
+    const lib = join(home, ".local", "lib", "chips");
+    writeFileSync(join(lib, "0.2.0", "kept"), "kept");
+    const again = run(script, { CHIPS_DOWNLOAD_BASE: base }, home, "--no-path", "--if-newer");
+    expect(again.status, again.stderr).toBe(0);
+    expect(again.stdout).toContain("✓ chips 0.2.0 is the newest. Nothing was installed.");
+    expect(again.stdout).not.toContain("Downloading");
+    expect(readFileSync(join(lib, "0.2.0", "kept"), "utf8")).toBe("kept");
+  });
+
+  it("with --if-newer, still installs a newer release, and still checks who signed what is there", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    const { script, key } = trustingOwnKey(home);
+    install(home, "--from", fakeRelease(join(home, "a"), "0.2.0"), "--no-path");
+    const { base, sums } = host(home, "0.3.0");
+    sign(key, sums);
+    const newer = run(script, { CHIPS_DOWNLOAD_BASE: base }, home, "--no-path", "--if-newer");
+    expect(newer.status, newer.stderr).toBe(0);
+    expect(newer.stdout).toContain("✓ Installed chips 0.3.0");
+    // The same release there now, but its SHA256SUMS signed by someone else: not believed.
+    const other = join(home, "other-key");
+    execFileSync("ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-C", "other", "-f", other]);
+    rmSync(`${sums}.sig`);
+    sign(other, sums);
+    const forged = run(script, { CHIPS_DOWNLOAD_BASE: base }, home, "--no-path", "--if-newer");
+    expect(forged.status).not.toBe(0);
+    expect(forged.stderr).toContain("not signed with Chips's release key");
+  });
+
+  it("installs the same version again without ever leaving no release where it was", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    install(home, "--from", fakeRelease(join(home, "a"), "0.2.0"), "--no-path");
+    const lib = join(home, ".local", "lib", "chips");
+    writeFileSync(join(lib, "0.2.0", "old-copy"), "old");
+    const ran = install(home, "--from", fakeRelease(join(home, "b"), "0.2.0"), "--no-path");
+    expect(ran.status, ran.stderr).toBe(0);
+    // The new copy is in, the old one gone, and nothing is left beside them.
+    expect(existsSync(join(lib, "0.2.0", "old-copy"))).toBe(false);
+    expect(existsSync(join(lib, "0.2.0", "bin", "chips"))).toBe(true);
+    expect(readdirSync(lib).sort()).toEqual(["0.2.0", "current"]);
+  });
+
+  it("leaves the release that was there when the new copy can't be put in", () => {
+    const home = mkdtempSync(join(tmpdir(), "chips-install-"));
+    install(home, "--from", fakeRelease(join(home, "a"), "0.2.0"), "--no-path");
+    const lib = join(home, ".local", "lib", "chips");
+    // A file where the new copy goes, in a folder nothing can be written to.
+    chmodSync(lib, 0o555);
+    try {
+      const ran = install(home, "--from", fakeRelease(join(home, "b"), "0.2.0"), "--no-path");
+      expect(ran.status).not.toBe(0);
+      expect(ran.stderr).toContain("Nothing was changed.");
+    } finally {
+      chmodSync(lib, 0o755);
+    }
+    const said = execFileSync(join(lib, "0.2.0", "bin", "chips"), ["--version"], {
+      encoding: "utf8",
+    });
+    expect(said.trim()).toBe("chips 0.2.0");
+    expect(readdirSync(lib).sort()).toEqual(["0.2.0", "current"]);
   });
 
   it("with connect, installs Chips and then connects the harness, the link handed on in its environment", () => {

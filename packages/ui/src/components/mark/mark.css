@@ -64,6 +64,27 @@
   }
 }
 
+/* Once round the circuit and back to rest, for a page that opens on the mark (About, ADR 0295):
+   each pin lights in its turn, as working's do, and stays at rest after. */
+.ui-mark[data-state="once"] .ui-mark__pin {
+  animation: ui-mark-once 1500ms linear 1 both;
+}
+
+@keyframes ui-mark-once {
+  0% {
+    opacity: var(--pin-rest, 0.55);
+  }
+  8.6% {
+    opacity: 1;
+  }
+  26% {
+    opacity: var(--pin-rest, 0.55);
+  }
+  100% {
+    opacity: var(--pin-rest, 0.55);
+  }
+}
+
 /* Work that is over: the mark is still there, in grey, saying it was this that did it. */
 .ui-mark[data-state="done"] {
   --mark-body: var(--ink-4);
@@ -74,26 +95,41 @@
 }
 
 /* The connection's two (ADR 0131): a server that cannot be reached is the mark still, in red; the
-   beat after it is reached again is every pin lit on green. Green comes at once (red easing into
-   it passes through brown) and eases back into gold. */
+   beat after it is reached again is the mark in green. They are the mark's own red and green,
+   brighter than the status colours so they sit with the gold, and every pin is lit in a shade of
+   the chip's own colour, so the chip reads as one thing at 20 pixels (ADR 0131's addendum of
+   12 November 2026). Green comes at once (red easing into it passes through brown) and eases back
+   into gold. The phone paints the same (`connectionPaint` in `apps/mobile/src/ui/ChipPulse.tsx`). */
 .ui-mark__top,
 .ui-mark__foot {
   transition: stop-color 180ms ease-out;
 }
 
+.ui-mark__pins {
+  transition: fill 180ms ease-out;
+}
+
 .ui-mark[data-state="failed"] {
-  --mark-body: var(--red);
+  --mark-body: var(--mark-red);
+}
+
+.ui-mark[data-state="failed"] .ui-mark__pins {
+  fill: var(--mark-red-pin);
 }
 
 .ui-mark[data-state="back"] {
-  --mark-body: var(--green);
+  --mark-body: var(--mark-green);
 }
 
-.ui-mark[data-state="back"] :is(.ui-mark__top, .ui-mark__foot) {
+.ui-mark[data-state="back"] .ui-mark__pins {
+  fill: var(--mark-green-pin);
+}
+
+.ui-mark[data-state="back"] :is(.ui-mark__top, .ui-mark__foot, .ui-mark__pins) {
   transition: none;
 }
 
-.ui-mark[data-state="back"] .ui-mark__pin {
+.ui-mark:is([data-state="failed"], [data-state="back"]) .ui-mark__pin {
   opacity: 1;
 }
 

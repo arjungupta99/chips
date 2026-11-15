@@ -2,7 +2,7 @@
  * You: a settings list, the way a phone's own Settings is one (ADR 0085). Who you are and the
  * workspace in front, in one card at the top; then what you hear about, how it looks, the
  * workspace's own settings for the people who run it, what this phone keeps and how it reaches
- * the server, with Send feedback under it (ADR 0237) once the repository is public; and at the
+ * the server, with Send feedback under it (ADR 0237) and About Chips under that (ADR 0295); and at the
  * foot which devices hold your key, with the way out of this one under them, and Delete your
  * account beside it (ADR 0243). One card under each
  * heading, every row wearing a mark so the words of every card start at one edge, and a line
@@ -41,6 +41,7 @@ import {
 } from "@chipschat/core";
 import { type ComponentProps, type ReactElement, useMemo } from "react";
 import { Alert, StyleSheet, View } from "react-native";
+import { AboutRow } from "../about/AboutRow";
 import { useLeave } from "../device/leave";
 import { deviceWord, thisDevice } from "../device/word";
 import { PlusRoom } from "../newSpace/plusRoom";
@@ -58,7 +59,6 @@ import { Screen, UnderName, useColumn } from "../ui/Screen";
 import { Segmented } from "../ui/Segmented";
 import { SPACE } from "../ui/tokens";
 import { useWorkspacesGroup } from "../workspaces/WorkspacesGroup";
-import { About } from "./About";
 import { useDeleteAccount } from "./DeleteAccount";
 import { useDevicesGroup } from "./Devices";
 import { FaceThemes } from "./FaceThemes";
@@ -67,6 +67,7 @@ import { useNotificationsGroup } from "./Notifications";
 import { useProfileGroup } from "./Profile";
 import { usePushRows } from "./Push";
 import type { YouPages } from "./pages";
+import { ThisDevice } from "./ThisDevice";
 import { useWorkspaceGroup } from "./Workspace";
 import { guestStandingWords, standingWords } from "./words";
 
@@ -132,6 +133,7 @@ export function useYou({ device, store }: { readonly device: Device; readonly st
     model: snapshot.model,
     directory: snapshot.directory,
     selfId: device.participantId,
+    about: <AboutRow />,
   });
   const settings = useWorkspaceGroup({
     store,
@@ -203,7 +205,7 @@ export function useYou({ device, store }: { readonly device: Device; readonly st
 
         {settings.group}
 
-        <About
+        <ThisDevice
           serverUrl={device.serverUrl}
           connection={snapshot.connection}
           link={snapshot.link}

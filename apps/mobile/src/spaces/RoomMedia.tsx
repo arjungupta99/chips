@@ -1,6 +1,8 @@
 /**
- * Media & files, a page of the room's sheet (ADR 0202, Arjun's B: "We have media and files
- * separate possibly could be combined"). The Media & files card on the first page turns to it.
+ * Sent in chat, a page of the room's sheet (ADR 0202, Arjun's B: "We have media and files
+ * separate possibly could be combined"). The Sent in chat card on the first page turns to it. Both
+ * were Media & files until 14 November 2026, when Universe had a Media and a Files of its own of
+ * what the space's folder keeps; these are what the room's lines carry.
  *
  * - **Media** first: the newest eight things the room's lines carry, four to a row, photos and
  *   videos as their pictures, a voice note and a document by their marks (core's `filesOf`, what
@@ -132,7 +134,7 @@ function Page({
   const { failed, open } = useOpening(space, lanes, directory, files);
   return (
     <View style={styles.page}>
-      <PageBack title="Media & files" onBack={onBack} testID="room-media-back" />
+      <PageBack title="Sent in chat" onBack={onBack} testID="room-media-back" />
       <View ref={glass} collapsable={false} style={styles.glass}>
         <SheetScroll style={styles.scroll} contentContainerStyle={styles.content}>
           <Section

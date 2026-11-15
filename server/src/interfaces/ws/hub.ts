@@ -30,6 +30,7 @@ import { administers, type WorkspaceRole } from "../../domain/index.js";
 import {
   CLOSE_PERSON_REMOVED,
   CLOSE_ROLE_CHANGED,
+  CLOSE_SERVICE_RESTART,
   CLOSE_TOKEN_REVOKED,
   Session,
   type SessionOptions,
@@ -48,6 +49,8 @@ export interface SessionHubOptions {
   /** Whether each harness can answer (ADR 0083): its sockets are counted here. */
   readonly presence: Presence;
   readonly serverVersion: string;
+  /** A client said what it runs in its hello (everything in step). */
+  readonly heard?: SessionOptions["heard"];
   /**
    * The URL a harness gets for an attachment in `message.new`: a signed grant for its token, at
    * the address its socket arrived at when that was this machine's own (`arrivedAt`).
@@ -116,6 +119,12 @@ export interface SessionHub {
    * opening the next socket.
    */
   readonly closeRoleChanged: (workspaceId: string, participantId: string) => number;
+  /**
+   * End every socket of a harness whose bridge the computer is about to start again on a new
+   * release (bridges-keep-current.md, A), so nothing more is handed to the old process. 1012,
+   * "service restart": the bridge's next socket is its new process's.
+   */
+  readonly closeHarness: (workspaceId: string, harnessId: string) => number;
   /** Ask a harness to restart, on every socket of it that hears `restart` (ADR 0094). */
   readonly restart: Sessions["restart"];
   /** A join request, to every owner's and admin's socket that hears `join` (ADR 0122). */
@@ -315,6 +324,7 @@ export function createSessionHub(options: SessionHubOptions): SessionHub {
         submitEvent: options.submitEvent,
         ids: options.ids,
         serverVersion: options.serverVersion,
+        heard: options.heard,
         ...lookupsAt(arrivedAt),
         maxUnackedFrames: options.maxUnackedFrames,
         now,
@@ -408,6 +418,22 @@ export function createSessionHub(options: SessionHubOptions): SessionHub {
       );
       if (closed > 0)
         options.logger.info({ participantId, closed }, "sockets closed: role changed");
+      return closed;
+    },
+    closeHarness: (workspaceId, harnessId) => {
+      const closed = closeWhere(
+        (session) => {
+          const principal = principalOf.get(session);
+          return (
+            principal?.kind === "harness" &&
+            principal.workspaceId === workspaceId &&
+            principal.participantId === harnessId
+          );
+        },
+        "bridge_updating",
+        CLOSE_SERVICE_RESTART,
+      );
+      if (closed > 0) options.logger.info({ harnessId, closed }, "sockets closed: bridge updating");
       return closed;
     },
     closeToken: (tokenId) => {

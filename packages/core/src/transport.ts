@@ -19,6 +19,7 @@ import {
   type AgentState,
   type BannersView,
   bannersFrame,
+  CATALOGUE_LEVEL,
   type FolderOpenFrame,
   type FolderRunFrame,
   folderOpenFrame,
@@ -209,6 +210,11 @@ function folderOpOf(asked: FolderOpenFrame | FolderRunFrame): FolderAsk["op"] {
 
 export interface TransportOptions {
   readonly device: Device;
+  /**
+   * What this app is and runs, for the computer to know who is behind (everything in step):
+   * `chips-iphone`, `chips-ipad`, `chips-mac` or `chips-web`, and its version.
+   */
+  readonly client?: { readonly name: string; readonly version: string } | undefined;
   /**
    * Nothing is said on a socket until this settles (ADR 0253): the store's history read and
    * folded, so what the server replays lands on it. The way to the server is found meanwhile.
@@ -619,7 +625,9 @@ export function connect(options: TransportOptions): Transport {
       JSON.stringify({
         frame: "hello",
         protocol: { min: 1, max: 1 },
-        client: { name: "chips-core", version: "0.0.0" },
+        client: options.client ?? { name: "chips-core", version: "0.0.0" },
+        // What it understands (everything in step): an event newer than this comes as a line.
+        level: CATALOGUE_LEVEL,
         // A replay of ten thousand messages is ten thousand frames otherwise (ADR 0043); whether
         // each agent can answer, as it changes (ADR 0083); join requests, which the server
         // sends only to an owner's or admin's socket (ADR 0122); and on the Mac, the person's
@@ -1119,7 +1127,10 @@ export class ServerRefused extends Error {
  */
 export async function getJson<T>(device: Device, path: string): Promise<T> {
   return await readOnLink(device, async (link) => {
-    const headers = await signRequest(device, "GET", path, "", link);
+    const signed = await signRequest(device, "GET", path, "", link);
+    // What this app understands, for a read of events (everything in step): an event newer than
+    // it comes as the line its addition came with.
+    const headers = { ...signed, "chips-level": String(CATALOGUE_LEVEL) };
     const response = await link.fetch(endpoint(device, path), { headers });
     // The status rides along, so a read can tell "the server holds none" (404) from no answer.
     if (!response.ok)
@@ -1139,7 +1150,7 @@ export async function getBytes(
   device: Device,
   path: string,
   signal?: AbortSignal,
-): Promise<{ bytes: Uint8Array; type: string }> {
+): Promise<{ bytes: Uint8Array; type: string; said?: (header: string) => string | null }> {
   return await readOnLink(device, async (link) => {
     const headers = await signRequest(device, "GET", path, "", link);
     const response = await link.fetch(endpoint(device, path), {
@@ -1158,7 +1169,8 @@ export async function getBytes(
       );
     }
     const type = response.headers.get("content-type") ?? "application/octet-stream";
-    return { bytes: new Uint8Array(await response.arrayBuffer()), type };
+    const said = (header: string) => response.headers.get(header);
+    return { bytes: new Uint8Array(await response.arrayBuffer()), type, said };
   });
 }
 

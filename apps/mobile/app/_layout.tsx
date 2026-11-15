@@ -41,6 +41,7 @@ import { statusInk, usePalette, useScheme } from "../src/ui/theme";
 import { useAwake } from "../src/ui/useAwake";
 import { useDeepLinks } from "../src/ui/useDeepLinks";
 import { WindowInsets } from "../src/ui/windowInsets";
+import { UpdatesRoot } from "../src/updates/updates";
 import { BehindBanner } from "../src/workspaces/BehindBanner";
 import { DirectAsks } from "../src/you/DirectAskSheet";
 
@@ -128,7 +129,8 @@ export default function RootLayout() {
           <Status />
           <Links />
           {/* Only in the build `pnpm film` renders the films from (ADR 0217). */}
-          {FILM_SOURCE ? <FilmSourceStage>{app}</FilmSourceStage> : app}
+          {/* What waits to be updated, and the dot that says so (ADR 0296), for every screen. */}
+          <UpdatesRoot>{FILM_SOURCE ? <FilmSourceStage>{app}</FilmSourceStage> : app}</UpdatesRoot>
           {/* A link that asks, waiting for its sender's Allow, over everything (ADR 0232). */}
           <WaitingForAllow />
         </ChipsProvider>

@@ -32,7 +32,7 @@ import { Animated, Easing, StyleSheet, View } from "react-native";
 import { Defs, LinearGradient, Path, Stop, Svg } from "react-native-svg";
 import { litGround, MARK_LIGHT } from "./lit";
 import { BODY_WITH_PINS, bittenPath, PIN_REST, PIN_STEP_MS, pinsOf } from "./outline";
-import { LEADING_PHONE, TEXT } from "./tokens";
+import { LEADING_PHONE, type Palette, TEXT } from "./tokens";
 import type { Turns } from "./turns";
 import { useReduceMotion } from "./useReduceMotion";
 import { useTurns } from "./useTurns";
@@ -81,11 +81,37 @@ export const ROUND: Turns = {
   ring: true,
 };
 
+/** What the mark says of the connection (ADR 0131): reaching the server, not reaching it, or back. */
+export type ConnectionLook = "reaching" | "failed" | "back";
+
+/**
+ * The mark's colours for each of the connection's looks, in the bar and on its sheet's board alike.
+ * Reaching is the mark as it always is, gold, its pins resting grey with the light running round.
+ * The two still looks wear the mark's own red and green, every pin lit in a shade of the chip's own
+ * colour (ADR 0131's addendum of 12 November 2026): the red's grey resting pins all but went in the
+ * dark, and the green's pins lit in ink were black on dark green in the light.
+ */
+export function connectionPaint(
+  look: ConnectionLook,
+  palette: Palette,
+): { readonly gold: string; readonly ink: string; readonly lit: string; readonly allLit: boolean } {
+  if (look === "failed") {
+    const pin = palette.markRedPin;
+    return { gold: palette.markRed, ink: pin, lit: pin, allLit: true };
+  }
+  if (look === "back") {
+    const pin = palette.markGreenPin;
+    return { gold: palette.markGreen, ink: pin, lit: pin, allLit: true };
+  }
+  return { gold: palette.gold, ink: palette.ink3, lit: palette.ink, allLit: false };
+}
+
 export function ChipPulse({
   gold,
   ink,
   lit,
   working = true,
+  lighting,
   allLit = false,
   size = BOX,
   testID,
@@ -102,8 +128,15 @@ export function ChipPulse({
   /** Whether there is still work going on. A mark that is not working is at rest, and unlit. */
   readonly working?: boolean;
   /**
-   * Every pin lit at once and held: the connection come back after it had failed, for the beat
-   * before the mark goes (`Connection.tsx`). Over `working`.
+   * Whether the light runs round now, where that is not the same as working: About's mark (ADR
+   * 0295) runs one round as its page comes in and rests between, its pins dim as the mark's are.
+   * By default, while working.
+   */
+  readonly lighting?: boolean | undefined;
+  /**
+   * Every pin lit at once in `lit`, and held: the connection's two still looks, a server it cannot
+   * reach and the beat after it is reached again, whose pins are a shade of the chip's own colour
+   * (`connectionPaint`). Over `working`.
    */
   readonly allLit?: boolean;
   /** The square it is drawn in. Twenty points, beside a line of words, unless it is larger. */
@@ -112,7 +145,7 @@ export function ChipPulse({
 }) {
   const drawing = useMemo(() => (size === BOX ? BESIDE_WORDS : drawingOf(size)), [size]);
   const less = useReduceMotion();
-  const running = working && !less && !allLit;
+  const running = (lighting ?? working) && !less && !allLit;
   const lights = useTurns(ROUND, running);
   // One id per drawing: the web target renders real SVG, where ids are the document's.
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");

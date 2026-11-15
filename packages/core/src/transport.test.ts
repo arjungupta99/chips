@@ -11,6 +11,7 @@
  * and never says anything either.
  */
 
+import { CATALOGUE_LEVEL } from "@chipschat/protocol";
 import { type ResponseOutput, TunnelClosedError, utf8 } from "@chipschat/tunnel";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Device } from "./device.js";
@@ -634,6 +635,36 @@ describe("through the door on the server's own network (ADR 0191)", () => {
   });
 });
 
+describe("what the app says it is (everything in step)", () => {
+  it("names itself and its version in its hello, so the computer knows who is behind", async () => {
+    const home = await fakeServer(ticketAndFacts({ status: "off", url: null, key: null }), {
+      echo: false,
+    });
+    vi.stubGlobal("WebSocket", socketsOf(home));
+    const states: string[] = [];
+    const transport = connect({
+      device: {
+        deviceId: "dev_door",
+        serverUrl: "http://192.168.1.20:4431",
+        serverKey: home.serverKey,
+      } as unknown as Device,
+      client: { name: "chips-ipad", version: "1.2.5" },
+      since: 0,
+      onEvent: () => {},
+      onState: (state) => states.push(state),
+    });
+    await vi.waitFor(() => expect(home.heard.length).toBeGreaterThan(0));
+    const hello = JSON.parse(home.heard[0] ?? "{}") as { frame: string; client?: unknown };
+    expect(hello).toMatchObject({
+      frame: "hello",
+      client: { name: "chips-ipad", version: "1.2.5" },
+      // What it understands, so an event newer than it comes as a line (everything in step).
+      level: CATALOGUE_LEVEL,
+    });
+    transport.close();
+  });
+});
+
 describe("a server whose address on its network has changed (the stranger review, 4 November 2026)", () => {
   const STORED = "http://192.168.1.20:4431";
   const NOW = "http://192.168.1.31:4431";
@@ -1048,6 +1079,18 @@ describe("a read the connection dropped under (ADR 0179)", () => {
     const { transport } = await connected();
     vi.stubGlobal("fetch", async () => new Response("{}", { status: 403 }));
     await expect(getJson(device, "/v1/devices")).rejects.toThrow("/v1/devices answered 403");
+    transport.close();
+  });
+
+  it("says what the app understands, for a read of events (everything in step)", async () => {
+    const { transport } = await connected();
+    const said: (string | null)[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+      said.push(new Headers(init?.headers).get("chips-level"));
+      return new Response(JSON.stringify({ events: [] }));
+    });
+    await getJson(device, "/v1/events?since=0");
+    expect(said).toEqual([String(CATALOGUE_LEVEL)]);
     transport.close();
   });
 });

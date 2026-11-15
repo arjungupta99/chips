@@ -41,6 +41,7 @@ export interface WebSocketGateway {
   readonly closeDevice: (deviceId: string) => number;
   readonly closePerson: SessionHub["closePerson"];
   readonly closeRoleChanged: SessionHub["closeRoleChanged"];
+  readonly closeHarness: SessionHub["closeHarness"];
   readonly restart: SessionHub["restart"];
   readonly join: SessionHub["join"];
   readonly askMacs: SessionHub["askMacs"];
@@ -143,6 +144,7 @@ export function attachWebSocketGateway(options: WebSocketGatewayOptions): WebSoc
     closePerson: (workspaceId, participantId) => hub.closePerson(workspaceId, participantId),
     closeRoleChanged: (workspaceId, participantId) =>
       hub.closeRoleChanged(workspaceId, participantId),
+    closeHarness: (workspaceId, harnessId) => hub.closeHarness(workspaceId, harnessId),
     closeToken: (tokenId) => hub.closeToken(tokenId),
     restart: (workspaceId, harnessId, ask) => hub.restart(workspaceId, harnessId, ask),
     join: (workspaceId, request, to) => hub.join(workspaceId, request, to),

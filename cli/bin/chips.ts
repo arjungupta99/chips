@@ -20,14 +20,18 @@ import {
 } from "@chipschat/platform";
 import { type Connector, HARNESS_CAPABILITIES } from "@chipschat/protocol";
 import {
+  type BridgeHands,
   createSqliteEventStore,
   mediaFound,
   migrateToLatest,
   openDatabase,
   operatorTokenPath,
+  type RestartOnto,
+  type SelfUpdate,
   sqlitePathFrom,
 } from "@chipschat/server";
 import { type Flags, readArgs } from "../src/args.js";
+import { bridgeHands } from "../src/bridge-hands.js";
 import { NPM_REGISTRY } from "../src/bridges.js";
 import {
   type BridgeCard,
@@ -60,6 +64,8 @@ import {
   folderFor,
   helperCommand,
 } from "../src/commands/project.js";
+import { restartOntoHere, selfUpdateHere, updateComputer } from "../src/commands/update.js";
+import { harnessVersionOf } from "../src/harness-version.js";
 import { configHome } from "../src/home.js";
 import {
   CONFORMANCE_ADAPTERS,
@@ -92,16 +98,26 @@ import {
 } from "../src/index.js";
 import { forgetEverySecret } from "../src/keychain.js";
 import { facts, heading } from "../src/output.js";
+import { machineFetch } from "../src/proxy.js";
 import { hereUrl, isReach } from "../src/reach.js";
 import {
   checkoutDefaults,
   devModeRefusal,
+  logFile,
   releaseDefaults,
   thisMachine,
   thisRelease,
   versionLine,
 } from "../src/release.js";
-import { restartCommand, serviceHere, serviceKind, withServiceSettings } from "../src/service.js";
+import {
+  LABEL,
+  restartCommand,
+  serviceHere,
+  serviceKind,
+  startsCommand,
+  startsIn,
+  withServiceSettings,
+} from "../src/service.js";
 import {
   installOf,
   networks,
@@ -141,6 +157,7 @@ function usage(harnesses: string): string {
     "Usage:",
     "  chips up                        start Chips, open it in your browser, show the phone's code",
     "  chips down                      stop the login service `chips up` installed",
+    "  chips update                    bring this computer to the newest release, checked with the key it was installed with, and start it again",
     "  chips uninstall                 remove an installed Chips (your workspace is kept unless you say)",
     "  chips serve                     run the server, print a pairing code, advertise it",
     "  chips relay                     run a relay phones reach a server through, from anywhere",
@@ -228,6 +245,14 @@ async function main(): Promise<number> {
     case "up":
       return await upHere(config.value, flags, out, machine);
 
+    case "update":
+      return await updateComputer({
+        release: RELEASE,
+        dataDir: resolve(config.value.data.dir),
+        console: out,
+        env: environment,
+      });
+
     case "down":
       return (await down(out, { machine, uid: uid(), readFile: readText, run })) ? 0 : 1;
 
@@ -241,6 +266,7 @@ async function main(): Promise<number> {
         version: RELEASE?.version,
         opensMacApp: true,
         exitsOnUncaught: true,
+        ...releaseHands(config.value, out, machine, environment),
       });
       // `serve` holds the process open through the server's own handles.
       return await new Promise<number>(() => {});
@@ -387,7 +413,7 @@ async function readStdin(): Promise<string> {
 }
 
 /** The commands about the server this machine runs, which read its service's settings. */
-const ABOUT_THE_SERVER_HERE: ReadonlySet<string> = new Set(["up", "doctor", "pair"]);
+const ABOUT_THE_SERVER_HERE: ReadonlySet<string> = new Set(["up", "doctor", "pair", "update"]);
 
 /**
  * The configuration: a release's defaults under the environment (ADR 0120), a checkout's own, and
@@ -462,7 +488,12 @@ async function uninstallHere(
       data: [config.data.dir, platformLogDir(machine), configHome(environment)],
       bridges: {
         dir: bridgesDir(config),
-        stop: () => stopEveryBridge({ ...bridgeDepsOf(config, out, machine, []), json: false }),
+        // With the cards this Chips carries, whose files may have moved since a bridge was kept.
+        stop: async () =>
+          stopEveryBridge({
+            ...bridgeDepsOf(config, out, machine, await cardsHere(config, out)),
+            json: false,
+          }),
       },
       readFile: readText,
       writeFile: (path, text) => writeFileSync(path, text),
@@ -561,6 +592,16 @@ function bridgesDir(config: ChipsConfig): string {
   return join(resolve(config.data.dir), "bridges");
 }
 
+/**
+ * How this Chips reaches npm and the site: through the machine's proxy where it has one, looked
+ * up as it goes (`proxy.ts`). One for the process, so its lookups and connections are shared.
+ */
+let outbound: typeof fetch | undefined;
+function outboundOf(machine: ReturnType<typeof thisMachine>): typeof fetch {
+  outbound ??= machineFetch({ env: machine.environment, platform: machine.platform });
+  return outbound;
+}
+
 /** What a bridge's command needs: the cards, where bridges go, the registry, and Chips's Node. */
 function bridgeDepsOf(
   config: ChipsConfig,
@@ -574,6 +615,8 @@ function bridgeDepsOf(
     cards,
     bridges: bridgesDir(config),
     registry: machine.environment["CHIPS_NPM_REGISTRY"] || NPM_REGISTRY,
+    // Through the machine's proxy, where it has one (rule 8); Node's own fetch where it has none.
+    fetch: outboundOf(machine),
     node: stableNode(RELEASE, machine.environment),
     env: machine.environment,
     console: out,
@@ -581,6 +624,74 @@ function bridgeDepsOf(
     restart: async (label) =>
       kind === undefined ? false : (await run(restartCommand(kind, label, uid()))).ok,
   };
+}
+
+/**
+ * What a release's server is given that a checkout's is not: the bridges in its data folder to
+ * keep current, from the install line its own update to run at night, and inside Chips for Mac
+ * its start again on the release the app holds once the app has updated itself (ADR 0298).
+ */
+function releaseHands(
+  config: ChipsConfig,
+  out: ReturnType<typeof systemConsole>,
+  machine: ReturnType<typeof thisMachine>,
+  environment: Readonly<Record<string, string | undefined>>,
+): {
+  bridges?: BridgeHands;
+  selfUpdate?: SelfUpdate;
+  restartOnto?: RestartOnto;
+  outbound?: typeof fetch;
+} {
+  if (RELEASE === undefined) return {};
+  const kind = serviceKind(machine.platform);
+  const restartOnto =
+    kind === undefined
+      ? undefined
+      : restartOntoHere({ release: RELEASE, restart: restartCommand(kind, LABEL, uid()) });
+  const selfUpdate = selfUpdateHere({
+    release: RELEASE,
+    dataDir: resolve(config.data.dir),
+    logFile: logFile(machine),
+    platform: machine.platform,
+    env: environment,
+    hasSystemdRun: () => existsSync("/usr/bin/systemd-run") || existsSync("/bin/systemd-run"),
+  });
+  return {
+    bridges: handsHere(config, out, machine),
+    // What the server reads from the site goes the way the bridges it fetches do.
+    outbound: outboundOf(machine),
+    ...(selfUpdate === undefined ? {} : { selfUpdate }),
+    ...(restartOnto === undefined ? {} : { restartOnto }),
+  };
+}
+
+/**
+ * The hands a release's server gets on the bridges in its data folder (bridges-keep-current.md, A):
+ * the cards read when asked, Chips's own Node, and each service started again as `--update` does.
+ */
+function handsHere(
+  config: ChipsConfig,
+  out: ReturnType<typeof systemConsole>,
+  machine: ReturnType<typeof thisMachine>,
+): BridgeHands {
+  const deps = bridgeDepsOf(config, out, machine, []);
+  const kind = serviceKind(machine.platform);
+  return bridgeHands({
+    cards: async () => await readCards(config.server.connectors).catch(() => []),
+    bridges: deps.bridges,
+    registry: deps.registry,
+    nodeVersion: process.versions.node,
+    env: machine.environment,
+    restart: deps.restart ?? (async () => false),
+    fetch: deps.fetch,
+    // How many times launchd or systemd has started a bridge's service, for its first day (rule 3).
+    starts: async (label) => {
+      if (kind === undefined) return undefined;
+      const said = await run(startsCommand(kind, label, uid()));
+      return said.ok ? startsIn(kind, said.output) : undefined;
+    },
+    versionOf: harnessVersionOf,
+  });
 }
 
 /** The cards this Chips carries; none, said, when they can't be read. */

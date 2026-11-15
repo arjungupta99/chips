@@ -151,7 +151,15 @@ export function JoinSheet({
 
   const mark = (working: boolean) => (
     <Big scale={1.8}>
-      <ChipPulse gold={palette.gold} ink={palette.ink3} lit={palette.ink} working={working} />
+      {(size) => (
+        <ChipPulse
+          gold={palette.gold}
+          ink={palette.ink3}
+          lit={palette.ink}
+          working={working}
+          size={size}
+        />
+      )}
     </Big>
   );
 

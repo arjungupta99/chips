@@ -165,7 +165,14 @@ const PATHS = {
   bell: ["M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0"],
   unlock: ["M5.5 11h13v9.5h-13z", "M11.5 11V5.5a4 4 0 0 1 8 0v3"],
   info: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 11v6M12 7.5v.5"],
+  /** A recent search's (ADR 0132), and the room sheet's Changes tile (ADR 0222): the phone's. */
+  clock: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 7v5l3.2 2"],
   key: ["M8 10.5a4 4 0 1 0 0 8a4 4 0 1 0 0-8z", "M10.9 11.6L19 3.5", "M16 6.5l2.5 2.5"],
+  /** Copy, as About's capsule copies the build for a bug report (ADR 0295); the phone's too. */
+  copy: ["M9 9h11v11H9z", "M4 15V4h11"],
+  /** About's rows (ADR 0295): the star over Rate Chips, the heart over Acknowledgements. */
+  star: ["M12 3.5l2.6 5.3 5.9.85-4.25 4.15 1 5.85L12 16.9l-5.25 2.75 1-5.85L3.5 9.65l5.9-.85z"],
+  heart: ["M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.6A4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"],
 } as const;
 
 /**

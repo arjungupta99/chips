@@ -12,7 +12,7 @@
  * import, so a browser never fetches them.
  */
 
-import type { FolderAnswer, FolderOp } from "@chipschat/core";
+import { type FolderAnswer, type FolderOp, type MacUpdate, readMacUpdate } from "@chipschat/core";
 import {
   type InviteLink,
   inviteFromLink,
@@ -176,6 +176,10 @@ export interface Desktop {
   readonly onFullScreen?: ((listen: (full: boolean) => void) => Promise<() => void>) | undefined;
   /** The page is drawn: a window waiting for it is shown now (ADR 0274). */
   readonly drawn?: (() => Promise<void>) | undefined;
+  /** How the app's own update stands (ADR 0298), now and each time that changes. */
+  readonly onUpdate?: ((listen: (update: MacUpdate) => void) => Promise<() => void>) | undefined;
+  /** Restart now: the release waiting goes in, and the app opens again. */
+  readonly updateNow?: (() => Promise<void>) | undefined;
 }
 
 /** What the Mac sees of a link, as the shell says it (`reach.rs`). */
@@ -271,6 +275,21 @@ export function desktopWith(api: TauriApi): Desktop {
     },
     onFullScreen: (listen) => fullScreenWith(api, listen),
     drawn: () => api.invoke<void>("drawn"),
+    onUpdate: async (listen) => {
+      let heard = false;
+      const stop = await api.listen<unknown>("chips://update", (message) => {
+        const said = readMacUpdate(message.payload);
+        if (said === undefined) return;
+        heard = true;
+        listen(said);
+      });
+      // Asked after listening, so a change between the two is never missed. A change heard while
+      // the answer was on its way is the newer of the two, and the answer is then let go.
+      const now = readMacUpdate(await api.invoke<unknown>("update_state").catch(() => undefined));
+      if (now !== undefined && !heard) listen(now);
+      return stop;
+    },
+    updateNow: () => api.invoke<void>("update_now"),
     // The shell holds every link until the page takes it, because the one that launched the app
     // arrived before the page did. So the page takes what is waiting as it starts to listen, and
     // again each time it is told there is more; taking empties the shell, so each comes once.

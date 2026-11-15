@@ -8,11 +8,23 @@
  * paired all along. So a read that could not open everything is made again once the app is in
  * front, and there a few times more, a moment apart. Only then does the app go on with what it
  * could read, which may be nothing.
+ *
+ * A key the Keychain no longer has is another thing: it will not come back, so it is not read
+ * again. Its workspace is named among the `lost` (ADR 0228's addendum).
  */
 
-import { type Device, type HeldDevices, readDevices } from "@chipschat/core";
+import { type HeldDevices, readDevices } from "@chipschat/core";
 import { AppState } from "react-native";
 import { deviceStorage } from "./storage";
+
+/** What this phone holds: the devices it can sign for, and those whose key is gone. */
+export type HeldHere = Omit<HeldDevices, "unreadable">;
+
+const NOTHING: HeldHere = { devices: [], lost: [], lostInFront: false };
+
+function held({ devices, lost, lostInFront }: HeldDevices): HeldHere {
+  return { devices, lost, lostInFront };
+}
 
 /** How long apart the reads in front are, and how many there are before the app goes on. */
 export const AGAIN_MS = 400;
@@ -45,17 +57,18 @@ function after(
   found: HeldDevices | undefined,
   inFront: boolean,
   tries: number,
-): readonly Device[] | "wait" | "again" {
-  if (found !== undefined && found.unreadable === 0) return found.devices;
+): HeldHere | "wait" | "again" {
+  if (found !== undefined && found.unreadable === 0) return held(found);
   if (!inFront) return "wait";
-  return tries >= TRIES_IN_FRONT ? (found?.devices ?? []) : "again";
+  if (tries < TRIES_IN_FRONT) return "again";
+  return found === undefined ? NOTHING : held(found);
 }
 
 /** One `readWhenOpen` under way: what it reads with, and where it has got to. */
 interface Reading {
   readonly read: () => Promise<HeldDevices>;
   readonly front: Front;
-  readonly answer: (devices: readonly Device[]) => void;
+  readonly answer: (held: HeldHere) => void;
   readonly signal: AbortSignal | undefined;
   /** The reads made in front so far. */
   tries: number;
@@ -95,14 +108,15 @@ function waitForFront(reading: Reading): void {
 }
 
 /**
- * The devices this phone holds, the one in front first, once a read has opened every key, or once
- * the app is in front and the reads there still could not. Nothing comes back after `signal` aborts.
+ * The devices this phone holds, the one in front first, and those whose key is gone, once a read
+ * has opened every key, or once the app is in front and the reads there still could not. Nothing
+ * comes back after `signal` aborts.
  */
 export function readWhenOpen(
   signal?: AbortSignal,
   read: () => Promise<HeldDevices> = readHere,
   front: Front = APP_FRONT,
-): Promise<readonly Device[]> {
+): Promise<HeldHere> {
   return new Promise((answer) => {
     const reading: Reading = {
       read,
@@ -120,11 +134,11 @@ export function readWhenOpen(
 
 /**
  * A read in front after a change this phone made (a pairing, a switch, a workspace forgotten):
- * the list as stored, or nothing when part of it would not open, so the list the app has stays.
+ * what is stored, or nothing when part of it would not open, so what the app has stays.
  */
 export async function readAgain(
   read: () => Promise<HeldDevices> = readHere,
-): Promise<readonly Device[] | undefined> {
+): Promise<HeldHere | undefined> {
   const found = await read().catch(() => undefined);
-  return found?.unreadable === 0 ? found.devices : undefined;
+  return found?.unreadable === 0 ? held(found) : undefined;
 }

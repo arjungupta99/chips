@@ -328,11 +328,13 @@ export function useViewMotion(
     const views = new Views(you, ghosts);
     views.measure();
     const watch = new MutationObserver(views.changed);
+    // A fold (`details`) opened or shut is a change in place: what it moved slides there, and
+    // where everything now stands is measured, so the next change starts from the fold as it is.
     watch.observe(you, {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ["hidden"],
+      attributeFilter: ["hidden", "open"],
       attributeOldValue: true,
     });
     const resized = typeof ResizeObserver === "function" ? new ResizeObserver(views.measure) : null;

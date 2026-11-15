@@ -5,6 +5,9 @@
  *
  * The demo's made-up workspace (ADR 0213) has no key or cache where the device keeps them: it goes
  * as the switcher's Remove takes it, its word in this app's preferences with it.
+ *
+ * A workspace whose key is gone (ADR 0228's addendum) leaves the same way: by its id, since its
+ * record has no key and no store was ever made for it.
  */
 
 import { type Device, isDemo } from "@chipschat/core";
@@ -15,7 +18,10 @@ import { forgetDrafts } from "../spaces/Composer";
 import { useChips } from "../store/provider";
 import { forgetHere } from "./forget";
 
-export function useLeave(): (device: Device, spaceIds: readonly string[]) => Promise<void> {
+export function useLeave(): (
+  device: Pick<Device, "deviceId">,
+  spaceIds: readonly string[],
+) => Promise<void> {
   const { ended, demo } = useChips();
   const router = useRouter();
   return useCallback(

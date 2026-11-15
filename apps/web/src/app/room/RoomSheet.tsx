@@ -6,7 +6,7 @@
  * It grows out of what opened it (the room's name, or *N members*) and folds back into it, the way
  * the + window does (`GrowingDialog`), and Escape, a click outside it and Done each put it away. Its
  * pages are the phone's: who is here, laid out in tiles as the phone's is (ADR 0202), Add, In other
- * rooms, New agent, Move, Lead, Spend per job and Media & files, each fading in where it stands
+ * rooms, New agent, Move, Lead, Spend per job and Sent in chat, each fading in where it stands
  * while the sheet's height glides to it (ADR 0110). It sits under the room's header, over the room
  * rather than in it.
  *
@@ -81,9 +81,9 @@ export interface RoomSheetProps {
   readonly actions: SpaceActions;
   /** The workspace, for which agents may move, what their rooms are called and who may be added. */
   readonly model?: WorkspaceModel | undefined;
-  /** What the room's files are opened with (ADR 0100); no Media & files without it. */
+  /** What the room's files are opened with (ADR 0100); no Sent in chat without it. */
   readonly files?: FileService | undefined;
-  /** The lanes anchored in the room, whose files Media & files shows with its lines' (ADR 0202). */
+  /** The lanes anchored in the room, whose files Sent in chat shows with its lines' (ADR 0202). */
   readonly lanes?: readonly Lane[] | undefined;
   /** The face the person chose for the room (ADR 0174), which the sheet's head wears. */
   readonly icon?: SpaceIcon | undefined;
@@ -324,6 +324,7 @@ export function RoomSheet(props: RoomSheetProps) {
             title={spaceTitle(space, directory)}
             project={project}
             files={props.files}
+            onGoTo={jobGoTo}
             onBack={() => go({ kind: "who" })}
           />
         );

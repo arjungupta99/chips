@@ -1,3 +1,4 @@
+export type { BridgeHands } from "./ports/bridges.js";
 export type { DirectAsk, DirectAskRegistry, DirectAskState } from "./ports/direct-asks.js";
 export type { HarnessRegistry, NewHarness, NewToken, TokenView } from "./ports/harnesses.js";
 export type {
@@ -68,6 +69,7 @@ export type {
   PushToken,
   RegisterPushToken,
 } from "./ports/push.js";
+export type { ComputerUpdatesRegistry, RestartOnto, SelfUpdate } from "./ports/self-update.js";
 export type { Sessions } from "./ports/sessions.js";
 export type {
   AssertionAnswer,

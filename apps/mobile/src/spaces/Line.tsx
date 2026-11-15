@@ -43,6 +43,7 @@ import type {
   UnsentNote,
 } from "@chipschat/core";
 import {
+  ABOUT_LINKS,
   cantAnswer,
   DELETE_FOR_EVERYONE,
   DELETE_FOR_ME,
@@ -62,6 +63,7 @@ import * as Clipboard from "expo-clipboard";
 import { memo, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   Keyboard,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -73,6 +75,7 @@ import { type FaceProps, faceProps } from "../agents/face";
 import { Avatar, faceGround } from "../ui/Avatar";
 import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
+import { keysAway } from "../ui/keysAway";
 import { shareText } from "../ui/share";
 import { sourceColours } from "../ui/sourceColours";
 import { usePalette, useScheme } from "../ui/theme";
@@ -251,11 +254,34 @@ function Task(props: LineProps & { readonly lane: Lane }) {
 }
 
 /**
+ * What a newer computer sent that this app can't draw (ADR 0297): Chips's own quiet line, centred
+ * as the room's other notes are, with Update beside it, which opens the App Store.
+ */
+function Newer({ text }: { readonly text: string }) {
+  const palette = usePalette();
+  return (
+    <View style={[styles.margin, styles.newer]} testID="newer-line">
+      <Text style={[styles.marginWords, { color: palette.ink3 }]}>{text}</Text>
+      <Pressable
+        accessibilityRole="link"
+        onPress={() => void Linking.openURL(ABOUT_LINKS.appStore).catch(() => undefined)}
+        hitSlop={SPACE.sm}
+      >
+        <Text style={[styles.marginWords, styles.newerUpdate, { color: palette.accent }]}>
+          Update
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
  * The lines drawn in the margin rather than in a bubble: system and checkpoint. An agent's context
  * compacting is one (ADR 0146), and a tap on it opens the agent's page, where its window is.
  */
 function Margin({ line, directory, onOpenAgent }: LineProps) {
   const palette = usePalette();
+  if (line.newer === true) return <Newer text={line.text} />;
   // Somebody coming or going is said whole, from where the reader stands (JR-5).
   const words =
     line.kind === "system" && line.whole !== true ? marginWords(line, directory) : line.text;
@@ -929,7 +955,7 @@ function Route({
           accessibilityLabel={`Went to ${route.words}${many}`}
           accessibilityHint="Shows who it went to"
           onPress={() => {
-            Keyboard.dismiss();
+            keysAway();
             setSheet("up");
           }}
           style={({ pressed }) => [
@@ -1040,7 +1066,7 @@ function Hold({
 }) {
   if (!offers) return <>{children}</>;
   const show = () => {
-    Keyboard.dismiss();
+    keysAway();
     feel.lift();
     onHold();
   };
@@ -1536,6 +1562,8 @@ export const STAMP_INK = 0.9;
 const FACE = 28;
 
 const styles = StyleSheet.create({
+  newer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: SPACE.sm },
+  newerUpdate: { fontWeight: "600" },
   row: { flexDirection: "row", gap: SPACE.sm, alignItems: "flex-end" },
   // Yours on the right, with the face left off: it is your screen, and the side says so.
   rowMine: { flexDirection: "row-reverse" },

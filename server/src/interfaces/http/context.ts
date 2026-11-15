@@ -94,14 +94,19 @@ import type {
   UploadsRegistry,
   WaitForApproval,
 } from "../../application/index.js";
+import type { Images } from "../../application/ports/attachments.js";
 import type { BannerRegistry } from "../../application/ports/banners.js";
+import type { BridgeSwitches, BridgeUpdateState } from "../../application/ports/bridges.js";
 import type { HiddenSpaceRegistry } from "../../application/ports/hidden-spaces.js";
 import type { PinnedSpaceRegistry } from "../../application/ports/pinned-spaces.js";
 import type { PageBuilder } from "../../application/ports/projects.js";
 import type { ReadMarkRegistry } from "../../application/ports/read-marks.js";
 import type { RelayStatus, RelayTrouble } from "../../application/ports/relay-switch.js";
+import type { ComputerUpdatesRegistry, SelfUpdate } from "../../application/ports/self-update.js";
+import type { SoftwareRegistry } from "../../application/ports/software.js";
 import type { SpaceIconRegistry } from "../../application/ports/space-icons.js";
 import type { ConnectorGallery } from "../../infrastructure/connectors/gallery.js";
+import type { ServerUpdates } from "../../infrastructure/updates/releases.js";
 
 export type { RelayStatus, RelayTrouble } from "../../application/ports/relay-switch.js";
 
@@ -284,6 +289,31 @@ export interface GatewayDeps {
   /** The rooms a person pinned to the top of their own list (ADR 0240). */
   readonly pinnedSpaces: PinnedSpaceRegistry;
   readonly banners: BannerRegistry;
+  /** What each device and harness last said it runs (everything in step). */
+  readonly software?: SoftwareRegistry | undefined;
+  /**
+   * How each bridge in this computer's data folder is being kept current, by harness
+   * (bridges-keep-current.md); absent where `chips serve` gave no hands on them.
+   */
+  readonly bridgeUpdates?: (() => ReadonlyMap<string, BridgeUpdateState>) | undefined;
+  /**
+   * A harness said how it is (`PUT /v1/harnesses/:id/status`), told to the computer watching its
+   * bridge come back on a new release: its first probe (bridges-keep-current.md, rule 3).
+   */
+  readonly bridgeSaid?: ((harnessId: string) => void) | undefined;
+  /** The owner's switch "Keep this bridge up to date", per harness. */
+  readonly bridgeSwitches: BridgeSwitches;
+  /** The release out for a bridge kept elsewhere, by its hello's name and version. */
+  readonly bridgeOut?: ((hello: string, running: string) => string | undefined) | undefined;
+  /** This computer's own update, from the install line; absent in Chips for Mac and a checkout. */
+  readonly selfUpdate?: SelfUpdate | undefined;
+  /**
+   * For a computer Chips for Mac carries: the newer release the app holds, which the computer starts
+   * again on once nothing is going on (ADR 0298).
+   */
+  readonly restartsOnto?: (() => string | undefined) | undefined;
+  /** The owner's switch, "Update this computer automatically". */
+  readonly computerUpdates: ComputerUpdatesRegistry;
   /** How far each person has read each room, followed between their devices (ADR 0262). */
   readonly readMarks: ReadMarkRegistry;
   /** Where a push may reach a phone (M4.3, ADR 0045). */
@@ -302,6 +332,11 @@ export interface GatewayDeps {
    * second addendum). Absent where the server is not on a Mac, in dev mode, and in tests.
    */
   readonly macApp?: MacApp | undefined;
+  /**
+   * Copies of pictures, with `sharp`: a project picture's small and screen copies for Universe's
+   * Media (ADR 0227's addendum of 13 November 2026).
+   */
+  readonly pictures: Images;
   /** Upload slots and what their bytes turned out to be (decision 10). */
   readonly uploads: Uploads;
   readonly uploadsRegistry: UploadsRegistry;
@@ -347,6 +382,8 @@ export interface GatewayDeps {
   readonly machine: () => string;
   /** The gallery's cards, from the docs (ADR 0171). */
   readonly connectors: ConnectorGallery;
+  /** Which releases of Chips are out, as last read (ADR 0296). Absent, none were read. */
+  readonly updates?: () => ServerUpdates | undefined;
 }
 
 /** A tunnel's end, as the app is told of each request through it. */

@@ -41,19 +41,12 @@ import {
 } from "@chipschat/core";
 import { Image } from "expo-image";
 import { lazy, type ReactNode, Suspense, useEffect, useState } from "react";
-import {
-  Keyboard,
-  Pressable,
-  type StyleProp,
-  StyleSheet,
-  Text,
-  View,
-  type ViewStyle,
-} from "react-native";
+import { Pressable, type StyleProp, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useViewerRow, useViewerTile } from "../media/MediaViewer";
 import { PlayDisc } from "../media/PlayDisc";
 import type { TileKey } from "../media/tiles";
 import { IconButton } from "../ui/Button";
+import { keysAway } from "../ui/keysAway";
 import { usePalette } from "../ui/theme";
 import { BUBBLE, RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { hasAudio } from "./audio";
@@ -497,7 +490,7 @@ function FileRow({
           // media viewer, and for the same reason: a field still holding the caret would be handed
           // it back as the page or the share sheet left (Arjun, 20 September 2026).
           onPress={() => {
-            Keyboard.dismiss();
+            keysAway();
             action?.run();
           }}
           testID={`file-${attachment.id}`}

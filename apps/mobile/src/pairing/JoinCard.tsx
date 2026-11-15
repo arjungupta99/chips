@@ -63,12 +63,15 @@ export function JoinCard({
       >
         <View style={styles.head}>
           <Big>
-            <ChipPulse
-              gold={palette.gold}
-              ink={palette.ink3}
-              lit={palette.ink}
-              working={opened.kind === "asking"}
-            />
+            {(size) => (
+              <ChipPulse
+                gold={palette.gold}
+                ink={palette.ink3}
+                lit={palette.ink}
+                working={opened.kind === "asking"}
+                size={size}
+              />
+            )}
           </Big>
           <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>
             {invite === undefined ? "An invite" : joinTitle(invite)}
@@ -199,20 +202,20 @@ function JoinForm({
 /** How much bigger than its inline twenty points the card's mark is. */
 const MARK_SCALE = 2.6;
 
-/** The mark at the size a card that is about one thing wears it, as the empty states do. */
+/**
+ * The mark at the size a card that is about one thing wears it, as the empty states do. It is
+ * drawn at that size (`children` is handed the square), not scaled up from twenty points: iOS
+ * stretches the picture the body was drawn into, and a stretched picture goes soft.
+ */
 export function Big({
   children,
   scale = MARK_SCALE,
 }: {
-  readonly children: ReactNode;
+  readonly children: (size: number) => ReactNode;
   readonly scale?: number;
 }) {
   const box = 20 * scale;
-  return (
-    <View style={[styles.bigBox, { width: box, height: box }]}>
-      <View style={{ transform: [{ scale }] }}>{children}</View>
-    </View>
-  );
+  return <View style={[styles.bigBox, { width: box, height: box }]}>{children(box)}</View>;
 }
 
 function Cancel({ onPress }: { readonly onPress: () => void }) {
@@ -241,12 +244,15 @@ function Dead({ onCancel }: { readonly onCancel: () => void }) {
       <View style={[styles.body, column]}>
         <View style={[styles.head, styles.deadHead]}>
           <Big>
-            <ChipPulse
-              gold={palette.surface3}
-              ink={palette.ink4}
-              lit={palette.ink3}
-              working={false}
-            />
+            {(size) => (
+              <ChipPulse
+                gold={palette.surface3}
+                ink={palette.ink4}
+                lit={palette.ink3}
+                working={false}
+                size={size}
+              />
+            )}
           </Big>
           <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>
             {DEAD_INVITE.title}

@@ -889,7 +889,7 @@ function RecentRow({
         data-testid={`recent-${text}`}
         onClick={() => context.onRecent(text)}
       >
-        <Mark name="clock" />
+        <Icon name="clock" />
         <span>{text}</span>
       </button>
       <button
@@ -1128,14 +1128,13 @@ function Notice(props: {
 
 /**
  * Search's own marks, the phone's paths (`apps/mobile/src/ui/icons.ts`), drawn as the design
- * system's `Icon` draws its own: the clock beside a recent search, the cloud struck through when the
- * server can't be reached, and the alert on a search that didn't go through. They stay here, not
- * in `@chipschat/ui`, until the phone's `icons.ts` moves them among the marks it checks against
- * the design system's: its test fails while the design system holds a mark the phone keeps as
- * its own.
+ * system's `Icon` draws its own: the cloud struck through when the server can't be reached, and
+ * the alert on a search that didn't go through. They stay here, not in `@chipschat/ui`, until the
+ * phone's `icons.ts` moves them among the marks it checks against the design system's: its test
+ * fails while the design system holds a mark the phone keeps as its own. The clock beside a recent
+ * search moved there on 14 November 2026, when the room sheet's Changes tile drew it too.
  */
 const MARKS = {
-  clock: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18z", "M12 7v5l3.2 2"],
   offline: [
     "M7 18.5h10a4 4 0 0 0 .7-7.94A6 6 0 0 0 6.2 9.7 4.4 4.4 0 0 0 7 18.5z",
     "M3.5 3.5l17 17",

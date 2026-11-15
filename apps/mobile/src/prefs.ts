@@ -67,6 +67,12 @@ export const SETTINGS = {
   setupHidden: "setup.hidden",
   /** Whether this phone has asked, once, to turn notifications on at an agent's ask (ADR 0170). */
   pushAsked: "push.asked",
+  /** Whether the update dot shows here: `off`, or on (ADR 0296). */
+  updateDot: "update.dot",
+  /** The version About last put the dot out for, and when, as JSON (ADR 0296). */
+  updateSeen: "update.seen",
+  /** What needed the owner when About last put the dot out for it (ADR 0297). */
+  updateSeenNeeds: "update.seen-needs",
   /**
    * The made-up workspace kept after its film, Look around (ADR 0213): `look-around`, or nothing.
    * The demo is never written where the device keeps its workspaces; this word builds it again.

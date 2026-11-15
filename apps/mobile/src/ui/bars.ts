@@ -19,6 +19,10 @@
  * `ui/bars.vitest.ts` holds every route to this list.
  */
 export const UNDER_A_BAR: ReadonlySet<string> = new Set([
+  "about/index",
+  "about/licence",
+  "about/notices",
+  "about/whats-new",
   "agents/[id]/index",
   "agents/[id]/history",
   "agents/[id]/permissions",

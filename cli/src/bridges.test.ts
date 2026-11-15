@@ -4,7 +4,15 @@
  * The registry is a stand-in in memory; the tarballs are real, packed by `tar`.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -17,6 +25,7 @@ import {
   packageSpec,
   readRecord,
   stepIn,
+  writeRecord,
 } from "./bridges.js";
 import { packed, sriOf, standIn } from "./testing/registry.js";
 
@@ -200,6 +209,30 @@ describe("fetching a bridge", () => {
         fetch: registry.fetch,
       }),
     ).rejects.toThrow("https://registry.test has no release 1.x of @chipschat/fake.");
+  });
+});
+
+describe("bridge.json", () => {
+  const record = (version: string) => ({
+    package: "@chipschat/fake",
+    version,
+    integrity: "sha512-x",
+    kept: { fake: { label: "chat.chips.fake", args: [] } },
+  });
+
+  it("is written whole and renamed into place, leaving nothing beside it", () => {
+    writeRecord(dir, record("1.0.0"));
+    writeRecord(dir, record("1.1.0"));
+    expect(readRecord(dir)?.version).toBe("1.1.0");
+    expect(readdirSync(dir)).toEqual(["bridge.json"]);
+  });
+
+  it("keeps the last good one when a write can't finish, as on a full disk", () => {
+    writeRecord(dir, record("1.0.0"));
+    // The file it writes first can't be made: the write fails before the record is touched.
+    mkdirSync(join(dir, "bridge.json.next"));
+    expect(() => writeRecord(dir, record("1.1.0"))).toThrow();
+    expect(readRecord(dir)?.version).toBe("1.0.0");
   });
 });
 

@@ -203,7 +203,8 @@ A line is one of these:
   names the same agents, so you can tell your model whom a line for another agent was for: a
   person who picks an agent in the field leaves no @ in the words.
 - `joined` and `left`.
-- `renamed`: a person's new `name`, with `previous`, or the room's new `title`.
+- `renamed`: a person's new `name`, with `previous`, taken while they were in the room, or the
+  room's new `title`.
 - `archived` and `unarchived`.
 
 Runs, steps, approvals, reactions and pins are not lines.

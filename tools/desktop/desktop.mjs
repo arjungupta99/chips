@@ -30,16 +30,38 @@
  * `release` is the same build for other people's Macs: signed with the Developer ID only, every
  * binary inside with a timestamp, the app notarized by Apple with the App Store Connect key on this
  * Mac and stapled, then put in `dist/release/Chips.dmg`, which is signed, notarized and stapled too,
- * for `gh release upload`. Apple silicon only: the Chips it carries is this Mac's.
+ * for `gh release upload`. Apple silicon only: the Chips it carries is this Mac's. Beside it, what
+ * the app updates itself from (ADR 0298): the same app as `Chips.app.tar.gz`, signed with the
+ * updater key (`~/.ssh/chips_mac_update.key`), and `latest.json`. Only that build updates itself;
+ * one `pnpm desktop` installs here is this checkout's.
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { artifactName, hostTarget } from "../release/release.mjs";
-import { isDeveloperId, NODE_ENTITLEMENTS, notarizeArgs, signArgs, teamOf } from "./sign.mjs";
+import {
+  archiveArgs,
+  isDeveloperId,
+  NODE_ENTITLEMENTS,
+  notarizeArgs,
+  signArgs,
+  signedByUpdaterKey,
+  teamOf,
+  UPDATE_ARCHIVE,
+  UPDATE_FEED,
+  updateFeed,
+} from "./sign.mjs";
 
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 const TAURI = `${REPO}apps/desktop/src-tauri`;
@@ -125,10 +147,14 @@ function build(identity = signingIdentity(), handOut = false) {
   }
   // Tauri itself rather than `scripts/build.sh`, which is for a build to hand out: it signs from
   // the environment alone and would call this one unsigned.
+  // A build to hand out updates itself (ADR 0298); one built here is this checkout's, and stays it.
   const shell = watch(
     "pnpm",
     ["exec", "tauri", "build", "--bundles", "app", "--config", JSON.stringify(config)],
-    { cwd: `${REPO}apps/desktop` },
+    {
+      cwd: `${REPO}apps/desktop`,
+      env: { ...process.env, CHIPS_MAC_SELF_UPDATE: handOut ? "1" : "0" },
+    },
   );
   if (!shell || !existsSync(BUILT)) {
     console.log(`\n  ${cross} the app did not build`);
@@ -436,11 +462,66 @@ function handOut() {
     return false;
   }
   const key = notaryKey();
-  if (key === undefined || !build(identity, true)) return false;
+  const updateKey = updaterKey();
+  if (key === undefined || updateKey === undefined || !build(identity, true)) return false;
   if (!notarizedApp(identity, key) || !notarizedDmg(identity, key) || !accepted()) return false;
+  if (!updateFiles(updateKey)) return false;
   console.log(`\n  ${DMG}`);
   console.log(
-    "  For the release: gh release upload v<version> dist/release/Chips.dmg -R arjungupta99/chips\n",
+    `  For the release: gh release upload v<version> dist/release/Chips.dmg dist/release/${UPDATE_ARCHIVE} dist/release/${UPDATE_ARCHIVE}.sig dist/release/${UPDATE_FEED} -R arjungupta99/chips\n`,
+  );
+  return true;
+}
+
+/** The updater's private key (ADR 0298), on the Mac that makes releases, beside the release key. */
+function updaterKey() {
+  const key = process.env.CHIPS_MAC_UPDATE_KEY ?? join(homedir(), ".ssh", "chips_mac_update.key");
+  if (existsSync(key)) return key;
+  console.log(`  ${cross} no updater key at ${key}: Chips for Mac checks every update against it`);
+  return undefined;
+}
+
+/**
+ * What Chips for Mac updates itself from (ADR 0298): the notarized, stapled app packed as
+ * `Chips.app.tar.gz`, its signature with the updater key, and `latest.json` naming both, for the
+ * release beside the DMG.
+ */
+function updateFiles(key) {
+  const archive = `${REPO}dist/release/${UPDATE_ARCHIVE}`;
+  const feed = `${REPO}dist/release/${UPDATE_FEED}`;
+  for (const file of [archive, `${archive}.sig`, feed]) rmSync(file, { force: true });
+  const packed = run("tar", archiveArgs(archive, BUILT), {
+    env: { ...process.env, COPYFILE_DISABLE: "1" },
+  });
+  if (!packed.ok) {
+    console.log(`  ${cross} could not pack the app for its update: ${packed.out.trim()}`);
+    return false;
+  }
+  const signed = run("pnpm", ["exec", "tauri", "signer", "sign", "-f", key, "-p", "", archive], {
+    cwd: `${REPO}apps/desktop`,
+  });
+  if (!signed.ok || !existsSync(`${archive}.sig`)) {
+    console.log(`  ${cross} could not sign the update: ${signed.out.trim()}`);
+    return false;
+  }
+  const { version } = JSON.parse(readFileSync(`${REPO}package.json`, "utf8"));
+  const signature = readFileSync(`${archive}.sig`, "utf8").trim();
+  // Every copy checks an update against the key its `tauri.conf.json` was built with: one signed
+  // with another key is thrown away by all of them, so it never leaves this Mac.
+  const config = JSON.parse(readFileSync(`${TAURI}/tauri.conf.json`, "utf8"));
+  if (!signedByUpdaterKey(signature, config.plugins.updater.pubkey)) {
+    for (const file of [archive, `${archive}.sig`]) rmSync(file, { force: true });
+    console.log(
+      `  ${cross} the update was signed with another key than the one in tauri.conf.json: no copy would take it`,
+    );
+    return false;
+  }
+  writeFileSync(
+    feed,
+    `${JSON.stringify(updateFeed({ version, signature, at: new Date() }), null, 2)}\n`,
+  );
+  console.log(
+    `  ${tick} the update for Chips for Mac: ${UPDATE_ARCHIVE}, its signature and ${UPDATE_FEED}`,
   );
   return true;
 }

@@ -1,6 +1,6 @@
 [package]
 name = "chips-desktop"
-version = "1.2.4"
+version = "1.3.0"
 description = "Chips on the desktop: the web app in a native shell that can find a server, notify you, and be decided from."
 authors = ["Chips"]
 license = "FSL-1.1-ALv2"
@@ -17,6 +17,11 @@ tauri-build = { version = "2.6.3", features = [] }
 [dependencies]
 tauri = { version = "2.11.5", features = ["tray-icon"] }
 tauri-plugin-deep-link = "2"
+# Chips for Mac updating itself (everything in step, phase 5): a release checked against the key
+# `plugins.updater.pubkey` names before anything else, then swapped in for this app.
+tauri-plugin-updater = "2"
+# What a checked download hashes to, so the file that waits is read again as the same bytes.
+sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # A key for a page the window holds for its frame (ADR 0201's addendum): 256 random bits.
@@ -40,3 +45,9 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["s
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+# Xcode 27's `strip` leaves a library built for macOS 13 that dyld refuses to load ("mis-aligned
+# LINKEDIT string pool"), so the proc macros and build scripts a release build loads while it
+# compiles are left unstripped. The app's own binary is stripped as before.
+[profile.release.build-override]
+strip = false

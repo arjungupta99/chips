@@ -73,6 +73,8 @@ export const SYSTEM_ICONS = {
   ],
   camera: ["M4 8h3.5l1.5-3h6l1.5 3H20v11H4z", "M12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"],
   doc: ["M6 3h8l4 4v14H6z", "M14 3v4h4M9 12h6M9 16h6"],
+  /** Code, in Universe's Files (ADR 0227's addendum of 14 November 2026). */
+  code: ["M8 7l-5 5 5 5", "M16 7l5 5-5 5"],
   pen: ["M4 20l1.2-4.4L16.4 4.4a2.1 2.1 0 0 1 3 3L8.2 18.6z", "M14.3 6.5l3 3"],
   mic: ["M9 3h6v11H9z", "M5 11a7 7 0 0 0 14 0M12 18v3"],
   play: ["M7 5l12 7-12 7z"],
@@ -184,6 +186,16 @@ export const SYSTEM_ICONS = {
    */
   bell: ["M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z", "M10 20.5a2 2 0 0 0 4 0"],
   info: [ring(12, 12, 9), "M12 11v6M12 7.5v.5"],
+  /**
+   * The clock beside a recent search (ADR 0132), and on the room sheet's Changes tile (ADR 0222):
+   * the design system's since the web and the Mac drew the tile too (14 November 2026).
+   */
+  clock: [ring(12, 12, 9), "M12 7v5l3.2 2"],
+  /** Copy: the media viewer's menu, and About's capsule (ADR 0295), on the web too since then. */
+  copy: ["M9 9h11v11H9z", "M4 15V4h11"],
+  /** About's rows (ADR 0295): the star over Rate Chips, the heart over Acknowledgements. */
+  star: ["M12 3.5l2.6 5.3 5.9.85-4.25 4.15 1 5.85L12 16.9l-5.25 2.75 1-5.85L3.5 9.65l5.9-.85z"],
+  heart: ["M12 20s-7.5-4.6-7.5-10A4.2 4.2 0 0 1 12 7.6A4.2 4.2 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"],
   /** A room's list put away and back (ADR 0256), the web's and the Mac's too since ADR 0284. */
   sidebar: ["M3.5 5h17v14h-17z", "M9.5 5v14"],
   /** A space's details beside its room (ADR 0256), the web's and the Mac's too since ADR 0284. */
@@ -203,7 +215,6 @@ export const PHONE_ICONS = {
   ],
   /** Material's overflow, `⋮`. */
   moreVertical: [dot(12, 5), dot(12, 12), dot(12, 19)],
-  copy: ["M9 9h11v11H9z", "M4 15V4h11"],
   /** Go to message: back, into the room. */
   goTo: ["M9 6l-5 5 5 5M4 11h12a4 4 0 0 1 0 8h-3"],
   /** A video's sound, on: the speaker and its waves. */
@@ -265,10 +276,9 @@ export const PHONE_ICONS = {
   ],
   laptop: ["M4.5 5.5h15v10h-15z", "M2 18.5h20"],
   /**
-   * Search's (ADR 0132): the clock beside a recent search, and the cloud struck through on the
-   * line that says messages can't be searched while the server can't be reached.
+   * Search's (ADR 0132): the cloud struck through on the line that says messages can't be
+   * searched while the server can't be reached.
    */
-  clock: [ring(12, 12, 9), "M12 7v5l3.2 2"],
   offline: [
     "M7 18.5h10a4 4 0 0 0 .7-7.94A6 6 0 0 0 6.2 9.7 4.4 4.4 0 0 0 7 18.5z",
     "M3.5 3.5l17 17",

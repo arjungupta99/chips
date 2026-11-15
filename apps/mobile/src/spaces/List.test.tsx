@@ -25,6 +25,7 @@ import { Split } from "../ui/Split";
 import { avatarHueIndex } from "../ui/sourceColours";
 import { ICON_GROUND_NAMES, ICON_GROUNDS, light, SPACE } from "../ui/tokens";
 import { List } from "./List";
+import { RISEN_MS } from "./riseOrder";
 import { BAR_HEIGHT } from "./Selecting";
 
 /**
@@ -502,6 +503,69 @@ describe("a workspace just switched to (ADR 0197's addendum)", () => {
     arrived(snapshot);
     await render(<List store={fakeStore(snapshot)} snapshot={snapshot} />);
     expect(screen.getByText("Supplier email")).toBeTruthy();
+  });
+
+  /** The open rooms' rows, top to bottom. */
+  const order = () =>
+    screen.getAllByTestId(/^swipe-sp_[12]$/).map((row) => String(row.props["testID"]).slice(6));
+
+  /** Arjun in both open rooms, so each row stands on a swipe a test can find. */
+  const mine = (): Snapshot => {
+    const snapshot = state();
+    return {
+      ...snapshot,
+      model: {
+        ...snapshot.model,
+        spaces: snapshot.model.spaces.map((space) =>
+          space.id === "sp_1" ? { ...space, members: ["per_arjun"] } : space,
+        ),
+      },
+    };
+  };
+
+  /** The snapshot with `sp_2` busy last, as a catch-up after the cache can make it. */
+  const caughtUp = (snapshot: Snapshot): Snapshot => ({
+    ...snapshot,
+    model: {
+      ...snapshot.model,
+      spaces: snapshot.model.spaces.map((space) =>
+        space.id === "sp_2" ? { ...space, lastActivityAt: "2026-09-07T12:00:00.000Z" } : space,
+      ),
+    },
+  });
+
+  const drawn = (snapshot: Snapshot) => (
+    <SafeAreaProvider initialMetrics={IPHONE}>
+      <List store={fakeStore(snapshot)} snapshot={snapshot} selfId="per_arjun" />
+    </SafeAreaProvider>
+  );
+
+  it("keeps its rooms in the order they rose in until they have risen (a re-paired iPhone)", async () => {
+    jest.useFakeTimers();
+    const snapshot = mine();
+    arrived(snapshot);
+    const view = await render(
+      <List store={fakeStore(snapshot)} snapshot={snapshot} selfId="per_arjun" />,
+    );
+    expect(order()).toEqual(["sp_1", "sp_2"]);
+    // The server's catch-up puts sp_2 on top while the rows rise: a row moved mid-rise is left
+    // drawn at nothing on a phone, so neither moves yet.
+    await view.rerender(drawn(caughtUp(snapshot)));
+    expect(order()).toEqual(["sp_1", "sp_2"]);
+    await settle(async () => {
+      jest.advanceTimersByTime(RISEN_MS);
+    });
+    expect(order()).toEqual(["sp_2", "sp_1"]);
+  });
+
+  it("takes a new order at once when it was not just switched to", async () => {
+    const snapshot = mine();
+    const view = await render(
+      <List store={fakeStore(snapshot)} snapshot={snapshot} selfId="per_arjun" />,
+    );
+    expect(order()).toEqual(["sp_1", "sp_2"]);
+    await view.rerender(drawn(caughtUp(snapshot)));
+    expect(order()).toEqual(["sp_2", "sp_1"]);
   });
 });
 

@@ -1,9 +1,10 @@
 /**
- * This phone (ADR 0085): how much it keeps, the server it is paired with and how it is reaching
- * it, and which build it is. It was About, with a paragraph under it on what Media on this phone
- * is; the page Media opens says that, and the heading now says whose these are (ADR 0085, 20
- * October 2026). Media comes first, as the one row here that opens something; the facts under it
- * wear the quiet grey marks Devices wears.
+ * This phone (ADR 0085): how much it keeps, and the server it is paired with and how it is reaching
+ * it. It was About, with a paragraph under it on what Media on this phone is; the page Media opens
+ * says that, and the heading now says whose these are (ADR 0085, 20 October 2026). Media comes
+ * first, as the one row here that opens something; the facts under it wear the quiet grey marks
+ * Devices wears. The build it ended with went to About Chips's page (ADR 0295), where the version
+ * is the row's value.
  *
  * The server by its host, whole, since it is the one thing here a person may need to read out or
  * type somewhere else. Then which way the phone is reaching it: straight over the network, or
@@ -17,41 +18,17 @@
  * This says how much it has come to, measured again each time You comes back into view, and opens
  * Media on this phone (ADR 0159), where it is shown by space and let go of — a space's, some
  * files, or all of it. It all comes back from the server the next time it is opened.
- *
- * And the build: the app's version, its build number and the commit it was built from, which
- * `pnpm phone` bakes in (`EXPO_PUBLIC_CHIPS_COMMIT`), so what is on a phone can be told apart from
- * what is on main. The version moves only for the App Store (1.0.0 from 1 November 2026, when
- * Chips went public): Apple reviews the first TestFlight build of a version and later ones reach
- * testers at once, as 0.0.0 did until then (19 October 2026, Arjun: "Keep 0.0.0, show the build").
- * The build number is the one that rises (`tools/phone/testflight.mjs`), so it is said as
- * TestFlight says it, in brackets after the version. Under the label, as the server's host is: at the right
- * the row's value has a little over half the width, and the build number would be cut off.
  */
 
 import type { ConnectionState, LinkKind } from "@chipschat/core";
-import Constants from "expo-constants";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { BUILD_COMMIT } from "../build";
 import { thisDevice } from "../device/word";
 import { keptBytes } from "../spaces/local";
 import { Group, GroupHeading, GroupRow, MARKED_INSET, RowMark } from "../ui/Group";
 import { AVATAR_HUES } from "../ui/tokens";
 import { useOpenPage, usePage } from "./pages";
 import { hostOf, sizeWords } from "./words";
-
-/**
- * The version, the build number and the commit, as the row says them: "1.0.0 (202611010718) ·
- * b888e96", or "1.0.0 · dev" where there is no build number, on the web and in Expo Go.
- */
-export function buildWords(
-  version: string | undefined,
-  build: string | null | undefined,
-  commit: string | undefined,
-): string {
-  const number = build === null || build === undefined || build === "" ? "" : ` (${build})`;
-  return `${version ?? "0.0.0"}${number} · ${commit === undefined || commit === "" ? "dev" : commit}`;
-}
 
 /** What the row says of a relay the server names under a key this phone did not pin (SEC-2). */
 export const REKEYED_WORDS =
@@ -82,7 +59,7 @@ export function connectionWords(
   return { ...said, sub: said.sub === undefined ? REKEYED_WORDS : `${said.sub}. ${REKEYED_WORDS}` };
 }
 
-export function About({
+export function ThisDevice({
   serverUrl,
   connection,
   link,
@@ -138,16 +115,6 @@ export function About({
           onPress={connectionPage.onPress}
           selected={connectionPage.selected}
           testID="about-connection"
-        />
-        <GroupRow
-          label="Version"
-          sub={buildWords(
-            Constants.expoConfig?.version,
-            Constants.platform?.ios?.buildNumber,
-            BUILD_COMMIT,
-          )}
-          mark={<RowMark icon="info" />}
-          testID="about-version"
         />
       </Group>
     </>

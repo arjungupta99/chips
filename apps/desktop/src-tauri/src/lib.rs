@@ -4,7 +4,7 @@
 //! it can find a server on the network, run the one it carries on this Mac (ADR 0173), put a
 //! badge in the menu bar, show a notification with two buttons, be opened by a `chips://`
 //! link, serve a page a harness sent to its own frame under the page's policy (ADR 0201's
-//! addendum), and keep a room's project as a folder on this Mac (ADR 0224). Everything else — the socket, the device key, the fold, what an approval means —
+//! addendum), keep a room's project as a folder on this Mac (ADR 0224), and update itself (ADR 0298). Everything else — the socket, the device key, the fold, what an approval means —
 //! stays in the page, which is why the desktop app and a browser cannot drift apart.
 //!
 //! That line is worth defending. Nothing here knows a token, a workspace or a run; the window
@@ -22,6 +22,7 @@ mod page;
 mod reach;
 mod shell_path;
 mod signed_in;
+mod update;
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
@@ -497,7 +498,9 @@ pub fn run() {
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Links::default())
+        .manage(update::Updates::default())
         .manage(page::Pages::default())
         .manage(connect::Runs::default())
         .manage(menu::Commands::default())
@@ -530,7 +533,9 @@ pub fn run() {
             reach::link_reach,
             reach::open_tailscale,
             page_zoom,
-            drawn
+            drawn,
+            update::update_state,
+            update::update_now
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -590,6 +595,9 @@ pub fn run() {
                 let app = deep.clone();
                 std::thread::spawn(move || show_window(&app));
             });
+
+            // A newer Chips for Mac looked for, downloaded and checked, to go in when it can.
+            update::start(&handle);
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -602,8 +610,10 @@ pub fn run() {
                 show_window(app);
                 wake_server(app);
             }
-            #[cfg(not(target_os = "macos"))]
-            let _ = (app, event);
+            // Quitting is a moment a downloaded release goes in (ADR 0298).
+            if let tauri::RunEvent::Exit = event {
+                update::on_exit(app);
+            }
         });
 }
 

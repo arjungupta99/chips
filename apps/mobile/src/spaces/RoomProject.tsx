@@ -1,10 +1,10 @@
 /**
  * The room's project on the phone (ADR 0222), as the web and the Mac have it: a change with its
- * files' diffs and Undo, opened from "2 files changed" under the reply that made it; and the room
- * sheet's Project page, with Files at `main` and every Change newest first, and one file with its
- * history. A file opens here as its words or its picture; a page runs once the server builds it
- * (ADR 0223). Files is the files alone: what opens on the phone and what happens on the Mac are in
- * Universe (ADR 0227), and `.chips`, the start page and the run file, is left out.
+ * files' diffs and Undo, opened from "2 files changed" under the reply that made it; the room
+ * sheet's Changes page, every change newest first; and one file with its history, which Universe's
+ * Files opens too. A file opens here as its words or its picture; a page runs once the server
+ * builds it (ADR 0223). The sheet's page was Project, with Files at `main` beside Changes, until
+ * Universe listed every file (ADR 0227's addendum of 14 November 2026).
  */
 
 import {
@@ -13,15 +13,14 @@ import {
   changeRow,
   type Directory,
   fileNameOf,
-  filesByFolder,
   filesChangedWords,
   linesWords,
   type MacsHeard,
   nameOf,
   type ProjectChange,
+  type ProjectPicture,
   type Space,
   type Store,
-  shownFiles,
   undoOffer,
 } from "@chipschat/core";
 import type {
@@ -57,6 +56,13 @@ export interface ProjectActions {
   readonly undo: (commit: string) => Promise<ProjectUndoAnswer>;
   /** A page of the project built into one document, to run in the page sheet (ADR 0223). */
   readonly page: (path: string, at?: string, signal?: AbortSignal) => Promise<string>;
+  /** A picture's small or screen copy, for Universe's Media (ADR 0227's addendum of 13 November). */
+  readonly picture: (
+    path: string,
+    edge: "small" | "screen",
+    at?: string,
+    signal?: AbortSignal,
+  ) => Promise<ProjectPicture>;
   /**
    * Open folder in Mac (ADR 0225): the person's own Chips for Mac asked, how many heard it, and
    * whether the server opened it first (ADR 0227's second addendum).
@@ -80,6 +86,7 @@ export function projectActions(store: Store, spaceId: string, selfId?: string): 
     change: (commit) => store.projectChange(spaceId, commit),
     undo: (commit) => store.undoChange(spaceId, commit),
     page: (path, at, signal) => store.projectPage(spaceId, path, at, signal),
+    picture: (path, edge, at, signal) => store.projectPicture(spaceId, path, edge, at, signal),
     openOnMac: () => store.openFolderOnMac(spaceId),
     openPageOnMac: () => store.openPageOnMac(spaceId),
     runs: {
@@ -351,48 +358,27 @@ function Card({ children }: { readonly children: ReactNode }) {
   return <View style={[styles.card, { backgroundColor: on.fill }]}>{children}</View>;
 }
 
-/** The room sheet's Project page: Files and Changes, under one way back. */
-export function ProjectPage({
+/**
+ * The room sheet's Changes page: every change to the project, newest first, under its way back.
+ * It was Project, with the project's files on a tab beside, until 14 November 2026: Universe
+ * lists every file and opens each on the same page (ADR 0227), so the foot says where they went.
+ */
+export function ChangesPage({
   space,
   directory,
-  project,
   onBack,
   onChange,
-  onFile,
 }: {
   readonly space: Space;
   readonly directory: Directory;
-  readonly project: ProjectActions;
   readonly onBack: () => void;
   readonly onChange: (commit: string) => void;
-  readonly onFile: (path: string) => void;
 }) {
-  const palette = usePalette();
-  const on = useGround();
-  const [tab, setTab] = useState<"files" | "changes">("files");
   const changes = space.project?.changes ?? [];
   return (
     <View style={styles.page}>
-      <PageBack title="Project" onBack={onBack} testID="room-sheet-project-back" />
-      <View style={[styles.tabs, { backgroundColor: on.fill }]} accessibilityRole="tablist">
-        {(["files", "changes"] as const).map((each) => (
-          <Pressable
-            key={each}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === each }}
-            onPress={() => setTab(each)}
-            testID={`project-tab-${each}`}
-            style={[styles.tab, tab === each ? { backgroundColor: palette.surface3 } : null]}
-          >
-            <Text style={[styles.tabWords, { color: tab === each ? palette.ink : palette.ink3 }]}>
-              {each === "files" ? "Files" : "Changes"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-      {tab === "files" ? (
-        <ProjectFiles project={project} space={space} onFile={onFile} />
-      ) : changes.length === 0 ? (
+      <PageBack title="Changes" onBack={onBack} testID="room-sheet-project-back" />
+      {changes.length === 0 ? (
         <Said words="No changes yet." />
       ) : (
         <SheetScroll style={styles.scroll} contentContainerStyle={styles.content}>
@@ -411,49 +397,10 @@ export function ProjectPage({
               );
             })}
           </Card>
+          <Said words="The files themselves are in Universe." />
         </SheetScroll>
       )}
     </View>
-  );
-}
-
-function ProjectFiles({
-  project,
-  space,
-  onFile,
-}: {
-  readonly project: ProjectActions;
-  readonly space: Space;
-  readonly onFile: (path: string) => void;
-}) {
-  const palette = usePalette();
-  const read = useRead(() => project.files(), space.id);
-  if (read.failed !== undefined) return <Said words={read.failed} failed />;
-  if (read.value === undefined) return <Said words="Reading the project…" />;
-  const files = shownFiles(read.value.files);
-  if (files.length === 0) return <Said words="No files yet." />;
-  return (
-    <SheetScroll style={styles.scroll} contentContainerStyle={styles.content}>
-      {filesByFolder(files).map(({ folder, files: inFolder }) => (
-        <View key={folder} style={styles.folder}>
-          {folder === "" ? null : (
-            <Text style={[styles.folderName, { color: palette.ink3 }]}>{`${folder}/`}</Text>
-          )}
-          <Card>
-            {inFolder.map((file, at) => (
-              <Row
-                key={file.path}
-                name={fileNameOf(file.path)}
-                under={bytesWords(file.bytes)}
-                first={at === 0}
-                onPress={() => onFile(file.path)}
-                testID={`project-file-${file.path}`}
-              />
-            ))}
-          </Card>
-        </View>
-      ))}
-    </SheetScroll>
   );
 }
 
@@ -580,7 +527,8 @@ function OpenPage({ path, project }: { readonly path: string; readonly project: 
   );
 }
 
-function bytesWords(bytes: number): string {
+/** A file's size as Files says it: bytes, KB, then MB to a tenth. */
+export function bytesWords(bytes: number): string {
   if (bytes < 1024) return `${bytes} bytes`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -607,15 +555,6 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.6 },
   lines: { borderRadius: RADIUS.md, padding: SPACE.sm },
   mono: { fontFamily: "Menlo", fontSize: TEXT.xs, lineHeight: TEXT.xs * 1.5 },
-  tabs: { flexDirection: "row", borderRadius: RADIUS.pill, padding: 3, marginTop: SPACE.sm },
-  tab: {
-    flex: 1,
-    minHeight: 34,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: RADIUS.pill,
-  },
-  tabWords: { fontSize: TEXT.md, fontWeight: "600" },
   folder: { gap: SPACE.xs },
   folderName: { fontSize: TEXT.sm, fontWeight: "600", marginHorizontal: SPACE.xs },
   card: { borderRadius: RADIUS.xl, overflow: "hidden" },

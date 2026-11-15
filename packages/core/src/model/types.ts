@@ -459,6 +459,11 @@ export interface Line {
    */
   readonly whole?: true | undefined;
   /**
+   * Something a newer computer sent that this app has no way to draw (ADR 0297): Chips's own line,
+   * "Something here needs a newer Chips.", with Update beside it. One for a run of them.
+   */
+  readonly newer?: true | undefined;
+  /**
    * An agent's context compacted (ADR 0146): the quiet line Chips wrote in its room, from how many
    * tokens to how many, of what window, and whether a person asked. The room may open the agent's
    * page from it.

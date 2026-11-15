@@ -85,6 +85,25 @@ export const configSchema = z.object({
        * generic ways in. Chips names no harness itself; it passes on what the docs say.
        */
       connectors: z.string().min(1).optional(),
+      /**
+       * Where the server reads which releases of Chips are out, once a day, for the update dot
+       * (ADR 0296): the site's `releases.json`. It reads the App Store's version alongside. Absent
+       * or `off`, nothing is read; a release sets the site's address, a checkout leaves it off.
+       */
+      updates: z.string().min(1).optional(),
+      /**
+       * Where the server reads which bridge releases may arrive on their own, once a day
+       * (bridges-keep-current.md, rule 6): the site's `bridges.json`, signed with the release key
+       * beside it as `bridges.json.sig`. The bridges in this computer's own data folder are kept
+       * on those releases. Absent or `off`, none is updated on its own; a release sets the site's
+       * address, a checkout leaves it off.
+       */
+      bridges: z.string().min(1).optional(),
+      /**
+       * `now` takes an allowed bridge release as soon as the list has it, as the publisher's own
+       * computers do to find out first. Otherwise each waits two days, then up to three more.
+       */
+      bridgesWait: z.enum(["spread", "now"]).optional(),
     })
     .prefault({}),
 

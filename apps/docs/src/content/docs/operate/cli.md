@@ -13,6 +13,7 @@ changes it. From a checkout it is `pnpm chips …`; once installed, `chips …`
 ```
 chips up                        start Chips, open it in your browser, show the phone's code
 chips down                      stop the login service `chips up` installed
+chips update                    bring this computer to the newest release, and start it again
 chips uninstall                 remove an installed Chips (your workspace is kept unless you say)
 chips serve                     run the server, print a pairing code, advertise it
 chips pair <code>               pair this machine with a running server
@@ -46,6 +47,25 @@ the login keychain (`--remove-data` answers yes). Neither touches a launch agent
 or `~/Chips`, where the bridges keep their settings and the agents their folders.
 Run through the link Chips for Mac makes, `chips uninstall` removes the service and the link but
 nothing inside the app, which goes to the Trash ([Chips for Mac](/operate/desktop/#removing-chips-for-mac)).
+
+## `chips update`
+
+`chips update` brings a computer installed with the install line to the newest release. It runs the
+copy of the install line its own release carries, so the download is checked with the key this
+computer was installed with, never a script fetched now. Then the new release's `chips up` starts the
+server again on it. The bridges are left as they are: the computer moves those itself, only to
+releases Chips signed ([`CHIPS_BRIDGES`](/start/install/)). When this computer is on the newest
+release already, nothing is downloaded or put in again (the install line's `--if-newer`), and the
+server isn't started again. What happened is kept in the data folder, `update.json`, and the
+computer's row in About says it: an update that stopped halfway, or one whose server didn't start
+again, is said as one that failed, with why.
+
+An owner can have it run at night: "Update this computer automatically", off until they turn it on
+(`PUT /v1/server/self-update`). It runs between two and five in the morning by the computer's clock,
+once a night, only when a newer release is out and nothing is going on: no turn running, no ask
+waiting, nothing said for ten minutes. Chips for Mac updates with the app, and a checkout with git,
+so neither has it. A release from before 1.2.5 carries no install line to run, so it is updated
+once more by the line from [Install](/start/install/).
 
 ## `chips serve`
 

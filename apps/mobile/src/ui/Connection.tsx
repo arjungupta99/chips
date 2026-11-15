@@ -26,6 +26,9 @@
  *   same as never having been there; a red mark deserves an answer. Only after red: a slow
  *   connect that never failed just goes, or every launch over a slow network would flash green.
  *
+ * The red and the green are the mark's own, brighter than the status colours so they sit with the
+ * gold, and their pins a shade of the chip's colour (`connectionPaint`, 12 November 2026).
+ *
  * The sheet shows the mark large, on a circuit board (`Circuit`, ADR 0251), saying what the sheet
  * says: sparks running out from the pins while it reaches, the board dim under a red mark while it
  * cannot, and every trace filling green when it is through. It stays up, saying so, until it is
@@ -44,12 +47,12 @@ import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from "r
 import { WAYS_IN } from "../demo/home";
 import { deviceWord, thisDevice } from "../device/word";
 import { Button } from "./Button";
-import { ChipPulse } from "./ChipPulse";
+import { ChipPulse, connectionPaint } from "./ChipPulse";
 import { type BoardLook, Circuit } from "./Circuit";
 import { lift } from "./haptics";
 import { Sheet, SheetScroll } from "./Sheet";
 import { usePalette } from "./theme";
-import { LEADING_PHONE, type Palette, SPACE, TEXT } from "./tokens";
+import { LEADING_PHONE, SPACE, TEXT } from "./tokens";
 import { useReduceMotion } from "./useReduceMotion";
 
 /** A blink of not-connected is not worth a mark: it shows only once it has lasted this long. */
@@ -396,12 +399,6 @@ function useWorn(
   return { worn, here, shown: last.current };
 }
 
-/** The body: red while it cannot connect, green for the beat it is back, gold while it reaches. */
-function bodyOf(shown: Look, palette: Palette): string {
-  if (shown === "failed") return palette.red;
-  return shown === "back" ? palette.green : palette.gold;
-}
-
 export function ConnectionMark({
   state,
   link,
@@ -442,8 +439,8 @@ export function ConnectionMark({
   const router = useRouter();
   const [up, setUp] = useState(false);
   const { worn, here, shown } = useWorn(lookOf(state), settled, up);
-  const body = bodyOf(shown, palette);
-  const back = shown === "back";
+  // Red while it cannot connect, green for the beat it is back, gold while it reaches.
+  const paint = connectionPaint(shown === "gone" ? "reaching" : shown, palette);
   // Mounted only while the sheet is up or on its way down. A caller that unmounts a sheet to
   // close it gets no exit at all (`Sheet`), and one left mounted for ever is a modal and a pair
   // of springs standing behind every screen in the app for the sake of a tap nobody has made.
@@ -487,13 +484,7 @@ export function ConnectionMark({
           }}
           style={({ pressed }) => [styles.slot, { opacity: pressed ? 0.5 : 1 }]}
         >
-          <ChipPulse
-            gold={body}
-            ink={palette.ink3}
-            lit={palette.ink}
-            working={shown === "reaching"}
-            allLit={back}
-          />
+          <ChipPulse {...paint} working={shown === "reaching"} />
         </Pressable>
       </Animated.View>
       {!showing ? null : (

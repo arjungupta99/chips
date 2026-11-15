@@ -29,12 +29,11 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { describe, licenceTexts, prodPackages } from "../notices/notices.mjs";
 import {
   artifactName,
   bundleOptions,
   hostTarget,
-  LICENCE_FILE,
-  licenceSection,
   lockFault,
   nodeDist,
   noticesFile,
@@ -152,6 +151,10 @@ const bundled = await build({
 writeFileSync(join(root, "bin", "chips"), SHIM);
 chmodSync(join(root, "bin", "chips"), 0o755);
 writeFileSync(join(root, "VERSION"), `${version}\n`);
+// The install line, carried: `chips update` runs this copy, so a computer updates itself with the
+// key it was installed with rather than a script fetched from the web (everything in step, phase 6).
+copyFileSync(join(REPO, "packaging", "install.sh"), join(root, "install.sh"));
+chmodSync(join(root, "install.sh"), 0o755);
 copyFileSync(join(REPO, "LICENSE"), join(root, "LICENSE"));
 copyFileSync(join(REPO, "packages", "protocol", "LICENSE"), join(root, "LICENSE-APACHE"));
 say("  notices");
@@ -160,7 +163,7 @@ const carried = [
   ...installed(join(root, "lib", "node_modules")),
   npmTo,
   ...installed(join(npmTo, "node_modules")),
-  ...webPackages(),
+  ...prodPackages("@chipschat/web"),
 ].filter((dir) => dir !== undefined);
 writeFileSync(
   join(root, "THIRD-PARTY-NOTICES.md"),
@@ -211,46 +214,6 @@ function installed(modules) {
         ? readdirSync(join(modules, name)).map((inner) => join(modules, name, inner))
         : [join(modules, name)],
     );
-}
-
-/** The packages the web app is built from: its production dependencies, all the way down. */
-function webPackages() {
-  const listed = JSON.parse(
-    execFileSync(
-      "pnpm",
-      ["--filter", "@chipschat/web", "list", "--prod", "--depth", "Infinity", "--json"],
-      {
-        cwd: REPO,
-        encoding: "utf8",
-      },
-    ),
-  );
-  const found = [];
-  const walk = (deps = {}) => {
-    for (const each of Object.values(deps)) {
-      if (each.path?.includes("node_modules")) found.push(each.path);
-      walk(each.dependencies);
-    }
-  };
-  for (const project of listed) walk(project.dependencies);
-  return found;
-}
-
-/** What `noticesFile` says of the package in `dir`. */
-function describe(dir) {
-  const manifest = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
-  const license = typeof manifest.license === "string" ? manifest.license : manifest.license?.type;
-  return { name: manifest.name, version: manifest.version, license, texts: licenceTexts(dir) };
-}
-
-/** The licence and notice files in a folder, as they are; else its README's licence section. */
-function licenceTexts(dir) {
-  const files = readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && LICENCE_FILE.test(entry.name))
-    .map((entry) => ({ file: entry.name, text: readFileSync(join(dir, entry.name), "utf8") }));
-  if (files.length > 0 || !existsSync(join(dir, "README.md"))) return files;
-  const section = licenceSection(readFileSync(join(dir, "README.md"), "utf8"));
-  return section === undefined ? [] : [{ file: "README.md, its licence section", text: section }];
 }
 
 function sha256(path) {

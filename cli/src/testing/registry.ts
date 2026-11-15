@@ -31,7 +31,7 @@ export const sriOf = (bytes: Uint8Array) =>
 export function standIn(
   packages: Record<
     string,
-    Record<string, { bytes: Uint8Array; integrity?: string; deprecated?: string }>
+    Record<string, { bytes: Uint8Array; integrity?: string; deprecated?: string; engines?: object }>
   >,
 ) {
   const asked: string[] = [];
@@ -47,6 +47,7 @@ export function standIn(
             {
               version,
               ...(each.deprecated === undefined ? {} : { deprecated: each.deprecated }),
+              ...(each.engines === undefined ? {} : { engines: each.engines }),
               dist: {
                 tarball: `https://registry.test/${name}/-/${version}.tgz`,
                 integrity: each.integrity ?? sriOf(each.bytes),

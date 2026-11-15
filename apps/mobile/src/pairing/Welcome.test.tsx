@@ -52,9 +52,18 @@ jest.mock("expo-camera", () => ({
   useCameraPermissions: () => [{ granted: mockCamera.granted, canAskAgain: true }, jest.fn()],
 }));
 const mockLookAround = jest.fn(async () => undefined);
+/** The workspace in front whose key is gone, when a test has one (ADR 0228's addendum). */
+let mockLost: object | undefined;
 jest.mock("../store/provider", () => ({
-  useChips: () => ({ began: jest.fn(), paired: undefined, demo: { lookAround: mockLookAround } }),
+  useChips: () => ({
+    began: jest.fn(),
+    paired: undefined,
+    demo: { lookAround: mockLookAround },
+    lost: mockLost,
+  }),
 }));
+const mockLeave = jest.fn(async () => undefined);
+jest.mock("../device/leave", () => ({ useLeave: () => mockLeave }));
 const mockPair = jest.fn();
 /** How the pairing is going, as `usePairing` says. */
 let mockPairing: { working: boolean; failure: string | undefined } = {
@@ -107,6 +116,7 @@ const INVITE = `https://host.example/#invite=chips_inv_5&key=${"k".repeat(43)}`;
 
 afterEach(() => {
   mockParams = {};
+  mockLost = undefined;
   mockPairing = { working: false, failure: undefined };
   mockCamera.granted = false;
   mockCamera.read = undefined;
@@ -302,6 +312,53 @@ describe("the first screen", () => {
     await act(async () => undefined);
     expect(screen.queryByTestId("on-this-wifi")).toBeNull();
     expect(screen.queryByText(/Nothing here yet/)).toBeNull();
+  });
+});
+
+describe("the first screen for a workspace whose key is gone (ADR 0228's addendum)", () => {
+  const NORTHWIND = {
+    deviceId: "dev_lost",
+    participantId: "per_noor",
+    workspaceId: "ws_northwind",
+    displayName: "Noor",
+    workspaceName: "Northwind",
+  };
+
+  it("opens on it, named, in place of the film", async () => {
+    mockLost = NORTHWIND;
+    await render(<PairScreen />);
+    expect(
+      screen.getByRole("header", { name: "This phone can't open Northwind any more" }),
+    ).toBeOnTheScreen();
+    expect(screen.getByText(/restored from a backup/)).toBeOnTheScreen();
+    expect(screen.getByText(/ask an owner to reconnect you/)).toBeOnTheScreen();
+    expect(screen.queryByTestId("welcome-film")).toBeNull();
+    expect(screen.queryByText(/^Watch Chips work/)).toBeNull();
+  });
+
+  it("opens the camera for the code an owner gets", async () => {
+    mockLost = NORTHWIND;
+    await render(<PairScreen />);
+    await userEvent.press(screen.getByRole("button", { name: "Scan a QR code" }));
+    expect(screen.getByTestId("scan-sheet")).toBeOnTheScreen();
+  });
+
+  it("opens the other ways in, where it steps aside for That's Chips", async () => {
+    mockLost = NORTHWIND;
+    await render(<PairScreen />);
+    await userEvent.press(screen.getByRole("button", { name: "Other ways in" }));
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/pair", params: { ways: "1" } });
+
+    mockParams = { ways: "1" };
+    await render(<PairScreen />);
+    expect(screen.getByRole("header", { name: "That's Chips" })).toBeOnTheScreen();
+  });
+
+  it("takes the workspace off this phone by its id, with no store of it to read rooms from", async () => {
+    mockLost = NORTHWIND;
+    await render(<PairScreen />);
+    await userEvent.press(screen.getByRole("button", { name: "Remove Northwind from this phone" }));
+    expect(mockLeave).toHaveBeenCalledWith(NORTHWIND, []);
   });
 });
 

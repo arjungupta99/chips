@@ -34,24 +34,30 @@ import {
   agentsTab,
   alwaysRules,
   asksGoTo,
+  BRIDGE_HEADING,
   backFromRestart,
   backWords,
+  bridgeLine,
   connectedWords,
   fleetDoing,
   harnessGroups,
   harnessModelAgent,
+  KEEP_BRIDGE_FOOT,
+  KEEP_BRIDGE_SWITCH,
   mayAskFromPage,
   mayRemoveHarness,
+  myRole,
   nameOf,
   permissionsRow,
   removeAsking,
   restartAsking,
   restartOffer,
+  showsBridgeSwitch,
 } from "@chipschat/core";
 import type { AgentState } from "@chipschat/protocol";
 import { useRouter } from "expo-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { AgentRow } from "../agents/AgentRow";
 import { NotFound } from "../agents/Arriving";
 import { useModelGroup } from "../agents/model/ModelGroup";
@@ -72,7 +78,9 @@ import { useColumn } from "../ui/Screen";
 import { usePalette } from "../ui/theme";
 import { AVATAR_HUES, ICON_GROUNDS, SPACE, TEXT } from "../ui/tokens";
 import { type DotKind, type HarnessStatus, STATUS, statusLabel, type Tone } from "../ui/vocabulary";
-import { useConnect } from "./Connect";
+import { NeedsDot } from "../updates/UpdateDot";
+import { useUpdates } from "../updates/updates";
+import { Line as CommandLine, useConnect } from "./Connect";
 import { type HarnessBanners, useHarnessBanners } from "./HarnessBanners";
 import { JobsGroup } from "./jobs/JobsGroup";
 import type { HarnessPart } from "./parts";
@@ -162,6 +170,7 @@ export function Profile({
             banners={banners}
             onOpen={open}
           />
+          <Bridge snapshot={snapshot} harnessId={harnessId} selfId={selfId} focus={focus} />
           <History snapshot={snapshot} harnessId={harnessId} onOpen={open} />
         </GrowingView>
         <GrowingView layout={GROWS}>
@@ -178,6 +187,87 @@ export function Profile({
       {model.overlays}
       {banners.overlay}
     </>
+  );
+}
+
+/**
+ * Its bridge (ADR 0297): the release it runs and what Chips is doing with it, in one line of seven
+ * states, and the owner's switch "Keep this bridge up to date" for a bridge this computer keeps.
+ * The update dot breathes on the line when the owner has something to do; a still blue dot
+ * while it fixes itself; green when all is well. A bridge kept elsewhere gets the line to
+ * run where it runs, said once, over the command. Nothing for a harness that isn't a bridge.
+ * What the bridge runs is read again each time the page comes to the front.
+ */
+function Bridge({
+  snapshot,
+  harnessId,
+  selfId,
+  focus,
+}: {
+  readonly snapshot: Snapshot;
+  readonly harnessId: string;
+  readonly selfId: string | undefined;
+  /** How many times the page has come to the front. */
+  readonly focus: number;
+}) {
+  const palette = usePalette();
+  const { software, keepBridge, readSoftware } = useUpdates();
+  // The line says how the bridge stands now, not as it stood when the app last asked.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: asked again for each harness and each time the page comes to the front.
+  useEffect(() => readSoftware(), [readSoftware, harnessId, focus]);
+  const harness = software?.harnesses.find((each) => each.harnessId === harnessId);
+  const name = nameOf(snapshot.directory, harnessId);
+  const line = harness === undefined ? undefined : bridgeLine(harness, { name, now: Date.now() });
+  if (harness === undefined || line === undefined) return null;
+  const owner = selfId !== undefined && myRole(snapshot.model, selfId) === "owner";
+  const switchable = showsBridgeSwitch(harness, owner);
+  const still = line.tone === "fine" ? palette.green : palette.blue;
+  return (
+    <View testID="harness-bridge">
+      <GroupHeading>{BRIDGE_HEADING}</GroupHeading>
+      <Group inset={MARKED_INSET}>
+        <View style={styles.bridgeLine} testID="harness-bridge-line">
+          {line.tone === "needs" ? (
+            <NeedsDot />
+          ) : (
+            <View style={styles.bridgeDotBox}>
+              <View style={[styles.bridgeDot, { backgroundColor: still }]} />
+            </View>
+          )}
+          <View style={styles.bridgeWords}>
+            <Text style={[styles.bridgeLabel, { color: palette.ink }]}>{line.label}</Text>
+            {line.sub === "" ? null : (
+              <Text style={[styles.bridgeSub, { color: palette.ink3 }]}>{line.sub}</Text>
+            )}
+          </View>
+        </View>
+        {switchable && (
+          <GroupRow
+            label={KEEP_BRIDGE_SWITCH}
+            trailing={
+              <Switch
+                value={harness.keepCurrent}
+                onValueChange={(on) => keepBridge(harness.harnessId, on)}
+                accessibilityLabel={KEEP_BRIDGE_SWITCH}
+                testID="harness-bridge-switch"
+              />
+            }
+          />
+        )}
+      </Group>
+      {line.command !== undefined && (
+        <View style={styles.bridgeCommand}>
+          <CommandLine
+            text={line.command}
+            standIn={line.command}
+            failed={undefined}
+            prose={false}
+            run
+          />
+        </View>
+      )}
+      {switchable && <GroupFoot>{KEEP_BRIDGE_FOOT}</GroupFoot>}
+    </View>
   );
 }
 
@@ -846,6 +936,19 @@ function Removal({
 }
 
 const styles = StyleSheet.create({
+  bridgeLine: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: SPACE.md,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.sm + 4,
+  },
+  bridgeDotBox: { width: 24, height: 24, alignItems: "center", justifyContent: "center" },
+  bridgeDot: { width: 8, height: 8, borderRadius: 4 },
+  bridgeWords: { flex: 1, gap: 2 },
+  bridgeLabel: { fontSize: TEXT.body },
+  bridgeSub: { fontSize: TEXT.sm, lineHeight: 18 },
+  bridgeCommand: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.sm, gap: SPACE.sm },
   // The groups run from their own inset, as on You and an agent's page; the head and the buttons
   // take the same margin.
   body: { paddingTop: SPACE.lg, paddingBottom: SPACE.xxl * 2 },

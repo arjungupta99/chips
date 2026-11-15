@@ -730,12 +730,19 @@ export function serviceSettings(
   };
 }
 
+/** The proxy a shell names, in either case, as curl and `proxy.ts` read it. */
+const PROXY_SETTINGS = ["HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY"].flatMap((name) => [
+  name,
+  name.toLowerCase(),
+]);
+
 /**
  * What the service carries from one `chips up` to the next, since launchd and systemd read no
  * shell profile: everything in the file `chips up` wrote before, whether an earlier run or a
  * person put it there, under the `CHIPS_` settings this shell exports (push's token, the media
- * tools, the attachment secret and the rest Chips documents). The shell wins, and a setting it
- * exports empty is taken out. What an answer wrote is the answer's to say again (`answered`).
+ * tools, the attachment secret and the rest Chips documents) and the proxy it names, which Chips
+ * reads the site and npm through (`proxy.ts`). The shell wins, and a setting it exports empty is
+ * taken out. What an answer wrote is the answer's to say again (`answered`).
  */
 export function carriedSettings(
   environment: Environment,
@@ -745,7 +752,7 @@ export function carriedSettings(
   for (const [name, value] of Object.entries(existing)) {
     if (!answered(name, value)) carried[name] = value;
   }
-  for (const [name] of ENVIRONMENT_BINDINGS) {
+  for (const name of [...ENVIRONMENT_BINDINGS.map(([each]) => each), ...PROXY_SETTINGS]) {
     const value = environment[name];
     if (value !== undefined) carried[name] = value;
   }

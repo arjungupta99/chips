@@ -9,6 +9,8 @@ import {
   serviceKind,
   servicePath,
   startCommands,
+  startsCommand,
+  startsIn,
   stateOf,
   stopCommands,
   systemdUnit,
@@ -144,6 +146,48 @@ describe("the login service", () => {
       "restart",
       "chat.chips.acp.codex.service",
     ]);
+  });
+
+  it("asks how many times a bridge's service has been started, of launchd or systemd", () => {
+    expect(startsCommand("launchd", "chat.chips.hermes", 501)).toEqual([
+      "launchctl",
+      "print",
+      "gui/501/chat.chips.hermes",
+    ]);
+    expect(startsCommand("systemd", "chat.chips.acp.codex", 1000)).toEqual([
+      "systemctl",
+      "--user",
+      "show",
+      "chat.chips.acp.codex.service",
+      "--property=NRestarts",
+      "--value",
+    ]);
+  });
+
+  it("reads the count from what each prints, and none from anything else", () => {
+    // As `launchctl print` lays a job out (macOS 15 and 26): tabs, and other numbers around it.
+    const printed = [
+      "gui/501/chat.chips.hermes = {",
+      "\tactive count = 1",
+      "\tstate = running",
+      "\tprogram = /Users/someone/Chips/runtime/node",
+      "\truns = 6",
+      "\tpid = 98399",
+      "\tforks = 8",
+      "\tlast exit code = 0",
+      "}",
+    ].join("\n");
+    expect(startsIn("launchd", printed)).toBe(6);
+    expect(startsIn("launchd", "\truns = 0\n")).toBe(0);
+    expect(startsIn("launchd", 'Bad request.\nCould not find service "x" in domain')).toBe(
+      undefined,
+    );
+    // A line that only mentions runs isn't the count.
+    expect(startsIn("launchd", "\tsuccessive runs = many\n\tforks = 8\n")).toBeUndefined();
+    expect(startsIn("systemd", "4\n")).toBe(4);
+    expect(startsIn("systemd", "0\n")).toBe(0);
+    expect(startsIn("systemd", "")).toBeUndefined();
+    expect(startsIn("systemd", "Failed to connect to bus: No medium found\n")).toBeUndefined();
   });
 
   it("reads back the environment it wrote, from a launch agent or a unit", () => {

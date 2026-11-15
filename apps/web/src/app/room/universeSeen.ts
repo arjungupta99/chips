@@ -16,6 +16,8 @@ export const SEEN_KEY = "chips.universe.seen";
 
 const listeners = new Set<() => void>();
 let seen: Readonly<Record<string, string>> | undefined;
+/** What each space's Universe had been opened at before this page's last opening of it. */
+const before = new Map<string, string | undefined>();
 
 /** What was kept last time. Nonsense, or no storage, is nothing seen. */
 function stored(): Readonly<Record<string, string>> {
@@ -51,6 +53,7 @@ export function useUniverseCall(
   const kept = useSyncExternalStore(subscribe, read, read);
   const calling = universeCalling(project, selfId, kept[spaceId]);
   const opened = useCallback(() => {
+    before.set(spaceId, read()[spaceId]);
     const at = universeSeenAt(project);
     if (at === undefined || read()[spaceId] === at) return;
     seen = { ...read(), [spaceId]: at };
@@ -62,4 +65,13 @@ export function useUniverseCall(
     }
   }, [spaceId, project]);
   return { calling, opened };
+}
+
+/**
+ * The change a space's Universe had been opened at before it was opened this time, which opening
+ * has just moved on to the newest: what came after it is new to the reader (Media's and Files' gold
+ * dots, ADR 0227's addendum of 13 November 2026). Before any opening here, what is kept.
+ */
+export function seenBefore(spaceId: string): string | undefined {
+  return before.has(spaceId) ? before.get(spaceId) : read()[spaceId];
 }

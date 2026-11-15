@@ -5,13 +5,20 @@
  * points the app uses: `createFold` for a stream and `buildModel` for a list.
  */
 
-import { DEFAULT_EXCHANGE_LIMITS, NO_CAPS, resetsTheCount } from "@chipschat/protocol";
+import {
+  DEFAULT_EXCHANGE_LIMITS,
+  LATER_EVENTS,
+  LEVEL_ONE_EVENTS,
+  NO_CAPS,
+  resetsTheCount,
+} from "@chipschat/protocol";
 import { actorKind, type ClientEvent } from "../events.js";
 import { APPROVAL_FOLDS } from "./approvals.js";
 import { freeze, noteConnection } from "./build.js";
 import { EXCHANGE_LIMITS_FOLDS } from "./exchange-limits.js";
 import { LANE_FOLDS } from "./lanes.js";
 import { LIMITS_FOLDS } from "./limits.js";
+import { placeOf } from "./lines.js";
 import { MESSAGE_FOLDS } from "./messages.js";
 import { PEOPLE_FOLDS } from "./people.js";
 import { POLICY_FOLDS } from "./policy.js";
@@ -62,6 +69,52 @@ const FOLDS: Readonly<Record<string, FoldStep>> = {
  * (M0.6's invariant, kept). An event type this build does not know changes nothing, which is
  * what lets an older client keep working against a newer server.
  */
+/** The line an app draws for what a newer computer sent that it can't (ADR 0297). */
+export const NEWER_LINE = "Something here needs a newer Chips.";
+
+/**
+ * Every event type the catalogue has, at any level: the first level's and each one added since
+ * (`LATER_EVENTS`). One of these with no step in the table is left undrawn on purpose.
+ */
+const KNOWN: ReadonlySet<string> = new Set([...LEVEL_ONE_EVENTS, ...Object.keys(LATER_EVENTS)]);
+
+/**
+ * An event in a room that this app's catalogue doesn't have: a newer computer sent it, and the app
+ * has no way to show it. Rather than nothing, one quiet line of Chips's own, and one for a run of
+ * them. An event the catalogue has and the app leaves undrawn on purpose is not one.
+ *
+ * The line is made from the event's envelope alone: its id, its place and its time. What the event
+ * holds is not this app's to read, so nothing of it is, whatever it is called: a field named
+ * `attachments` or `reply_to` there need not be a message's.
+ */
+function noteNewer(space: MutableSpace | undefined, event: ClientEvent): void {
+  if (space === undefined || KNOWN.has(event.type)) return;
+  // Where it belongs by `seq`, which is the end only when events come in order: a run of them
+  // replayed behind a later line is still one line, so the lines on both sides are looked at.
+  const lines = space.lines;
+  const at = placeOf(lines, event.seq);
+  if (lines[at - 1]?.newer === true || lines[at]?.newer === true) return;
+  lines.splice(at, 0, {
+    id: event.id,
+    seq: event.seq,
+    kind: "system",
+    authorId: "chips",
+    authorKind: "system",
+    text: NEWER_LINE,
+    ts: event.ts,
+    whole: true,
+    newer: true,
+  });
+}
+
+/** One event into the model: its family's step, or the line for one this app doesn't know. */
+function foldOne(state: Building, space: MutableSpace | undefined, event: ClientEvent): void {
+  const step = FOLDS[event.type];
+  if (step !== undefined) step(state, event);
+  else noteNewer(space, event);
+  if (space !== undefined) noteExchange(space, event);
+}
+
 export interface Fold {
   readonly push: (events: readonly ClientEvent[]) => void;
   readonly model: () => WorkspaceModel;
@@ -122,8 +175,7 @@ export function createFold(options: FoldOptions = {}): Fold {
           space.lastEventSeq = event.seq;
           space.lastActivityAt = event.ts;
         }
-        FOLDS[event.type]?.(state, event);
-        if (space !== undefined) noteExchange(space, event);
+        foldOne(state, space, event);
       }
       current = undefined;
     },

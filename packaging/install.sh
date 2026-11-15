@@ -23,6 +23,10 @@
 #   --version <v>      a version other than the latest
 #   --no-path          leave your shell profile alone
 #   --yes              add ~/.local/bin to your shell profile without asking
+#   --no-bridges       leave the bridges here as they are at an upgrade: the computer moves them
+#                      to the releases Chips signed, itself (`chips update` passes it)
+#   --if-newer         download and replace nothing when the release there is the one here
+#                      (`chips update` passes it)
 #   connect <id>       then connect that harness, with the link Chips made (always last)
 # Environment:
 #   CHIPS_JOIN_LINK      the link, which `chips connect` reads
@@ -50,6 +54,8 @@ FROM=""
 VERSION="latest"
 PATH_EDIT="ask"
 MODE="install"
+BRIDGES="update"
+IF_NEWER="no"
 
 say() { printf '  %s\n' "$1"; }
 die() { printf '\n  %s\n\n' "$1" >&2; exit 1; }
@@ -60,6 +66,8 @@ while [ $# -gt 0 ]; do
     --version) VERSION="${2:-}"; shift 2 ;;
     --no-path) PATH_EDIT="no"; shift ;;
     --yes|-y) PATH_EDIT="yes"; shift ;;
+    --no-bridges) BRIDGES="leave"; shift ;;
+    --if-newer) IF_NEWER="yes"; shift ;;
     connect) MODE="connect"; shift; break ;;
     *) die "Unknown option: $1" ;;
   esac
@@ -236,6 +244,19 @@ else
   NAME=$(sed -n "s/^[0-9a-f]\{64\}  \(chips-[0-9A-Za-z.+-]*-$TARGET\)\.tar\.gz\$/\1/p" "$TMP/SHA256SUMS" \
     | head -n 1)
   [ -n "$NAME" ] || die "The release at $DIR has nothing for this machine ($TARGET)."
+  # `--if-newer`: the release there is the one here, so nothing is downloaded again and the folder
+  # a server may be running from is left as it is. SHA256SUMS is believed for this, as for an
+  # install, only with its signature.
+  if [ "$IF_NEWER" = yes ] && [ -L "$LIB/current" ] && [ -x "$LIB/current/bin/chips" ]; then
+    HERE=$(basename "$(readlink "$LIB/current")")
+    if [ "$NAME" = "chips-$HERE-$TARGET" ]; then
+      signed "$TMP/SHA256SUMS" "$TMP/SHA256SUMS.sig" || die "SHA256SUMS is not signed with \
+Chips's release key, as this machine's ssh-keygen reads it (OpenSSH 8.1 or later). Not installed."
+      say "✓ chips $HERE is the newest. Nothing was installed."
+      printf '\n'
+      exit 0
+    fi
+  fi
   say "Downloading $NAME from $DIR into $LIB"
   curl -fsSL "$DIR/$NAME.tar.gz" -o "$TMP/$NAME.tar.gz" || die "Could not download $NAME."
   TARBALL="$TMP/$NAME.tar.gz"
@@ -284,8 +305,22 @@ fi
 tar -xzf "$TARBALL" -C "$TMP"
 [ -x "$TMP/$NAME/bin/chips" ] || die "$NAME.tar.gz does not hold a Chips release."
 mkdir -p "$LIB" "$BIN"
-rm -rf "${LIB:?}/$VERSION"
-mv "$TMP/$NAME" "$LIB/$VERSION"
+# The new copy is put beside the one it replaces before that one is touched, and the two change
+# places in two renames. A disk that fills while it is copied in leaves what was there, and a server
+# running from this same version is never without its files for longer than the renames take.
+NEW="$LIB/.$VERSION.new"
+OLD="$LIB/.$VERSION.old"
+rm -rf "$NEW" "$OLD"
+mv "$TMP/$NAME" "$NEW" || { rm -rf "$NEW"; die "Could not put $NAME in $LIB. Nothing was changed."; }
+if [ -e "$LIB/$VERSION" ]; then
+  mv "$LIB/$VERSION" "$OLD" || { rm -rf "$NEW"; die "Could not replace $LIB/$VERSION. Nothing was changed."; }
+fi
+if ! mv "$NEW" "$LIB/$VERSION"; then
+  [ ! -e "$OLD" ] || mv "$OLD" "$LIB/$VERSION"
+  rm -rf "$NEW"
+  die "Could not put $NAME in $LIB. Nothing was changed."
+fi
+rm -rf "$OLD"
 ln -sfn "$LIB/$VERSION" "$LIB/current"
 # Chips for Mac links ~/.local/bin/chips to the copy it carries, which updates with the app: that
 # link is left as it is (ADR 0218, phase 5). Once the app is in the Trash the link leads nowhere,
@@ -304,7 +339,7 @@ fi
 
 # An upgrade: each harness's bridge kept running here brought to the newest release its card names,
 # and started again on the Node this release carries (ADR 0218). Nothing to do where none is.
-if [ -n "$WAS" ] && [ "$WAS" != "$VERSION" ]; then
+if [ -n "$WAS" ] && [ "$WAS" != "$VERSION" ] && [ "$BRIDGES" = update ]; then
   "$LIB/current/bin/chips" connect --update < /dev/null || say "! A bridge didn't update: the lines above say which."
 fi
 
@@ -352,7 +387,7 @@ if [ "$MODE" = connect ]; then
 fi
 
 # An upgrade leaves a server that was running on the release before until it starts again, which
-# `chips up` does when it finds one older than itself.
+# `chips up` does when it finds its own service running another version.
 if [ -n "$WAS" ] && [ "$WAS" != "$VERSION" ]; then
   printf '\n  Next: %s up, which starts a server running here again on %s\n\n' "$RUN" "$VERSION"
 else

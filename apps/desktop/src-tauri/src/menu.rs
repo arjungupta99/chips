@@ -2,7 +2,8 @@
 //!
 //! They are the iPad's (ADR 0256's sixth part) where the iPad has them, with the Mac's own around
 //! them: the four sections on ⌘1 to ⌘4, New Space on ⌘N, Search Everything on ⇧⌘F, the space
-//! before and after on ⌥↑ and ⌥↓, and Settings on ⌘, for You. What a command does is the page's,
+//! before and after on ⌥↑ and ⌥↓, Settings on ⌘, for You, and About Chips, which opens You's
+//! About (ADR 0295). What a command does is the page's,
 //! as everything else is: a row chosen, or its keys, goes to the page by its id, and the page says
 //! back which of them it can do now and under what name (`set_menu`). Until it has, they are dim.
 //!
@@ -53,6 +54,8 @@ const STEPS: [Command; 2] = [
     command("next-space", "Next Space", Some("Alt+Down")),
 ];
 const FEEDBACK: Command = command("feedback", "Send Feedback…", None);
+/// About Chips opens the page's own About beside You (ADR 0295), not the system's small panel.
+const ABOUT: Command = command("about", "About Chips", None);
 
 /// The window's own: how large the page is drawn.
 const ACTUAL_SIZE: &str = "zoom-actual";
@@ -90,7 +93,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         "Chips",
         true,
         &[
-            &PredefinedMenuItem::about(app, Some("About Chips"), None)?,
+            &item(&ABOUT)?,
             &line()?,
             &item(&SETTINGS)?,
             &line()?,
@@ -292,7 +295,7 @@ mod tests {
     #[test]
     fn the_page_and_the_shell_name_the_same_commands() {
         // `apps/web/src/app/menuBar.ts` lists these ids; a renamed one would go nowhere.
-        let ids: Vec<&str> = [&SETTINGS, &NEW_SPACE, &SEARCH_EVERYTHING, &FEEDBACK]
+        let ids: Vec<&str> = [&ABOUT, &SETTINGS, &NEW_SPACE, &SEARCH_EVERYTHING, &FEEDBACK]
             .into_iter()
             .chain(SECTIONS.iter())
             .chain(STEPS.iter())

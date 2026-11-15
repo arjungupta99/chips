@@ -412,10 +412,64 @@ describe("a storage that keeps the key its own way (ADR 0042 … M4.2)", () => {
     const { storage, vault } = keychain();
     await kept(storage, "dev_home");
     const gone = await kept(storage, "dev_old", "ws_2");
+    await storage.put("current", { pointer: "dev_home" });
     vault.delete(gone.keyRef);
     const held = await readDevices(storage);
     expect(held.devices.map((each) => each.deviceId)).toEqual(["dev_home"]);
     expect(held.unreadable).toBe(0);
+    // Named, so the app can say so, with nothing in it that could sign (ADR 0228's addendum).
+    expect(held.lost.map((each) => each.deviceId)).toEqual(["dev_old"]);
+    expect(held.lost[0]).not.toHaveProperty("privateKey");
+    expect(held.lostInFront).toBe(false);
+  });
+
+  it("says when the device whose key is gone is the one in front, as a phone set up from a backup finds it", async () => {
+    // The phone's records and preferences come back with a backup; its Keychain's keys, made
+    // this-device-only, do not. Until ADR 0228's addendum the read answered nothing at all, and the
+    // app opened on the kept demo as if the workspace had never been there.
+    const { storage, vault } = keychain();
+    const home = await kept(storage, "dev_home");
+    await storage.put("dev_home", {
+      ...(storage.data.get("dev_home") as object),
+      workspaceName: "Northwind",
+    });
+    await kept(storage, "dev_work", "ws_2");
+    await storage.put("current", { pointer: "dev_home" });
+    vault.delete(home.keyRef);
+
+    const held = await readDevices(storage);
+    expect(held.devices.map((each) => each.deviceId)).toEqual(["dev_work"]);
+    expect(held.lostInFront).toBe(true);
+    expect(held.lost).toEqual([
+      expect.objectContaining({ deviceId: "dev_home", workspaceName: "Northwind" }),
+    ]);
+
+    // Paired again with the same server, the record whose key is gone is replaced, and nothing is lost.
+    vi.stubGlobal("fetch", async () =>
+      Response.json({
+        device_id: "dev_again",
+        participant_id: "usr_1",
+        workspace_id: "ws_1",
+        display_name: "A phone",
+      }),
+    );
+    await pairDevice("ABC-234", "A phone", "http://dev_home.local:4431", undefined, storage);
+    vi.unstubAllGlobals();
+    const again = await readDevices(storage);
+    expect(again.devices.map((each) => each.deviceId)).toEqual(["dev_again", "dev_work"]);
+    expect(again).toMatchObject({ lost: [], lostInFront: false });
+  });
+
+  it("names nothing as lost for a storage that holds a key itself", async () => {
+    const storage = memory({
+      dev_1: device("http://mini.local:4431"),
+      current: { pointer: "dev_1" },
+    });
+    expect(await readDevices(storage)).toMatchObject({
+      unreadable: 0,
+      lost: [],
+      lostInFront: false,
+    });
   });
 
   it("answers a storage that will not open with a throw where loadDevices answers nothing", async () => {

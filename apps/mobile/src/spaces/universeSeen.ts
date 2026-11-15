@@ -14,6 +14,16 @@ import { useCallback, useSyncExternalStore } from "react";
 import { readSetting, SETTINGS, writeSetting } from "../prefs";
 
 const seen = new Map<string, string>();
+/**
+ * What each space's Universe was seen at before its latest opening: Media marks what came since
+ * (ADR 0227's addendum of 13 November 2026), though opening has already kept the newest as seen.
+ */
+const before = new Map<string, string | undefined>();
+
+/** The change a space's Universe was opened at before this opening; nothing if never. */
+export function seenBefore(spaceId: string): string | undefined {
+  return before.has(spaceId) ? before.get(spaceId) : seen.get(spaceId);
+}
 const listeners = new Set<() => void>();
 let version = 0;
 
@@ -57,7 +67,10 @@ export function useUniverseCall(
   const calling = universeCalling(project, selfId, seen.get(spaceId));
   const opened = useCallback(() => {
     const at = universeSeenAt(project);
-    if (at === undefined || seen.get(spaceId) === at) return;
+    if (at === undefined) return;
+    // What it was seen at until now; opened again at the same change, nothing is new this time.
+    before.set(spaceId, seen.get(spaceId));
+    if (seen.get(spaceId) === at) return;
     seen.set(spaceId, at);
     told();
     void writeSetting(SETTINGS.universeSeen, JSON.stringify(Object.fromEntries(seen))).catch(

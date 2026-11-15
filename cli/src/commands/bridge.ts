@@ -25,11 +25,15 @@ import {
   bridgesHere,
   type Fetched,
   fetchBridge,
+  forgetService,
   type KeptCard,
+  LockHeld,
   type PackageSpec,
   packageSpec,
   readRecord,
   runBridge,
+  startedOnNow,
+  withLock,
   writeRecord,
 } from "../bridges.js";
 import { type BridgeCard, isBridgeCard } from "../cards.js";
@@ -267,11 +271,17 @@ export async function connectBridge(
     }
     return ran.code;
   }
-  const record = readRecord(got.folder);
-  if (label !== undefined && record !== undefined) {
-    writeRecord(got.folder, {
-      ...record,
-      kept: { ...record.kept, [card.id]: { label, args: card.args ?? [] } },
+  if (label !== undefined) {
+    const service = label;
+    // Under the lock, as every change to the record is: the computer may be staging beside it.
+    await withLock(got.folder, () => {
+      const record = readRecord(got.folder);
+      if (record === undefined) return;
+      writeRecord(got.folder, {
+        ...record,
+        kept: { ...record.kept, [card.id]: { label: service, args: card.args ?? [] } },
+      });
+      startedOnNow(got.folder, [service]);
     });
   }
   stepSaid(deps, { step: "connected" });
@@ -316,16 +326,56 @@ export async function disconnectBridge(card: BridgeCard, deps: BridgeDeps): Prom
     out.err(`  ${error instanceof Error ? error.message : String(error)}`);
     code = 1;
   }
-  const { [card.id]: _stopped, ...kept } = record.kept;
-  const others = Object.keys(kept);
-  if (others.length > 0) {
-    writeRecord(folder, { ...record, kept });
-    out.out(`  ${record.package} stays: ${namesOf(others, deps.cards)} still runs on it.`);
-  } else {
-    rmSync(folder, { recursive: true, force: true });
-    out.out(`  ✓ Removed ${record.package} ${record.version} from this machine.`);
+  try {
+    // Under the lock (rule 8): the computer may be unpacking a release into this folder.
+    await withLock(folder, () => forgetCard(folder, card, deps));
+  } catch (error) {
+    if (!(error instanceof LockHeld)) throw error;
+    out.err(`  ${error.message}`);
+    return 1;
   }
   return code;
+}
+
+/** A stopped card's service off the record, and the download gone once no other card runs on it. */
+function forgetCard(folder: string, card: BridgeCard, deps: BridgeDeps): void {
+  const out = deps.console;
+  const record = readRecord(folder);
+  if (record === undefined) return;
+  const { [card.id]: stopped, ...kept } = record.kept;
+  const others = Object.keys(kept);
+  if (others.length === 0) {
+    rmSync(folder, { recursive: true, force: true });
+    out.out(`  ✓ Removed ${record.package} ${record.version} from this machine.`);
+    return;
+  }
+  writeRecord(folder, { ...record, kept });
+  if (stopped !== undefined) forgetService(folder, stopped.label);
+  out.out(`  ${record.package} stays: ${namesOf(others, deps.cards)} still runs on it.`);
+}
+
+/**
+ * The words a kept card's bridge runs with: its card's as this Chips carries it now, since the
+ * files a card names can move (ADR 0283 moved the ACP bridge's from `~/.chips-acp`), else what
+ * was recorded when it was kept, for a card this Chips no longer carries.
+ */
+function argsOf(id: string, kept: KeptCard, cards: readonly Connector[]): readonly string[] {
+  const card = cards.filter(isBridgeCard).find((each) => each.id === id);
+  return card === undefined ? kept.args : (card.args ?? []);
+}
+
+/** `bridge.json`'s kept cards brought to what their cards say now, written only when it changed. */
+function keepWhatCardsSay(folder: string, cards: readonly Connector[]): void {
+  const record = readRecord(folder);
+  if (record === undefined) return;
+  let changed = false;
+  const kept: Record<string, KeptCard> = {};
+  for (const [id, each] of Object.entries(record.kept)) {
+    const args = argsOf(id, each, cards);
+    changed ||= args.join("\0") !== each.args.join("\0");
+    kept[id] = { ...each, args: [...args] };
+  }
+  if (changed) writeRecord(folder, { ...record, kept });
 }
 
 /**
@@ -335,11 +385,16 @@ export async function disconnectBridge(card: BridgeCard, deps: BridgeDeps): Prom
  */
 export async function updateBridges(deps: BridgeDeps): Promise<number> {
   let code = 0;
-  for (const { record } of bridgesHere(deps.bridges)) {
+  for (const { folder, record } of bridgesHere(deps.bridges)) {
     const kept = Object.values(record.kept);
     if (kept.length === 0) continue;
     const updated = await updateOne(record, deps);
     const started = updated === "unnamed" ? true : await startedAgain(kept, deps);
+    if (updated !== "unnamed")
+      startedOnNow(
+        folder,
+        kept.map((each) => each.label),
+      );
     if (updated === "failed" || !started) code = 1;
   }
   return code;
@@ -373,6 +428,7 @@ async function updateOne(
         ? `  ${record.package} ${got.version} is the newest of its major.`
         : `  ✓ ${record.package} ${record.version} is now ${got.version}.`,
     );
+    keepWhatCardsSay(got.folder, deps.cards);
     return "updated";
   } catch (error) {
     out.err(`  ${error instanceof Error ? error.message : String(error)}`);
@@ -397,14 +453,14 @@ async function startedAgain(kept: readonly KeptCard[], deps: BridgeDeps): Promis
 }
 
 /** Every bridge kept running here stopped by its own `--stop`, for `chips uninstall`. */
-export async function stopEveryBridge(deps: Omit<BridgeDeps, "cards">): Promise<void> {
+export async function stopEveryBridge(deps: BridgeDeps): Promise<void> {
   for (const { folder, record } of bridgesHere(deps.bridges)) {
-    for (const kept of Object.values(record.kept)) {
+    for (const [id, kept] of Object.entries(record.kept)) {
       try {
         await runBridge({
           node: deps.node,
           main: bridgeMain(folder),
-          words: [...kept.args, "--stop"],
+          words: [...argsOf(id, kept, deps.cards), "--stop"],
           env: { ...deps.env, PATH: pathWith(dirname(deps.node), deps.env["PATH"]) },
           onStep: () => undefined,
           onLine: (_stream, line) => deps.console.out(line),

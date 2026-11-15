@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { viewOfJobChange } from "../../../application/use-cases/harness-jobs.js";
+import { createHarnessQuiet } from "../../../infrastructure/store/harness-quiet.js";
 import {
   createTestWorkspace,
   type TestPerson,
@@ -160,6 +161,25 @@ describe("a harness's own jobs, as it sends them (ADR 0252)", () => {
         { ...dreaming(), week_runs: 0, runs_total: 0 },
       ],
     });
+  });
+
+  it("say a run of one is going while the copy does, which keeps the harness from being called quiet", async () => {
+    await declare();
+    const quiet = createHarnessQuiet(ws.db);
+    const since = new Date(Date.now() - 2 * 60_000).toISOString();
+    const busy = () => quiet(ws.workspaceId, scout(), since);
+    await sendCopy();
+    expect(await busy()).toBeUndefined();
+
+    const began = new Date(Date.now() - 30_000).toISOString();
+    await sendCopy([heartbeat(), dreaming({ running_since: began })]);
+    expect(((await read()).body["jobs"] as Body[])[1]?.["running_since"]).toBe(began);
+    expect(await busy()).toBe("run");
+
+    // The run is over: the copy comes again without it.
+    await sendCopy();
+    expect(((await read()).body["jobs"] as Body[])[1]).not.toHaveProperty("running_since");
+    expect(await busy()).toBeUndefined();
   });
 
   it("are a 404 until the harness has sent them", async () => {

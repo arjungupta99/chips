@@ -17,6 +17,9 @@
  * still, in red, for a server that cannot be reached, and *back* is every pin lit on a green body,
  * for the beat after it is reached again.
  *
+ * *once* runs the light round one time and leaves the mark at rest: About opens on it (ADR 0295),
+ * and a new key runs it again.
+ *
  * *blank* is an agent's face with nobody in it yet: the quiet ground, its pins in the ink, lit in
  * turn. The Agents page stands rows of them while its first list is on its way, each a `delay`
  * behind the one above, so the light runs down the list (as the phone's `Arriving` does).
@@ -34,7 +37,7 @@ export interface ChipMarkProps {
    * What the mark is saying, when it is saying anything: work going on, or work over; for the
    * connection, a server that cannot be reached, or one reached again.
    */
-  readonly state?: "working" | "done" | "failed" | "back" | "blank" | undefined;
+  readonly state?: "working" | "once" | "done" | "failed" | "back" | "blank" | undefined;
   /** How long the light waits before its first round, in ms: a row's place down a list. */
   readonly delay?: number | undefined;
 }

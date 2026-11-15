@@ -30,6 +30,8 @@ import { createIdGenerator, type IdGenerator } from "@chipschat/protocol";
 import { serve } from "@hono/node-server";
 import type { Kysely } from "kysely";
 import {
+  type BridgeHands,
+  type ComputerUpdatesRegistry,
   createAddHarness,
   createArchiveAgent,
   createAskAgent,
@@ -108,8 +110,11 @@ import {
   droppedInTheLog,
   type MacApp,
   type PlayableMade,
+  type Principal,
+  type RestartOnto,
   reacting,
   readableCode,
+  type SelfUpdate,
   type Sessions,
   type Sounds,
   type StoredEvent,
@@ -158,12 +163,16 @@ import { agentGate } from "./infrastructure/store/agent-gate.js";
 import { createAgentHeartbeatRegistry } from "./infrastructure/store/agent-heartbeat-registry.js";
 import { createAgentModelRegistry } from "./infrastructure/store/agent-model-registry.js";
 import { createBannerRegistry } from "./infrastructure/store/banner-registry.js";
+import { createBridgeSwitches } from "./infrastructure/store/bridge-switches.js";
+import { createComputerUpdatesRegistry } from "./infrastructure/store/computer-updates.js";
 import { createContextRegistry } from "./infrastructure/store/context-registry.js";
 import { createDeviceRegistry } from "./infrastructure/store/device-registry.js";
 import { createDirectAskRegistry } from "./infrastructure/store/direct-asks.js";
 import { guestGate } from "./infrastructure/store/guest-gate.js";
 import { createHarnessJobRegistry } from "./infrastructure/store/harness-job-registry.js";
+import { createComputerQuiet, createHarnessQuiet } from "./infrastructure/store/harness-quiet.js";
 import { createHarnessRegistry } from "./infrastructure/store/harness-registry.js";
+import { createHarnessTurns } from "./infrastructure/store/harness-turns.js";
 import { createHiddenSpaceRegistry } from "./infrastructure/store/hidden-space-registry.js";
 import { createInProcessFanOut } from "./infrastructure/store/in-process-fanout.js";
 import { createInProcessPresence } from "./infrastructure/store/in-process-presence.js";
@@ -182,10 +191,20 @@ import { fileGate } from "./infrastructure/store/room-files.js";
 import { createSearchIndex } from "./infrastructure/store/search-index.js";
 import { createServerKeys } from "./infrastructure/store/server-keys.js";
 import { createSessionPinRegistry } from "./infrastructure/store/session-pin-registry.js";
+import { createSoftwareRegistry } from "./infrastructure/store/software-registry.js";
 import { createSpaceIconRegistry } from "./infrastructure/store/space-icon-registry.js";
 import { createSqliteEventStore } from "./infrastructure/store/sqlite-event-store.js";
 import { createUploadsRegistry } from "./infrastructure/store/uploads-registry.js";
 import { createWorkspaceRegistry } from "./infrastructure/store/workspace-registry.js";
+import { type BridgeListReader, bridgeList } from "./infrastructure/updates/bridge-list.js";
+import {
+  type BridgeUpdater,
+  bridgeUpdater,
+  releaseOutFor,
+} from "./infrastructure/updates/bridge-updater.js";
+import { type NightUpdate, newestOf, nightUpdate } from "./infrastructure/updates/night-update.js";
+import { releaseFeed } from "./infrastructure/updates/releases.js";
+import { type RestartWatch, restartWatch } from "./infrastructure/updates/restart-onto.js";
 import { createApp } from "./interfaces/http/app.js";
 import type { GatewayDeps } from "./interfaces/http/context.js";
 import { createRelayLink, type RelayLink } from "./interfaces/relay/link.js";
@@ -215,6 +234,33 @@ export interface BuildGatewayOptions {
   readonly relayTellMs?: number;
   /** Chips for Mac on this machine (ADR 0227's second addendum); absent, there is none to open. */
   readonly macApp?: MacApp | undefined;
+  /**
+   * The CLI's hands on the bridges in this computer's data folder (bridges-keep-current.md, A):
+   * `chips serve` gives them, and the server keeps those bridges current. Absent, it keeps none.
+   */
+  readonly bridges?: BridgeHands | undefined;
+  /**
+   * The signed list of bridge releases that may arrive on their own. Absent, the site's is read
+   * (`CHIPS_BRIDGES`) and checked against Chips's release key; a test gives its own.
+   */
+  readonly bridgeList?: BridgeListReader | undefined;
+  /**
+   * How the site's lists are read (the releases out, the signed bridge list): `chips serve` gives
+   * a fetch that goes through the machine's proxy where it has one (bridges-keep-current.md,
+   * rule 8). Absent, Node's own.
+   */
+  readonly outbound?: typeof fetch | undefined;
+  /**
+   * `chips update` for a computer from the install line (everything in step, phase 6): `chips
+   * serve` gives it, and the server runs it at night when its owner turned that on.
+   */
+  readonly selfUpdate?: SelfUpdate | undefined;
+  /**
+   * For a computer Chips for Mac carries (ADR 0298): the version of the release the app now holds,
+   * and its login service started again. `chips serve` gives them, and the server starts again on
+   * a newer release once nothing is going on.
+   */
+  readonly restartOnto?: RestartOnto | undefined;
 }
 
 export interface Gateway {
@@ -382,6 +428,70 @@ function logMade(logger: Logger, made: PlayableMade): void {
   } else {
     logger.warn({ attachmentId: made.id, note: made.note }, "video could not be made playable");
   }
+}
+
+/** The bridges in this computer's data folder kept current, when `chips serve` gave hands on them. */
+function bridgeUpdaterFor(
+  hands: BridgeHands | undefined,
+  deps: Omit<Parameters<typeof bridgeUpdater>[0], "hands" | "wait" | "seed" | "closeHarness"> & {
+    readonly wait: "spread" | "now" | undefined;
+    readonly workspaces: () => Promise<string[]>;
+    readonly dataDir: string;
+    /** The sockets, once the server listens. */
+    readonly sockets: () => Pick<WebSocketGateway, "closeHarness"> | undefined;
+  },
+): BridgeUpdater | undefined {
+  if (hands === undefined) return undefined;
+  const { workspaces, dataDir, sockets, ...rest } = deps;
+  return bridgeUpdater({
+    ...rest,
+    hands,
+    wait: deps.wait ?? "spread",
+    // The first workspace made here: something only this computer has, for its spread.
+    seed: async () => (await workspaces()).sort()[0] ?? dataDir,
+    closeHarness: (workspaceId, harnessId) => sockets()?.closeHarness(workspaceId, harnessId) ?? 0,
+  });
+}
+
+/** The signed list of bridge releases: the site's, unless a test gave its own. */
+function bridgeListFor(
+  given: BridgeListReader | undefined,
+  deps: Parameters<typeof bridgeList>[0],
+): BridgeListReader {
+  return given ?? bridgeList(deps);
+}
+
+/** The fetch the site's lists are read with, when `chips serve` gave one: else each reader's own. */
+const fetchOf = (given: typeof fetch | undefined): { readonly fetch?: typeof fetch } =>
+  given === undefined ? {} : { fetch: given };
+
+/** A harness's hello, told to the updater watching for its bridge to come back on a new release. */
+function heardBridge(
+  updates: BridgeUpdater | undefined,
+  principal: Principal,
+  version: string,
+): void {
+  if (principal.kind === "harness") updates?.heard(principal.participantId, version);
+}
+
+/** The night update of a computer from the install line, when `chips serve` gave it the hands. */
+function nightUpdateFor(
+  selfUpdate: SelfUpdate | undefined,
+  deps: Omit<Parameters<typeof nightUpdate>[0], "selfUpdate">,
+): NightUpdate | undefined {
+  return selfUpdate === undefined || deps.version === "0.0.0"
+    ? undefined
+    : nightUpdate({ selfUpdate, ...deps });
+}
+
+/** A computer Chips for Mac carries, watching for the app's new release, when given the hands. */
+function restartWatchFor(
+  hands: RestartOnto | undefined,
+  deps: Omit<Parameters<typeof restartWatch>[0], "hands">,
+): RestartWatch | undefined {
+  return hands === undefined || deps.version === "0.0.0"
+    ? undefined
+    : restartWatch({ hands, ...deps });
 }
 
 export function buildGateway(options: BuildGatewayOptions): Gateway {
@@ -803,6 +913,8 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
   const hiddenSpaces = createHiddenSpaceRegistry(db);
   const pinnedSpaces = createPinnedSpaceRegistry(db);
   const banners = createBannerRegistry(db);
+  // What each device and harness last said it runs (everything in step).
+  const software = createSoftwareRegistry(db);
   const readMarks = createReadMarkRegistry(db);
   const pushTokens = createPushRegistry(db);
   // One sender for every push, so that what it learns about whether it can send at all holds for
@@ -1115,6 +1227,55 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
   // What this machine is called, asked of the system the first time somebody wants it.
   let named: string | undefined;
 
+  // Which releases of Chips are out, for the update dot (ADR 0296); read by the sweep.
+  const outbound = fetchOf(options.outbound);
+  const releases = releaseFeed({
+    source: config.server.updates,
+    clock: systemClock,
+    logger,
+    ...outbound,
+  });
+  // The bridges in this computer's data folder kept on the releases the signed list allows
+  // (bridges-keep-current.md, A); read and kept by the sweep.
+  const bridgeReleases = bridgeListFor(options.bridgeList, {
+    source: config.server.bridges,
+    clock: systemClock,
+    logger,
+    ...outbound,
+  });
+  const computerUpdates: ComputerUpdatesRegistry = createComputerUpdatesRegistry(db);
+  const nightly = nightUpdateFor(options.selfUpdate, {
+    switch: computerUpdates,
+    // The feed lists the newest first, but nothing here leans on its order.
+    newest: () => newestOf(releases.read()?.releases.map((each) => each.version) ?? []),
+    version,
+    quiet: createComputerQuiet(db),
+    clock: systemClock,
+    logger,
+  });
+  // A computer Chips for Mac carries, started again on the release the app now holds (ADR 0298).
+  const restarts = restartWatchFor(options.restartOnto, {
+    version,
+    quiet: createComputerQuiet(db),
+    clock: systemClock,
+    logger,
+  });
+  const bridgeSwitches = createBridgeSwitches(db);
+  const bridgeUpdates = bridgeUpdaterFor(options.bridges, {
+    list: bridgeReleases.read,
+    switchedOff: () => bridgeSwitches.off(),
+    computer: version,
+    wait: config.server.bridgesWait,
+    workspaces: () => readModels.workspaces(),
+    dataDir: config.data.dir,
+    workspaceOf: (harnessId) => software.workspaceOf(harnessId),
+    stateOf: presence.stateOf,
+    busy: createHarnessQuiet(db),
+    turns: createHarnessTurns(db),
+    sockets: () => running?.ws,
+    clock: systemClock,
+    logger,
+  });
   const deps: GatewayDeps = {
     config,
     logger,
@@ -1184,12 +1345,28 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     hiddenSpaces,
     pinnedSpaces,
     banners,
+    software,
+    selfUpdate: options.selfUpdate,
+    restartsOnto: restarts?.waiting,
+    computerUpdates,
+    bridgeUpdates: bridgeUpdates?.states,
+    bridgeSaid: bridgeUpdates?.said,
+    bridgeSwitches,
+    bridgeOut: (hello, running) =>
+      releaseOutFor({
+        list: bridgeReleases.read(),
+        hello,
+        running,
+        computer: version,
+        now: systemClock.nowMs(),
+      }),
     readMarks,
     push: pushTokens,
     pushStanding: pushSender.standing,
     sessionPins,
     sessions,
     macApp: options.macApp,
+    pictures: createSharpImages(),
     presence,
     pairDevice,
     pairingCodes: codes,
@@ -1215,6 +1392,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
       return named;
     },
     connectors: connectorGallery({ source: config.server.connectors, clock: systemClock, logger }),
+    updates: releases.read,
   };
 
   const app = createApp(deps);
@@ -1266,6 +1444,25 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
         ids,
         presence,
         serverVersion: version,
+        // What each device and harness runs, as it says in its hello (everything in step). A
+        // person's is their device's; a socket opened with a device's grant is no device's.
+        heard: (principal, client) => {
+          const subjectId =
+            principal.kind === "harness" ? principal.participantId : principal.deviceId;
+          if (subjectId === undefined) return;
+          heardBridge(bridgeUpdates, principal, client.version);
+          software
+            .heard({
+              workspaceId: principal.workspaceId,
+              subjectId,
+              kind: principal.kind === "harness" ? "harness" : "device",
+              participantId: principal.participantId,
+              name: client.name,
+              version: client.version,
+              at: systemClock.nowIso(),
+            })
+            .catch((error: unknown) => logger.warn({ err: error }, "software not kept"));
+        },
         // The URL a harness gets for an attachment: a grant for its own token, for ten minutes, at
         // the address its socket arrived at when it is on this machine, and the public one else.
         attachmentUrl: (attachmentId, tokenId, arrivedAt) =>
@@ -1327,6 +1524,16 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
           })
           .catch((error: unknown) => logger.error({ err: error }, "unpicked turns failed"));
         drainPlayables();
+        // Which releases are out, once a day (ADR 0296).
+        releases.tick();
+        // Which bridge releases may arrive on their own, once a day, and the bridges here kept on
+        // them (bridges-keep-current.md).
+        bridgeReleases.tick();
+        bridgeUpdates?.tick();
+        // A computer from the install line, at night, when its owner said so (phase 6).
+        nightly?.tick();
+        // A computer in Chips for Mac, on the release the app now holds (ADR 0298).
+        restarts?.tick();
       }, config.realtime.sweepSeconds * 1000);
       sweeper.unref?.();
       // A video left pending by the last run is taken up now (ADR 0053).

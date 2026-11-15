@@ -575,7 +575,7 @@ describe("the files a room carries (Media on this phone, ADR 0159)", () => {
   });
 });
 
-describe("the room sheet's Media & files (ADR 0202)", () => {
+describe("the room sheet's Sent in chat (ADR 0202)", () => {
   it("lists what the room carries newest first", () => {
     fc.assert(
       fc.property(roomArb, (room) => {
@@ -586,7 +586,7 @@ describe("the room sheet's Media & files (ADR 0202)", () => {
     );
   });
 
-  it("opens Media & files' pictures on the room's every one, newest first, as the page lists them", () => {
+  it("opens Sent in chat's pictures on the room's every one, newest first, as the page lists them", () => {
     fc.assert(
       fc.property(roomArb, (room) => {
         const all = deckOf(

@@ -152,6 +152,88 @@ describe("what the page asks the shell for", () => {
     expect(shell.handlers.has("chips://zoom")).toBe(false);
   });
 
+  it("says how the app's own update stands, at once and each time it changes (ADR 0298)", async () => {
+    const shell = api();
+    const heard: unknown[] = [];
+    const asked: string[] = [];
+    const mac = desktopWith({
+      ...shell,
+      invoke: (async (command: string) => {
+        asked.push(command);
+        return command === "update_state" ? { state: "getting", version: "1.2.6" } : undefined;
+      }) as TauriApi["invoke"],
+    });
+    const stop = await mac.onUpdate?.((update) => heard.push(update));
+    expect(heard).toEqual([{ state: "getting", version: "1.2.6" }]);
+    shell.handlers.get("chips://update")?.({ payload: { state: "ready", version: "1.2.6" } });
+    // Something the page can't read is left unheard.
+    shell.handlers.get("chips://update")?.({ payload: { state: "ready" } });
+    expect(heard).toEqual([
+      { state: "getting", version: "1.2.6" },
+      { state: "ready", version: "1.2.6" },
+    ]);
+    await mac.updateNow?.();
+    expect(asked).toEqual(["update_state", "update_now"]);
+    stop?.();
+    expect(shell.handlers.has("chips://update")).toBe(false);
+  });
+
+  it("goes on listening for the app's update from a shell that can't say how it stands", async () => {
+    // A shell older than `update_state` refuses the command; what it says later is still heard.
+    const shell = api();
+    const heard: unknown[] = [];
+    const mac = desktopWith({
+      ...shell,
+      invoke: (async (command: string) => {
+        if (command === "update_state") throw new Error("command update_state not found");
+        return undefined;
+      }) as TauriApi["invoke"],
+    });
+    const stop = await mac.onUpdate?.((update) => heard.push(update));
+    expect(heard).toEqual([]);
+    shell.handlers.get("chips://update")?.({ payload: { state: "ready", version: "1.2.6" } });
+    expect(heard).toEqual([{ state: "ready", version: "1.2.6" }]);
+    stop?.();
+    expect(shell.handlers.has("chips://update")).toBe(false);
+  });
+
+  it("leaves unheard an update in a state the page doesn't know", async () => {
+    const shell = api();
+    const heard: unknown[] = [];
+    await desktopWith(shell).onUpdate?.((update) => heard.push(update));
+    shell.handlers.get("chips://update")?.({ payload: { state: "verifying", version: "1.2.6" } });
+    shell.handlers.get("chips://update")?.({ payload: "ready" });
+    expect(heard).toEqual([]);
+    // What it does know is heard whole, the password it will ask for included.
+    shell.handlers.get("chips://update")?.({
+      payload: { state: "ready", version: "1.2.6", asks: true },
+    });
+    expect(heard).toEqual([{ state: "ready", version: "1.2.6", asks: true }]);
+  });
+
+  it("keeps a change heard while it was asking how the update stands, over the answer", async () => {
+    const shell = api();
+    const heard: unknown[] = [];
+    let answer: (state: unknown) => void = () => undefined;
+    const mac = desktopWith({
+      ...shell,
+      invoke: (async (command: string) =>
+        command === "update_state"
+          ? new Promise<unknown>((resolve) => {
+              answer = resolve;
+            })
+          : undefined) as TauriApi["invoke"],
+    });
+    const listening = mac.onUpdate?.((update) => heard.push(update));
+    // Listening first: wait for the handler, then let the change come before the answer.
+    await vi.waitFor(() => expect(shell.handlers.has("chips://update")).toBe(true));
+    shell.handlers.get("chips://update")?.({ payload: { state: "ready", version: "1.2.6" } });
+    // The answer is how it stood when asked, a moment before the release was ready.
+    answer({ state: "getting", version: "1.2.6" });
+    await listening;
+    expect(heard).toEqual([{ state: "ready", version: "1.2.6" }]);
+  });
+
   it("says whether the window fills the screen, at once and after each change of its size", async () => {
     const handlers = new Map<string, (message: { payload: unknown }) => void>();
     let full = false;

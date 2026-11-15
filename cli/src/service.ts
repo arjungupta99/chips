@@ -262,6 +262,26 @@ export function restartCommand(kind: ServiceKind, label: string, uid: number): C
     : ["systemctl", "--user", "restart", `${label}.service`];
 }
 
+/**
+ * What says how many times a kept bridge's service has been started: launchd prints the job, with
+ * its `runs`; systemd answers with how many times it started the unit again itself. Read by the
+ * computer watching a bridge through its first day on a release (bridges-keep-current.md, rule 3).
+ */
+export function startsCommand(kind: ServiceKind, label: string, uid: number): Command {
+  return kind === "launchd"
+    ? ["launchctl", "print", `gui/${uid}/${label}`]
+    : ["systemctl", "--user", "show", `${label}.service`, "--property=NRestarts", "--value"];
+}
+
+/** The count in what `startsCommand` printed; none when it says none. */
+export function startsIn(kind: ServiceKind, output: string): number | undefined {
+  const found =
+    kind === "launchd"
+      ? /^\s*runs = (\d+)\s*$/m.exec(output)?.[1]
+      : /^\s*(\d+)\s*$/.exec(output)?.[1];
+  return found === undefined ? undefined : Number(found);
+}
+
 /** Stop it, and keep it from starting at the next login. */
 export function stopCommands(kind: ServiceKind, uid: number): readonly Command[] {
   if (kind === "launchd") {

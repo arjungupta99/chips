@@ -336,14 +336,207 @@ describe("Universe on the phone (ADR 0227)", () => {
     expect(screen.getByRole("button", { name: "Run again" })).toHaveTextContent("Run");
   });
 
-  it("says when nothing opens here or on the Mac yet", async () => {
+  it("says when nothing opens here or on the Mac yet, and lists the file under Files", async () => {
     await open(storeWith({ "main.py": "print(1)" }));
-    expect(await screen.findByText("Nothing here opens on the phone yet.")).toBeOnTheScreen();
+    // A space whose one file is a script opens on Files, where the script is.
+    expect(await screen.findByTestId("universe-file-main.py")).toBeOnTheScreen();
+    await userEvent.press(screen.getByRole("tab", { name: "Pages, 0" }));
+    expect(await screen.findByText("No pages here yet")).toBeOnTheScreen();
     await desktop();
     await waitFor(() =>
       expect(screen.getByText("Nothing here opens on your Mac yet.")).toBeOnTheScreen(),
     );
     expect(screen.getByTestId("universe-open-folder")).toBeOnTheScreen();
+  });
+});
+
+describe("Media and Pages under Phone (ADR 0227's addendum of 13 November 2026)", () => {
+  const shots = [
+    "claude-desktop-screenshot.png",
+    "claude-desktop-screenshot-2.png",
+    "claude-desktop-screenshot-3.png",
+  ];
+  const change = (commit: string, path: string, at: string) => ({
+    commit,
+    before: null,
+    by: "agt_hello",
+    byKind: "agent",
+    at,
+    seq: 1,
+    message: `Kept ${path}`,
+    files: [{ path, added: null, removed: null }],
+    moreFiles: 0,
+    reply: `msg_${commit}`,
+  });
+  const screenshots = {
+    ...space,
+    title: "Temp-Claude desktop",
+    project: {
+      files: 3,
+      changes: [
+        change("c3", shots[2] as string, "2026-11-14T05:10:00Z"),
+        change("c2", shots[1] as string, "2026-11-14T04:39:00Z"),
+        change("c1", shots[0] as string, "2026-11-14T04:31:00Z"),
+      ],
+    },
+  } as unknown as Space;
+
+  /** A store of these files whose server makes the pictures' small copies. */
+  function picturing(files: Record<string, string>) {
+    const store = storeWith(files);
+    const asked: string[] = [];
+    (store as { projectPicture: Store["projectPicture"] }).projectPicture = async (
+      _spaceId,
+      path,
+      edge,
+    ) => {
+      asked.push(`${edge} ${path}`);
+      return { bytes: new Uint8Array([1, 2, 3]), type: "image/webp" };
+    };
+    return { store, asked };
+  }
+
+  it("opens a space of screenshots on Media, newest first, from the server's small copies", async () => {
+    const { store, asked } = picturing(Object.fromEntries(shots.map((path) => [path, "png"])));
+    await render(
+      <UniverseSheet
+        store={store}
+        space={screenshots}
+        selfId="per_arjun"
+        title="Temp-Claude desktop"
+        open
+        onClose={() => undefined}
+      />,
+    );
+    expect(await screen.findByTestId("universe-media")).toBeOnTheScreen();
+    expect(
+      screen.getAllByTestId(/^universe-media-claude/).map((square) => square.props["testID"]),
+    ).toEqual([
+      "universe-media-claude-desktop-screenshot-3.png",
+      "universe-media-claude-desktop-screenshot-2.png",
+      "universe-media-claude-desktop-screenshot.png",
+    ]);
+    expect(screen.getByRole("tab", { name: "Media, 3" })).toBeSelected();
+    expect(screen.getByRole("tab", { name: "Pages, 0" })).not.toBeSelected();
+    await waitFor(() => expect(asked).toHaveLength(3));
+    expect(asked.every((each) => each.startsWith("small "))).toBe(true);
+    // Pages is there with nothing in it, and says what would be.
+    await userEvent.press(screen.getByRole("tab", { name: "Pages, 0" }));
+    expect(await screen.findByTestId("universe-pages-empty")).toHaveTextContent(
+      /^No pages here yet/,
+    );
+  });
+
+  it("opens on Pages at the start page, with chips for the notes beside it", async () => {
+    const { store } = picturing({
+      ".chips/index.html": "<h1>Arjun's health</h1>",
+      ".chips/run.json": '{"run": "python3 app/server.py"}',
+      "lab-results.md": "# Lab results",
+      "web/home.html": "<h1>Home</h1>",
+      "web/assets/icon-180.png": "png",
+    });
+    await open(store);
+    expect(await screen.findByTestId("universe-page-chips")).toBeOnTheScreen();
+    expect(screen.getByRole("tab", { name: "Pages, 2" })).toBeSelected();
+    // The app's own icon is a part of its pages, not Media.
+    expect(screen.getByRole("tab", { name: "Media, 0" })).toBeOnTheScreen();
+    expect(screen.getByRole("tab", { name: "Space page" })).toBeSelected();
+    await userEvent.press(screen.getByRole("tab", { name: "lab-results.md" }));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "lab-results.md" })).toBeSelected());
+    expect(screen.getByRole("tab", { name: "Space page" })).not.toBeSelected();
+  });
+});
+
+describe("Files under Phone (ADR 0227's addendum of 14 November 2026)", () => {
+  const script = '"""Control the house\'s Chromecast TVs."""\nimport sys\n';
+  const tvControl = {
+    ...space,
+    title: "Tv control",
+    project: {
+      files: 1,
+      changes: [
+        {
+          commit: "c1",
+          before: null,
+          by: "agt_hello",
+          byKind: "agent",
+          at: "2026-11-07T08:40:00Z",
+          seq: 1,
+          message: "I can control your Kitchen TV from this chat now.",
+          files: [{ path: "tv.py", added: 101, removed: 0 }],
+          moreFiles: 0,
+        },
+      ],
+    },
+  } as unknown as Space;
+  const sheet = (store: Store, of: Space = tvControl) => (
+    <UniverseSheet
+      store={store}
+      space={of}
+      selfId="per_arjun"
+      title={of.title ?? ""}
+      open
+      onClose={() => undefined}
+    />
+  );
+
+  it("opens a space whose only file is a script on Files, and the script on its own page", async () => {
+    await render(sheet(storeWith({ "tv.py": script })));
+    const row = await screen.findByTestId("universe-file-tv.py");
+    expect(screen.getByRole("tab", { name: "Files, 1" })).toBeSelected();
+    expect(screen.getByRole("tab", { name: "Media, 0" })).not.toBeSelected();
+    expect(screen.getByRole("tab", { name: "Pages, 0" })).not.toBeSelected();
+    // Its size and the change that last named it, under its name.
+    expect(row).toHaveTextContent(new RegExp(`^tv\\.py${script.length} bytes · .+ · `));
+    await userEvent.press(row);
+    expect(await screen.findByTestId("project-file-words")).toHaveTextContent(/Chromecast TVs/);
+    // Back is Files' list, where the file was.
+    await userEvent.press(screen.getByTestId("room-sheet-file-back"));
+    expect(await screen.findByTestId("universe-file-tv.py")).toBeOnTheScreen();
+  });
+
+  it("lists every file under its folder and opens a document of Pages on Pages", async () => {
+    const store = storeWith({
+      ".chips/index.html": "<h1>Arjun's health</h1>",
+      ".chips/run.json": '{"run": "python3 app/server.py"}',
+      "lab-results.md": "# Lab results",
+      "app/server.py": "print(1)",
+      "web/home.html": "<h1>Home</h1>",
+    });
+    await open(store);
+    expect(await screen.findByTestId("universe-page-chips")).toBeOnTheScreen();
+    // Everything but .chips: the app's code and pages too.
+    await userEvent.press(screen.getByRole("tab", { name: "Files, 3" }));
+    expect(await screen.findByTestId("universe-files")).toBeOnTheScreen();
+    expect(screen.getAllByTestId(/^universe-file-/).map((row) => row.props["testID"])).toEqual([
+      "universe-file-lab-results.md",
+      "universe-file-app/server.py",
+      "universe-file-web/home.html",
+    ]);
+    expect(screen.getByText("app/")).toBeOnTheScreen();
+    expect(screen.getByText("web/")).toBeOnTheScreen();
+    await userEvent.press(screen.getByTestId("universe-file-lab-results.md"));
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Pages, 2" })).toBeSelected());
+    expect(screen.getByRole("tab", { name: "lab-results.md" })).toBeSelected();
+  });
+
+  it("draws a picture's row from the server's small copy", async () => {
+    const store = storeWith({ "shot.png": "png", "notes.txt": "hello" });
+    const asked: string[] = [];
+    (store as { projectPicture: Store["projectPicture"] }).projectPicture = async (
+      _id,
+      path,
+      edge,
+    ) => {
+      asked.push(`${edge} ${path}`);
+      return { bytes: new Uint8Array([1, 2, 3]), type: "image/webp" };
+    };
+    await open(store);
+    expect(await screen.findByRole("tab", { name: "Pages, 1" })).toBeSelected();
+    await userEvent.press(screen.getByRole("tab", { name: "Files, 2" }));
+    expect(await screen.findByTestId("universe-file-shot.png")).toBeOnTheScreen();
+    await waitFor(() => expect(asked).toContain("small shot.png"));
+    expect(screen.getByTestId("universe-file-notes.txt")).toBeOnTheScreen();
   });
 });
 

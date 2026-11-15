@@ -25,11 +25,14 @@ import {
 } from "@chipschat/platform";
 import { FIRST_PERSON_NAME, type PairingOffer, pairingUrl } from "@chipschat/protocol";
 import {
+  type BridgeHands,
   buildGateway,
   type Gateway,
   macAppHere,
   migrateToLatest,
   openDatabase,
+  type RestartOnto,
+  type SelfUpdate,
 } from "@chipschat/server";
 import QRCode from "qrcode";
 import { loadDevice, newDeviceKey, storeDevice } from "../device.js";
@@ -70,6 +73,21 @@ export interface ServeOptions {
    * don't, so none opens the person's own app.
    */
   readonly opensMacApp?: boolean;
+  /**
+   * The bridges in this computer's data folder, for the server to keep current
+   * (bridges-keep-current.md, A): `chips serve` from a release gives them; a checkout and the tests
+   * don't, so nothing here changes on its own.
+   */
+  readonly bridges?: BridgeHands | undefined;
+  /** `chips update` for a computer from the install line, which the server runs at night. */
+  readonly selfUpdate?: SelfUpdate | undefined;
+  /** For a computer Chips for Mac carries: starting again on the release the app holds (ADR 0298). */
+  readonly restartOnto?: RestartOnto | undefined;
+  /**
+   * How the server reads the site's lists: through the machine's proxy where it has one
+   * (bridges-keep-current.md, rule 8). `chips serve` from a release gives it; absent, Node's fetch.
+   */
+  readonly outbound?: typeof fetch | undefined;
   /**
    * Whether the process ends, after saying why, on a throw nobody caught (SEC-17), so the login
    * service starts a clean one: `chips serve` and `chips up` say so; the tests don't, so a test's
@@ -117,6 +135,10 @@ export async function serve(options: ServeOptions): Promise<Serving> {
     ...(options.version === undefined ? {} : { version: options.version }),
     macApp:
       options.opensMacApp === true ? macAppHere({ devMode: config.devMode, logger }) : undefined,
+    bridges: options.bridges,
+    selfUpdate: options.selfUpdate,
+    restartOnto: options.restartOnto,
+    outbound: options.outbound,
   });
   return await started(options, connection, gateway);
 }

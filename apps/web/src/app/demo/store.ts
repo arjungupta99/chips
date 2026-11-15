@@ -71,6 +71,8 @@ export function makeStore(device: Device, run?: DemoRun | undefined): MadeStore 
   // for its server on the network when the address it knows stops answering.
   const usual = {
     device,
+    // What this is and runs, for the computer to know who is behind (everything in step).
+    client: { name: inDesktop() ? "chips-mac" : "chips-web", version: __CHIPS_VERSION__ },
     folders: inDesktop(),
     ...(inDesktop() ? { findAddresses: (workspaceId: string) => foundAt(workspaceId) } : {}),
   };

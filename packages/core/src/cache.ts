@@ -33,7 +33,7 @@ import type { KeptSpace } from "./madeHere.js";
 import type { QueuedMessage } from "./pending.js";
 import type { ReadState } from "./read-state.js";
 
-export { cacheKey } from "./cacheKey.js";
+export { cacheKey, earlierCacheKeys } from "./cacheKey.js";
 
 const DB_PREFIX = "chips-cache";
 const EVENTS = "events";

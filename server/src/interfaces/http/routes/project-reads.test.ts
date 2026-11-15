@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { processEnvironment } from "@chipschat/platform";
 import { projectPath } from "@chipschat/protocol";
+import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Principal } from "../../../application/index.js";
 import {
@@ -83,7 +84,10 @@ function ok(args: readonly string[], cwd = copy): Promise<string> {
 }
 
 /** Files written, committed as Scout's agent and pushed: the commit `main` is at now. */
-async function push(files: Readonly<Record<string, string>>, message: string): Promise<string> {
+async function push(
+  files: Readonly<Record<string, string | Uint8Array>>,
+  message: string,
+): Promise<string> {
   for (const [path, words] of Object.entries(files)) {
     mkdirSync(dirname(join(copy, path)), { recursive: true });
     writeFileSync(join(copy, path), words);
@@ -419,6 +423,55 @@ describe("a page of the project (ADR 0223)", () => {
       body: JSON.stringify({ path: "index.html" }),
     });
     expect(ticket.status).toBe(403);
+  });
+});
+
+describe("a project picture's copies (ADR 0227's addendum of 13 November 2026)", () => {
+  it("makes the small and the screen copy of a picture, and refuses what isn't one", async () => {
+    const shot = await sharp({
+      create: { width: 3200, height: 1800, channels: 3, background: "#203040" },
+    })
+      .png()
+      .toBuffer();
+    await push({ "shots/desktop.png": new Uint8Array(shot), "notes.md": "# Notes\n" }, "A shot");
+    const small = await signed(
+      ws.arjun,
+      "GET",
+      `${room()}/picture?path=shots%2Fdesktop.png&edge=small`,
+    );
+    expect(small.status).toBe(200);
+    expect(small.headers.get("content-type")).toBe("image/webp");
+    expect(small.headers.get("x-chips-picture-width")).toBe("3200");
+    expect(small.headers.get("x-chips-picture-height")).toBe("1800");
+    const smallMeta = await sharp(Buffer.from(await small.arrayBuffer())).metadata();
+    expect([smallMeta.width, smallMeta.height]).toEqual([640, 360]);
+    const screen = await signed(
+      ws.arjun,
+      "GET",
+      `${room()}/picture?path=shots%2Fdesktop.png&edge=screen`,
+    );
+    const screenMeta = await sharp(Buffer.from(await screen.arrayBuffer())).metadata();
+    expect([screenMeta.width, screenMeta.height]).toEqual([2048, 1152]);
+    // Asked again, the same copy, kept.
+    const again = await signed(
+      ws.arjun,
+      "GET",
+      `${room()}/picture?path=shots%2Fdesktop.png&edge=small`,
+    );
+    expect((await again.arrayBuffer()).byteLength).toBeGreaterThan(0);
+
+    for (const target of [
+      `${room()}/picture?path=notes.md&edge=small`,
+      `${room()}/picture?path=shots%2Fdesktop.png&edge=huge`,
+      `${room()}/picture?path=nope.png&edge=small`,
+    ]) {
+      expect((await signed(ws.arjun, "GET", target)).status).toBe(404);
+    }
+    const scout = await fetch(
+      `http://127.0.0.1:${port}${room()}/picture?path=shots%2Fdesktop.png&edge=small`,
+      { headers: ws.scout.headers },
+    );
+    expect(scout.status).toBe(403);
   });
 });
 

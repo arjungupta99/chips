@@ -1,6 +1,8 @@
 /**
- * Media & files, a page of the room's sheet (ADR 0202, and its addendum for the desktop). The Media
- * & files card on the first page turns to it; it takes the place of the Files page.
+ * Sent in chat, a page of the room's sheet (ADR 0202, and its addendum for the desktop). The Sent
+ * in chat card on the first page turns to it; it takes the place of the Files page. Both were
+ * Media & files until 14 November 2026, when Universe had a Media and a Files of its own of what
+ * the space's folder keeps; these are what the room's lines carry.
  *
  * - **Media** first: the newest eight things the room's lines carry, four to a row, photos and
  *   videos as their pictures, a voice note and a document by their marks (core's `newestFilesOf`).
@@ -84,7 +86,7 @@ export function MediaFilesPage(props: {
     <>
       <Back
         titleId={props.titleId}
-        title="Media & files"
+        title="Sent in chat"
         onBack={props.onBack}
         testId="room-media-back"
       />

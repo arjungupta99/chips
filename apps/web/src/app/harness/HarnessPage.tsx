@@ -30,8 +30,10 @@ import {
   asksGoTo,
   asksValue,
   type Banners,
+  BRIDGE_HEADING,
   backFromRestart,
   backWords,
+  bridgeLine,
   budgetWords,
   connectedWords,
   type Directory,
@@ -39,6 +41,9 @@ import {
   fleetDoing,
   harnessRollup,
   harnessRuns,
+  KEEP_BRIDGE_FOOT,
+  KEEP_BRIDGE_SWITCH,
+  myRole,
   nameOf,
   permissionsRow,
   REMOVED_HARNESS_NOTE,
@@ -48,6 +53,7 @@ import {
   restartAsking,
   restartOffer,
   runsWeekWords,
+  showsBridgeSwitch,
   type WorkspaceModel,
 } from "@chipschat/core";
 import type { AgentState } from "@chipschat/protocol";
@@ -55,8 +61,11 @@ import { Avatar, Button, type HarnessStatus, Icon } from "@chipschat/ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AgentListRow } from "../Agents.tsx";
 import { ConfirmDialog } from "../ConfirmDialog.tsx";
+import { CopyBox } from "../ConnectBridge.tsx";
 import { GroupRow } from "../GroupRow.tsx";
 import { FleetWord, STATUS_TONE, saysStatus } from "../Sidebar.tsx";
+import { NeedsDot, useUpdates } from "../updates.tsx";
+import { Switch } from "../you/controls.tsx";
 import { Meter } from "./HarnessCards.tsx";
 import type { HarnessPart } from "./parts.ts";
 
@@ -117,6 +126,7 @@ export function HarnessPage(props: HarnessPageProps) {
         </div>
         <div className="hp-col">
           <SetUp {...props} />
+          <Bridge {...props} name={name} />
           {props.desk}
         </div>
       </div>
@@ -387,6 +397,63 @@ function SetUp(props: HarnessPageProps) {
       {props.bannersRow?.foot}
       {props.modelRow?.overlays}
       {props.bannersRow?.overlay}
+    </section>
+  );
+}
+
+/**
+ * Its bridge (ADR 0297): the release it runs and what Chips is doing with it, in one line that
+ * takes one of seven states, and the owner's switch "Keep this bridge up to date" for a bridge
+ * this computer keeps. The update dot breathes on the line when the owner has something to do;
+ * a still blue dot while it fixes itself; green when all is well. A bridge kept elsewhere gets
+ * the line to run where it runs. Nothing for a harness that isn't a bridge.
+ */
+function Bridge(props: HarnessPageProps & { readonly name: string }) {
+  const { software, keepBridge, readSoftware } = useUpdates();
+  const { harnessId } = props;
+  // Read again as the page opens, and for each harness it is turned to: the line says how the
+  // bridge stands now, not as it stood when the shell opened.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: asked again for another harness.
+  useEffect(() => readSoftware(), [readSoftware, harnessId]);
+  const harness = software?.harnesses.find((each) => each.harnessId === harnessId);
+  const line =
+    harness === undefined ? undefined : bridgeLine(harness, { name: props.name, now: Date.now() });
+  if (harness === undefined || line === undefined) return null;
+  const owner = props.selfId !== undefined && myRole(props.model, props.selfId) === "owner";
+  const switchable = showsBridgeSwitch(harness, owner);
+  return (
+    <section className="ctx hp-bridge" aria-label={BRIDGE_HEADING} data-testid="harness-bridge">
+      <div className="ctx-h">
+        <h3 className="agents-h">{BRIDGE_HEADING}</h3>
+      </div>
+      <div className="hp-bridge-box">
+        <div className="hp-bridge-line" data-tone={line.tone} data-testid="harness-bridge-line">
+          {line.tone === "needs" ? (
+            <NeedsDot />
+          ) : (
+            <span className="hp-bridge-dot" aria-hidden="true" />
+          )}
+          <span className="hp-bridge-words">
+            <b>{line.label}</b>
+            {line.sub !== "" && <small>{line.sub}</small>}
+          </span>
+        </div>
+        {line.command !== undefined && (
+          <CopyBox text={line.command} testId="harness-bridge-command" run />
+        )}
+        {switchable && (
+          <div className="hp-bridge-keep">
+            <span>{KEEP_BRIDGE_SWITCH}</span>
+            <Switch
+              label={KEEP_BRIDGE_SWITCH}
+              checked={harness.keepCurrent}
+              onChange={(on) => keepBridge(harness.harnessId, on)}
+              testId="harness-bridge-switch"
+            />
+          </div>
+        )}
+      </div>
+      {switchable && <p className="ctx-foot">{KEEP_BRIDGE_FOOT}</p>}
     </section>
   );
 }

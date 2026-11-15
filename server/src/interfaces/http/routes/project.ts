@@ -41,6 +41,7 @@ import {
 } from "@chipschat/protocol";
 import type { Context, Hono } from "hono";
 import { PAGE_TICKET_TTL_SECONDS, type Principal } from "../../../application/index.js";
+import type { ProjectStore } from "../../../application/ports/projects.js";
 import { isPushRequest, type ProjectRefusal } from "../../../application/use-cases/project-door.js";
 import { contentDisposition } from "../../../domain/index.js";
 import { mintProjectToken, readProjectToken } from "../../../infrastructure/projects/token.js";
@@ -366,6 +367,7 @@ async function ownerAt(c: Context<GatewayEnv>, deps: GatewayDeps, does: string) 
  *
  *   GET  /v1/spaces/:id/project/files?at=          the files at `main`, or at a change
  *   GET  /v1/spaces/:id/project/file?path=&at=     one file's bytes
+ *   GET  /v1/spaces/:id/project/picture?path=&edge=&at=  a picture's small or screen copy
  *   GET  /v1/spaces/:id/project/archive?at=        the files as one zip (ADR 0224)
  *   GET  /v1/spaces/:id/project/history?path=      one file's changes, newest first
  *   GET  /v1/spaces/:id/project/changes/:commit    one change, with its diff
@@ -373,6 +375,68 @@ async function ownerAt(c: Context<GatewayEnv>, deps: GatewayDeps, does: string) 
  *   GET  /v1/spaces/:id/project/page?path=&at=     a page built into one document (ADR 0223)
  *   POST /v1/spaces/:id/project/page {path, at?}   the same, behind a page door ticket (ADR 0201)
  */
+/**
+ * The longest side of a picture's copies: a square on a phone is about 120 points, so 640 keeps its
+ * short side sharp at three pixels a point; the viewer's matches an attachment's view copy (ADR 0058).
+ */
+const PICTURE_EDGES: Readonly<Record<string, number>> = { small: 640, screen: 2048 };
+
+/** A copy made of a picture, as it is handed over, and the picture's own size. */
+interface MadePicture {
+  readonly bytes: Uint8Array;
+  readonly type: string;
+  readonly width: number;
+  readonly height: number;
+}
+
+const noPicture = () => new HttpError("not_found", "No such picture in the space's project.");
+
+/** A picture of the project at a change, made into a copy no longer than `edge` on its longer side. */
+async function makePicture(
+  deps: GatewayDeps,
+  projects: Pick<ProjectStore, "read">,
+  asked: {
+    readonly spaceId: string;
+    readonly path: string;
+    readonly head: string;
+    readonly edge: number;
+  },
+): Promise<MadePicture> {
+  const read = await projects.read(
+    asked.spaceId,
+    asked.path,
+    asked.head,
+    deps.config.limits.maxAttachmentBytes,
+  );
+  if (read === undefined || "tooBig" in read) throw noPicture();
+  const bytes = new Uint8Array(read.bytes);
+  const size = await deps.pictures.inspect(bytes);
+  if (size === undefined) {
+    throw new HttpError(
+      "not_found",
+      `${asked.path} isn't a picture this computer can make a copy of.`,
+    );
+  }
+  const copy = await deps.pictures.thumbnail(bytes, asked.edge);
+  return { bytes: copy.bytes, type: copy.mimeType, ...size };
+}
+
+/** How many copies are kept, and how many bytes of them, before the oldest go. */
+const PICTURES_KEPT = 96;
+const PICTURE_BYTES_KEPT = 48 * 1024 * 1024;
+
+/** Keep a copy made, letting the oldest go past the counts. */
+function keepPicture(kept: Map<string, MadePicture>, key: string, made: MadePicture): void {
+  kept.set(key, made);
+  let bytes = 0;
+  for (const each of kept.values()) bytes += each.bytes.byteLength;
+  for (const [oldest, each] of kept) {
+    if (kept.size <= PICTURES_KEPT && bytes <= PICTURE_BYTES_KEPT) break;
+    kept.delete(oldest);
+    bytes -= each.bytes.byteLength;
+  }
+}
+
 export function registerProjectReadRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps): void {
   async function opened(c: Context<GatewayEnv>) {
     const result = await deps.projectDoor.open(c.get("principal"), c.req.param("id") ?? "");
@@ -424,6 +488,34 @@ export function registerProjectReadRoutes(app: Hono<GatewayEnv>, deps: GatewayDe
       "content-disposition": contentDisposition("attachment", name),
       "x-content-type-options": "nosniff",
       "content-security-policy": "sandbox",
+      "cache-control": "private, no-store",
+    });
+  });
+
+  // A picture's copies for Universe's Media (ADR 0227's addendum of 13 November 2026): the small one
+  // a square draws, and the screen one the viewer opens, so a 13 MB screenshot never crosses the
+  // relay to be looked at. Made once per change and kept a while; a file that isn't a picture this
+  // computer can read is `not_found`, and the phone asks for the file itself, as from an older one.
+  const madePictures = new Map<string, MadePicture>();
+  app.get("/v1/spaces/:id/project/picture", async (c) => {
+    const { spaceId, projects } = await opened(c);
+    const path = c.req.query("path") ?? "";
+    const at = commitIn(c.req.query("at"));
+    const edge = PICTURE_EDGES[c.req.query("edge") ?? ""];
+    const head = path === "" || at === "" ? null : (at ?? (await projects.head(spaceId)));
+    if (head === null || edge === undefined) throw noPicture();
+    const key = `${spaceId}\u0000${head}\u0000${path}\u0000${edge}`;
+    let made = madePictures.get(key);
+    if (made === undefined) {
+      made = await makePicture(deps, projects, { spaceId, path, head, edge });
+      keepPicture(madePictures, key, made);
+    }
+    return c.body(new Uint8Array(made.bytes), 200, {
+      "content-type": made.type,
+      // The picture's own size, so the viewer draws it at its shape before its copy lands.
+      "x-chips-picture-width": String(made.width),
+      "x-chips-picture-height": String(made.height),
+      "x-content-type-options": "nosniff",
       "cache-control": "private, no-store",
     });
   });

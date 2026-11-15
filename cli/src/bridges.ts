@@ -15,17 +15,35 @@
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  accessSync,
+  closeSync,
+  constants,
   existsSync,
+  fsyncSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   renameSync,
   rmSync,
+  statfsSync,
+  statSync,
+  symlinkSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { STEP_MARK } from "@chipschat/harness";
+import {
+  type BridgeOutcome,
+  type BridgeProving,
+  BridgeRefusal,
+  type BridgeTrying,
+  type JournalChange,
+} from "@chipschat/server";
 
 /** Where packages come from unless `CHIPS_NPM_REGISTRY` says otherwise. */
 export const NPM_REGISTRY = "https://registry.npmjs.org";
@@ -155,9 +173,251 @@ export function readRecord(folder: string): BridgeRecord | undefined {
   }
 }
 
+/**
+ * Written whole beside it, flushed, and renamed into place, so a full disk or a power cut leaves
+ * the last good record rather than an empty one: a bridge whose record can't be read drops out of
+ * every update, `disconnect` and `uninstall`.
+ */
 export function writeRecord(folder: string, record: BridgeRecord): void {
   mkdirSync(folder, { recursive: true });
-  writeFileSync(join(folder, RECORD), `${JSON.stringify(record, null, 2)}\n`);
+  writeWhole(join(folder, RECORD), `${JSON.stringify(record, null, 2)}\n`);
+}
+
+/** A file written beside itself, flushed, and renamed into place: the last good one, or this. */
+export function writeWhole(path: string, text: string): void {
+  const next = `${path}.next`;
+  const file = openSync(next, "w");
+  try {
+    writeSync(file, text);
+    fsyncSync(file);
+  } finally {
+    closeSync(file);
+  }
+  renameSync(next, path);
+}
+
+/*
+ * Each release in a folder of its own, `package-1.0.31`, and `package` a link to the one in use
+ * (bridges-keep-current.md, rule 4). The services keep naming `package/…`; Node follows the link
+ * when a bridge starts, so a bridge still running goes on loading its own version's files, which
+ * stay until nothing needs them: the one in use, the one before it (to put back), and any a kept
+ * service still started on.
+ */
+
+const LINK = "package";
+const VERSIONED = /^package-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/;
+const SAFE_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+
+/** What `updates.json` keeps beside the record: the version in use, the one before, and more. */
+export interface BridgeJournal {
+  readonly layout: 1;
+  readonly current?: string | undefined;
+  readonly previous?: string | undefined;
+  /** The version each kept service was last started on, by its label. */
+  readonly startedOn?: Readonly<Record<string, string>> | undefined;
+  /** Releases put back, each skipped until the time it names (rule 3). */
+  readonly skips?: Readonly<Record<string, string>> | undefined;
+  /** A service switched to a release and not yet seen to come back, for a restart to finish. */
+  readonly trying?: BridgeTrying | undefined;
+  /** The services in their first day on a release, by label: watched, and put back if need be. */
+  readonly proving?: Readonly<Record<string, BridgeProving>> | undefined;
+  /** How each service's last update went, by its label. */
+  readonly last?: Readonly<Record<string, BridgeOutcome>> | undefined;
+  /** The checksum each release staged here was unpacked from, for `bridge.json` once it runs. */
+  readonly staged?: Readonly<Record<string, string>> | undefined;
+}
+
+const JOURNAL = "updates.json";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Only the string values of a map read from disk. */
+function strings(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value)) return undefined;
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+}
+
+function tryingOf(value: unknown): BridgeTrying | undefined {
+  if (!isRecord(value)) return undefined;
+  const { label, harnessId, from, to, at } = value;
+  return typeof label === "string" &&
+    typeof harnessId === "string" &&
+    typeof from === "string" &&
+    typeof to === "string" &&
+    typeof at === "string"
+    ? { label, harnessId, from, to, at }
+    : undefined;
+}
+
+function provingOf(value: unknown): Record<string, BridgeProving> | undefined {
+  if (!isRecord(value)) return undefined;
+  const out: Record<string, BridgeProving> = {};
+  for (const [label, each] of Object.entries(value)) {
+    if (!isRecord(each)) continue;
+    const { harnessId, from, to, since } = each;
+    if (
+      typeof harnessId === "string" &&
+      typeof from === "string" &&
+      typeof to === "string" &&
+      typeof since === "string" &&
+      !Number.isNaN(Date.parse(since))
+    ) {
+      out[label] = { harnessId, from, to, since };
+    }
+  }
+  return Object.keys(out).length === 0 ? undefined : out;
+}
+
+const OUTCOMES: ReadonlySet<unknown> = new Set(["updated", "put-back", "refused"]);
+
+function outcomesOf(value: unknown): Record<string, BridgeOutcome> | undefined {
+  if (!isRecord(value)) return undefined;
+  const out: Record<string, BridgeOutcome> = {};
+  for (const [label, each] of Object.entries(value)) {
+    if (!isRecord(each) || !OUTCOMES.has(each["outcome"])) continue;
+    const { from, to, at, reason } = each;
+    if (typeof from !== "string" || typeof to !== "string" || typeof at !== "string") continue;
+    out[label] = {
+      outcome: each["outcome"] as BridgeOutcome["outcome"],
+      from,
+      to,
+      at,
+      ...(typeof reason === "string" ? { reason: reason as BridgeOutcome["reason"] } : {}),
+    };
+  }
+  return out;
+}
+
+export function readJournal(folder: string): BridgeJournal {
+  let read: unknown;
+  try {
+    read = JSON.parse(readFileSync(join(folder, JOURNAL), "utf8"));
+  } catch {
+    return { layout: 1 };
+  }
+  if (!isRecord(read)) return { layout: 1 };
+  const fields: Partial<Record<keyof BridgeJournal, unknown>> = {
+    current: typeof read["current"] === "string" ? read["current"] : undefined,
+    previous: typeof read["previous"] === "string" ? read["previous"] : undefined,
+    startedOn: strings(read["startedOn"]),
+    skips: strings(read["skips"]),
+    trying: tryingOf(read["trying"]),
+    proving: provingOf(read["proving"]),
+    last: outcomesOf(read["last"]),
+    staged: strings(read["staged"]),
+  };
+  return {
+    layout: 1,
+    ...Object.fromEntries(Object.entries(fields).filter((entry) => entry[1] !== undefined)),
+  } as BridgeJournal;
+}
+
+export function writeJournal(folder: string, journal: BridgeJournal): void {
+  writeWhole(join(folder, JOURNAL), `${JSON.stringify(journal, null, 2)}\n`);
+}
+
+/** The version `package` points at, or none: a folder from before the link, or nothing yet. */
+export function versionInUse(folder: string): string | undefined {
+  try {
+    return VERSIONED.exec(readlinkSync(join(folder, LINK)))?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A `package` folder an older Chips unpacked, made the first versioned one behind the link. The
+ * rename and the link follow each other at once, and a bridge already running keeps its files.
+ */
+export function adoptLayout(folder: string): void {
+  const link = join(folder, LINK);
+  if (!existsSync(link) || lstatSync(link).isSymbolicLink()) return;
+  let version: unknown;
+  try {
+    version = (
+      JSON.parse(readFileSync(join(link, "package.json"), "utf8")) as { version?: unknown }
+    ).version;
+  } catch {
+    version = undefined;
+  }
+  const named = typeof version === "string" && SAFE_VERSION.test(version) ? version : "0.0.0";
+  const target = join(folder, `${LINK}-${named}`);
+  if (existsSync(target)) rmSync(target, { recursive: true, force: true });
+  renameSync(link, target);
+  symlinkSync(`${LINK}-${named}`, link);
+}
+
+/** `package` pointed at `version`'s folder in one rename, and the journal told which came before. */
+export function pointTo(folder: string, version: string): void {
+  if (!SAFE_VERSION.test(version)) throw new BridgeError(`${version} is not a version.`);
+  if (!existsSync(join(folder, `${LINK}-${version}`, "package.json"))) {
+    throw new BridgeError(`${version} isn't unpacked here.`);
+  }
+  adoptLayout(folder);
+  const before = versionInUse(folder);
+  // Every service kept here runs the release the link is leaving until it is started again: that
+  // is written down before the link moves, so its files stay and it is read as what it runs.
+  const startedOn = startedBefore(folder, readRecord(folder), readJournal(folder));
+  const next = join(folder, `${LINK}.next`);
+  rmSync(next, { force: true });
+  symlinkSync(`${LINK}-${version}`, next);
+  renameSync(next, join(folder, LINK));
+  const journal = readJournal(folder);
+  writeJournal(folder, {
+    ...journal,
+    current: version,
+    ...(Object.keys(startedOn).length === 0 ? {} : { startedOn }),
+    ...(before !== undefined && before !== version ? { previous: before } : {}),
+  });
+}
+
+/** Throws what `pointTo` would, before anything is written. */
+function mustBeUnpacked(folder: string, version: string): void {
+  if (!SAFE_VERSION.test(version)) throw new BridgeError(`${version} is not a version.`);
+  if (!unpackedHere(folder, version)) throw new BridgeError(`${version} isn't unpacked here.`);
+}
+
+/** Whether `version` is unpacked here, to point at. */
+function unpackedHere(folder: string, version: string): boolean {
+  return (
+    SAFE_VERSION.test(version) && existsSync(join(folder, `${LINK}-${version}`, "package.json"))
+  );
+}
+
+/**
+ * Every version folder nothing needs any more gone: not the one in use, the one before, one a
+ * service started on, either end of a switch still being watched, or the release a service in its
+ * first day on a new one would be put back on.
+ */
+export function prune(folder: string): void {
+  const journal = readJournal(folder);
+  const keep = new Set(
+    [
+      versionInUse(folder),
+      journal.previous,
+      ...Object.values(journal.startedOn ?? {}),
+      // A switch being watched: the release to put back, and the one being tried.
+      journal.trying?.from,
+      journal.trying?.to,
+      // A first day: the release to go back to if the new one doesn't hold up.
+      ...Object.values(journal.proving ?? {}).flatMap((each) => [each.from, each.to]),
+    ].filter((each): each is string => each !== undefined),
+  );
+  for (const entry of readdirSync(folder)) {
+    const version = VERSIONED.exec(entry)?.[1];
+    if (version !== undefined && !keep.has(version)) {
+      rmSync(join(folder, entry), { recursive: true, force: true });
+    }
+  }
+  const staged = Object.entries(journal.staged ?? {}).filter(([version]) => keep.has(version));
+  if (staged.length !== Object.keys(journal.staged ?? {}).length) {
+    writeJournal(folder, { ...journal, staged: Object.fromEntries(staged) });
+  }
 }
 
 /** Every bridge here, with its record. */
@@ -169,6 +429,477 @@ export function bridgesHere(
     const folder = join(bridges, entry);
     const record = readRecord(folder);
     return record === undefined ? [] : [{ folder, record }];
+  });
+}
+
+/*
+ * One at a time (rule 8): `bridge.lock` in the package's folder, made only if it isn't there, with
+ * its holder's process id. `chips connect` by hand takes it too. One left by a process that has
+ * gone is taken over.
+ */
+
+const LOCK = "bridge.lock";
+/**
+ * How long a lock is believed. Nothing done under it takes this long (the longest is one download,
+ * minutes at most), so an older one was left by a process that has gone, even when another process
+ * has since been given its number.
+ */
+export const LOCK_STALE_MS = 30 * 60_000;
+/** How long a lock with no holder written in it yet is believed: its holder is between two calls. */
+const LOCK_BEING_WRITTEN_MS = 2000;
+
+/** Someone else is changing this bridge right now. */
+export class LockHeld extends BridgeError {}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Whether the lock at `path` has a holder still at work; false for one that has gone, or no lock. */
+function held(path: string, now: number): boolean {
+  let age: number;
+  let holder: number;
+  try {
+    age = now - statSync(path).mtimeMs;
+    holder = Number.parseInt(readFileSync(path, "utf8"), 10);
+  } catch {
+    // Let go between the two looks: there is nothing to wait for.
+    return false;
+  }
+  if (age > LOCK_STALE_MS) return false;
+  if (!Number.isInteger(holder)) return age < LOCK_BEING_WRITTEN_MS;
+  return holder !== process.pid && alive(holder);
+}
+
+/** The lock taken, or `LockHeld` thrown; the function it returns lets it go. */
+export function takeLock(folder: string, now: () => number = Date.now): () => void {
+  mkdirSync(folder, { recursive: true });
+  const path = join(folder, LOCK);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const file = openSync(path, "wx");
+      writeSync(file, String(process.pid));
+      closeSync(file);
+      return () => rmSync(path, { force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (held(path, now())) break;
+      rmSync(path, { force: true });
+    }
+  }
+  throw new LockHeld("Chips is changing this bridge right now. Try again in a minute.");
+}
+
+export async function withLock<T>(folder: string, work: () => Promise<T> | T): Promise<T> {
+  const letGo = takeLock(folder);
+  try {
+    return await work();
+  } finally {
+    letGo();
+  }
+}
+
+/** The versions unpacked in a bridge's folder. */
+export function stagedHere(folder: string): string[] {
+  try {
+    return readdirSync(folder).flatMap((entry) => {
+      const version = VERSIONED.exec(entry)?.[1];
+      return version === undefined ? [] : [version];
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** One clause of a range, `>=22.19`: whether a Node of `have` meets it. */
+function clauseHolds(have: Semver, operator: string, want: string): boolean {
+  const [major = 0, minor, patch = 0] = want.split(".").map((part) => Number(part));
+  const order = have.major - major || have.minor - (minor ?? 0) || have.patch - patch;
+  switch (operator) {
+    case ">=":
+      return order >= 0;
+    case ">":
+      return order > 0;
+    case "<=":
+      return order <= 0;
+    case "<":
+      return order < 0;
+    case "=":
+      return order === 0;
+    case "~":
+      return have.major === major && (minor === undefined || have.minor === minor) && order >= 0;
+    default:
+      // `^`, and a plain version: the same major, at least that.
+      return have.major === major && order >= 0;
+  }
+}
+
+const CLAUSE = /\s*(>=|<=|>|<|=|\^|~)?\s*v?(\d+(?:\.\d+){0,2})(?:\.[xX*])?(?=\s|$)/y;
+
+/** Whether every clause of one alternative holds; none when a part of it can't be read. */
+function alternativeHolds(have: Semver, text: string): boolean | undefined {
+  const trimmed = text.trim();
+  if (trimmed === "") return undefined;
+  let at = 0;
+  let holds = true;
+  while (at < trimmed.length) {
+    CLAUSE.lastIndex = at;
+    const found = CLAUSE.exec(trimmed);
+    if (found?.[2] === undefined) return undefined;
+    holds = clauseHolds(have, found[1] ?? "", found[2]) && holds;
+    at = CLAUSE.lastIndex;
+  }
+  return holds;
+}
+
+/**
+ * Whether `node` (`22.11.0`) meets an `engines.node` range: clauses of `>=`, `>`, `<=`, `<`, `=`,
+ * `^`, `~` or a plain version, spaced or not, all of them together, with `||` between
+ * alternatives. A range none of whose alternatives can be read passes: it is the registry's word,
+ * and a release is not held back for a way of writing it.
+ */
+export function nodeMeets(range: string, node: string): boolean {
+  const have = semver(node.replace(/^v/, ""));
+  if (have === undefined) return true;
+  const read = range.split("||").map((each) => alternativeHolds(have, each));
+  if (read.every((each) => each === undefined)) return true;
+  return read.some((each) => each === true);
+}
+
+/** How much a release needs free: three copies, since two stay and one is being unpacked. */
+const ROOM_FALLBACK_BYTES = 20 * 1024 * 1024;
+
+/**
+ * One exact release of a bridge here, unpacked beside the one running and nothing else changed:
+ * the computer's own update (bridges-keep-current.md, A). The release is the one a list signed with
+ * Chips's release key names, so its SHA-512 must be the list's and the registry's both. Refused,
+ * with a reason the harness page puts in words, when it doesn't fit the machine (rule 8).
+ */
+export async function stageRelease(input: {
+  readonly registry: string;
+  readonly name: string;
+  readonly version: string;
+  readonly integrity: string;
+  readonly bridges: string;
+  /** The Node its services run on. */
+  readonly nodeVersion: string;
+  readonly fetch?: typeof fetch | undefined;
+  /** Free bytes where the folder is; the file system's, unless a test says. */
+  readonly free?: ((folder: string) => number) | undefined;
+}): Promise<void> {
+  const folder = bridgeFolder(input.bridges, input.name);
+  if (!SAFE_VERSION.test(input.version)) {
+    throw new BridgeRefusal("unlisted", `${input.version} is not a version.`);
+  }
+  if (readRecord(folder) === undefined) {
+    throw new BridgeRefusal("unlisted", `${input.name} isn't connected here.`);
+  }
+  try {
+    accessSync(folder, constants.W_OK);
+  } catch {
+    throw new BridgeRefusal("permission", `Chips can't write ${folder}.`);
+  }
+  try {
+    await withLock(folder, async () => {
+      if (checkedHere(folder, input.version, input.integrity)) return;
+      const fetching = input.fetch ?? fetch;
+      const manifest = await exactRelease(input.registry, input.name, input.version, fetching);
+      const { tarball, signed } = theSignedOne(manifest, input);
+      fitsHere(manifest, input, folder);
+      const bytes = await downloadSigned(
+        { version: input.version, tarball, integrity: signed },
+        input.name,
+        fetching,
+      );
+      unpack(folder, bytes, input.version);
+      const journal = readJournal(folder);
+      writeJournal(folder, { ...journal, staged: { ...journal.staged, [input.version]: signed } });
+    });
+  } catch (error) {
+    if (error instanceof LockHeld) throw new BridgeRefusal("busy", error.message);
+    throw error;
+  }
+}
+
+/** The checksums releases unpacked here were checked against: the journal's, and the record's own. */
+export function checksumsHere(folder: string): Record<string, string> {
+  const record = readRecord(folder);
+  return {
+    ...(record === undefined || record.integrity === ""
+      ? {}
+      : { [record.version]: record.integrity }),
+    ...readJournal(folder).staged,
+  };
+}
+
+/**
+ * Whether `version` is unpacked here from bytes whose SHA-512 is the signed one. A folder some
+ * other fetch left (a connect by hand checks npm's checksum alone) is fetched and checked again.
+ */
+function checkedHere(folder: string, version: string, integrity: string): boolean {
+  if (!unpackedHere(folder, version)) return false;
+  const signed = integrity.split(/\s+/).find((each) => each.startsWith("sha512-"));
+  const kept = checksumsHere(folder)[version];
+  return signed !== undefined && kept?.split(/\s+/).includes(signed) === true;
+}
+
+/** npm's tarball for the release, when its checksum is the one the signed list names. */
+function theSignedOne(
+  manifest: FullManifest,
+  input: { readonly name: string; readonly version: string; readonly integrity: string },
+): { readonly tarball: string; readonly signed: string } {
+  const listedIntegrity = manifest.dist?.integrity;
+  const tarball = manifest.dist?.tarball;
+  const signed = input.integrity.split(/\s+/).find((each) => each.startsWith("sha512-"));
+  if (
+    typeof listedIntegrity === "string" &&
+    typeof tarball === "string" &&
+    signed !== undefined &&
+    listedIntegrity.split(/\s+/).includes(signed)
+  ) {
+    return { tarball, signed };
+  }
+  throw new BridgeRefusal(
+    "checksum",
+    `${input.name} ${input.version} on npm isn't the release Chips signed.`,
+  );
+}
+
+/** Refused when this computer's Node is too old for the release, or its disk too full. */
+function fitsHere(
+  manifest: FullManifest,
+  input: {
+    readonly name: string;
+    readonly version: string;
+    readonly nodeVersion: string;
+    readonly free?: ((folder: string) => number) | undefined;
+  },
+  folder: string,
+): void {
+  const node = manifest.engines?.node;
+  if (typeof node === "string" && !nodeMeets(node, input.nodeVersion)) {
+    throw new BridgeRefusal(
+      "node",
+      `${input.name} ${input.version} needs Node ${node}; this computer's is ${input.nodeVersion}.`,
+    );
+  }
+  const size = manifest.dist?.unpackedSize;
+  const needs = 3 * (typeof size === "number" && size > 0 ? size : ROOM_FALLBACK_BYTES);
+  if ((input.free ?? freeBytes)(folder) < needs) {
+    throw new BridgeRefusal("room", `The disk is too full for ${input.name} ${input.version}.`);
+  }
+}
+
+/** The bytes, checked against the signed SHA-512; a refusal with its reason when they can't be had. */
+async function downloadSigned(release: Listed, name: string, fetching: typeof fetch) {
+  try {
+    return await download(release, { name, major: semver(release.version)?.major ?? 0 }, fetching);
+  } catch (error) {
+    throw error instanceof BridgeError && /checksum/.test(error.message)
+      ? new BridgeRefusal("checksum", error.message)
+      : new BridgeRefusal("registry", error instanceof Error ? error.message : String(error));
+  }
+}
+
+function freeBytes(folder: string): number {
+  try {
+    const stats = statfsSync(folder);
+    return Number(stats.bavail) * Number(stats.bsize);
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+interface FullManifest extends Manifest {
+  readonly engines?: { readonly node?: unknown };
+  readonly dist?: {
+    readonly tarball?: unknown;
+    readonly integrity?: unknown;
+    readonly unpackedSize?: unknown;
+  };
+}
+
+/** The registry's manifest of one release; a `registry` refusal when it can't be had. */
+async function exactRelease(
+  registry: string,
+  name: string,
+  version: string,
+  fetching: typeof fetch,
+): Promise<FullManifest> {
+  let answer: Response;
+  try {
+    answer = await fetching(packumentUrl(registry, name), {
+      headers: { accept: "application/vnd.npm.install-v1+json, application/json" },
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (error) {
+    throw new BridgeRefusal("registry", `Couldn't reach ${registry} (${String(error)}).`);
+  }
+  if (!answer.ok) {
+    throw new BridgeRefusal("registry", `${registry} answered ${answer.status} for ${name}.`);
+  }
+  const versions = ((await answer.json()) as { versions?: Record<string, FullManifest> } | null)
+    ?.versions;
+  const manifest = versions?.[version];
+  if (manifest === undefined) {
+    throw new BridgeRefusal("registry", `${registry} has no ${name} ${version}.`);
+  }
+  return manifest;
+}
+
+/**
+ * `package` pointed at a staged release and the one service started again on it. Every other
+ * service kept on the package is written down as started on the release the link left, so the
+ * files it runs stay until it restarts too. `trying` is in the journal before the link moves, so a
+ * computer that stops halfway knows what to finish.
+ */
+export async function switchService(input: {
+  readonly bridges: string;
+  readonly name: string;
+  readonly label: string;
+  readonly version: string;
+  readonly trying: BridgeTrying | null;
+  readonly restart: (label: string) => Promise<boolean>;
+}): Promise<boolean> {
+  const folder = bridgeFolder(input.bridges, input.name);
+  try {
+    return await withLock(folder, async () => {
+      adoptLayout(folder);
+      // Refused before the journal is told anything is being tried: a `trying` left by a switch
+      // that never happened would be "put back" five minutes on, and its release skipped a week.
+      mustBeUnpacked(folder, input.version);
+      const record = readRecord(folder);
+      const journal = readJournal(folder);
+      const startedOn = startedBefore(folder, record, journal);
+      // The release it leaves keeps its checksum, for `bridge.json` if it is put back.
+      const staged =
+        record === undefined || record.integrity === ""
+          ? journal.staged
+          : { [record.version]: record.integrity, ...journal.staged };
+      const { trying: _was, ...rest } = journal;
+      writeJournal(folder, {
+        ...rest,
+        startedOn,
+        ...(staged === undefined ? {} : { staged }),
+        ...(input.trying === null ? {} : { trying: input.trying }),
+      });
+      pointTo(folder, input.version);
+      if (record !== undefined && record.version !== input.version) {
+        writeRecord(folder, {
+          ...record,
+          version: input.version,
+          integrity: staged?.[input.version] ?? "",
+        });
+      }
+      const started = await input.restart(input.label);
+      const now = readJournal(folder);
+      writeJournal(folder, {
+        ...now,
+        startedOn: { ...now.startedOn, [input.label]: input.version },
+      });
+      prune(folder);
+      return started;
+    });
+  } catch (error) {
+    if (error instanceof LockHeld) throw new BridgeRefusal("busy", error.message);
+    throw error;
+  }
+}
+
+/** Each kept service's release, the one the link points at for those no update started yet. */
+function startedBefore(
+  folder: string,
+  record: BridgeRecord | undefined,
+  journal: BridgeJournal,
+): Record<string, string> {
+  const startedOn: Record<string, string> = { ...journal.startedOn };
+  const before = versionInUse(folder) ?? record?.version;
+  if (before === undefined) return startedOn;
+  for (const kept of Object.values(record?.kept ?? {})) startedOn[kept.label] ??= before;
+  return startedOn;
+}
+
+/**
+ * Services started again by hand (`chips connect`, `--update`) on the release in use, written in
+ * the journal so the computer reads what they run: a service no update started is read as the
+ * release in use only until the link moves.
+ */
+export function startedOnNow(folder: string, labels: readonly string[]): void {
+  const version = versionInUse(folder);
+  if (version === undefined || labels.length === 0) return;
+  const journal = readJournal(folder);
+  const startedOn = { ...journal.startedOn };
+  for (const label of labels) startedOn[label] = version;
+  writeJournal(folder, { ...journal, startedOn });
+}
+
+/**
+ * A service that is no longer kept, off the journal: what it started on (so its files can go), how
+ * its last update went, and a switch of it still being watched, which nothing can finish now and
+ * which would hold every other service on the package back.
+ */
+export function forgetService(folder: string, label: string): void {
+  const { trying, startedOn, last, proving, ...journal } = readJournal(folder);
+  const without = <T>(map: Readonly<Record<string, T>> | undefined) => {
+    if (map === undefined) return undefined;
+    const { [label]: _gone, ...rest } = map;
+    return rest;
+  };
+  const started = without(startedOn);
+  const outcomes = without(last);
+  const firstDays = without(proving);
+  writeJournal(folder, {
+    ...journal,
+    ...(started === undefined ? {} : { startedOn: started }),
+    ...(outcomes === undefined ? {} : { last: outcomes }),
+    ...(firstDays === undefined || Object.keys(firstDays).length === 0
+      ? {}
+      : { proving: firstDays }),
+    ...(trying === undefined || trying.label === label ? {} : { trying }),
+  });
+}
+
+/** A service's first day begun, or ended: the map with it in, or without it. */
+function provingWith(
+  proving: Readonly<Record<string, BridgeProving>> | undefined,
+  change: JournalChange["proving"],
+): Readonly<Record<string, BridgeProving>> | undefined {
+  if (change === undefined) return proving;
+  const { [change.label]: _was, ...rest } = proving ?? {};
+  const next = change.said === null ? rest : { ...rest, [change.label]: change.said };
+  return Object.keys(next).length === 0 ? undefined : next;
+}
+
+/**
+ * What the journal is told: a skip added, `trying` set or cleared, a service's outcome kept, its
+ * first day on a release begun or ended.
+ */
+export async function noteJournal(
+  bridges: string,
+  name: string,
+  change: JournalChange,
+): Promise<void> {
+  const folder = bridgeFolder(bridges, name);
+  await withLock(folder, () => {
+    const { trying, proving, ...journal } = readJournal(folder);
+    const keptTrying = change.trying === undefined ? trying : (change.trying ?? undefined);
+    const firstDays = provingWith(proving, change.proving);
+    writeJournal(folder, {
+      ...journal,
+      ...(keptTrying === undefined ? {} : { trying: keptTrying }),
+      ...(firstDays === undefined ? {} : { proving: firstDays }),
+      ...(change.skip === undefined
+        ? {}
+        : { skips: { ...journal.skips, [change.skip.version]: change.skip.until } }),
+      ...(change.outcome === undefined
+        ? {}
+        : { last: { ...journal.last, [change.outcome.label]: change.outcome.said } }),
+    });
   });
 }
 
@@ -270,9 +1001,15 @@ async function download(
   return bytes;
 }
 
-/** The tarball unpacked as `<folder>/package`, in place of what was there, in one rename. */
-function unpack(folder: string, bytes: Uint8Array): void {
+/**
+ * The tarball unpacked as `<folder>/package-<version>`, beside what is there. Nothing in use is
+ * touched: `pointTo` moves the link, and `stage` alone leaves it where it is.
+ */
+export function unpack(folder: string, bytes: Uint8Array, version: string): void {
+  if (!SAFE_VERSION.test(version)) throw new BridgeError(`${version} is not a version.`);
   mkdirSync(folder, { recursive: true });
+  adoptLayout(folder);
+  const target = join(folder, `${LINK}-${version}`);
   const work = mkdtempSync(join(folder, ".unpacking-"));
   try {
     writeFileSync(join(work, "bridge.tgz"), bytes);
@@ -280,9 +1017,8 @@ function unpack(folder: string, bytes: Uint8Array): void {
     if (!existsSync(join(work, "package", "package.json"))) {
       throw new BridgeError("The download holds no package.");
     }
-    const old = join(work, "old");
-    if (existsSync(join(folder, "package"))) renameSync(join(folder, "package"), old);
-    renameSync(join(work, "package"), join(folder, "package"));
+    if (versionInUse(folder) !== version) rmSync(target, { recursive: true, force: true });
+    if (!existsSync(target)) renameSync(join(work, "package"), target);
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
@@ -320,12 +1056,17 @@ export async function fetchBridge(input: {
     existsSync(join(folder, "package", "package.json"));
   input.onRelease?.(release.version, here);
   if (here) return { folder, version: release.version, reused: true };
-  unpack(folder, await download(release, spec, fetching, input.onProgress));
-  writeRecord(folder, {
-    package: spec.name,
-    version: release.version,
-    integrity: release.integrity,
-    kept: record?.kept ?? {},
+  const bytes = await download(release, spec, fetching, input.onProgress);
+  await withLock(folder, () => {
+    unpack(folder, bytes, release.version);
+    pointTo(folder, release.version);
+    prune(folder);
+    writeRecord(folder, {
+      package: spec.name,
+      version: release.version,
+      integrity: release.integrity,
+      kept: readRecord(folder)?.kept ?? record?.kept ?? {},
+    });
   });
   return { folder, version: release.version, reused: false };
 }

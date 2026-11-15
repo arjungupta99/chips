@@ -780,7 +780,7 @@ describe("the room's icon (ADR 0174)", () => {
 });
 
 describe("the first page's one scroll (ADR 0202's addendum)", () => {
-  it("holds who is here whole, Media & files and the tiles, under the head that stays put", async () => {
+  it("holds who is here whole, Sent in chat and the tiles, under the head that stays put", async () => {
     const space = room({ members: ["per_arjun", "per_dana", "agt_hello", "agt_garage"] });
     await render(
       <RoomSheet
@@ -1506,7 +1506,7 @@ describe("the room's files (ADR 0100)", () => {
     return files;
   }
 
-  it("says how many on the Media & files card, and lists them newest first under its pictures (ADR 0202)", async () => {
+  it("says how many on the Sent in chat card, and lists them newest first under its pictures (ADR 0202)", async () => {
     await openSheet([
       version("gallery.html", 3, "text/html", "agt_hello"),
       version("voice-note-1002-2336.m4a", 1, "audio/mp4", "per_arjun"),
@@ -2295,7 +2295,7 @@ describe("what the room sends a member's or a guest's phone (ADR 0198)", () => {
   }
 });
 
-describe("Media & files (ADR 0202, ADR 0165)", () => {
+describe("Sent in chat (ADR 0202, ADR 0165)", () => {
   const PHOTO: Attachment = {
     id: "att_ring",
     filename: "ring.jpg",
@@ -2379,8 +2379,8 @@ describe("Media & files (ADR 0202, ADR 0165)", () => {
     );
     const card = screen.getByTestId("room-sheet-media");
     // The PDF counts, as voice notes do: the photo, the PDF and the clip.
-    await waitFor(() => expect(card).toHaveTextContent(/Media & files3/));
-    expect(card).toHaveProp("accessibilityLabel", "Media and files, 3");
+    await waitFor(() => expect(card).toHaveTextContent(/Sent in chat3/));
+    expect(card).toHaveProp("accessibilityLabel", "Sent in chat, 3");
     const strip = within(screen.getByTestId("room-sheet-media-strip"));
     // The clip, newest, first: its length on its poster; the PDF by its kind.
     expect(strip.getByText("0:31")).toBeOnTheScreen();
@@ -2510,7 +2510,7 @@ describe("the room's project (ADR 0222)", () => {
     },
   });
 
-  it("is a tile once the room has one, with its files, its changes and Undo", async () => {
+  it("is a tile once the room has one, saying who made the newest change and when, opening Changes and Undo", async () => {
     const snap = withRoom(withProject);
     const store = fakeStore(snap);
     await render(
@@ -2525,62 +2525,38 @@ describe("the room's project (ADR 0222)", () => {
         onOpenAgent={() => undefined}
       />,
     );
-    expect(screen.getByRole("button", { name: "Project, 2 files" })).toBeOnTheScreen();
+    // Project until 14 November 2026, saying how many files: those are Universe's now.
+    expect(screen.getByRole("button", { name: /^Changes, Hello · \d/ })).toBeOnTheScreen();
+    expect(screen.queryByText("2 files")).toBeNull();
     await userEvent.press(screen.getByTestId("room-sheet-project"));
-    expect(await screen.findByText("index.html")).toBeOnTheScreen();
-    expect(screen.getByText("src/")).toBeOnTheScreen();
-    expect(screen.getByText("game.js")).toBeOnTheScreen();
-
-    await userEvent.press(screen.getByTestId("project-tab-changes"));
     expect(screen.getByText("Two, not one")).toBeOnTheScreen();
+    expect(screen.getByText("The files themselves are in Universe.")).toBeOnTheScreen();
+    expect(screen.queryByTestId("project-tab-files")).toBeNull();
+    expect(screen.queryByTestId("project-file-index.html")).toBeNull();
+
     await userEvent.press(screen.getByTestId(`project-change-${commit.slice(0, 7)}`));
     expect(await screen.findByText("Hello · 1 file changed · +1 −1")).toBeOnTheScreen();
     expect(screen.getByText("+export const a = 2;\n")).toBeOnTheScreen();
     await userEvent.press(screen.getByTestId("project-undo"));
     expect(store.calls).toContainEqual({ name: "undoChange", args: { spaceId: "sp_1", commit } });
-    expect(await screen.findByTestId("project-tab-files")).toBeOnTheScreen();
+    expect(await screen.findByText("The files themselves are in Universe.")).toBeOnTheScreen();
   });
 
-  it("opens an HTML file of it as a page, built on the server (ADR 0223)", async () => {
-    const snap = withRoom(withProject);
-    await render(
-      <RoomSheet
-        store={fakeStore(snap)}
-        snapshot={snap}
-        space={withProject}
-        title="Hello"
-        selfId="per_arjun"
-        open
-        onClose={() => undefined}
-        onOpenAgent={() => undefined}
-      />,
-    );
-    await userEvent.press(screen.getByTestId("room-sheet-project"));
-    await userEvent.press(await screen.findByTestId("project-file-index.html"));
-    // Open page comes before the page's words, which a long page would push it under.
-    await screen.findByTestId("project-file-words");
-    expect(
-      screen
-        .getAllByTestId(/^project-(open-page|file-words)$/)
-        .map((each) => String(each.props["testID"])),
-    ).toEqual(["project-open-page", "project-file-words"]);
-    await userEvent.press(screen.getByTestId("project-open-page"));
-    const sheet = await screen.findByTestId("page-sheet");
-    expect(within(sheet).getByRole("header")).toHaveTextContent("index.html");
-    // A page built for the asking has no file to share.
-    expect(within(sheet).queryByTestId("page-share")).toBeNull();
-  });
-
-  it("is the files and their changes alone: no Your folder, no zip, and no .chips (ADR 0227)", async () => {
+  it("opens an HTML file a change touched as a page, built on the server (ADR 0223)", async () => {
     const snap = withRoom(withProject);
     const store = fakeStore(snap);
-    const writable = store as { projectFiles: Store["projectFiles"] };
-    writable.projectFiles = async () => ({
-      at: "c".repeat(40),
+    const writable = store as { projectChange: Store["projectChange"] };
+    const touched = await store.projectChange("sp_1", commit);
+    writable.projectChange = async () => ({
+      ...touched,
       files: [
-        { path: ".chips/index.html", bytes: 300, type: "text/html" },
-        { path: ".chips/run.json", bytes: 40, type: "application/json" },
-        { path: "index.html", bytes: 120, type: "text/html" },
+        {
+          path: "index.html",
+          added: 1,
+          removed: 0,
+          patch: "@@ -0,0 +1 @@\n+<h1>The game</h1>",
+          cut: false,
+        },
       ],
     });
     await render(
@@ -2596,10 +2572,42 @@ describe("the room's project (ADR 0222)", () => {
         onOpenAgent={() => undefined}
       />,
     );
-    expect(await screen.findByTestId("project-file-index.html")).toBeOnTheScreen();
-    expect(screen.queryByTestId("project-file-.chips/index.html")).toBeNull();
-    expect(screen.queryByText(".chips/")).toBeNull();
-    for (const gone of ["project-on-mac", "run-bar", "project-zip"]) {
+    await userEvent.press(screen.getByTestId(`project-change-${commit.slice(0, 7)}`));
+    const diff = await screen.findByTestId("project-diff-index.html");
+    await userEvent.press(within(diff).getByText("index.html"));
+    // Open page comes before the page's words, which a long page would push it under.
+    await screen.findByTestId("project-file-words");
+    expect(
+      screen
+        .getAllByTestId(/^project-(open-page|file-words)$/)
+        .map((each) => String(each.props["testID"])),
+    ).toEqual(["project-open-page", "project-file-words"]);
+    await userEvent.press(screen.getByTestId("project-open-page"));
+    const sheet = await screen.findByTestId("page-sheet");
+    expect(within(sheet).getByRole("header")).toHaveTextContent("index.html");
+    // A page built for the asking has no file to share.
+    expect(within(sheet).queryByTestId("page-share")).toBeNull();
+  });
+
+  it("is the changes alone: no files, no Your folder, no zip (ADR 0227)", async () => {
+    const snap = withRoom(withProject);
+    await render(
+      <RoomSheet
+        store={fakeStore(snap)}
+        snapshot={snap}
+        space={withProject}
+        title="Hello"
+        selfId="per_arjun"
+        open
+        opensOn="project"
+        onClose={() => undefined}
+        onOpenAgent={() => undefined}
+      />,
+    );
+    expect(await screen.findByTestId(`project-change-${commit.slice(0, 7)}`)).toBeOnTheScreen();
+    expect(screen.getByRole("header")).toHaveTextContent("Changes");
+    expect(screen.queryByTestId(/^project-file-/)).toBeNull();
+    for (const gone of ["project-on-mac", "run-bar", "project-zip", "project-tab-files"]) {
       expect(screen.queryByTestId(gone)).toBeNull();
     }
   });
@@ -2620,7 +2628,6 @@ describe("the room's project (ADR 0222)", () => {
       />,
     );
     await userEvent.press(screen.getByTestId("room-sheet-project"));
-    await userEvent.press(screen.getByTestId("project-tab-changes"));
     await userEvent.press(screen.getByTestId(`project-change-${commit.slice(0, 7)}`));
     expect(await screen.findByTestId("project-change-head")).toBeOnTheScreen();
     expect(screen.queryByTestId("project-undo")).toBeNull();

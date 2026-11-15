@@ -742,6 +742,22 @@ const ROWS: readonly Row[] = [
   // The server as its people see it (ADR 0170), and the gallery from the docs (ADR 0171).
   { method: "GET", route: "/v1/server", expect: people },
   { method: "GET", route: "/v1/connectors", expect: people },
+  // What each device and harness runs (everything in step): everyone's devices only for an owner
+  // or admin, which the route's own test covers.
+  { method: "GET", route: "/v1/software", expect: people },
+  {
+    method: "PUT",
+    route: "/v1/server/self-update",
+    body: { automatic: false },
+    expect: ownersOnly,
+  },
+  {
+    method: "PUT",
+    route: "/v1/harnesses/:id/bridge-updates",
+    path: "/v1/harnesses/SCOUT/bridge-updates",
+    body: { keep_current: true },
+    expect: ownersOnly,
+  },
   { method: "GET", route: "/v1/me/notifications", expect: people },
   {
     method: "PUT",
@@ -936,6 +952,12 @@ const ROWS: readonly Row[] = [
     method: "GET",
     route: "/v1/spaces/:id/project/file",
     path: "/v1/spaces/spc_01K4ZQPX000000000000000001/project/file?path=index.html",
+    expect: people,
+  },
+  {
+    method: "GET",
+    route: "/v1/spaces/:id/project/picture",
+    path: "/v1/spaces/spc_01K4ZQPX000000000000000001/project/picture?path=shot.png&edge=small",
     expect: people,
   },
   {

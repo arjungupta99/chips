@@ -669,6 +669,22 @@ export interface HiddenSpacesTable {
  * What a person wants of the gold banner for one agent or harness (ADR 0286), theirs alone: a
  * registry, not a projection. An agent with no row follows its harness; a harness with none shows.
  */
+/**
+ * What a device or a harness last said it runs, as its socket said hello (everything in step,
+ * 13 November 2026). `kind` is `device` or `harness`; `participant_id` is the person a device is
+ * theirs, or the harness itself.
+ */
+export interface SoftwareSeenTable {
+  workspace_id: string;
+  subject_id: string;
+  kind: "device" | "harness";
+  participant_id: string;
+  name: string;
+  version: string;
+  seen_at: string;
+  changed_at: string;
+}
+
 export interface BannerChoicesTable {
   workspace_id: string;
   participant_id: string;
@@ -952,6 +968,25 @@ export interface RelaySwitchTable {
   set_at: string;
 }
 
+/** The owner's switch, "Update this computer automatically" (0064); one row, `computer`. */
+export interface ComputerUpdatesTable {
+  id: string;
+  automatic: number;
+  set_by: string;
+  workspace_id: string;
+  set_at: string;
+}
+
+/** The owner's switch "Keep this bridge up to date" on a harness page (0065), on without a row. */
+export interface BridgeSwitchesTable {
+  harness_id: string;
+  workspace_id: string;
+  /** 1 when the bridge is kept current, 0 when an owner turned it off. */
+  keep_current: number;
+  set_by: string;
+  set_at: string;
+}
+
 export interface Database {
   workspaces: WorkspacesTable;
   participants: ParticipantsTable;
@@ -989,6 +1024,9 @@ export interface Database {
   hidden_spaces: HiddenSpacesTable;
   pinned_spaces: PinnedSpacesTable;
   banner_choices: BannerChoicesTable;
+  software_seen: SoftwareSeenTable;
+  computer_updates: ComputerUpdatesTable;
+  bridge_switches: BridgeSwitchesTable;
   closed_banners: ClosedBannersTable;
   join_requests: JoinRequestsTable;
   direct_asks: DirectAsksTable;

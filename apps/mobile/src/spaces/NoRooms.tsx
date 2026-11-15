@@ -48,8 +48,12 @@ import { usePalette } from "../ui/theme";
 import { LEADING_PHONE, RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { useReduceMotion } from "../ui/useReduceMotion";
 
-/** The connection's mark is twenty points; here it stands as large as a room's face and more. */
-const MARK_SCALE = 3.4;
+/**
+ * The mark's square: as large as a room's face and more. Drawn at this size, not scaled up from
+ * the connection's twenty points: iOS stretches the picture the body was drawn into, and a
+ * stretched picture goes soft (`ChipPulse`).
+ */
+const MARK = 68;
 /** How far down the window the words start: about where the third row would be. */
 const DOWN = 0.11;
 /** No more placeholders than a phone shows rows above the fold. */
@@ -157,7 +161,8 @@ export function Centred({
   children,
 }: {
   readonly testID: string;
-  readonly mark: ReactNode;
+  /** The mark, drawn in the square it is handed. */
+  readonly mark: (size: number) => ReactNode;
   readonly title: string;
   readonly words: string;
   readonly children?: ReactNode;
@@ -170,9 +175,7 @@ export function Centred({
       testID={testID}
       accessibilityLiveRegion="polite"
     >
-      <View style={styles.mark}>
-        <View style={styles.blowUp}>{mark}</View>
-      </View>
+      <View style={styles.mark}>{mark(MARK)}</View>
       <Text accessibilityRole="header" style={[styles.title, { color: palette.ink }]}>
         {title}
       </Text>
@@ -220,14 +223,15 @@ export function Telling({
       testID={`${testID}-${look}`}
       title={title}
       words={saying.words}
-      mark={
+      mark={(size) => (
         <ChipPulse
           gold={failed ? palette.red : palette.gold}
           ink={palette.ink3}
           lit={palette.ink}
           working={!failed}
+          size={size}
         />
-      }
+      )}
     >
       {caption === undefined ? null : (
         <Text style={[styles.caption, { color: palette.ink3 }]} selectable>
@@ -285,7 +289,15 @@ function Nothing() {
       testID="no-rooms-none"
       title="No spaces yet"
       words="A space is where you and your agents work on something together."
-      mark={<ChipPulse gold={palette.gold} ink={palette.ink3} lit={palette.ink} working={false} />}
+      mark={(size) => (
+        <ChipPulse
+          gold={palette.gold}
+          ink={palette.ink3}
+          lit={palette.ink}
+          working={false}
+          size={size}
+        />
+      )}
     >
       {!opens ? (
         <Text style={[styles.added, { color: palette.ink3 }]}>{ADDED_TO_A_SPACE_WORDS}</Text>
@@ -325,7 +337,15 @@ function Welcomed({ welcome }: { readonly welcome: Welcome }) {
       testID="no-rooms-welcome"
       title={welcome.title}
       words={welcome.words}
-      mark={<ChipPulse gold={palette.gold} ink={palette.ink3} lit={palette.ink} working={false} />}
+      mark={(size) => (
+        <ChipPulse
+          gold={palette.gold}
+          ink={palette.ink3}
+          lit={palette.ink}
+          working={false}
+          size={size}
+        />
+      )}
     >
       {welcome.mayCreate ? (
         <View ref={button} collapsable={false} style={styles.button}>
@@ -354,7 +374,15 @@ export function TakenOutNotice({
       testID="removed-from-room"
       title={`You're no longer in ${room}`}
       words={`${taken.byName} removed you from ${room}. What was said there stays with the people still in it.`}
-      mark={<ChipPulse gold={palette.red} ink={palette.ink3} lit={palette.ink} working={false} />}
+      mark={(size) => (
+        <ChipPulse
+          gold={palette.red}
+          ink={palette.ink3}
+          lit={palette.ink}
+          working={false}
+          size={size}
+        />
+      )}
     >
       <View style={styles.button}>
         <Button label="OK" style={styles.big} onPress={onSeen} />
@@ -485,15 +513,7 @@ export function Arrive({
 
 const styles = StyleSheet.create({
   centred: { alignItems: "center", paddingHorizontal: SPACE.xxl + SPACE.sm },
-  // The mark is drawn at twenty points and scaled, as the connection sheet's is: one transform,
-  // and every pin stays where it belongs. The box is the scaled size, so the words below clear it.
-  mark: {
-    width: 20 * MARK_SCALE,
-    height: 20 * MARK_SCALE,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  blowUp: { transform: [{ scale: MARK_SCALE }] },
+  mark: { width: MARK, height: MARK, alignItems: "center", justifyContent: "center" },
   title: {
     marginTop: SPACE.xl,
     fontSize: TEXT.xl,

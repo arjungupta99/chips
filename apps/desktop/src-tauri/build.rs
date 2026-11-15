@@ -22,9 +22,13 @@ const COMMANDS: &[&str] = &[
     "open_tailscale",
     "page_zoom",
     "drawn",
+    "update_state",
+    "update_now",
 ];
 
 fn main() {
+    // A build made to hand out updates itself (ADR 0298); `update.rs` reads this at compile time.
+    println!("cargo:rerun-if-env-changed=CHIPS_MAC_SELF_UPDATE");
     tauri_build::try_build(
         tauri_build::Attributes::new()
             .app_manifest(tauri_build::AppManifest::new().commands(COMMANDS)),

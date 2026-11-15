@@ -64,7 +64,15 @@ export function LockPicture({
       >
         <View style={styles.head}>
           <Big scale={1.1}>
-            <ChipPulse gold={palette.gold} ink={palette.ink3} lit={palette.ink} working={false} />
+            {(size) => (
+              <ChipPulse
+                gold={palette.gold}
+                ink={palette.ink3}
+                lit={palette.ink}
+                working={false}
+                size={size}
+              />
+            )}
           </Big>
           <Text style={[styles.app, { color: palette.ink3 }]}>Chips</Text>
           <Text style={[styles.when, { color: palette.ink3 }]}>now</Text>

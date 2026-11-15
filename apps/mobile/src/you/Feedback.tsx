@@ -26,8 +26,9 @@ import {
 } from "@chipschat/core";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import { useMemo, useRef, useState } from "react";
-import { Linking, Platform, StyleSheet, View } from "react-native";
+import { type ReactNode, useMemo, useRef, useState } from "react";
+import { Linking, StyleSheet, View } from "react-native";
+import { buildWords, systemWords } from "../about/build";
 import { BUILD_COMMIT, FEEDBACK_BUILD } from "../build";
 import { Face } from "../people/Faces";
 import { fillField } from "../spaces/Composer";
@@ -35,7 +36,6 @@ import { Group, GroupFoot, GroupRow, MARK, MARKED_INSET, RowMark } from "../ui/G
 import { Sheet } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { SPACE } from "../ui/tokens";
-import { buildWords } from "./About";
 import { SheetPage, useSheetPage } from "./pages";
 import { SheetHead } from "./SheetHead";
 import type { YouSection } from "./section";
@@ -43,14 +43,8 @@ import type { YouSection } from "./section";
 /** Whether You draws the row: the switch, or a build that asked for it. */
 export const FEEDBACK_ON = FEEDBACK_SHOWN || FEEDBACK_BUILD;
 
-/** The system, as the form's version box says it after the build: "iOS 26.1". */
-function systemWords(): string {
-  if (Platform.OS === "ios") return `${Platform.isPad ? "iPadOS" : "iOS"} ${Platform.Version}`;
-  return Platform.OS === "android" ? "Android" : "web";
-}
-
 /**
- * The version box's words: the Version row's, then the system. "Chips 0.0.0 (202610190718) ·
+ * The version box's words: the build as About Chips says it (ADR 0295), then the system. "Chips 0.0.0 (202610190718) ·
  * b888e96 · iOS 26.1".
  */
 export function feedbackVersion(): string {
@@ -72,11 +66,14 @@ export function useFeedbackGroup({
   model,
   directory,
   selfId,
+  about,
 }: {
   readonly shown: boolean;
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string;
+  /** About Chips's row, which stands under Send feedback in its group, or alone (ADR 0295). */
+  readonly about?: ReactNode;
 }): YouSection {
   const palette = usePalette();
   const router = useRouter();
@@ -89,7 +86,17 @@ export function useFeedbackGroup({
     () => (shown ? feedbackAgent(model, directory, selfId) : undefined),
     [shown, model, directory, selfId],
   );
-  if (!shown) return { group: null, overlays: null };
+  if (!shown) {
+    const alone =
+      about === undefined ? null : (
+        <View style={styles.own}>
+          <Group inset={MARKED_INSET} testID="feedback">
+            {about}
+          </Group>
+        </View>
+      );
+    return { group: alone, overlays: null };
+  }
 
   // Beside the list the page goes and the way is taken at once: there is no sheet to wait on.
   const leave = (next: () => void) => {
@@ -112,6 +119,7 @@ export function useFeedbackGroup({
           selected={agent === undefined ? undefined : page.selected}
           testID="feedback-row"
         />
+        {about}
       </Group>
     </View>
   );

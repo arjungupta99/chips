@@ -14,12 +14,20 @@ import { join } from "node:path";
 import { type ChipsConfig, defaultConfig, type Logger } from "@chipschat/platform";
 import { createIdGenerator, type IdGenerator } from "@chipschat/protocol";
 import type { Kysely } from "kysely";
-import type { MacApp, Sounds, Videos } from "../application/index.js";
+import type {
+  BridgeHands,
+  MacApp,
+  RestartOnto,
+  SelfUpdate,
+  Sounds,
+  Videos,
+} from "../application/index.js";
 import { buildGateway, type Gateway } from "../gateway.js";
 import { mintHarnessToken, signingPayload } from "../infrastructure/auth/credentials.js";
 import { openDatabase } from "../infrastructure/db/connection.js";
 import { migrateToLatest } from "../infrastructure/db/migrator.js";
 import type { Database } from "../infrastructure/db/schema.js";
+import type { BridgeListReader } from "../infrastructure/updates/bridge-list.js";
 
 export interface TestPerson {
   readonly participantId: string;
@@ -90,6 +98,14 @@ export interface TestWorkspaceOptions {
   readonly machine?: string;
   /** Chips for Mac on the server's machine (ADR 0227): none unless a test gives one. */
   readonly macApp?: MacApp;
+  /** The CLI's hands on the bridges here, and the signed list, for a test of keeping them current. */
+  readonly bridges?: BridgeHands;
+  readonly bridgeList?: BridgeListReader;
+  /** `chips update`'s hands, for a test of the owner's switch (everything in step, phase 6). */
+  readonly selfUpdate?: SelfUpdate;
+  /** A computer in Chips for Mac's hands on starting again (ADR 0298), and the release it runs. */
+  readonly restartOnto?: RestartOnto;
+  readonly version?: string;
 }
 
 export async function createTestWorkspace(
@@ -127,13 +143,17 @@ export async function createTestWorkspace(
     config,
     db: connection.db,
     ids,
-    version: "0.0.0-test",
+    version: options.version ?? "0.0.0-test",
     videos: options.videos ?? null,
     sounds: options.sounds ?? null,
     machine: options.machine ?? "The test machine",
     relayTellMs: 0,
     ...(options.logger === undefined ? {} : { logger: options.logger }),
     ...(options.macApp === undefined ? {} : { macApp: options.macApp }),
+    ...(options.bridges === undefined ? {} : { bridges: options.bridges }),
+    ...(options.bridgeList === undefined ? {} : { bridgeList: options.bridgeList }),
+    ...(options.selfUpdate === undefined ? {} : { selfUpdate: options.selfUpdate }),
+    ...(options.restartOnto === undefined ? {} : { restartOnto: options.restartOnto }),
   });
 
   async function addPerson(

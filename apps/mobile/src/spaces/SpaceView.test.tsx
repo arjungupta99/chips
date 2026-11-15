@@ -30,6 +30,7 @@ import {
   Dimensions,
   FlatList,
   Keyboard,
+  Linking,
   Share,
   type StyleProp,
   StyleSheet,
@@ -399,6 +400,34 @@ describe("the lines a space draws", () => {
     expect(opened).toEqual(["har_scout"]);
     // Any other margin line is words, not a way anywhere.
     expect(screen.queryByTestId("compacted-s")).toBeNull();
+  });
+
+  it("draws what a newer computer sent as Chips's own quiet line, whose Update opens the App Store (ADR 0297)", async () => {
+    const openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    openURL.mockClear();
+    const { element } = open(
+      state([
+        line({ id: "m", authorId: "har_scout", authorKind: "harness", text: "Before it." }),
+        line({
+          id: "n",
+          kind: "system",
+          authorId: "chips",
+          authorKind: "system",
+          text: "Something here needs a newer Chips.",
+          whole: true,
+          newer: true,
+        }),
+      ]),
+    );
+    await render(element);
+    const note = screen.getByTestId("newer-line");
+    expect(note).toHaveTextContent("Something here needs a newer Chips.Update");
+    // In the margin, as the room's other notes are: nobody's bubble, and nobody's name before it.
+    expect(screen.getByTestId("line-m")).toBeTruthy();
+    expect(screen.queryByTestId("line-n")).toBeNull();
+    expect(screen.queryByText(/chips Something here/i)).toBeNull();
+    await fireEvent.press(within(note).getByRole("link"));
+    expect(openURL).toHaveBeenCalledWith("https://apps.apple.com/app/id6824148802");
   });
 
   it("draws a lane a harness handed to itself, and gives each hop its own key", async () => {

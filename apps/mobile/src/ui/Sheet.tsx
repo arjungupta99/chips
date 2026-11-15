@@ -44,7 +44,7 @@
  * **Measured at rest.** On the native driver the panel moves without the layout hearing of it:
  * React Native gives the layout the panel's new place only once a spring has finished and React
  * has drawn the sheet again, so a view on the panel measured before then is where the panel was
- * (ADR 0202's second addendum: a square tapped on the room sheet's Media & files page as it glided
+ * (ADR 0202's second addendum: a square tapped on the room sheet's Sent in chat page as it glided
  * in measured 187 points high, and the viewer flew the picture from mid-screen). The glide ends
  * when it is seen to, not when the spring's tail does, and what measures a view on the panel waits
  * for the panel to be drawn at rest (`useSheetRest`), which is at once unless it is moving.

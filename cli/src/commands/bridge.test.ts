@@ -17,7 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readRecord } from "../bridges.js";
+import { readJournal, readRecord, writeJournal } from "../bridges.js";
 import type { BridgeCard } from "../cards.js";
 import { scriptedConsole } from "../output.js";
 import { packed, standIn } from "../testing/registry.js";
@@ -407,6 +407,65 @@ describe("chips disconnect <id>", () => {
     expect(readRecord(folder())?.kept).toEqual({ fake: { label: "chat.chips.fake", args: [] } });
   });
 
+  it("takes the stopped service off the journal, with a switch of it nothing can finish now", async () => {
+    const kind = card("kind", { name: "Kind", args: ["kind.json"] });
+    const deps = depsFor({ "1.0.0": tarball("1.0.0") }, { cards: [card("fake"), kind] });
+    await connectBridge(card("fake"), LINK, deps);
+    await connectBridge(kind, LINK, deps);
+    const trying = {
+      label: "chat.chips.fake.kind",
+      harnessId: "har_kind",
+      from: "0.9.0",
+      to: "1.0.0",
+      at: "2026-11-13T10:00:00.000Z",
+    };
+    const said = { outcome: "updated", from: "0.9.0", to: "1.0.0", at: trying.at } as const;
+    writeJournal(folder(), {
+      ...readJournal(folder()),
+      trying,
+      last: { "chat.chips.fake.kind": said, "chat.chips.fake": said },
+    });
+    expect(readJournal(folder()).startedOn).toEqual({
+      "chat.chips.fake": "1.0.0",
+      "chat.chips.fake.kind": "1.0.0",
+    });
+    await disconnectBridge(kind, deps);
+    const journal = readJournal(folder());
+    // The other card is free to be switched: no `trying` is left to wait on.
+    expect(journal.trying).toBeUndefined();
+    expect(journal.startedOn).toEqual({ "chat.chips.fake": "1.0.0" });
+    expect(journal.last).toEqual({ "chat.chips.fake": said });
+  });
+
+  it("leaves another card's switch being watched as it is", async () => {
+    const kind = card("kind", { name: "Kind", args: ["kind.json"] });
+    const deps = depsFor({ "1.0.0": tarball("1.0.0") }, { cards: [card("fake"), kind] });
+    await connectBridge(card("fake"), LINK, deps);
+    await connectBridge(kind, LINK, deps);
+    const trying = {
+      label: "chat.chips.fake",
+      harnessId: "har_fake",
+      from: "0.9.0",
+      to: "1.0.0",
+      at: "2026-11-13T10:00:00.000Z",
+    };
+    writeJournal(folder(), { ...readJournal(folder()), trying });
+    await disconnectBridge(kind, deps);
+    expect(readJournal(folder()).trying).toEqual(trying);
+  });
+
+  it("waits its turn: refused while the computer is changing the bridge, and nothing is removed", async () => {
+    const deps = depsFor({ "1.0.0": tarball("1.0.0") });
+    await connectBridge(card("fake"), LINK, deps);
+    writeFileSync(join(folder(), "bridge.lock"), String(process.ppid));
+    deps.lines.length = 0;
+    expect(await disconnectBridge(card("fake"), deps)).toBe(1);
+    expect(deps.lines.at(-1)).toBe(
+      "  Chips is changing this bridge right now. Try again in a minute.",
+    );
+    expect(readRecord(folder())?.kept).toEqual({ fake: { label: "chat.chips.fake", args: [] } });
+  });
+
   it("says there is nothing to stop where it was never fetched", async () => {
     const deps = depsFor({});
     expect(await disconnectBridge(card("fake"), deps)).toBe(0);
@@ -454,6 +513,47 @@ describe("chips connect --update", () => {
     expect(stuck.lines.at(-1)).toBe(
       "  chat.chips.fake didn't start again. `chips connect` with a new link sets it up afresh.",
     );
+  });
+});
+
+describe("what a kept card runs with", () => {
+  it("is brought to what its card says now at an update, as files move (ADR 0283)", async () => {
+    await connectBridge(
+      card("kind", { args: ["old.json"] }),
+      LINK,
+      depsFor({ "1.0.0": tarball("1.0.0") }),
+    );
+    expect(readRecord(folder())?.kept["kind"]?.args).toEqual(["old.json"]);
+    const moved = card("kind", { args: ["new.json"] });
+    const deps = depsFor(
+      { "1.0.0": tarball("1.0.0") },
+      { cards: [moved], restart: async () => true },
+    );
+    expect(await updateBridges(deps)).toBe(0);
+    expect(readRecord(folder())?.kept["kind"]).toEqual({
+      label: "chat.chips.fake.kind",
+      args: ["new.json"],
+    });
+  });
+
+  it("is what its card says now when uninstall stops it, else what it was kept with", async () => {
+    const kind = card("kind", { args: ["old.json"] });
+    const kept = depsFor(
+      { "1.0.0": tarball("1.0.0") },
+      { cards: [card("fake", { args: ["fake.json"] }), kind] },
+    );
+    await connectBridge(card("fake", { args: ["fake.json"] }), LINK, kept);
+    await connectBridge(kind, LINK, kept);
+    // This Chips carries the kind card with its file moved, and no longer carries the fake card.
+    await stopEveryBridge(depsFor({}, { cards: [card("kind", { args: ["new.json"] })] }));
+    expect(
+      runs()
+        .slice(2)
+        .map((run) => run["words"]),
+    ).toEqual([
+      ["fake.json", "--stop"],
+      ["new.json", "--stop"],
+    ]);
   });
 });
 
