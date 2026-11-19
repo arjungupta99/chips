@@ -31,6 +31,21 @@ export interface Release {
  */
 export const RELEASES: readonly Release[] = [
   {
+    version: "1.4.0",
+    date: "2026-11-19",
+    line: "Each harness has its own Permissions, Claude Code and Codex have a Mode picker, and a room with people in it has People.",
+    changes: [
+      "Each harness has its own Permissions page, under You and on the harness's page: its own settings, and a switch for Chips's rules.",
+      "With Chips's rules off, every ask comes to you and Always is kept by the harness. With them on, you can write rules, stop asking for a while, and let an agent work from its ask.",
+      "Claude Code and Codex have a Mode picker on their settings page, for an hour, 8 hours, until tomorrow, or kept. A mode that never asks shows in yellow.",
+      "In a room with two or more other people, People sends to all of them and to no agent.",
+      "A crowded room's column of faces keeps the lead and the people you've talked with lately, and All opens a list you can search.",
+      "A room that's working says Working in green on the Spaces list.",
+    ],
+    needsComputer: "Permissions and the Mode picker",
+    dot: true,
+  },
+  {
     version: "1.3.0",
     date: "2026-11-14",
     line: "Universe has Pages, Media and Files, About Chips says what's new and what needs an update, and Chips for Mac and your computer can update themselves.",

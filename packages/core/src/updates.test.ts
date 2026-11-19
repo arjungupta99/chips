@@ -208,7 +208,7 @@ describe("updateDot", () => {
         seen = { version: dot.version, at: now };
       }
     }
-    expect(lit).toEqual(["6 Nov 1.1.0", "20 Nov 1.3.0"]);
+    expect(lit).toEqual(["6 Nov 1.1.0", "20 Nov 1.4.0"]);
     expect(DAY).toBeGreaterThan(0);
   });
 });
