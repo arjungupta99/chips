@@ -70,6 +70,11 @@
   border-radius: 8px;
 }
 
+/* People's mark: round, as a person's face is. */
+.ui-faces[data-round="true"] .ui-faces__mark {
+  border-radius: 50%;
+}
+
 .ui-faces__mark i {
   display: block;
 }

@@ -70,6 +70,7 @@ import {
   type LetWorkSwitch,
 } from "@chipschat/ui";
 import { useEffect, useMemo, useState } from "react";
+import { Coded } from "./Coded.tsx";
 import { CommandPlate } from "./CommandPlate.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { clockTime } from "./time.ts";
@@ -308,7 +309,8 @@ function DecideCard(
               body: (
                 <CommandPlate
                   plate={plate}
-                  lit={scope === "always" && offer.kind === "starts"}
+                  // The words a Chips rule keeps; the harness keeps its own while they are off.
+                  lit={scope === "always" && offer.kind === "starts" && props.chipsOn !== false}
                   sweep={sweep}
                 />
               ),
@@ -324,7 +326,13 @@ function DecideCard(
         scope={scope}
         {...choices}
         approveLabel={approveWords(lasting)}
-        approvedLabel={answeredWords(lasting, props.now, reach, props.spaceName ?? "this space")}
+        approvedLabel={answeredWords(
+          lasting,
+          props.now,
+          reach,
+          props.spaceName ?? "this space",
+          props.chipsOn === false,
+        )}
         answered={answered}
         busy={busy}
         onApprove={() => decide({ decision: "approved" })}
@@ -420,7 +428,9 @@ function useStanding(
   const [where, setWhere] = useState<"everywhere" | "space">("everywhere");
   const [working, setWorking] = useState(false);
   const mayEverywhere = administers(props.workspaceRole);
-  const everywhere = scope === "always" && mayEverywhere && where === "everywhere";
+  // Where a Chips rule holds; the harness's own always has none (ADR 0300).
+  const everywhere =
+    scope === "always" && mayEverywhere && where === "everywhere" && props.chipsOn !== false;
   const mine = mayAnswer(props.approval, props.selfId);
   const keeps = props.keepsHeldYes !== false;
   const chipsOn = props.chipsOn !== false;
@@ -485,7 +495,7 @@ function underTheChoices(
   if (lasting === "work") {
     return (
       <p className="decide-reach" data-testid="until-stopped">
-        {untilStoppedWords(props.harnessName)}
+        <Coded text={untilStoppedWords(props.harnessName)} />
       </p>
     );
   }
@@ -503,7 +513,7 @@ function underTheChoices(
           </div>
         </div>
         <p className="decide-reach" data-testid="for-a-while">
-          {whileWords(props.harnessName)}
+          <Coded text={whileWords(props.harnessName)} />
         </p>
       </div>
     );

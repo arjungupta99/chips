@@ -378,7 +378,7 @@ function SetUp(props: HarnessPageProps) {
         <GroupRow
           label="Permissions"
           value={asks.value}
-          goldValue={asks.off}
+          goldValue={asks.off || asks.gold === true}
           mark={{ icon: "lock", ground: 3 }}
           onClick={() => props.onOpenPart("asks")}
           testId="harness-asks-row"

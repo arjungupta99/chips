@@ -64,6 +64,27 @@ describe("connecting", () => {
     expect(chips.hello.server.name).toBe("chipsd");
   });
 
+  it("hears the mode a person picks for its sessions, and has it as chips.mode (ADR 0300)", async () => {
+    const chips = await open();
+    expect(chips.mode).toBeUndefined();
+    const heard = new Promise<unknown>((resolve) => chips.on("mode", resolve));
+    const until = new Date(Date.now() + 3_600_000).toISOString();
+    const sent = await asPerson({
+      type: "policy.updated",
+      actor: { kind: "person", id: server.personId },
+      harness_id: server.harnessId,
+      policy: { autonomy: 2, rules: [], mode: { id: "auto", until } },
+      idempotency_key: "mode-1",
+    });
+    expect(sent.ok, JSON.stringify(sent)).toBe(true);
+    expect(await heard).toMatchObject({ id: "auto", until, by: server.personId });
+    expect(chips.mode?.id).toBe("auto");
+
+    // A new connection has it from its hello.
+    const again = await open();
+    expect(again.mode?.id).toBe("auto");
+  });
+
   it("opens the socket with a single-use ticket, never the token in the URL (SEC-22)", async () => {
     const urls: string[] = [];
     const chips = await connect({

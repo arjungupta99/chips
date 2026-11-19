@@ -898,6 +898,9 @@ describe("its Permissions (ADR 0299; When it asks you, ADR 0195)", () => {
   it("switches Chips's rules off, and Stop asking says yes for a length with Ask again (ADR 0300)", async () => {
     const store = await open(asking());
     await userEvent.press(screen.getByTestId("perms-stop"));
+    // The lengths open under the row, not in its line, where they took the width its words need
+    // and stood them one letter wide (Arjun's iPad, 19 November 2026).
+    expect(within(screen.getByTestId("perms-stop")).queryByTestId("perms-stop-len-8h")).toBeNull();
     await userEvent.press(screen.getByTestId("perms-stop-len-8h"));
     const sent = store.calls.find((each) => each.name === "snoozeHarness");
     expect(sent?.args).toMatchObject({ harnessId: "har_scout", snooze: { matters: false } });

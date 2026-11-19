@@ -860,16 +860,12 @@ export function askLastings(
 }
 
 /**
- * Whether the bridges pass a harness's own always through for a command (ADR 0300). Until SDK
- * 1.0.10 and its bridges ship, a bridge answers a command's Always with the harness's once, so a
- * command ask leaves the choice out while Chips's rules are off.
+ * Whether the harness can keep a don't-ask-again for this ask as its own (ADR 0300): any ask but
+ * one answered once, which includes a command Chips can read part by part. The bridges on SDK 1.0.10
+ * pass the harness's own always through for a command (`Decision.keeps`).
  */
-export const HARNESS_KEEPS_COMMANDS = false;
-
-/** Whether the harness can keep a don't-ask-again for this ask as its own (ADR 0300). */
 function harnessKeeps(standing: AskStanding): boolean {
-  if (standing.kind === "any") return true;
-  return standing.kind === "starts" && HARNESS_KEEPS_COMMANDS;
+  return standing.kind !== "once";
 }
 
 /** What a don't-ask-again does while the harness keeps it (ADR 0300). */
@@ -944,16 +940,19 @@ export function approveWords(lasting: Lasting): string {
 
 /**
  * What Approve says once it is pressed (ADR 0280), as it turns to a tick: `Approved`, `Until
- * 12:09 AM`, `Until you stop it`, `Always, in every space`, `Always, in Bakery`.
+ * 12:09 AM`, `Until you stop it`, `Always, in every space`, `Always, in Bakery`; and `Always` for
+ * one the harness keeps as its own (ADR 0300), which holds where the harness says.
  */
 export function answeredWords(
   lasting: Lasting,
   now: number,
   reach: Reach,
   spaceName: string,
+  harnessKeeps = false,
 ): string {
   if (lasting === "hour") return `Until ${clockTime(whileUntil(now))}`;
   if (lasting === "work") return "Until you stop it";
+  if (lasting === "always" && harnessKeeps) return "Always";
   if (lasting === "always")
     return reach === "everywhere" ? "Always, in every space" : `Always, in ${spaceName}`;
   return "Approved";
@@ -964,16 +963,19 @@ export function hourEnds(now: number): { readonly from: string; readonly until: 
   return { from: `Now, ${clockTime(new Date(now))}`, until: `Until ${clockTime(whileUntil(now))}` };
 }
 
-/** What still comes to a person while an agent works without asking (ADR 0281). */
+/**
+ * What still comes to a person while an agent works without asking (ADR 0281): what matters, and
+ * since ADR 0300 a command that uses one on the never list. The commands are in code marks.
+ */
 export const STILL_ASKS =
-  "Anything that moves money, messages someone outside, or can't be undone still comes to you.";
+  "Commands like `rm` and `git push` still come to you, and so does anything that moves money, messages someone outside or can't be undone.";
 
 /**
- * The line under For an hour, for the agent that asked (ADR 0281): everything it asks here goes
- * ahead, and what still comes to a person. The strip above it says until when.
+ * The line under For an hour, for the agent that asked (ADR 0281): its asks here go ahead, and
+ * what still comes to a person. The strip above it says until when.
  */
 export function whileWords(name: string): string {
-  return `Everything ${name} asks in this space goes ahead without a card for the hour, commands Chips can't read too. ${STILL_ASKS}`;
+  return `${name}'s asks in this space go ahead without a card for the hour. ${STILL_ASKS}`;
 }
 
 /** The switch above the choices (ADR 0281): `Let Jiro work without asking`, `In Bakery, until you stop it`. */
@@ -986,7 +988,7 @@ export function letWorkWords(
 
 /** The line in the choices' place while the switch is on (ADR 0281). */
 export function untilStoppedWords(name: string): string {
-  return `Everything ${name} asks here goes ahead without a card until you stop it, commands Chips can't read too. ${STILL_ASKS}`;
+  return `${name}'s asks here go ahead without a card until you stop it. ${STILL_ASKS}`;
 }
 
 /**
@@ -1025,7 +1027,7 @@ export function workingWithoutAsking(
   now: number = Date.now(),
 ): readonly WorkingRow[] {
   return model.spaces.flatMap((space) =>
-    lettingWork(space, now).map((held) => ({
+    lettingWork(model, directory, space, now).map((held) => ({
       spaceId: space.id,
       name: nameOf(directory, held.asker),
       line: `In ${roomName(model, space.id, directory)} · ${holdsWords(held)}`,

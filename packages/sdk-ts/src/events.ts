@@ -17,6 +17,7 @@ import type {
   LaneUpdated,
   MessageNew,
   MessageOverheard,
+  PolicyMode,
   PolicyUpdated,
   QuestionAnswered,
   RunCancel,
@@ -61,6 +62,13 @@ export interface ChipsEvents {
   /** News of a lane this harness opened, in the space it linked the lane into (M3.5). */
   readonly "lane.updated": LaneUpdated;
   readonly "policy.updated": PolicyUpdated;
+  /**
+   * The mode a person picked in Chips for this harness's sessions changed, or its time ran out
+   * (Chips ADR 0300, addendum of 19 November 2026): put each session in it where the agent offers
+   * it, and back in the mode it starts in when this is `undefined`. Said once things settle, so a
+   * reconnect's replay says only where its changes end up. `chips.mode` holds the same.
+   */
+  readonly mode: PolicyMode | undefined;
   /**
    * One of this harness's agents was put in a room (ADR 0087): added, moved in, or brought back by
    * an unarchive. `space_id` is the room, and `catch_up` its last lines before the agent joined

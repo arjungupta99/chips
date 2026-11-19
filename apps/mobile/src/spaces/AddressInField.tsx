@@ -37,59 +37,55 @@
  *
  * One, in one movement (ADR 0229): a finger that lands on the faces and slides up raises a column
  * of the same choices out of them, and letting go on a face picks it alone (`FaceColumn.tsx`).
+ *
+ * People (ADR 0229's addendum of 18 November 2026): where the writer has two or more other people
+ * and an agent, a row above Everyone picks every person here and no agent, and the two stay at the
+ * list's foot. A room of more than twelve has a search line over the rows, which stand under
+ * Agents and People.
  */
 
 import type { Aim, AimPick, Directory, Space } from "@chipschat/core";
 import {
+  aimWords,
   aimWordsOf,
   belongsTo,
   countedWords,
   harnessesIn,
   harnessUnder,
   nameOf,
+  offersPeople,
   othersIn,
   peopleIn,
   roomHandles,
   roomLeadOf,
 } from "@chipschat/core";
 import MaskedView from "@react-native-masked-view/masked-view";
-import { type Ref, useState } from "react";
+import { type ReactNode, type Ref, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { TOUCH_TARGET } from "../ui/Button";
 import { Fades } from "../ui/Fades";
 import { alpha } from "../ui/Glass";
 import { Appearing, GROWS, GrowingView } from "../ui/growing";
 import { Icon } from "../ui/Icon";
+import { Search } from "../ui/Search";
 import { Swap } from "../ui/Swap";
 import { usePalette } from "../ui/theme";
 import { SPACE, TEXT } from "../ui/tokens";
+import type { Choice } from "./choice";
+import { footOf } from "./columnChoices";
+import { CROWN } from "./faceColumnMath";
 import { Arrow, Faces, marked, stepOf } from "./LaneChain";
 import { LeadMark } from "./LeadMark";
 
 /** The token's height: Send's, so one line of the field stays fifty points with both in it. */
 export const TOKEN = 32;
 
-/** One choice: an agent, a person (ADR 0204), or everybody here. */
-export interface Choice {
-  readonly ids: readonly string[];
-  /** What picking it keeps: the harness, or `all`, whoever is here when the message goes. */
-  readonly pick: AimPick;
-  readonly name: string;
-  readonly under?: string | undefined;
-  /** Whether `under` is the handle that reaches it, drawn as a mention is. */
-  readonly handle?: boolean | undefined;
-  /** It leads the room (ADR 0104), and wears "Lead" beside its name as it does on the sheet. */
-  readonly lead?: boolean | undefined;
-  /** Its harness, where its name does not say it: "Milo" is Jacobian's (ADR 0150). */
-  readonly harness?: string | undefined;
-  /** Whose agent it is, where that is somebody else: "Dana's agent" (ADR 0234). */
-  readonly owner?: string | undefined;
-}
+export type { Choice } from "./choice";
 
 /**
  * Each agent in the room, the lead first (ADR 0113), with the @ that reaches it under its name
  * (ADR 0091) and the lead marked (ADR 0104); then each other person, with theirs (ADR 0204); then
- * Everyone, with who of them answers.
+ * People, where the field offers it (`offersPeople`); then Everyone, with who of them answers.
  */
 export function choicesOf(space: Space, directory: Directory, selfId: string): Choice[] {
   const harnesses = harnessesIn(space, directory);
@@ -106,11 +102,22 @@ export function choicesOf(space: Space, directory: Directory, selfId: string): C
   return [
     ...[...first, ...harnesses.filter((id) => id !== leads)].map((id) => ({
       ...named(id),
+      agent: true,
       ...(id === leads ? { lead: true } : {}),
       ...whose(directory, id, selfId),
       ...withHarness(directory, id),
     })),
     ...people.map(named),
+    ...(offersPeople(space, directory, selfId)
+      ? [
+          {
+            ids: people,
+            pick: "people" as const,
+            name: "People",
+            under: `${aimWords(people, space, directory)} · no agent answers`,
+          },
+        ]
+      : []),
     {
       ids: othersIn(space, directory, selfId),
       pick: "all" as const,
@@ -196,9 +203,12 @@ export function AddressToken({
   const palette = usePalette();
   const words = aimWordsOf(aim, space, directory);
   const everyone = words === "Everyone";
-  // How many, where the mark stands for Everyone (ADR 0113); "4 agents" says so already.
+  const people = aim.people === true;
+  // How many, where the mark stands for Everyone or People (ADR 0113); "4 agents" says so already.
   const many =
-    everyone && marked(aim.ids.length, true) ? `, ${countedWords(aim.ids, directory)}` : "";
+    (everyone || people) && marked(aim.ids.length, true)
+      ? `, ${countedWords(aim.ids, directory)}`
+      : "";
   return (
     <Pressable
       accessibilityRole="button"
@@ -218,12 +228,13 @@ export function AddressToken({
         <View ref={routeRef} collapsable={false} style={styles.route}>
           <Arrow />
           {aim.ids.length === 0 ? null : (
-            <Swap swapKey={everyone ? "everyone" : aim.ids.join(",")}>
+            <Swap swapKey={everyone ? "everyone" : people ? "people" : aim.ids.join(",")}>
               <Faces
                 step={stepOf(directory, aim.ids)}
                 size="xs"
                 ground={palette.surface}
                 everyone={everyone}
+                people={people}
               />
             </Swap>
           )}
@@ -279,6 +290,10 @@ const EVERYONE_ROW = 52;
 const FADE = 24;
 /** Between the list's top and the room's bar, where the list stops. */
 const UNDER_BAR = SPACE.sm;
+/** From more rows than this, the list has a search line and stands its rows under Agents and People. */
+export const SEARCH_FROM = 12;
+/** The search line, with the room under it. */
+const SEARCH_LINE = 40 + SPACE.sm;
 
 /**
  * How tall the list may stand (ADR 0113, Arjun: "up to 1/2 of screen height"): half the window
@@ -294,9 +309,25 @@ export function listRoom(
 }
 
 /**
- * The list the field opens into: each agent, then each other person, then Everyone, with a check
- * on where it goes now. With `most`, the rows scroll in what it leaves after Everyone's row, which
- * stays put.
+ * The room the column of faces is given, as `shapeOf` takes it (ADR 0229, point 4, and `CROWN`):
+ * the column itself no taller than the list may stand, and the name on its top never past the
+ * room's bar. The name's room counts against the bar only, so with the keys down a room of six
+ * faces and People still shows every face on an iPhone 17 Pro.
+ */
+export function columnRoom(
+  window: number,
+  row: { top: number; height: number },
+  bar: number,
+): number {
+  const half = window / 2 - row.height + CROWN;
+  return Math.max(TOUCH_TARGET, Math.min(half, row.top - bar - UNDER_BAR));
+}
+
+/**
+ * The list the field opens into: each agent, then each other person, then People and Everyone,
+ * with a check on where it goes now. With `most`, the rows scroll in what it leaves after the
+ * groups' rows, which stay put. A room of more than `SEARCH_FROM` has a search line over the rows,
+ * which stand under Agents and People.
  */
 export function AddressList({
   aim,
@@ -323,11 +354,26 @@ export function AddressList({
 }) {
   const palette = usePalette();
   const [above, setAbove] = useState(false);
-  const [foot, setFoot] = useState(EVERYONE_ROW);
+  const [query, setQuery] = useState("");
   const choices = choicesOf(space, directory, selfId);
-  const everyone = choices.at(-1);
+  const groups = footOf(choices);
+  const faces = choices.slice(0, choices.length - groups);
+  const ends = choices.slice(choices.length - groups);
+  const [foot, setFoot] = useState(EVERYONE_ROW * Math.max(1, groups));
+  const searching = faces.length > SEARCH_FROM;
+  const shown = searching ? faces.filter((choice) => matches(choice, query)) : faces;
   // Under Everyone no circle is filled: the first one tapped starts afresh (`addedTo`).
-  const rows = most === undefined ? undefined : Math.max(TOUCH_TARGET, most - foot - LIST_PAD);
+  const rows = rowsRoom(most, foot, searching);
+  const row = (choice: Choice) => (
+    <ChoiceRow
+      key={choice.ids.join(",")}
+      choice={choice}
+      directory={directory}
+      onPick={onPick}
+      on={!whole && choice.ids.every((id) => aim.ids.includes(id))}
+      onAdd={() => choice.ids.forEach(onAdd)}
+    />
+  );
   const scroll = (
     <ScrollView
       style={rows === undefined ? null : { maxHeight: rows }}
@@ -341,20 +387,22 @@ export function AddressList({
       }}
       testID="address-scroll"
     >
-      {choices.slice(0, -1).map((choice) => (
-        <ChoiceRow
-          key={choice.name}
-          choice={choice}
-          directory={directory}
-          onPick={onPick}
-          on={!whole && choice.ids.every((id) => aim.ids.includes(id))}
-          onAdd={() => choice.ids.forEach(onAdd)}
-        />
-      ))}
+      {searching ? <Sections shown={shown} row={row} /> : shown.map(row)}
     </ScrollView>
   );
   return (
     <Appearing style={[styles.list, { borderColor: palette.line }]} testID="address-menu">
+      {!searching ? null : (
+        <View style={styles.search}>
+          <Search
+            label="Search who it goes to"
+            value={query}
+            onChange={setQuery}
+            placeholder={`Search ${faces.length}`}
+            testID="address-search"
+          />
+        </View>
+      )}
       {Platform.OS === "web" ? (
         scroll
       ) : (
@@ -362,16 +410,65 @@ export function AddressList({
           {scroll}
         </MaskedView>
       )}
-      {everyone === undefined ? null : (
+      {ends.length === 0 ? null : (
         <View
           style={[styles.everyone, { borderColor: palette.line }]}
           onLayout={(event) => setFoot(event.nativeEvent.layout.height)}
         >
-          <ChoiceRow choice={everyone} on={whole} directory={directory} onPick={onPick} />
+          {ends.map((choice) => (
+            <ChoiceRow
+              key={String(choice.pick)}
+              choice={choice}
+              on={choice.pick === "people" ? aim.people === true : whole}
+              directory={directory}
+              onPick={onPick}
+            />
+          ))}
         </View>
       )}
     </Appearing>
   );
+}
+
+/** How tall the rows may stand: what the list may, less its foot, its padding and its search line. */
+function rowsRoom(most: number | undefined, foot: number, searching: boolean): number | undefined {
+  if (most === undefined) return undefined;
+  return Math.max(TOUCH_TARGET, most - foot - LIST_PAD - (searching ? SEARCH_LINE : 0));
+}
+
+/** A crowded list's rows, under Agents and People, or that the search found nobody. */
+function Sections({
+  shown,
+  row,
+}: {
+  readonly shown: readonly Choice[];
+  readonly row: (choice: Choice) => ReactNode;
+}) {
+  const palette = usePalette();
+  const head = [styles.section, { color: palette.ink3 }];
+  if (shown.length === 0) return <Text style={head}>No one by that name</Text>;
+  const agents = shown.filter((choice) => choice.agent === true);
+  const people = shown.filter((choice) => choice.agent !== true);
+  return (
+    <>
+      {agents.length === 0 ? null : (
+        <Text style={head} accessibilityRole="header">{`Agents · ${agents.length}`}</Text>
+      )}
+      {agents.map(row)}
+      {people.length === 0 ? null : (
+        <Text style={head} accessibilityRole="header">{`People · ${people.length}`}</Text>
+      )}
+      {people.map(row)}
+    </>
+  );
+}
+
+/** Whether a row is one the search's words find: by name, or by the @ under it. */
+function matches(choice: Choice, query: string): boolean {
+  const words = query.trim().toLowerCase().replace(/^@/, "");
+  if (words === "") return true;
+  const handle = choice.handle === true ? (choice.under ?? "").toLowerCase().replace(/^@/, "") : "";
+  return choice.name.toLowerCase().includes(words) || handle.includes(words);
 }
 
 /** What a screen reader is offered on an agent's row for its circle (ADR 0114). */
@@ -420,6 +517,7 @@ function ChoiceRow({
         size="xs"
         ground={palette.surface}
         everyone={choice.pick === "all"}
+        people={choice.pick === "people"}
         counted={false}
       />
       <ChoiceWords choice={choice} />
@@ -558,8 +656,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // Everyone, under the rows that scroll and parted from them, where the thumb is.
+  // People and Everyone, under the rows that scroll and parted from them, where the thumb is.
   everyone: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 2, paddingTop: 2 },
+  search: { paddingHorizontal: 2, paddingBottom: SPACE.sm },
+  // A crowded list's Agents and People, over their rows.
+  section: {
+    fontSize: TEXT.xs,
+    fontWeight: "600",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    paddingHorizontal: SPACE.sm + 2,
+    paddingTop: SPACE.sm + 2,
+    paddingBottom: SPACE.xs,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",

@@ -496,6 +496,30 @@ describe("over the socket", () => {
     socket.close();
   });
 
+  it("hands a harness the mode a person picked, live and in its next hello, as chipsd does (ADR 0300)", async () => {
+    const harness = await connect({
+      url: chips.address.url,
+      token: chips.address.token,
+      client: { name: "sdk", version: "0" },
+    });
+    expect(harness.mode).toBeUndefined();
+    const heard = new Promise<unknown>((resolve) => harness.on("mode", resolve));
+    chips.asOwner({
+      type: "policy.updated",
+      harness_id: chips.address.harnessId,
+      policy: { autonomy: 1, rules: [], mode: { id: "acceptEdits" } },
+    });
+    expect(await heard).toEqual({ id: "acceptEdits" });
+    const again = await connect({
+      url: chips.address.url,
+      token: chips.address.token,
+      client: { name: "sdk", version: "0" },
+    });
+    expect(again.mode).toEqual({ id: "acceptEdits" });
+    harness.close();
+    again.close();
+  });
+
   it("delivers what a person says as message.new, with a receipt when a run is live, and resumes from since", async () => {
     const harness = await connect({
       url: chips.address.url,

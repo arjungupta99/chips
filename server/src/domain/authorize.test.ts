@@ -1216,3 +1216,83 @@ describe("a room asked of a harness (rule 15)", () => {
     expect(authorize(asking({ asked_of: undefined }), ARJUN, takes(null))).toBeUndefined();
   });
 });
+
+describe("a yes that holds on, and the harness's Chips's rules (rule 18, ADR 0300)", () => {
+  const AGENT = "agt_01K4ZQPX000000000000000010";
+  const named = (chipsRules: AuthorizeContext["chipsRules"]) =>
+    inOrder({ approvers: [ARJUN.participantId], askAction: {}, chipsRules });
+  const answer = (overrides: Record<string, unknown>) =>
+    fixture("approval.resolved", ARJUN, { scope: "once", decision: "approved", ...overrides });
+  const letWork = (chipsRules: AuthorizeContext["chipsRules"]) =>
+    authorize(
+      fixture("approval.held_started", ARJUN, { space_id: SPACE, asker: AGENT }),
+      ARJUN,
+      inOrder({
+        participant: {
+          id: AGENT,
+          kind: "agent",
+          owner: ARJUN.participantId,
+          harness: SCOUT.participantId,
+          inSpace: true,
+        },
+        chipsRules,
+      }),
+    );
+
+  it("takes For an hour and Let it work while the rules are on", () => {
+    expect(authorize(answer({ for_minutes: 60 }), ARJUN, named(true))).toBeUndefined();
+    expect(authorize(answer({ until_stopped: true }), ARJUN, named(true))).toBeUndefined();
+    expect(letWork(true)).toBeUndefined();
+  });
+
+  it("refuses each of them while the rules are off, and says what to do", () => {
+    for (const held of [{ for_minutes: 60 }, { until_stopped: true }]) {
+      expect(authorize(answer(held), ARJUN, named(false))).toEqual({
+        kind: "invalid",
+        message:
+          "a yes holds on only while the harness's Chips's rules are on: answer this once, or turn them on in the harness's Permissions first",
+      });
+    }
+    expect(letWork(false)).toEqual({
+      kind: "invalid",
+      message:
+        "an agent is let work without asking only while its harness's Chips's rules are on: turn them on in the harness's Permissions first",
+    });
+  });
+
+  it("still takes a yes once, a no and an Always while they are off", () => {
+    expect(authorize(answer({}), ARJUN, named(false))).toBeUndefined();
+    expect(authorize(answer({ decision: "denied" }), ARJUN, named(false))).toBeUndefined();
+    expect(authorize(answer({ scope: "always" }), ARJUN, named(false))).toBeUndefined();
+  });
+
+  it("says who may answer, and whose agent it is, before it says the rules are off", () => {
+    const others = inOrder({ approvers: [DANA], askAction: {}, chipsRules: false });
+    expect(authorize(answer({ until_stopped: true }), ARJUN, others)).toMatchObject({
+      kind: "not_an_approver",
+    });
+    const byHarness = fixture("approval.resolved", SCOUT, { until_stopped: true });
+    expect(authorize(byHarness, SCOUT, inOrder({ chipsRules: false }))).toMatchObject({
+      message: expect.stringContaining("a person's to give"),
+    });
+    // Dana is a member, and the agent is Arjun's.
+    const dana: Sender = { ...ARJUN, participantId: DANA, role: "member" };
+    const arjuns = inOrder({
+      role: "member",
+      participant: { id: AGENT, kind: "agent", owner: ARJUN.participantId, inSpace: true },
+      chipsRules: false,
+    });
+    expect(
+      authorize(
+        fixture("approval.held_started", dana, { space_id: SPACE, asker: AGENT }),
+        dana,
+        arjuns,
+      ),
+    ).toMatchObject({ kind: "wrong_role" });
+  });
+
+  it("asks nothing where no harness was looked up", () => {
+    expect(authorize(answer({ for_minutes: 60 }), ARJUN, named(null))).toBeUndefined();
+    expect(authorize(answer({ for_minutes: 60 }), ARJUN, named(undefined))).toBeUndefined();
+  });
+});

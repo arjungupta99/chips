@@ -11,6 +11,7 @@ import {
   messageIdOf,
   NO_CAPS,
   type PolicyHold,
+  type PolicyMode,
   type PolicyRule,
   parseSpaceIcon,
   type SpaceIcon,
@@ -83,6 +84,22 @@ function toPolicyView(row: HarnessPolicyTable): HarnessPolicyView {
 /** A hold as a row keeps it, read back; nothing while asks are on (ADR 0299). */
 function holdIn(column: string | null | undefined): PolicyHold | undefined {
   return column === null || column === undefined ? undefined : (JSON.parse(column) as PolicyHold);
+}
+
+/** The mode a person picked, as a row keeps it, read back; nothing for none (ADR 0300). */
+function modeIn(column: string | null | undefined): PolicyMode | undefined {
+  return column === null || column === undefined ? undefined : (JSON.parse(column) as PolicyMode);
+}
+
+/**
+ * What the everywhere row holds, whichever row speaks: a hold (ADR 0299) and a mode (ADR 0300).
+ */
+function everywhereHeld(
+  row: { readonly hold?: string | null; readonly mode?: string | null } | undefined,
+): { hold?: PolicyHold; mode?: PolicyMode } {
+  const hold = holdIn(row?.hold);
+  const mode = modeIn(row?.mode);
+  return { ...(hold === undefined ? {} : { hold }), ...(mode === undefined ? {} : { mode }) };
 }
 
 function toQuestionView(row: QuestionsTable): QuestionView {
@@ -1191,9 +1208,7 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
         spent_usd: everywhere?.spent_usd ?? chosen.spent_usd,
       });
       // The level is the room's; the harness's rules everywhere are read after the room's own.
-      // A hold is the everywhere row's, whichever row speaks (ADR 0299).
-      const hold = holdIn(everywhere?.hold);
-      const held = hold === undefined ? view : { ...view, hold };
+      const held = { ...view, ...everywhereHeld(everywhere) };
       return room === undefined || everywhere === undefined
         ? held
         : { ...held, everywhere_rules: JSON.parse(everywhere.rules) as PolicyRule[] };
@@ -1301,6 +1316,31 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
         // A person's answer made it, so it never allows an action that matters (ADR 0195).
         made_at: row.decided_at,
       }));
+    },
+
+    async heldBy(
+      workspaceId: string,
+      askers: readonly string[],
+      now: string,
+    ): Promise<{ space_id: string; asker: string }[]> {
+      if (askers.length === 0) return [];
+      const rows = await db
+        .selectFrom("session_rules")
+        .select(["space_id", "participant_id"])
+        .distinct()
+        .where("workspace_id", "=", workspaceId)
+        .where("participant_id", "in", [...askers])
+        .where("space_id", "is not", null)
+        .where((eb) => eb.or([eb("until", ">", now), eb("until", "is", null)]))
+        .where("decision", "=", "allow")
+        .orderBy("space_id", "asc")
+        .orderBy("participant_id", "asc")
+        .execute();
+      return rows.flatMap((row) =>
+        row.space_id === null || row.participant_id === null
+          ? []
+          : [{ space_id: row.space_id, asker: row.participant_id }],
+      );
     },
 
     async question(workspaceId: string, askId: string): Promise<QuestionView | undefined> {

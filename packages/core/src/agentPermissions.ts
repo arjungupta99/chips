@@ -94,10 +94,16 @@ function openSpaceOf(input: PermissionsInput, agentId: string): Space | undefine
   return space?.state === "open" ? space : undefined;
 }
 
-function heldHere(space: Space | undefined, agentId: string, now: number): LetWork | undefined {
+/** The yes that lets it work in its space, while its harness's Chips's rules are on (ADR 0300). */
+function heldHere(
+  input: PermissionsInput,
+  space: Space | undefined,
+  agentId: string,
+  now: number,
+): LetWork | undefined {
   return space === undefined
     ? undefined
-    : lettingWork(space, now).find((held) => held.asker === agentId);
+    : lettingWork(input.model, input.directory, space, now).find((held) => held.asker === agentId);
 }
 
 /** What the top of the page says: not in a space, asking, or working without asking. */
@@ -135,7 +141,7 @@ export function agentPermissions(
   const open = openSpaceOf(input, agentId);
   const spaceName = open === undefined ? undefined : roomName(model, open.id, directory);
   const space = open === undefined ? undefined : { id: open.id, name: spaceName as string };
-  const held = heldHere(open, agentId, now);
+  const held = heldHere(input, open, agentId, now);
   const to = asksGoTo(directory, harnessId, selfId);
   const words = pageWords(name, space, held, askingOpening(name, to));
   const closedIn =
@@ -180,7 +186,7 @@ export function permissionsRow(
 ): { readonly value: string; readonly working: boolean; readonly sub: string | undefined } {
   const banners = input.banners ?? NO_BANNERS;
   const space = openSpaceOf(input, agentId);
-  const held = heldHere(space, agentId, now);
+  const held = heldHere(input, space, agentId, now);
   const wanted = bannerWanted(banners, input.directory, agentId);
   const sub = !wanted
     ? BANNER_OFF_WORDS

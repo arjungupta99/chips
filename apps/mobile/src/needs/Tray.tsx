@@ -121,9 +121,12 @@ export function Tray(props: TrayProps) {
       {props.letWork === undefined ? null : <LetWork {...props} />}
       {props.letWork === true ? (
         <Fold key="work" style={styles.fold}>
-          <Text style={[styles.line, { color: palette.ink3 }]} testID="until-stopped">
-            {untilStoppedWords(props.harnessName)}
-          </Text>
+          <CodeWords
+            words={untilStoppedWords(props.harnessName)}
+            style={styles.line}
+            ink={palette.ink3}
+            testID="until-stopped"
+          />
         </Fold>
       ) : (
         <Fold key="reaches" style={styles.reaches}>
@@ -218,9 +221,12 @@ function Reaches(props: TrayProps) {
       {lasting === "hour" ? (
         <Fold key="hour" style={styles.fold}>
           <HourStrip now={props.now} />
-          <Text style={[styles.line, { color: palette.ink3 }]} testID="for-a-while">
-            {whileWords(props.harnessName)}
-          </Text>
+          <CodeWords
+            words={whileWords(props.harnessName)}
+            style={styles.line}
+            ink={palette.ink3}
+            testID="for-a-while"
+          />
         </Fold>
       ) : null}
       {lasting === "always" ? (
@@ -274,7 +280,7 @@ function Answer(props: TrayProps) {
   const done =
     answered === undefined
       ? word
-      : answeredWords(answered, props.now, props.reach, props.spaceName);
+      : answeredWords(answered, props.now, props.reach, props.spaceName, props.chipsOn === false);
   // Deny and Edit take the width their word needs and Approve the rest, as the web's card does:
   // halves cut "Approve and let it work" short on a phone.
   return (

@@ -10,6 +10,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -60,6 +61,12 @@ if (process.env.FAKE_FAIL) {
   process.exit(1);
 }
 step({ step: "joining" });
+// As keep wrote a service before it named the link it was started through: Node resolves the
+// link in the path of the file it starts, so this names the release's own folder.
+if (process.env.FAKE_SERVICE) {
+  const root = require("node:path").dirname(require("node:path").dirname(__filename));
+  fs.writeFileSync(process.env.FAKE_SERVICE, "<!-- Written by a Chips harness's keep. -->\\n<string>" + __filename + "</string>\\n<string>" + root + "</string>\\n", { mode: 0o600 });
+}
 step({ step: "keeping", label: "chat.chips.fake" + (args.length > 0 ? ".kind" : "") });
 console.log("Kept running as chat.chips.fake: " + process.env.CHIPS_STOP_COMMAND + " stops it.");
 `;
@@ -512,6 +519,91 @@ describe("chips connect --update", () => {
     expect(await updateBridges(stuck)).toBe(1);
     expect(stuck.lines.at(-1)).toBe(
       "  chat.chips.fake didn't start again. `chips connect` with a new link sets it up afresh.",
+    );
+  });
+});
+
+describe("a kept service whose file names a release's own folder", () => {
+  const pinned = (version: string, keeps = true) =>
+    `${keeps ? "<!-- Written by a Chips harness's keep. -->\n" : ""}<string>${join(folder(), `package-${version}`, "dist", "main.js")}</string>\n<string>${join(folder(), `package-${version}`)}</string>\n`;
+
+  it("is put on the link by connect, and loaded again from it", async () => {
+    const service = join(dir, "chat.chips.fake.plist");
+    const restarted: [string, boolean | undefined][] = [];
+    const deps = depsFor(
+      { "1.0.0": tarball("1.0.0") },
+      {
+        env: { PATH: "/usr/bin:/bin", FAKE_RAN: ran, FAKE_SERVICE: service },
+        serviceFile: () => service,
+        restart: async (label, afresh) => {
+          restarted.push([label, afresh]);
+          return true;
+        },
+      },
+    );
+    expect(await connectBridge(card("fake"), LINK, deps)).toBe(0);
+    // The folders above are as the bridge saw them, links resolved (`/private/var` for `/var`).
+    const seen = realpathSync(folder());
+    expect(readFileSync(service, "utf8")).toBe(
+      `<!-- Written by a Chips harness's keep. -->\n<string>${join(seen, "package", "dist", "main.js")}</string>\n<string>${join(seen, "package")}</string>\n`,
+    );
+    expect(restarted).toEqual([["chat.chips.fake", true]]);
+    expect(readJournal(folder()).startedOn).toEqual({ "chat.chips.fake": "1.0.0" });
+
+    // One that won't load again is said, and connect fails.
+    const stuck = depsFor(
+      { "1.0.0": tarball("1.0.0") },
+      {
+        env: { PATH: "/usr/bin:/bin", FAKE_RAN: ran, FAKE_SERVICE: service },
+        serviceFile: () => service,
+        restart: async () => false,
+      },
+    );
+    expect(await connectBridge(card("fake"), LINK, stuck)).toBe(1);
+    expect(stuck.lines.at(-1)).toBe(
+      "  chat.chips.fake is kept, but didn't start again once its file named the bridge's link. `chips connect --update` starts it.",
+    );
+  });
+
+  it("is put on the link by --update, loaded again, and written down as on the new release", async () => {
+    await connectBridge(card("fake"), LINK, depsFor({ "1.0.0": tarball("1.0.0") }));
+    const service = join(dir, "chat.chips.fake.plist");
+    writeFileSync(service, pinned("1.0.0"), { mode: 0o600 });
+    const restarted: [string, boolean | undefined][] = [];
+    const deps = depsFor(
+      { "1.0.0": tarball("1.0.0"), "1.1.0": tarball("1.1.0") },
+      {
+        serviceFile: () => service,
+        restart: async (label, afresh) => {
+          restarted.push([label, afresh]);
+          return true;
+        },
+      },
+    );
+    expect(await updateBridges(deps)).toBe(0);
+    expect(readFileSync(service, "utf8")).not.toContain("package-1.0.0");
+    expect(restarted).toEqual([["chat.chips.fake", true]]);
+    expect(readJournal(folder()).startedOn).toEqual({ "chat.chips.fake": "1.1.0" });
+    expect(deps.lines).toEqual([
+      "  ✓ @chipschat/fake 1.0.0 is now 1.1.0.",
+      "  ✓ Started chat.chips.fake again.",
+    ]);
+  });
+
+  it("is said, kept, and written down as on its release when somebody else wrote the file", async () => {
+    await connectBridge(card("fake"), LINK, depsFor({ "1.0.0": tarball("1.0.0") }));
+    const service = join(dir, "chat.chips.fake.plist");
+    writeFileSync(service, pinned("1.0.0", false));
+    const deps = depsFor(
+      { "1.0.0": tarball("1.0.0"), "1.1.0": tarball("1.1.0") },
+      { serviceFile: () => service, restart: async () => true },
+    );
+    expect(await updateBridges(deps)).toBe(1);
+    expect(readFileSync(service, "utf8")).toBe(pinned("1.0.0", false));
+    expect(readJournal(folder()).startedOn).toEqual({ "chat.chips.fake": "1.0.0" });
+    expect(existsSync(join(folder(), "package-1.0.0", "dist", "main.js"))).toBe(true);
+    expect(deps.lines.at(-1)).toBe(
+      `  chat.chips.fake still runs 1.0.0: ${service} names that release's own folder, and Chips didn't write it, so it was left as it is.`,
     );
   });
 });

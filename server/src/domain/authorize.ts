@@ -61,7 +61,10 @@
  *     person puts an agent, or a harness as its default agent, in a room only as they would move
  *     it: as its harness's owner, or an owner or admin of the workspace (his call of 19 October
  *     2026, ADR 0034's addendum);
- * 17. the Main agent is not taken out of its Main room.
+ * 17. the Main agent is not taken out of its Main room;
+ * 18. a yes that holds on (for a while, until stopped, or given from an agent's page) is Chips's
+ *     to keep, so it is given only while the asking harness's Chips's rules are on (ADR 0300,
+ *     addendum of 19 November 2026).
  *
  * Visibility — who may *read* an event — is `application/visibility.ts`; the two are halves of
  * the same idea and are kept side by side rather than merged, because a read has no sender.
@@ -141,6 +144,8 @@ export interface ParticipantFacts {
   readonly others?: number | undefined;
   /** For an agent or harness let work without asking: whether it is in the space named. */
   readonly inSpace?: boolean | undefined;
+  /** For an agent: the harness it is an agent of, whose Chips's rules are its (rule 18). */
+  readonly harness?: string | undefined;
   /** For an agent or a harness: the person who owns it, its harness's owner (rule 16). */
   readonly owner?: string | null | undefined;
   /** For a person: their standing in the workspace (ADR 0034), for an owner in a room (rule 11). */
@@ -207,6 +212,12 @@ export interface AuthorizeContext {
     | (ActionFlags & { readonly command?: string | readonly string[] | undefined })
     | null
     | undefined;
+  /**
+   * For a yes that holds on, and for a change to a harness's policy: whether Chips's rules are on
+   * for the harness it is about (ADR 0300), as the event arrives. `null` when the event is neither,
+   * or names no harness that could be found.
+   */
+  readonly chipsRules?: boolean | null | undefined;
   /**
    * For feedback, an edit, a deletion or a pin: the message it is about; for a thread, the
    * message it grows from. `null` when there is no such message.
@@ -860,15 +871,42 @@ export function refuseStandingYes(
 }
 
 /** A yes that holds on past its ask: for a while, or until a person stops it (ADR 0281). */
-function holdsOn(event: Readonly<Record<string, unknown>>): boolean {
+export function holdsOn(event: Readonly<Record<string, unknown>>): boolean {
   return event["for_minutes"] !== undefined || event["until_stopped"] !== undefined;
+}
+
+/**
+ * Rule 18: a yes that holds on is Chips's to keep, so it is given only while the asking harness's
+ * Chips's rules are on (ADR 0300, addendum of 19 November 2026). With them off every ask goes to a
+ * person and the engine reads no held yes, so one taken here would answer nothing while the apps
+ * said the agent was working without asking. An app from before the switch still offers For an
+ * hour and Let it work; it is told why not, in words a person can act on.
+ */
+export function refuseHeldRulesOff(
+  event: Readonly<Record<string, unknown>>,
+  chipsRules: AuthorizeContext["chipsRules"],
+): Refusal | undefined {
+  if (chipsRules !== false) return undefined;
+  if (event["type"] === "approval.held_started") {
+    return refusal(
+      "invalid",
+      "an agent is let work without asking only while its harness's Chips's rules are on: turn them on in the harness's Permissions first",
+    );
+  }
+  if (event["type"] !== "approval.resolved" || !holdsOn(event)) return undefined;
+  return refusal(
+    "invalid",
+    "a yes holds on only while the harness's Chips's rules are on: answer this once, or turn them on in the harness's Permissions first",
+  );
 }
 
 /**
  * A yes that holds on in the space, for a while (ADR 0239, addendum of 6 November 2026) or until
  * a person stops it (ADR 0281), is a yes given once: never with This session or Always, never a
- * no, never both at once, and never for an ask that matters. It reaches every other ask, commands
- * Chips can't read and those on the never list too, so a command is not looked at.
+ * no, never both at once, and never for an ask that matters. It is given on any other ask
+ * whatever its command, so the command is not looked at here; which later asks it answers is the
+ * engine's to say, and never one for a command on the never list (ADR 0300). Whether the harness's
+ * Chips's rules are on is `refuseHeldRulesOff`'s.
  */
 export function refuseYesForAWhile(
   event: Readonly<Record<string, unknown>>,
@@ -1307,6 +1345,7 @@ export function authorize(
       context.role,
       settlesItsOwn(sender, context.run, context.askRun),
       context.askAction ?? null,
-    )
+    ) ??
+    refuseHeldRulesOff(event, context.chipsRules)
   );
 }

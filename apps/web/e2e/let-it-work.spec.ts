@@ -3,7 +3,7 @@
  * harness at L1 asks to run a loop Chips can't read, a person flips the switch over the card's
  * choices and approves, and the harness is answered once with `until_stopped`. Its next loop is
  * answered by Chips on the spot, but an `rm` still comes to the person: a pause never says yes to
- * the never list. The room says so in a band under its name; Stop in the band ends it, and the next
+ * what is on its list. The room says so in a band under its name; Stop in the band ends it, and the next
  * ask comes to the person's card again.
  *
  * Its own harness and room, so the demo room's policy is left as the other specs find it. With
@@ -81,8 +81,8 @@ test("a yes until stopped lets the agent work without asking, and Stop brings it
       .getByRole("switch", { name: /Let Juniper work without asking/ })
       .click();
     await expect(card(page).getByText("For an hour", { exact: true })).toHaveCount(0);
-    await expect(card(page).getByTestId("until-stopped")).toContainText(
-      "Everything Juniper asks here goes ahead without a card until you stop it",
+    await expect(card(page).getByTestId("until-stopped")).toHaveText(
+      "Juniper's asks here go ahead without a card until you stop it. Commands like rm and git push still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
     );
     await shot(page, "2-switch-on");
     await card(page).getByRole("button", { name: "Approve and let it work" }).click();

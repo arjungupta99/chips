@@ -237,8 +237,13 @@ const KEYWORDS: ReadonlySet<string> = new Set([
  * machine, act as somebody else, or run whatever code or command they are given. Since a start is
  * mostly the program alone (addendum of 6 November 2026), the ones that write over a file are
  * here too: `cp`, `mv`, `tee`, `sed -i`, and a package published. A part matches
- * an entry of one word when its program is that word, and an entry of two when its program is the
- * first and the second is among its words, wherever it stands (`git -C dir push`).
+ * an entry of one word when its program is that word, and a longer one when its program is the
+ * first and the rest are among its words in that order, wherever they stand (`git -C dir push`,
+ * `gh -R o/x repo delete`).
+ *
+ * Since ADR 0300's addendum of 19 November 2026 it also names what a start of two words would
+ * otherwise let through: a yes kept for `gh repo view` is kept as `gh repo`, which is how
+ * `gh repo delete` starts, and one for `pnpm exec tsc` as `pnpm exec`, which runs anything.
  */
 export const NEVER_STANDING: readonly (readonly string[])[] = [
   ["rm"],
@@ -263,6 +268,13 @@ export const NEVER_STANDING: readonly (readonly string[])[] = [
   ["git", "push"],
   ["git", "reset"],
   ["git", "clean"],
+  ["git", "checkout"],
+  ["git", "restore"],
+  ["gh", "api"],
+  ["gh", "repo", "delete"],
+  ["gh", "pr", "merge"],
+  ["gh", "release", "delete"],
+  ["kubectl", "delete"],
   ["cp"],
   ["mv"],
   ["tee"],
@@ -296,6 +308,20 @@ export const NEVER_STANDING: readonly (readonly string[])[] = [
   ["python3", "-c"],
   ["perl", "-e"],
   ["ruby", "-e"],
+  ["node", "-p"],
+  ["node", "--print"],
+  ["deno", "eval"],
+  ["osascript", "-e"],
+  ["awk"],
+  ["pnpm", "exec"],
+  ["pnpm", "dlx"],
+  ["npm", "exec"],
+  ["yarn", "exec"],
+  ["yarn", "dlx"],
+  ["uv", "run"],
+  ["docker", "run"],
+  ["docker", "exec"],
+  ["kubectl", "exec"],
 ];
 
 /** A program's own name, from a path to it: `/bin/rm` is `rm`. */
@@ -326,32 +352,33 @@ export function neverCovered(words: readonly string[]): string[] {
 /** The listed command a part uses, in words (`rm`, `git push`); nothing for one not listed. */
 export function neverStanding(parts: CommandParts): string | undefined {
   for (const part of parts) {
-    const program = programOf(part[0] ?? "");
-    const rest = part.slice(1);
-    const listed = NEVER_STANDING.find(
-      ([first, second]) => first === program && (second === undefined || rest.includes(second)),
-    );
-    if (listed !== undefined) return listed.join(" ");
+    const listed = listedIn(NEVER_STANDING, programOf(part[0] ?? ""), part.slice(1));
+    if (listed !== undefined) return listed;
   }
   return undefined;
 }
 
 /**
- * Whether a pause (Stop asking, Let it work, an hour: a `*` yes) must leave this command to a
- * person (ADR 0300): one with a part that uses a listed command, or, for one the reader can't
- * follow, one that names a listed command anywhere in its words. Errs toward asking.
+ * The entry of a list a program and its words match, in words: the program is the entry's first
+ * word, and the entry's other words are among its own, in that order. The pause's list
+ * (`pause.ts`) is matched the same way.
  */
-export function neverForAWhile(command: string | readonly string[]): boolean {
-  const parts = commandParts(command);
-  if (parts !== undefined) return neverStanding(parts) !== undefined;
-  const words = (typeof command === "string" ? command : command.join(" "))
-    .split(/[\s;&|()`$<>{}"'\\=]+/)
-    .filter((word) => word !== "")
-    .map(programOf);
-  return NEVER_STANDING.some(([first, second]) => {
-    const at = words.indexOf(first ?? "");
-    return at !== -1 && (second === undefined || words.slice(at + 1).includes(second));
+export function listedIn(
+  list: readonly (readonly string[])[],
+  program: string,
+  rest: readonly string[],
+): string | undefined {
+  const listed = list.find(([first, ...more]) => {
+    if (first !== program) return false;
+    let from = 0;
+    for (const word of more) {
+      const at = rest.indexOf(word, from);
+      if (at === -1) return false;
+      from = at + 1;
+    }
+    return true;
   });
+  return listed?.join(" ");
 }
 
 /** Programs whose second word is a command of their own: `git log`, `pnpm test`, `cargo build`. */

@@ -24,7 +24,10 @@ export type {
   ContextLine,
   LineReading,
   OwnEntry,
+  OwnMode,
+  OwnModes,
   OwnRules,
+  PolicyMode,
   RoomContext,
   RoomFile,
   RoomMember,
@@ -60,6 +63,7 @@ export type { KeyStore } from "./keep.js";
 export { openKeyStore } from "./keep.js";
 export type { LaneEvents, LaneOutcome, LaneState } from "./lane.js";
 export { Lane } from "./lane.js";
+export { modeHolds } from "./mode.js";
 export type { Ack } from "./outbox.js";
 export { RefusedError } from "./outbox.js";
 export type { FolderChange, FolderLook, ProjectOptions, Pushed } from "./project.js";

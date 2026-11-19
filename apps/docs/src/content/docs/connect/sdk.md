@@ -249,8 +249,28 @@ waiting on them.
 A handler that throws is logged and does not stop the
 others, nor the connection. The names `chips.on` takes: `message.new`, `message.overheard`, `approval.resolved`,
 `question.answered`, `run.steer`, `run.pause`, `run.resume`, `run.cancel`, `run.requested`,
-`policy.updated`, `budget.warning`, `lane.updated`, `feedback`, plus `hello`, `event`
+`policy.updated`, `budget.warning`, `lane.updated`, `feedback`, `mode`, plus `hello`, `event`
 (everything, in `seq` order), `receipt` and `state`.
+
+## Run in the mode a person picks
+
+A harness whose sessions have modes, as Claude Code's and Codex's do, can let a person pick one in
+Chips for a while. Say which modes you offer, and the one your sessions start in, in the copy of
+your own settings (`chips.settings.ownRules`, its `modes`). Chips then shows a picker on your
+settings page, and hands you the pick:
+
+```ts
+const apply = (mode = chips.mode) => {
+  // mode?.id is one of the ids you offered; nothing means the mode your sessions start in.
+  for (const session of sessions) session.setMode(offered(mode?.id) ?? baseMode);
+};
+apply();
+chips.on("mode", apply); // a new pick, a pick taken back, or its time up
+```
+
+`chips.mode` is the pick while it holds, with its `until` when it has one, and nothing once that
+has passed; the `mode` event is said each time that changes, its end included. Say the mode your
+sessions really run in as `modes.running`, so the page can tell when it differs from the pick.
 
 ## Hear what people think of what you said
 

@@ -209,6 +209,28 @@ const REPLAY_PAGE = 500;
 const CLOSE_POLICY = 1008;
 const CLOSE_GOING_AWAY = 1001;
 
+/**
+ * The mode a person picked for a harness's sessions, as chipsd hands it over in the hello (ADR
+ * 0300, addendum of 19 November 2026): the last `policy.updated` for it, for every space, that
+ * says one. Nothing once one put it back.
+ */
+function modeOf(
+  log: readonly StoredEvent[],
+  harnessId: string,
+): { readonly mode?: Readonly<Record<string, unknown>> } {
+  const said = log.findLast(
+    (event) =>
+      event.type === "policy.updated" &&
+      event.space_id === null &&
+      event.payload["harness_id"] === harnessId &&
+      (event.payload["policy"] as { mode?: unknown } | undefined)?.mode !== undefined,
+  );
+  const mode = (
+    said?.payload["policy"] as { mode?: Readonly<Record<string, unknown>> | null } | undefined
+  )?.mode;
+  return mode === undefined || mode === null ? {} : { mode };
+}
+
 class HttpFailure extends Error {
   override readonly name = "HttpFailure";
   constructor(
@@ -485,8 +507,9 @@ class Session {
         ...(me.kind === "harness" ? { harness: manifest } : {}),
         ...(agents === undefined ? {} : { agents }),
         // Ask first: nothing here decides a card, so the dial reads as the level where nothing does.
+        // The mode a person picked is kept as chipsd keeps it (ADR 0300): the last one said.
         autonomy: 1,
-        policy: { autonomy: 1, rules: [] },
+        policy: { autonomy: 1, rules: [], ...modeOf(workspace.log, me.participantId) },
         spaces: workspace.memberSpacesOf(me.participantId),
       },
     });

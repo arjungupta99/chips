@@ -805,6 +805,26 @@ export interface Hold {
   readonly at?: string | undefined;
 }
 
+/**
+ * The mode a person put a harness's sessions in (ADR 0300, addendum of 19 November 2026): one of
+ * the modes it offers, until `until`, or until a person changes it when there is none.
+ */
+export interface PickedMode {
+  /** The mode as the harness names it on the wire: `auto`. */
+  readonly id: string;
+  /** Its name as the harness offered it, as the pick carried it: `Auto`. */
+  readonly name?: string | undefined;
+  /** The name of the mode its sessions go back to: `Default`. */
+  readonly backTo?: string | undefined;
+  /** In it the harness never asks: yellow while it holds. */
+  readonly everything?: true | undefined;
+  /** When its sessions go back to the mode they start in; absent until a person changes it. */
+  readonly until?: string | undefined;
+  /** Who picked it, and when. */
+  readonly by?: string | undefined;
+  readonly at?: string | undefined;
+}
+
 /** The rules and hold for every harness (ADR 0299), read before any harness's own. */
 export interface WorkspaceRules {
   readonly rules: readonly Rule[];
@@ -821,6 +841,16 @@ export interface HarnessPolicyModel {
   readonly hold?: Hold | undefined;
   /** Its Chips's rules switch as last set (ADR 0300); absent while never set. */
   readonly chipsRules?: boolean | undefined;
+  /**
+   * True while nothing was ever set for it everywhere, only in particular rooms: `autonomy` and
+   * `rules` are then the fold's stand-ins, not what the server holds, so they are not sent back
+   * as if somebody had chosen them.
+   */
+  readonly everywhereStandIn?: true | undefined;
+  /** The mode a person picked (ADR 0300, 19 November addendum), as last set; a past `until` has ended. */
+  readonly mode?: PickedMode | undefined;
+  /** When the mode was last picked or put back: the time of the change. */
+  readonly modeSince?: string | undefined;
   readonly budgetUsd?: number | undefined;
   readonly spentUsd: number;
   /** The dial as set in particular rooms, over the harness's level everywhere. */
@@ -859,6 +889,18 @@ export interface AuditEntry {
     | "message";
   readonly who: string;
   readonly what: string;
+  /**
+   * A harness's mode picked or put back (ADR 0300, 19 November addendum): which harness, and the
+   * mode's name and end, or `back`. `auditWords` says it with the harness's name.
+   */
+  readonly mode?:
+    | {
+        readonly harnessId: string;
+        readonly name?: string | undefined;
+        readonly until?: string | undefined;
+        readonly back?: true | undefined;
+      }
+    | undefined;
   readonly spaceId?: string | undefined;
   readonly runId?: string | undefined;
   readonly reason?: string | undefined;

@@ -70,8 +70,13 @@ export const SPEND_JOBS = "spend_jobs";
 export const HARNESS_RULES = "harness_rules";
 /** What a harness runs on its own, at `/v1/harnesses/:id/own-rules` (ADR 0299). */
 export const OWN_RULES = "own_rules";
-/** A harness's Chips's rules switch, `policy.chips_rules`, and pauses that skip the never list (ADR 0300). */
+/** A harness's Chips's rules switch, `policy.chips_rules`, and pauses that leave `rm`, `git push` and their like to a person (ADR 0300). */
 export const CHIPS_RULES = "chips_rules";
+/**
+ * A harness's mode picked from Chips, `policy.mode` (ADR 0300, 19 November addendum). An older
+ * server drops the field in silence, so a client offers the picker only where this is said.
+ */
+export const HARNESS_MODE = "harness_mode";
 export const SERVER_TAKES = [
   HELD_YES,
   HELD_START,
@@ -81,6 +86,7 @@ export const SERVER_TAKES = [
   HARNESS_RULES,
   OWN_RULES,
   CHIPS_RULES,
+  HARNESS_MODE,
 ] as const;
 export type ServerTake = (typeof SERVER_TAKES)[number];
 

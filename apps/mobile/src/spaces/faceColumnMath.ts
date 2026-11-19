@@ -9,6 +9,9 @@
  * order of the field's list (`choicesOf`): the lead at the top, Everyone at the foot, nearest the
  * thumb. In a room with more faces than the column has room for, the ones nearest Everyone show
  * first, and holding the finger at the top brings the rest down into sight (`lift`).
+ *
+ * People, where the field offers it, stands at the foot over Everyone (`groups`, ADR 0229's
+ * addendum of 18 November 2026): the two groups nearest the thumb, the faces above them.
  */
 
 /** One face's height in the column: a thumb's. */
@@ -45,8 +48,10 @@ const SPREAD = 24;
 
 /** The column's shape, for a room with `faces` faces over Everyone. */
 export interface ColumnShape {
-  /** How many faces stand over Everyone: every choice but Everyone. */
+  /** How many faces stand over the groups at the foot: every choice but People and Everyone. */
   readonly faces: number;
+  /** How many groups stand over Everyone at the foot: People, where it is offered, or none. */
+  readonly groups: number;
   /** How tall the window the faces show in is. */
   readonly view: number;
   /** The whole column, its padding and Everyone included. */
@@ -56,15 +61,28 @@ export interface ColumnShape {
 }
 
 /**
- * The column for `faces` faces, in `room` points over the field: what the field's own list may
- * stand to (`listRoom`, ADR 0113), half the window and never past the room's bar, less the gap
- * under the column and the room over it for the name. Unmeasured, every face shows.
+ * The column for `faces` faces, in `room` points over the field (`columnRoom`: no taller than the
+ * field's own list may stand, ADR 0113, with the name over it never past the room's bar), less the
+ * gap under the column and the room over it for the name. Unmeasured, every face shows.
  */
-export function shapeOf(faces: number, room: number | undefined): ColumnShape {
+export function shapeOf(faces: number, room: number | undefined, groups = 0): ColumnShape {
   const all = Math.max(0, faces) * SLOT;
-  const cap = room === undefined ? all : Math.max(SLOT, room - GAP - FOOT - 2 * PAD - CROWN);
+  const under = FOOT + groups * SLOT;
+  const cap = room === undefined ? all : Math.max(SLOT, room - GAP - under - 2 * PAD - CROWN);
   const view = Math.min(all, cap);
-  return { faces: Math.max(0, faces), view, height: view + FOOT + 2 * PAD, most: all - view };
+  return {
+    faces: Math.max(0, faces),
+    groups,
+    view,
+    height: view + under + 2 * PAD,
+    most: all - view,
+  };
+}
+
+/** How tall the foot stands: Everyone's, and a face's for each group over it. */
+function footOf(shape: ColumnShape): number {
+  "worklet";
+  return FOOT + shape.groups * SLOT;
 }
 
 /** Whether the finger is beside the column, near enough to be over it: anywhere to its right. */
@@ -74,8 +92,8 @@ export function besideColumn(across: number): boolean {
 }
 
 /**
- * Which choice the finger is over: a face's index in the list, the lead's 0; Everyone's, which is
- * `faces`; or -1, for none. `up` is the finger's height over the column's foot and `across` how
+ * Which choice the finger is over: a face's index in the list, the lead's 0; a group's over
+ * Everyone, from `faces`; Everyone's, which is `faces + groups`; or -1, for none. `up` is the finger's height over the column's foot and `across` how
  * far it is from the column's middle; `lift` is how far the faces have been brought down. Only
  * height decides, once the finger is beside the column, so it can go anywhere right of the faces
  * and leave them in sight.
@@ -85,8 +103,10 @@ export function faceAt(up: number, across: number, shape: ColumnShape, lift: num
   if (!besideColumn(across)) return -1;
   const over = up - PAD;
   if (over < 0) return -1;
-  if (over < FOOT) return shape.faces;
-  const inView = over - FOOT;
+  if (over < FOOT) return shape.faces + shape.groups;
+  if (over < footOf(shape))
+    return shape.faces + shape.groups - 1 - Math.floor((over - FOOT) / SLOT);
+  const inView = over - footOf(shape);
   if (inView >= shape.view) return -1;
   const fromFoot = Math.floor((inView + lift) / SLOT);
   if (fromFoot >= shape.faces) return -1;
@@ -96,9 +116,12 @@ export function faceAt(up: number, across: number, shape: ColumnShape, lift: num
 /** Where a choice's middle stands, over the column's foot, with the faces brought down by `lift`. */
 export function middleOf(index: number, shape: ColumnShape, lift: number): number {
   "worklet";
-  if (index >= shape.faces) return PAD + FOOT / 2;
+  if (index >= shape.faces + shape.groups) return PAD + FOOT / 2;
+  if (index >= shape.faces) {
+    return PAD + FOOT + (shape.faces + shape.groups - 1 - index) * SLOT + SLOT / 2;
+  }
   const fromFoot = shape.faces - 1 - index;
-  return PAD + FOOT + fromFoot * SLOT + SLOT / 2 - lift;
+  return PAD + footOf(shape) + fromFoot * SLOT + SLOT / 2 - lift;
 }
 
 /**
@@ -120,7 +143,7 @@ export function grownBy(middle: number, up: number, across: number, shape: Colum
 export function scrollSpeed(up: number, across: number, shape: ColumnShape, lift: number): number {
   "worklet";
   if (shape.most <= 0 || lift >= shape.most || !besideColumn(across)) return 0;
-  const top = PAD + FOOT + shape.view;
+  const top = PAD + footOf(shape) + shape.view;
   if (up <= top - EDGE || up > top + REACH_UP) return 0;
   return Math.min(1, (up - (top - EDGE)) / EDGE) * SPEED;
 }

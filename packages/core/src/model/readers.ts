@@ -6,6 +6,7 @@
  */
 
 import {
+  chipsRulesOn,
   type Mentionable,
   mentionsEveryone,
   noteHandle,
@@ -16,6 +17,7 @@ import {
 import { stepWords, verbWords } from "../doingWords.js";
 import {
   type Directory,
+  harnessOf,
   isAgent,
   isRemoved,
   membersName,
@@ -253,7 +255,7 @@ export function nextAim(
   space: Space,
   directory: Directory,
   selfId: string,
-): { readonly ids: readonly string[]; readonly all?: true } {
+): { readonly ids: readonly string[]; readonly all?: true; readonly people?: true } {
   const others = othersIn(space, directory, selfId);
   const last = space.lines.findLast(
     (line) => line.kind === "text" && line.authorId === selfId && line.addressedTo !== undefined,
@@ -261,7 +263,8 @@ export function nextAim(
   const people = (last?.addressedPeople ?? []).filter((id) => others.includes(id));
   if (last !== undefined && people.length > 0) {
     const agents = (last.addressedTo ?? []).filter((id) => others.includes(id));
-    return { ids: [...agents, ...people] };
+    const ids = [...agents, ...people];
+    return { ids, ...peopleMark(ids, space, directory, selfId) };
   }
   const address = resolveAddress({
     sender: { id: selfId, kind: "person" },
@@ -373,14 +376,21 @@ export interface Aim {
    * field says Everyone; a list somebody built keeps its rows checked (`aimsAtEveryone`).
    */
   readonly all?: true | undefined;
+  /**
+   * For every person here and no agent: People picked (ADR 0229's addendum of 18 November 2026).
+   * It goes as the people's ids, so whoever is here when it goes has it and the server needs
+   * nothing new, and the field says People.
+   */
+  readonly people?: true | undefined;
 }
 
 /**
- * What a person picked from the field's list: some agents and people (ADR 0204), or `all`, which
- * is whoever is in the room when the message goes (ADR 0113). Everyone picked was its ids until 4
- * October 2026, and an agent who joined before the send was left out of it.
+ * What a person picked from the field's list: some agents and people (ADR 0204); `all`, which is
+ * whoever is in the room when the message goes (ADR 0113); or `people`, every person in the room
+ * when it goes and no agent (ADR 0229's addendum of 18 November 2026). Everyone picked was its ids
+ * until 4 October 2026, and an agent who joined before the send was left out of it.
  */
-export type AimPick = readonly string[] | "all";
+export type AimPick = readonly string[] | "all" | "people";
 
 /**
  * The field's aim for a draft, or nothing in a room where the writer has only one other or none,
@@ -404,14 +414,50 @@ export function aimOf(
     return at.all === true ? { ids: others, by: "at", all: true } : { ...at, by: "at" };
   const answered = replying === undefined ? undefined : replyAgent(space, directory, replying);
   if (answered !== undefined) return { ids: [answered], by: "reply" };
+  return (
+    pickedAim(pick, others, space, directory, selfId) ?? {
+      ...nextAim(space, directory, selfId),
+      by: "default",
+    }
+  );
+}
+
+/**
+ * What a pick from the field's list makes the aim, or nothing where it is no pick here: Everyone;
+ * People, every other person (one left is that one by name, none is nobody); or those picked who
+ * are still in the room, which is Everyone where it is all of them.
+ */
+function pickedAim(
+  pick: AimPick | undefined,
+  others: readonly string[],
+  space: Space,
+  directory: Directory,
+  selfId: string,
+): Aim | undefined {
+  if (pick === undefined) return undefined;
   if (pick === "all") return { ids: others, by: "pick", all: true };
-  const picked = pick?.filter((id) => others.includes(id)) ?? [];
-  if (picked.length > 0) {
-    return sameSet(picked, others)
-      ? { ids: picked, by: "pick", all: true }
-      : { ids: picked, by: "pick" };
-  }
-  return { ...nextAim(space, directory, selfId), by: "default" };
+  const picked =
+    pick === "people"
+      ? peopleIn(space, directory).filter((id) => id !== selfId)
+      : pick.filter((id) => others.includes(id));
+  if (picked.length === 0) return undefined;
+  if (sameSet(picked, others)) return { ids: picked, by: "pick", all: true };
+  return { ids: picked, by: "pick", ...peopleMark(picked, space, directory, selfId) };
+}
+
+/**
+ * People, when these ids are every other person and no agent where the field offers People (ADR
+ * 0229's addendum of 18 November 2026): so a send to People reads as People after it too.
+ */
+function peopleMark(
+  ids: readonly string[],
+  space: Space,
+  directory: Directory,
+  selfId: string,
+): { readonly people?: true } {
+  if (!offersPeople(space, directory, selfId)) return {};
+  const folks = peopleIn(space, directory).filter((id) => id !== selfId);
+  return sameSet(ids, folks) ? { people: true } : {};
 }
 
 /**
@@ -505,9 +551,48 @@ export function aimedAt(
   };
 }
 
-/** What the field says of its aim: "Everyone" for everybody here, else as `aimWords`. */
+/**
+ * What the field says of its aim: "Everyone" for everybody here, "People" for every person here
+ * and no agent, else as `aimWords`.
+ */
 export function aimWordsOf(aim: Aim, space: Space, directory: Directory): string {
-  return aim.all === true ? "Everyone" : aimWords(aim.ids, space, directory);
+  if (aim.all === true) return "Everyone";
+  return aim.people === true ? "People" : aimWords(aim.ids, space, directory);
+}
+
+/**
+ * Whether the field offers People (ADR 0229's addendum of 18 November 2026): where the writer has
+ * two or more other people and at least one agent. With one other person their own face is the
+ * same pick, and with no agent Everyone is.
+ */
+export function offersPeople(space: Space, directory: Directory, selfId: string): boolean {
+  if (harnessesIn(space, directory).length === 0) return false;
+  return peopleIn(space, directory).filter((id) => id !== selfId).length >= 2;
+}
+
+/**
+ * Who the writer has been talking with here, the latest first (ADR 0229's addendum of 18 November
+ * 2026): whom their own messages went to, by name, and who else wrote. A message to everyone names
+ * nobody. Only those still in the room, never the writer; the column of faces in a crowded room
+ * shows the first of these.
+ */
+export function recentIn(space: Space, directory: Directory, selfId: string): string[] {
+  const others = othersIn(space, directory, selfId);
+  const seen: string[] = [];
+  for (let index = space.lines.length - 1; index >= 0 && seen.length < others.length; index -= 1) {
+    for (const id of talkedWith(space.lines[index], selfId)) {
+      if (others.includes(id) && !seen.includes(id)) seen.push(id);
+    }
+  }
+  return seen;
+}
+
+/** Who a line says the writer talked with: its author, or whom the writer's own went to by name. */
+function talkedWith(line: Line | undefined, selfId: string): readonly string[] {
+  if (line === undefined || line.kind !== "text" || line.deleted === true) return [];
+  if (line.authorId !== selfId) return [line.authorId];
+  if (line.addressedToAll === true) return [];
+  return [...(line.addressedTo ?? []), ...(line.addressedPeople ?? [])];
 }
 
 /**
@@ -727,13 +812,38 @@ export function administers(role: WorkspaceRole | undefined): boolean {
   return role === "owner" || role === "admin";
 }
 
-/** The agents let work in a space without asking that still are (ADR 0281), against the clock. */
+/** Whether Chips's rules answer a harness's asks (ADR 0300): as set, else as never set reads. */
+export function chipsRulesOnFor(model: WorkspaceModel, harnessId: string): boolean {
+  const policy = model.harnesses?.[harnessId];
+  const rooms = Object.values(policy?.bySpace ?? {});
+  return chipsRulesOn(policy?.chipsRules, {
+    harnessRules: (policy?.rules.length ?? 0) > 0 || rooms.some((room) => room.rules.length > 0),
+    harnessLevel: (policy?.autonomy ?? 0) >= 2 || rooms.some((room) => room.autonomy >= 2),
+    harnessHold: policy?.hold !== undefined,
+    workspaceRules: (model.workspaceRules?.rules.length ?? 0) > 0,
+    workspaceHold: model.workspaceRules?.hold !== undefined,
+  });
+}
+
+/**
+ * The agents let work in a space without asking that still are (ADR 0281), against the clock.
+ *
+ * A yes that holds on is Chips's to keep, so it holds only while the asker's harness has Chips's
+ * rules on (ADR 0300, addendum of 19 November 2026). The server ends one when they go off; this
+ * is so that one left over from before, or not yet ended, is never drawn as working without
+ * asking while every ask comes to a person. The model and the directory are asked for, so no
+ * screen can read a held yes without the switch.
+ */
 export function lettingWork(
+  model: WorkspaceModel,
+  directory: Directory,
   space: Space | undefined,
   now: number = Date.now(),
 ): readonly LetWork[] {
   return (space?.letWork ?? []).filter(
-    (held) => held.until === undefined || Date.parse(held.until) > now,
+    (held) =>
+      (held.until === undefined || Date.parse(held.until) > now) &&
+      chipsRulesOnFor(model, harnessOf(directory, held.asker)),
   );
 }
 

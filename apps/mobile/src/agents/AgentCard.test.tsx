@@ -382,15 +382,20 @@ describe("an agent's card", () => {
     expect(opened).toBe(1);
   });
 
-  it("opens its own page from Working without asking while a card's yes holds (ADR 0300)", async () => {
+  /** The Shopping agent with a yes kept in its space, and its harness's Chips's rules as said. */
+  function heldShot(chipsRules: boolean | undefined): Snapshot {
     const base = agentsSnapshot();
-    const room = base.directory["agt_shopping"]?.room;
-    const shot = {
+    const agent = base.directory["agt_shopping"];
+    const harnessId = agent?.harnessId ?? "";
+    return {
       ...base,
       model: {
         ...base.model,
+        harnesses: {
+          [harnessId]: { harnessId, autonomy: 1, rules: [], bySpace: {}, chipsRules },
+        },
         spaces: base.model.spaces.map((space) =>
-          space.id === room
+          space.id === agent?.room
             ? {
                 ...space,
                 letWork: [{ asker: "agt_shopping", by: ME, since: "2026-11-18T10:00:00.000Z" }],
@@ -398,7 +403,12 @@ describe("an agent's card", () => {
             : space,
         ),
       },
-    } as Snapshot;
+    } as unknown as Snapshot;
+  }
+
+  it("opens its own page from Working without asking while a card's yes holds (ADR 0300)", async () => {
+    // A yes holds on only while the harness's Chips's rules are on, so they are.
+    const shot = heldShot(true);
     const store = fakeStore(shot);
     const opened: string[] = [];
     await render(
@@ -416,6 +426,28 @@ describe("an agent's card", () => {
     await userEvent.press(screen.getByTestId("agent-working"));
     await userEvent.press(screen.getByTestId("agent-permissions"));
     expect(opened).toEqual(["agent", "harness"]);
+  });
+
+  it("has no Working without asking row while its harness's Chips's rules are off, whatever yes the space still holds", async () => {
+    // Turned off, and never set.
+    for (const chipsRules of [false, undefined]) {
+      const shot = heldShot(chipsRules);
+      const view = await render(
+        <AgentCard
+          store={fakeStore(shot)}
+          snapshot={shot}
+          agentId="agt_shopping"
+          selfId={ME}
+          onHistory={() => undefined}
+          onPermissions={() => undefined}
+          onWorking={() => undefined}
+          onOpenRoom={() => undefined}
+        />,
+      );
+      expect(screen.getByTestId("agent-permissions")).toHaveTextContent(/Asks you/);
+      expect(screen.queryByTestId("agent-working")).toBeNull();
+      await view.unmount();
+    }
   });
 
   it("has no Working without asking row while it asks", async () => {

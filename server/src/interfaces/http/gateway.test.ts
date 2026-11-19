@@ -2164,9 +2164,16 @@ describe("letting an agent work from its page (ADR 0286)", () => {
     await send(ws.arjun, runId, start(asker, "start-asks-1"));
     const small = await ask(runId, "start-small", {
       kind: "shell.exec",
-      input: { command: "rm -rf build" },
+      input: { command: "ls -la build && pnpm test" },
     });
     expect(small.body["resolution"]).toBe("approved");
+    // `rm` is on the pause's list, and the level asks for it too (ADR 0300, addendum of 19
+    // November 2026); before, L2 let it through as a command that "runs and shows up".
+    const rm = await ask(runId, "start-rm", {
+      kind: "shell.exec",
+      input: { command: "rm -rf build" },
+    });
+    expect(rm.body["resolution"]).toBeUndefined();
     const big = await ask(runId, "start-big", {
       kind: "email.send",
       external: true,
@@ -2194,6 +2201,226 @@ describe("letting an agent work from its page (ADR 0286)", () => {
     expect(person.status).toBe(404);
     const nobody = await send(ws.arjun, runId, start("agt_01K4ZQPX0000000000000NOPE", "start-n"));
     expect(nobody.status).toBe(404);
+  });
+});
+
+describe("a yes that holds on lives only while Chips's rules are on (ADR 0300, addendum of 19 November 2026)", () => {
+  const arjun = (): Principal => ({
+    kind: "person",
+    participantId: ws.arjun.participantId,
+    workspaceId: ws.workspaceId,
+    displayName: "Arjun",
+    via: "device_key",
+    role: "owner",
+  });
+
+  /** Arjun changes Scout's policy everywhere, as the Chips's rules page does. */
+  const change = (key: string, policy: Record<string, unknown>) =>
+    ws.gateway.deps.submitEvent({
+      principal: arjun(),
+      event: {
+        type: "policy.updated",
+        harness_id: ws.scout.participantId,
+        policy: { autonomy: 1, rules: [], ...policy },
+        idempotency_key: key,
+      },
+    });
+  const turn = (on: boolean, key: string) => change(key, { chips_rules: on });
+
+  async function askerIn(key: string): Promise<{ runId: string; asker: string }> {
+    const runId = await startedRun(key);
+    const run = await ws.gateway.deps.readModels.run(ws.workspaceId, runId);
+    return { runId, asker: run?.agent_id ?? run?.harness_id ?? "" };
+  }
+
+  const ask = (runId: string, key: string) =>
+    call("POST", `/v1/runs/${runId}/events`, {
+      headers: { ...ws.scout.headers, "idempotency-key": key },
+      body: {
+        type: "approval.request",
+        approval_id: ws.ids.next("approval"),
+        action: { kind: "shell.exec", input: { command: "ls -la" } },
+        risk: [],
+        expires_in: 3600,
+      },
+    });
+
+  const fromArjun = (runId: string, body: Record<string, unknown>) => {
+    const path = `/v1/runs/${runId}/events`;
+    return call("POST", path, signed(ws.arjun, "POST", path, body));
+  };
+
+  const answer = (runId: string, approvalId: unknown, key: string, extra: object = {}) =>
+    fromArjun(runId, {
+      type: "approval.resolved",
+      approval_id: approvalId,
+      decision: "approved",
+      idempotency_key: key,
+      ...extra,
+    });
+
+  const letWork = (runId: string, asker: string, key: string) =>
+    fromArjun(runId, {
+      type: "approval.held_started",
+      space_id: ws.spaceId,
+      asker,
+      idempotency_key: key,
+    });
+
+  const held = (asker: string) =>
+    ws.gateway.deps.readModels.rulesForAWhile(
+      ws.workspaceId,
+      ws.spaceId,
+      asker,
+      new Date().toISOString(),
+    );
+
+  const stops = async () =>
+    (await ws.gateway.deps.store.since(ws.workspaceId, 0, 500)).events.filter(
+      (event) => event.type === "approval.held_stopped",
+    );
+
+  const said = (answered: { body: Record<string, unknown> }) =>
+    String((answered.body["error"] as Record<string, unknown> | undefined)?.["message"]);
+
+  it("refuses For an hour, Let it work and a start from the agent's page while the rules are off", async () => {
+    expect((await turn(false, "off-1")).ok).toBe(true);
+    const { runId, asker } = await askerIn("off-run");
+    const asked = await ask(runId, "off-ask");
+    expect(asked.body["resolution"]).toBeUndefined();
+    const id = asked.body["approval_id"];
+
+    for (const [key, extra] of [
+      ["off-hour", { for_minutes: 60 }],
+      ["off-work", { until_stopped: true }],
+    ] as const) {
+      const refused = await answer(runId, id, key, extra);
+      expect(refused.status, key).toBe(422);
+      expect(said(refused), key).toBe(
+        "a yes holds on only while the harness's Chips's rules are on: answer this once, or turn them on in the harness's Permissions first",
+      );
+    }
+    const start = await letWork(runId, asker, "off-start");
+    expect(start.status).toBe(422);
+    expect(said(start)).toContain("only while its harness's Chips's rules are on");
+    expect(await held(asker)).toEqual([]);
+    expect((await ws.gateway.deps.readModels.approval(ws.workspaceId, String(id)))?.state).toBe(
+      "pending",
+    );
+
+    // A yes once is still a yes, and the next ask comes to a person as every one does.
+    expect((await answer(runId, id, "off-once")).status).toBe(201);
+    expect((await ask(runId, "off-next")).body["resolution"]).toBeUndefined();
+  });
+
+  it("stops every yes still holding when the rules are turned off, and none comes back with them", async () => {
+    await turn(true, "stop-on");
+    const { runId, asker } = await askerIn("stop-run");
+    const asked = await ask(runId, "stop-ask");
+    const yes = await answer(runId, asked.body["approval_id"], "stop-yes", {
+      until_stopped: true,
+    });
+    expect(yes.status, JSON.stringify(yes.body)).toBe(201);
+    expect(await held(asker)).toHaveLength(1);
+    expect((await ask(runId, "stop-held")).body).toMatchObject({ resolution: "approved" });
+    expect(await stops()).toEqual([]);
+
+    expect((await turn(false, "stop-off")).ok).toBe(true);
+    expect(await held(asker)).toEqual([]);
+    // Chips's own event, in the space, naming who turned the rules off: what every app reads.
+    const written = await stops();
+    expect(written).toHaveLength(1);
+    expect(written[0]).toMatchObject({
+      space_id: ws.spaceId,
+      actor: { kind: "system", id: "system" },
+      payload: { asker, stopped_by: ws.arjun.participantId },
+    });
+    expect((await ask(runId, "stop-after")).body["resolution"]).toBeUndefined();
+
+    // Sent again, the same change writes nothing more; and on again, the yes is still gone.
+    await turn(false, "stop-off");
+    await turn(true, "stop-on-again");
+    expect(await stops()).toHaveLength(1);
+    expect(await held(asker)).toEqual([]);
+    expect((await ask(runId, "stop-on-ask")).body["resolution"]).toBeUndefined();
+  });
+
+  it("stops one given for an hour and one given from the agent's page alike", async () => {
+    await turn(true, "both-on");
+    const { runId, asker } = await askerIn("both-run");
+    const asked = await ask(runId, "both-ask");
+    await answer(runId, asked.body["approval_id"], "both-hour", { for_minutes: 60 });
+    expect((await letWork(runId, asker, "both-start")).status).toBe(201);
+    expect(await held(asker)).toHaveLength(2);
+
+    await turn(false, "both-off");
+    expect(await held(asker)).toEqual([]);
+    // One stop for the space and the agent, however many yeses it ends.
+    expect(await stops()).toHaveLength(1);
+  });
+
+  it("leaves a yes alone through a change that keeps the rules on", async () => {
+    await turn(true, "keep-on");
+    const { runId, asker } = await askerIn("keep-run");
+    expect((await letWork(runId, asker, "keep-start")).status).toBe(201);
+    await change("keep-rule", { rules: [{ match: "calendar.*", decision: "ask" }] });
+    await change("keep-none", {});
+    expect(await held(asker)).toHaveLength(1);
+    expect(await stops()).toEqual([]);
+  });
+
+  it("stops it when a switch never set turns itself off with its last rule (B6)", async () => {
+    // Never set, the switch reads on for a harness with a rule and off for one with nothing.
+    await ws.gateway.deps.store.append({
+      v: 1,
+      type: "policy.updated",
+      id: ws.ids.next("event"),
+      ts: "2026-09-02T15:00:00.000Z",
+      workspace_id: ws.workspaceId,
+      actor: { kind: "person", id: ws.arjun.participantId },
+      idempotency_key: "never-set",
+      harness_id: ws.scout.participantId,
+      policy: { autonomy: 1, rules: [{ match: "calendar.*", decision: "ask" }] },
+      workspace_max_autonomy: 2,
+      changed_by: ws.arjun.participantId,
+      // biome-ignore lint/suspicious/noExplicitAny: a hand-built validated event for the test.
+    } as any);
+    const { runId, asker } = await askerIn("never-run");
+    expect((await letWork(runId, asker, "never-start")).status).toBe(201);
+    expect(await held(asker)).toHaveLength(1);
+
+    await change("never-last-rule", {});
+    expect(await held(asker)).toEqual([]);
+    expect(await stops()).toHaveLength(1);
+  });
+
+  it("ends a yes left from before this rule when the rules are turned on, so it never comes back", async () => {
+    await turn(true, "left-on");
+    const { runId, asker } = await askerIn("left-run");
+    expect((await letWork(runId, asker, "left-start")).status).toBe(201);
+    // The rules go off the way they did before the addendum: the event lands and nothing stops.
+    await ws.gateway.deps.store.append({
+      v: 1,
+      type: "policy.updated",
+      id: ws.ids.next("event"),
+      ts: new Date().toISOString(),
+      workspace_id: ws.workspaceId,
+      actor: { kind: "person", id: ws.arjun.participantId },
+      idempotency_key: "left-off",
+      harness_id: ws.scout.participantId,
+      policy: { autonomy: 1, rules: [], chips_rules: false },
+      workspace_max_autonomy: 2,
+      changed_by: ws.arjun.participantId,
+      // biome-ignore lint/suspicious/noExplicitAny: a hand-built validated event for the test.
+    } as any);
+    expect(await held(asker)).toHaveLength(1);
+    // Off, the engine reads none of it.
+    expect((await ask(runId, "left-off-ask")).body["resolution"]).toBeUndefined();
+
+    await turn(true, "left-on-again");
+    expect(await held(asker)).toEqual([]);
+    expect(await stops()).toHaveLength(1);
+    expect((await ask(runId, "left-on-ask")).body["resolution"]).toBeUndefined();
   });
 });
 

@@ -11,6 +11,7 @@
 import {
   HOLD_REASON,
   type PolicyHold,
+  type PolicyMode,
   type PolicyRule,
   ruleShape,
   writtenRuleRefusal,
@@ -56,6 +57,22 @@ export function keepHold(hold: PolicyHold, by: string, at: string): PolicyHold {
   return {
     ...(hold.until === undefined ? {} : { until: hold.until }),
     ...(hold.matters === true ? { matters: true } : {}),
+    by,
+    at,
+  };
+}
+
+/**
+ * A mode as Chips keeps it (ADR 0300, 19 November addendum): who picked it and when, whatever the
+ * client said.
+ */
+export function keepMode(mode: PolicyMode, by: string, at: string): PolicyMode {
+  return {
+    id: mode.id,
+    ...(mode.name === undefined ? {} : { name: mode.name }),
+    ...(mode.back_to === undefined ? {} : { back_to: mode.back_to }),
+    ...(mode.everything === true ? { everything: true } : {}),
+    ...(mode.until === undefined ? {} : { until: mode.until }),
     by,
     at,
   };

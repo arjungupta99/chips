@@ -14,7 +14,7 @@ import {
 import type { OwnRules } from "@chipschat/protocol";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HoldBands } from "../LetWorkBand.tsx";
+import { HoldBands, ModeBands } from "../LetWorkBand.tsx";
 import { ChipsRules, HarnessPermissions, HarnessSettings } from "./HarnessPermissions.tsx";
 import { NewRule } from "./NewRule.tsx";
 import type { PermissionsService } from "./service.ts";
@@ -118,6 +118,7 @@ function service(over: Partial<PermissionsService> = {}) {
     snoozeHarness: (harnessId, snooze) => calls.push(["snooze", { harnessId, ...snooze }]),
     resumeHarness: (harnessId) => calls.push(["resume", harnessId]),
     setChipsRules: (harnessId, on) => calls.push(["switch", { harnessId, on }]),
+    setMode: (harnessId, mode) => calls.push(["mode", { harnessId, mode }]),
     setWorkspaceRules: (input) => calls.push(["every", input]),
     readOwnRules: async () => ({ own_rules: CLAUDE_CODE, heard_at: new Date(NOW).toISOString() }),
     keepsHarnessRules: true,
@@ -172,7 +173,7 @@ describe("a harness's Permissions, in three pages (ADR 0300)", () => {
     );
     expect(screen.getByTestId("perms-settings-row").textContent).toContain("Default");
     expect(screen.getByTestId("perms-settings-row").textContent).toContain(
-      "Lets git push, git reset and git clean through",
+      "Lets git push, git reset, git clean, git checkout and git restore through",
     );
     expect(screen.getByTestId("perms-chips-value").textContent).toBe("Off");
     expect(screen.queryByTestId("perms-open")).toBeNull();
@@ -211,7 +212,9 @@ describe("a harness's Permissions, in three pages (ADR 0300)", () => {
       />,
     );
     await act(async () => undefined);
-    expect(screen.getByTestId("perms-stop").textContent).toContain("never to rm, git push");
+    expect(screen.getByTestId("perms-stop").textContent).toContain(
+      "never to rm, sudo, git push or what reaches another computer",
+    );
     fireEvent.click(screen.getByTestId("perms-stop-open"));
     fireEvent.click(screen.getByTestId("perms-stop-len-8h"));
     const stopped = calls.at(-1) as [
@@ -243,15 +246,23 @@ describe("a harness's Permissions, in three pages (ADR 0300)", () => {
 
   it("names what its own settings let through that Chips never would, with the line to paste", async () => {
     const { said } = service();
-    render(<HarnessSettings directory={directory} harnessId={KIT} service={said} />);
+    render(
+      <HarnessSettings
+        model={room()}
+        directory={directory}
+        harnessId={KIT}
+        selfId={ARJUN}
+        service={said}
+      />,
+    );
     await act(async () => undefined);
     expect(screen.getByTestId("perms-mode").textContent).toContain("Default");
     expect(screen.getByTestId("perms-notice").textContent).toMatch(
-      /^Claude Code runs git push, git reset and git clean without a card\./,
+      /^Claude Code runs git push, git reset, git clean and 2 more without a card\./,
     );
     fireEvent.click(screen.getByTestId("perms-make-ask"));
     expect(screen.getByTestId("perms-line").textContent).toBe(
-      '"ask": ["Bash(git push:*)", "Bash(git reset:*)", "Bash(git clean:*)"]',
+      '"ask": ["Bash(git push:*)", "Bash(git reset:*)", "Bash(git clean:*)", "Bash(git checkout:*)", "Bash(git restore:*)"]',
     );
     expect(within(screen.getByTestId("perms-own")).getByText("git").tagName).toBe("EM");
   });
@@ -356,5 +367,226 @@ describe("the room's line while Chips says yes for a harness (ADR 0299, 0300)", 
     expect(screen.getByTestId("let-work-band").getAttribute("data-tone")).toBe("calm");
     fireEvent.click(screen.getByTestId("hold-band-resume"));
     expect(calls).toEqual([["resume", KIT]]);
+  });
+});
+
+describe("the Mode picker on a harness's settings page (ADR 0300, 19 November addendum)", () => {
+  const OFFERS: OwnRules = {
+    ...CLAUDE_CODE,
+    modes: {
+      base: "default",
+      running: "default",
+      offers: [
+        {
+          id: "default",
+          name: "Default",
+          words: "Asks before edits and commands its settings don't allow.",
+        },
+        {
+          id: "acceptEdits",
+          name: "Accept edits",
+          words: "Edits files without asking. Commands still ask.",
+        },
+        {
+          id: "auto",
+          name: "Auto",
+          words: "Claude Code judges each step and asks only when one looks risky.",
+        },
+        {
+          id: "bypassPermissions",
+          name: "Bypass permissions",
+          words: "Never asks.",
+          everything: true,
+        },
+      ],
+    },
+  };
+  const offering = (over: Partial<PermissionsService> = {}) =>
+    service({
+      readOwnRules: async () => ({ own_rules: OFFERS, heard_at: new Date(NOW).toISOString() }),
+      keepsHarnessMode: true,
+      ...over,
+    });
+  const bypass = () =>
+    event("policy.updated", {
+      harness_id: KIT,
+      policy: {
+        autonomy: 1,
+        rules: [],
+        mode: {
+          id: "bypassPermissions",
+          name: "Bypass permissions",
+          back_to: "Default",
+          everything: true,
+          until: new Date(2026, 10, 18, 10, 41).toISOString(),
+          by: ARJUN,
+        },
+      },
+      workspace_max_autonomy: 3,
+      changed_by: ARJUN,
+    });
+
+  beforeEach(() => {
+    vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("offers the harness's modes, asks for how long, and puts it in the one picked", async () => {
+    const { said, calls } = offering();
+    render(
+      <HarnessSettings
+        model={room()}
+        directory={directory}
+        harnessId={KIT}
+        selfId={ARJUN}
+        service={said}
+      />,
+    );
+    await act(async () => undefined);
+    const radios = screen.getAllByRole("radio");
+    expect(radios.map((radio) => radio.querySelector("b")?.textContent)).toEqual([
+      "Default",
+      "Accept edits",
+      "Auto",
+      "Bypass permissions",
+    ]);
+    expect(screen.getByTestId("perms-mode-default").getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByTestId("perms-mode-foot").textContent).toBe(
+      "Chips starts each of its Claude Code sessions in this mode, and switches it back when the time is up. Your own Claude Code keeps its own mode.",
+    );
+
+    fireEvent.click(screen.getByTestId("perms-mode-auto"));
+    expect(screen.getByTestId("perms-mode-auto").getAttribute("aria-checked")).toBe("true");
+    expect(calls).toEqual([]);
+    expect(screen.getByTestId("perms-mode-use").textContent).toBe("Use Auto");
+    expect(screen.getByTestId("perms-mode-use").getAttribute("data-tone")).toBeNull();
+    fireEvent.click(screen.getByTestId("perms-mode-len-8h"));
+    fireEvent.click(screen.getByTestId("perms-mode-use"));
+    expect(calls).toEqual([
+      [
+        "mode",
+        {
+          harnessId: KIT,
+          mode: {
+            id: "auto",
+            name: "Auto",
+            backTo: "Default",
+            everything: false,
+            until: new Date(NOW + 8 * 3_600_000).toISOString(),
+          },
+        },
+      ],
+    ]);
+
+    // Bypass's Use is red; Cancel takes the tick back.
+    fireEvent.click(screen.getByTestId("perms-mode-bypassPermissions"));
+    expect(screen.getByTestId("perms-mode-use").getAttribute("data-tone")).toBe("danger");
+    fireEvent.click(screen.getByTestId("perms-mode-cancel"));
+    expect(screen.getByTestId("perms-mode-default").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("ticks a pick that holds, says when it goes back, and the mode it starts in puts it back at once", async () => {
+    const { said, calls } = offering();
+    render(
+      <HarnessSettings
+        model={room([bypass()])}
+        directory={directory}
+        harnessId={KIT}
+        selfId={ARJUN}
+        service={said}
+      />,
+    );
+    await act(async () => undefined);
+    expect(screen.getByTestId("perms-mode-bypassPermissions").getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(screen.getByTestId("perms-mode-back").textContent).toBe("Back to Default at 10:41 AM");
+    fireEvent.click(screen.getByTestId("perms-mode-default"));
+    expect(calls).toEqual([["mode", { harnessId: KIT, mode: null }]]);
+  });
+
+  it("shows the mode to a member without the choices, and the row as before where none is offered", async () => {
+    const member = {
+      ...room(),
+      people: {
+        [ARJUN]: {
+          participantId: ARJUN,
+          role: "member" as const,
+          displayName: "Arjun",
+          joinedAt: "2026-09-01",
+        },
+      },
+    };
+    const { said } = offering();
+    const { unmount } = render(
+      <HarnessSettings
+        model={member}
+        directory={directory}
+        harnessId={KIT}
+        selfId={ARJUN}
+        service={said}
+      />,
+    );
+    await act(async () => undefined);
+    expect((screen.getByTestId("perms-mode-auto") as HTMLButtonElement).disabled).toBe(true);
+    unmount();
+    const older = offering({ keepsHarnessMode: false });
+    render(
+      <HarnessSettings
+        model={room()}
+        directory={directory}
+        harnessId={KIT}
+        selfId={ARJUN}
+        service={older.said}
+      />,
+    );
+    await act(async () => undefined);
+    expect(screen.queryByTestId("perms-modes")).toBeNull();
+    expect(screen.getByTestId("perms-mode").textContent).toContain("Default");
+  });
+
+  it("wears yellow while Bypass holds: the main page's banner and the space's band, each with Back to Default", async () => {
+    const { said, calls } = offering();
+    const model = room([bypass()]);
+    const { unmount } = render(
+      <HarnessPermissions
+        model={model}
+        directory={directory}
+        harnessId={KIT}
+        selfId={ARJUN}
+        service={said}
+        onOpenSpace={() => undefined}
+        onOpenPart={() => undefined}
+      />,
+    );
+    await act(async () => undefined);
+    expect(screen.getByTestId("perms-open").textContent).toBe(
+      "Nothing asksBypass permissions · back to Default at 10:41 AMBack to Default",
+    );
+    fireEvent.click(screen.getByTestId("perms-open-back"));
+    unmount();
+    const space = model.spaces[0];
+    if (space === undefined) throw new Error("no room");
+    render(
+      <ModeBands
+        model={model}
+        space={space}
+        directory={directory}
+        now={NOW}
+        service={said}
+        mayChange
+      />,
+    );
+    expect(screen.getByTestId("mode-bands").textContent).toBe(
+      "Claude Code asks nothing until 10:41 AMBack to Default",
+    );
+    expect(screen.getByTestId("let-work-band").getAttribute("data-tone")).toBeNull();
+    fireEvent.click(screen.getByTestId("mode-band-back"));
+    expect(calls).toEqual([
+      ["mode", { harnessId: KIT, mode: null }],
+      ["mode", { harnessId: KIT, mode: null }],
+    ]);
   });
 });

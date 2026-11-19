@@ -5,7 +5,16 @@ import { ruleShape, writtenRuleRefusal } from "./written-rules.js";
 
 describe("what a harness runs on its own (ADR 0299)", () => {
   it("names the never-list commands a yes for a program lets through", () => {
-    expect(neverCovered(["git"])).toEqual(["git push", "git reset", "git clean"]);
+    expect(neverCovered(["git"])).toEqual([
+      "git push",
+      "git reset",
+      "git clean",
+      "git checkout",
+      "git restore",
+    ]);
+    // An entry of three words is covered by its first two (ADR 0300, addendum of 19 November).
+    expect(neverCovered(["gh", "repo"])).toEqual(["gh repo delete"]);
+    expect(neverCovered(["gh", "repo", "view"])).toEqual([]);
     expect(neverCovered(["find"])).toEqual([
       "find -exec",
       "find -execdir",

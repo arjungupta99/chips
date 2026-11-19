@@ -978,6 +978,7 @@ function PermissionsGroup(props: {
           label={PERMISSIONS_TITLE}
           sub={sub}
           value={row.value}
+          goldValue={row.gold === true}
           mark={{ icon: "unlock", ground: 3 }}
           onClick={props.onOpen}
           testId="agent-permissions"

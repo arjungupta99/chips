@@ -207,6 +207,9 @@ export class Settings {
    * mode it runs in, and each entry. Chips decides nothing from it; a person reads it on the
    * harness's Permissions page. Send it when connected and whenever the settings are read again;
    * a copy the same as the last is not sent again. An older Chips has no such page and refuses it.
+   * `modes` says which modes a person may pick for its sessions from Chips (ADR 0300, addendum of
+   * 19 November 2026), the one they start in, and the one they run in now; without it, Chips
+   * offers no picker. The pick reaches the harness as `chips.mode`.
    */
   ownRules(copy: OwnRules): Promise<unknown> {
     return this.send("own-rules", this.harnessId(), copy, {});

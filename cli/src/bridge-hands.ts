@@ -16,7 +16,9 @@ import {
   checksumsHere,
   noteJournal,
   packageSpec,
+  type RestartService,
   readJournal,
+  type ServiceFileOf,
   stagedHere,
   stageRelease,
   switchService,
@@ -33,7 +35,10 @@ export interface HandsDeps {
   /** The version of the Node the bridges' services run on. */
   readonly nodeVersion: string;
   readonly env: Readonly<Record<string, string | undefined>>;
-  readonly restart: (label: string) => Promise<boolean>;
+  /** Starts a kept service again; with `afresh`, from its file loaded again. */
+  readonly restart: RestartService;
+  /** The file keep wrote for a kept service, by its label (`bridgeServicePath`). */
+  readonly serviceFile?: ServiceFileOf | undefined;
   /**
    * How many times this login's service manager has started a kept service (`startsOf` in
    * `service.ts`); none where nothing says, as in a test that gives none.
@@ -163,6 +168,7 @@ export function bridgeHands(deps: HandsDeps): BridgeHands {
         version,
         trying,
         restart: deps.restart,
+        serviceFile: deps.serviceFile,
       }),
     note: async (pkg, change) => await noteJournal(deps.bridges, pkg, change),
     starts: async (label) => await deps.starts?.(label),

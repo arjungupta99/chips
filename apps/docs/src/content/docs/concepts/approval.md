@@ -94,10 +94,11 @@ harness is answered once:
 - *Let it work without asking*, a switch over the choices, sent as `scope: "once"` with
   `until_stopped: true`. It holds until somebody stops it.
 
-While either holds, everything the same agent asks in that space goes ahead without a card,
-decided by `system` the moment it arrives: commands Chips can't read part by part too, and ones
-that use `rm`, `sudo` or `git push`. An ask that matters (money, a message to someone outside,
-anything marked as not undoable) still waits for a person, and a rule a person set that says no
+While either holds, what the same agent asks in that space goes ahead without a card, decided by
+`system` the moment it arrives, commands Chips can't read part by part too. Two things still wait
+for a person: an ask that matters (money, a message to someone outside, anything marked as not
+undoable), and a command that deletes, acts as someone else, pushes or leaves the machine (`rm`,
+`sudo`, `git push`, `ssh`, a `curl` to anywhere but `localhost`). A rule a person set that says no
 still says it. Only a person gives one, and only as a yes, and never for an ask that matters.
 
 A person can also give the second one before anything has been asked, from the agent's own

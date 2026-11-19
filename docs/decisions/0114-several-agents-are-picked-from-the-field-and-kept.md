@@ -68,3 +68,10 @@ another room.
 - An @ still decides over a pick, as before.
 - Going from one agent to another alone is one tap on its name, as before ADR 0114. Several is a
   tap on each circle, then a tap to close.
+
+## Addendum, 18 November 2026: People is a pick too
+
+A pick may also be `people`: every person in the room when the message goes, and no agent, offered
+where the writer has two or more other people and an agent. It is kept for the room as Everyone is,
+and sent as the people's ids. See [ADR 0229](0229-a-slide-up-from-the-faces-picks-who-a-message-goes-to.md)'s
+addendum of 18 November 2026.

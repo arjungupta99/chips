@@ -30,9 +30,15 @@ import {
   LockHeld,
   type PackageSpec,
   packageSpec,
+  type RestartService,
   readRecord,
+  readService,
+  releaseNamed,
   runBridge,
+  type ServiceFileOf,
+  serviceOnLink,
   startedOnNow,
+  versionInUse,
   withLock,
   writeRecord,
 } from "../bridges.js";
@@ -57,8 +63,13 @@ export interface BridgeDeps {
   /** A line of JSON for each step, and nothing else on standard output. */
   readonly json?: boolean | undefined;
   readonly fetch?: typeof fetch | undefined;
-  /** Starts a kept service again (`launchctl kickstart -k`, `systemctl --user restart`). */
-  readonly restart?: ((label: string) => Promise<boolean>) | undefined;
+  /**
+   * Starts a kept service again (`launchctl kickstart -k`, `systemctl --user restart`), or with
+   * `afresh` loads its file again first.
+   */
+  readonly restart?: RestartService | undefined;
+  /** The file keep wrote for a kept service, by its label (`bridgeServicePath`). */
+  readonly serviceFile?: ServiceFileOf | undefined;
 }
 
 /** A bridge's step, said: a line of JSON with `--json`, else nothing (the bridge has its words). */
@@ -195,6 +206,7 @@ async function fetched(card: BridgeCard, deps: BridgeDeps): Promise<Fetched> {
     spec,
     bridges: deps.bridges,
     fetch: deps.fetch,
+    serviceFile: deps.serviceFile,
     onRelease: (version, reused) => {
       release = version;
       stepSaid(deps, { step: "downloading", package: spec.name, version, reused });
@@ -281,8 +293,19 @@ export async function connectBridge(
         ...record,
         kept: { ...record.kept, [card.id]: { label: service, args: card.args ?? [] } },
       });
-      startedOnNow(got.folder, [service]);
+      startedOnNow(got.folder, [service], deps.serviceFile);
     });
+    // A bridge whose keep names the release's own folder, not the link it was started through
+    // (every one before 19 November 2026), is put on the link and loaded again from it.
+    if (
+      serviceOnLink(deps.serviceFile?.(service), got.folder) &&
+      (await deps.restart?.(service, true)) !== true
+    ) {
+      return failed(
+        deps,
+        `${service} is kept, but didn't start again once its file named the bridge's link. \`chips connect --update\` starts it.`,
+      );
+    }
   }
   stepSaid(deps, { step: "connected" });
   return 0;
@@ -381,47 +404,79 @@ function keepWhatCardsSay(folder: string, cards: readonly Connector[]): void {
 /**
  * `chips connect --update`, which `install.sh` runs after an upgrade: each bridge a card keeps
  * running here brought to the newest release of the major its card names now, and each of its
- * services started again, on the Node the upgrade put in place.
+ * services started again, on the Node the upgrade put in place and the release the link names. A
+ * service whose file names a release's own folder is put on the link first, before a new release
+ * prunes that folder, and loaded again from it.
  */
 export async function updateBridges(deps: BridgeDeps): Promise<number> {
   let code = 0;
   for (const { folder, record } of bridgesHere(deps.bridges)) {
     const kept = Object.values(record.kept);
     if (kept.length === 0) continue;
-    const updated = await updateOne(record, deps);
-    const started = updated === "unnamed" ? true : await startedAgain(kept, deps);
-    if (updated !== "unnamed")
-      startedOnNow(
-        folder,
-        kept.map((each) => each.label),
+    const card = cardOf(record, deps);
+    if (card === undefined) {
+      deps.console.out(
+        `  ${record.package} ${record.version}: no card here names it now, so it stays as it is.`,
       );
-    if (updated === "failed" || !started) code = 1;
+      continue;
+    }
+    const afresh = new Set(
+      kept
+        .filter(({ label }) => serviceOnLink(deps.serviceFile?.(label), folder))
+        .map(({ label }) => label),
+    );
+    const updated = await updateOne(record, card, deps);
+    const started = await startedAgain(kept, afresh, deps);
+    startedOnNow(
+      folder,
+      kept.map((each) => each.label),
+      deps.serviceFile,
+    );
+    if (updated === "failed" || !started || !onTheLink(folder, kept, deps)) code = 1;
   }
   return code;
+}
+
+/** The card this Chips carries that names a kept bridge's package now, if any. */
+function cardOf(record: BridgeRecord, deps: BridgeDeps): BridgeCard | undefined {
+  const ids = Object.keys(record.kept);
+  return deps.cards
+    .filter(isBridgeCard)
+    .find((each) => ids.includes(each.id) && packageSpec(each.package)?.name === record.package);
+}
+
+/**
+ * Whether every kept service runs the release the link names; one whose file, somebody's own,
+ * still names a release of its own folder is said, since no update reaches it.
+ */
+function onTheLink(folder: string, kept: readonly KeptCard[], deps: BridgeDeps): boolean {
+  let all = true;
+  for (const { label } of kept) {
+    const service = deps.serviceFile?.(label);
+    const named = releaseNamed(readService(service), folder);
+    if (named === undefined || named === versionInUse(folder)) continue;
+    deps.console.err(
+      `  ${label} still runs ${named}: ${service} names that release's own folder, and Chips didn't write it, so it was left as it is.`,
+    );
+    all = false;
+  }
+  return all;
 }
 
 /** One bridge brought to the newest release of the major its card names now. */
 async function updateOne(
   record: BridgeRecord,
+  card: BridgeCard,
   deps: BridgeDeps,
-): Promise<"updated" | "unnamed" | "failed"> {
+): Promise<"updated" | "failed"> {
   const out = deps.console;
-  const ids = Object.keys(record.kept);
-  const card = deps.cards
-    .filter(isBridgeCard)
-    .find((each) => ids.includes(each.id) && packageSpec(each.package)?.name === record.package);
-  if (card === undefined) {
-    out.out(
-      `  ${record.package} ${record.version}: no card here names it now, so it stays as it is.`,
-    );
-    return "unnamed";
-  }
   try {
     const got = await fetchBridge({
       registry: deps.registry,
       spec: specOf(card),
       bridges: deps.bridges,
       fetch: deps.fetch,
+      serviceFile: deps.serviceFile,
     });
     out.out(
       got.reused
@@ -436,11 +491,18 @@ async function updateOne(
   }
 }
 
-/** Each service keep wrote for a bridge, started again; whether they all were. */
-async function startedAgain(kept: readonly KeptCard[], deps: BridgeDeps): Promise<boolean> {
+/**
+ * Each service keep wrote for a bridge, started again, those in `afresh` from their file loaded
+ * again; whether they all were.
+ */
+async function startedAgain(
+  kept: readonly KeptCard[],
+  afresh: ReadonlySet<string>,
+  deps: BridgeDeps,
+): Promise<boolean> {
   let all = true;
   for (const { label } of kept) {
-    if ((await deps.restart?.(label)) === true) {
+    if ((await deps.restart?.(label, afresh.has(label))) === true) {
       deps.console.out(`  ✓ Started ${label} again.`);
     } else {
       deps.console.err(

@@ -92,6 +92,7 @@ import {
   formatDuration,
   kindOf,
   parseCommand,
+  recentIn,
   routesIn,
 } from "@chipschat/core";
 import type { AttachmentCaps } from "@chipschat/protocol";
@@ -131,11 +132,13 @@ import {
   AddressList,
   AddressToken,
   choicesOf,
+  columnRoom,
   listRoom,
   messageWords,
   TOKEN,
 } from "./AddressInField";
 import { AttachSheet } from "./AttachSheet";
+import { columnOf, footOf } from "./columnChoices";
 import { FaceColumn, type FaceSlide, FaceSlideOn, FieldSlideOn, useFaceSlide } from "./FaceColumn";
 import { WIDTH as COLUMN_WIDTH } from "./faceColumnMath";
 import { FIELD, FIELD_FOOT } from "./fieldShape";
@@ -591,20 +594,41 @@ function useAddress(
 /**
  * The column of faces a finger slides up from the field's faces (ADR 0229): what it holds, which
  * is the field's list's choices, and the one under the finger, whose pick the field shows until it
- * lets go.
+ * lets go. In a room whose faces don't fit the column, it is a short column with All at its top
+ * (`columnOf`, ADR 0229's addendum of 18 November 2026), measured in the column's room (`columnRoom`).
  */
-function useUnderFinger(space: Space, directory: Directory, selfId: string) {
+function useUnderFinger(
+  space: Space,
+  directory: Directory,
+  selfId: string,
+  room: number | undefined,
+  finger: Finger,
+) {
   const choices = useMemo(() => choicesOf(space, directory, selfId), [space, directory, selfId]);
-  const [lit, setLit] = useState(-1);
-  return { choices, lit, setLit, peek: choices[lit]?.pick };
+  const recent = useMemo(() => recentIn(space, directory, selfId), [space, directory, selfId]);
+  const column = useMemo(() => columnOf(choices, recent, room), [choices, recent, room]);
+  return { column, ...finger };
 }
+
+/**
+ * The choice under the finger, as JavaScript hears it, and its pick: kept before the column is
+ * known, since the field says that pick while the finger is there and the column is measured in
+ * the room the field's list leaves. All is no pick, and the field says what it said.
+ */
+function useFinger() {
+  const [lit, setLit] = useState(-1);
+  const [peek, setPeek] = useState<AimPick | undefined>(undefined);
+  return { lit, setLit, peek, setPeek };
+}
+
+type Finger = ReturnType<typeof useFinger>;
 
 type UnderFinger = ReturnType<typeof useUnderFinger>;
 
 /**
- * The pans on the field's faces and on the rest of the field (ADR 0229): they slide while the list
- * is shut, tick for each face they come over, and pick the one they let go on, alone, as a tap on a
- * name in the list does.
+ * The pan on the field's faces and on the rest of the field (ADR 0229): it slides while the list
+ * is shut, ticks for each face it comes over, and picks the one it lets go on, alone, as a tap on a
+ * name in the list does. Letting go on All opens the list.
  */
 function useSlide(
   under: UnderFinger,
@@ -612,22 +636,29 @@ function useSlide(
     readonly aim: Aim | undefined;
     readonly listed: boolean;
     readonly choose: (pick: AimPick) => void;
+    readonly toggle: () => void;
   },
   room: number | undefined,
   measure: () => void,
 ) {
+  const groups = footOf(under.column);
   return useFaceSlide({
-    faces: under.choices.length - 1,
+    faces: under.column.length - groups,
+    groups: Math.max(0, groups - 1),
     room,
     enabled: SLIDES && address.aim !== undefined && !address.listed,
     onTouch: measure,
     onLit: (index) => {
+      const choice = under.column[index];
       under.setLit(index);
+      under.setPeek(choice === undefined || choice.more === true ? undefined : choice.pick);
       if (index >= 0) feel.tick();
     },
     onPick: (index) => {
-      const choice = under.choices[index];
-      if (choice !== undefined) address.choose(choice.pick);
+      const choice = under.column[index];
+      if (choice === undefined) return;
+      if (choice.more === true) address.toggle();
+      else address.choose(choice.pick);
     },
   });
 }
@@ -651,7 +682,7 @@ function ColumnOverField({
   return (
     <FaceColumn
       slide={slide}
-      choices={under.choices}
+      choices={under.column}
       directory={directory}
       lit={under.lit}
       left={(plus ? FIELD + SPACE.sm : 0) + (FIELD - TOKEN) / 2 + RISE_AT - COLUMN_WIDTH / 2}
@@ -659,23 +690,33 @@ function ColumnOverField({
   );
 }
 
+/** How tall the field's list may stand (`listRoom`), and the column of faces (`columnRoom`). */
+interface Room {
+  readonly list: number;
+  readonly column: number;
+}
+
 /**
  * How tall the list may stand while it is open (`listRoom`, ADR 0113): measured from where the
  * field's words are in the window when it opens, and again when the keys have come or gone, since
- * the room makes way for them and the field moves with it. The column of faces stands in the same
- * room (ADR 0229), and asks for a measure as a finger lands on the faces, before it rises.
+ * the room makes way for them and the field moves with it. The column of faces stands in nearly
+ * the same room (`columnRoom`, ADR 0229), and asks for a measure as a finger lands on the faces,
+ * before it rises.
  */
 function useListRoom(
   open: boolean,
   row: RefObject<View | null>,
   bar: number,
-): readonly [number | undefined, () => void] {
+): readonly [Room | undefined, () => void] {
   const window = useWindowDimensions().height;
-  const [room, setRoom] = useState<number | undefined>(undefined);
+  const [room, setRoom] = useState<Room | undefined>(undefined);
   const measure = useCallback(
     () =>
       row.current?.measureInWindow((_x, top, _width, height) => {
-        if (height > 0) setRoom(listRoom(window, { top, height }, bar));
+        if (height <= 0) return;
+        const list = listRoom(window, { top, height }, bar);
+        const column = columnRoom(window, { top, height }, bar);
+        setRoom((was) => (was?.list === list && was.column === column ? was : { list, column }));
       }),
     [row, bar, window],
   );
@@ -850,13 +891,15 @@ export function Composer({
   useDropStaging(files !== undefined, staged.add);
   const look = useLook();
   const reply = useReplying(space.id, input);
-  const under = useUnderFinger(space, directory, selfId);
-  const address = useAddress(space, directory, selfId, text, onAddressOpen, reply, under.peek);
+  const finger = useFinger();
+  const address = useAddress(space, directory, selfId, text, onAddressOpen, reply, finger.peek);
   const { aim, shown, listed } = address;
   const fieldRow = useRef<View>(null);
-  const [most, measureRoom] = useListRoom(listed, fieldRow, bar);
+  const [room, measureRoom] = useListRoom(listed, fieldRow, bar);
+  const most = room?.list;
+  const under = useUnderFinger(space, directory, selfId, room?.column, finger);
   const stack = useStacking(aim !== undefined);
-  const slide = useSlide(under, address, most, measureRoom);
+  const slide = useSlide(under, address, room?.column, measureRoom);
   const uploading = staged.staged.some((item) => item.status === "uploading");
   const ready = staged.staged.some((item) => item.status === "ready");
   const canSend = !disabled && !uploading && (text.trim() !== "" || ready);

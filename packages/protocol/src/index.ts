@@ -125,7 +125,6 @@ export {
   commandStarts,
   NEVER_STANDING,
   neverCovered,
-  neverForAWhile,
   neverStanding,
   standingOffer,
   startOf,
@@ -291,6 +290,7 @@ export {
   folderOpenFrame,
   folderRunFrame,
   folderRunStateFrame,
+  HARNESS_MODE,
   HARNESS_RULES,
   HELD_START,
   HELD_YES,
@@ -474,13 +474,23 @@ export {
   spaceNotifications,
   timeOfDay,
 } from "./notifications.js";
-export type { OwnEntry, OwnKind, OwnRules, OwnRulesRead } from "./own-rules.js";
+export type {
+  OwnEntry,
+  OwnKind,
+  OwnMode,
+  OwnModes,
+  OwnRules,
+  OwnRulesRead,
+} from "./own-rules.js";
 export {
   askLineFor,
   OWN_KINDS,
+  OWN_MODES_MAX,
   OWN_RULES_MAX,
   ownEntry,
   ownKind,
+  ownMode,
+  ownModes,
   ownRules,
   ownRulesRead,
 } from "./own-rules.js";
@@ -504,6 +514,7 @@ export {
   RELAY_PAIR_PATH,
   serverKey,
 } from "./pairing.js";
+export { askedForAWhile, NEVER_FOR_A_WHILE, neverForAWhile } from "./pause.js";
 export type {
   Action,
   Actor,
@@ -515,6 +526,7 @@ export type {
   ParticipantRef,
   Policy,
   PolicyHold,
+  PolicyMode,
   PolicyRule,
   Preview,
   RiskClass,
@@ -540,6 +552,7 @@ export {
   participantRef,
   policy,
   policyHold,
+  policyMode,
   policyRule,
   preview,
   riskClass,

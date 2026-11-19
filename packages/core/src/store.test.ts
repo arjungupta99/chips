@@ -625,6 +625,19 @@ describe("the store", () => {
     expect(h.snapshots.at(-1)?.keepsOwnRules).toBe(false);
   });
 
+  it("hears from each hello whether the server keeps a harness's mode (ADR 0300)", async () => {
+    const h = harness();
+    await started();
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsHarnessMode).toBeUndefined();
+    h.wire().onEvent({ type: "hello", spaces: [], server: { takes: ["harness_mode"] } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsHarnessMode).toBe(true);
+    h.wire().onEvent({ type: "hello", spaces: [], server: { takes: ["chips_rules"] } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsHarnessMode).toBe(false);
+  });
+
   it("hears the computer's version in each hello, so a tab can tell it was updated under it (everything in step)", async () => {
     const h = harness();
     await started();
@@ -1650,6 +1663,146 @@ describe("deciding, answering and turning the dial (M1.4)", () => {
     expect(h.sent.at(-1)).toMatchObject({ policy: { hold: {} } });
     h.store.resumeHarness("hrn_1");
     expect(h.sent.at(-1)).toMatchObject({ policy: { autonomy: 2, rules, hold: null } });
+    h.flush();
+    expect(h.store.getSnapshot().busy.has("hrn_1")).toBe(true);
+  });
+
+  describe("a Chips's rules switch never set (ADR 0300; permissions review of 19 November 2026, B6)", () => {
+    const rule = { match: "shell.exec", decision: "allow" };
+    const everywhere = (seq: number, policy: Record<string, unknown>) =>
+      event(seq, {
+        type: "policy.updated",
+        actor: { kind: "person", id: "usr_1" },
+        harness_id: "hrn_1",
+        space_id: undefined,
+        workspace_max_autonomy: 3,
+        changed_by: "usr_1",
+        policy,
+      });
+
+    it("is sent as it reads with the first change to the harness's rules or hold", async () => {
+      // One rule and no switch: it reads on, and would read off as the rule went.
+      const h = harness({ cached: [OPENED, everywhere(2, { autonomy: 1, rules: [rule] })] });
+      await started();
+      h.store.setRules({ harnessId: "hrn_1", rules: [] });
+      expect(h.sent.at(-1)).toMatchObject({
+        type: "policy.updated",
+        policy: { autonomy: 1, rules: [], chips_rules: true },
+      });
+      h.store.snoozeHarness("hrn_1", {});
+      expect(h.sent.at(-1)).toMatchObject({ policy: { hold: {}, chips_rules: true } });
+      h.store.resumeHarness("hrn_1");
+      expect(h.sent.at(-1)).toMatchObject({ policy: { hold: null, chips_rules: true } });
+    });
+
+    it("goes to the everywhere row first when the change is to one space's rules", async () => {
+      const h = harness({ cached: [OPENED, everywhere(2, { autonomy: 1, rules: [rule] })] });
+      await started();
+      const before = h.sent.length;
+      h.store.setRules({ harnessId: "hrn_1", spaceId: "spc_1", rules: [] });
+      expect(h.sent.slice(before)).toMatchObject([
+        {
+          type: "policy.updated",
+          harness_id: "hrn_1",
+          policy: { autonomy: 1, rules: [rule], chips_rules: true },
+        },
+        { type: "policy.updated", space_id: "spc_1", harness_id: "hrn_1", policy: { rules: [] } },
+      ]);
+      expect(h.sent.at(-2)).not.toHaveProperty("space_id");
+      expect(h.sent.at(-1)).not.toHaveProperty("policy.chips_rules");
+    });
+
+    it("is not sent ahead of a space's change when nothing was ever set everywhere", async () => {
+      // Only a space's own row: the level the model shows everywhere is a stand-in, and sending
+      // it would set a level nobody chose.
+      const spaceRow = event(2, {
+        type: "policy.updated",
+        actor: { kind: "person", id: "usr_1" },
+        harness_id: "hrn_1",
+        workspace_max_autonomy: 3,
+        changed_by: "usr_1",
+        policy: { autonomy: 1, rules: [rule] },
+      });
+      const h = harness({ cached: [OPENED, spaceRow] });
+      await started();
+      const before = h.sent.length;
+      h.store.setRules({ harnessId: "hrn_1", spaceId: "spc_1", rules: [] });
+      expect(h.sent.slice(before)).toHaveLength(1);
+      expect(h.sent.at(-1)).toMatchObject({
+        space_id: "spc_1",
+        policy: { autonomy: 1, rules: [] },
+      });
+      expect(h.sent.at(-1)).not.toHaveProperty("policy.chips_rules");
+    });
+
+    it("is sent as off for a harness with nothing of Chips's, so a change can't turn it on either", async () => {
+      const h = harness({ cached: [OPENED, everywhere(2, { autonomy: 1, rules: [] })] });
+      await started();
+      h.store.setRules({ harnessId: "hrn_1", rules: [rule] });
+      expect(h.sent.at(-1)).toMatchObject({ policy: { rules: [rule], chips_rules: false } });
+    });
+
+    it("is left out once a person has set it, on or off", async () => {
+      for (const set of [true, false]) {
+        const h = harness({
+          cached: [OPENED, everywhere(2, { autonomy: 1, rules: [rule], chips_rules: set })],
+        });
+        await started();
+        const before = h.sent.length;
+        h.store.setRules({ harnessId: "hrn_1", rules: [] });
+        h.store.setRules({ harnessId: "hrn_1", spaceId: "spc_1", rules: [] });
+        h.store.resumeHarness("hrn_1");
+        const sent = h.sent.slice(before);
+        expect(sent).toHaveLength(3);
+        for (const each of sent) expect(each).not.toHaveProperty("policy.chips_rules");
+      }
+    });
+  });
+
+  it("puts a harness in a mode, its level and rules as they are, and back (ADR 0300)", async () => {
+    const rules = [{ match: "*", when: { starts_with: ["ls"] }, decision: "allow" as const }];
+    const h = harness({
+      cached: [
+        OPENED,
+        event(2, {
+          type: "policy.updated",
+          actor: { kind: "person", id: "usr_1" },
+          harness_id: "hrn_1",
+          space_id: undefined,
+          workspace_max_autonomy: 3,
+          changed_by: "usr_1",
+          policy: { autonomy: 2, rules },
+        }),
+      ],
+    });
+    await started();
+    h.store.setMode("hrn_1", {
+      id: "bypassPermissions",
+      name: "Bypass permissions",
+      backTo: "Default",
+      everything: true,
+      until: "2026-11-18T18:41:00.000Z",
+    });
+    expect(h.sent.at(-1)).toMatchObject({
+      type: "policy.updated",
+      harness_id: "hrn_1",
+      policy: {
+        autonomy: 2,
+        rules,
+        mode: {
+          id: "bypassPermissions",
+          name: "Bypass permissions",
+          back_to: "Default",
+          everything: true,
+          until: "2026-11-18T18:41:00.000Z",
+        },
+      },
+    });
+    expect(h.sent.at(-1)).not.toHaveProperty("space_id");
+    h.store.setMode("hrn_1", { id: "auto" });
+    expect((h.sent.at(-1) as { policy: { mode: unknown } }).policy.mode).toEqual({ id: "auto" });
+    h.store.setMode("hrn_1", null);
+    expect(h.sent.at(-1)).toMatchObject({ policy: { autonomy: 2, rules, mode: null } });
     h.flush();
     expect(h.store.getSnapshot().busy.has("hrn_1")).toBe(true);
   });

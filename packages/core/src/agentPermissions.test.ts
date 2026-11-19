@@ -29,8 +29,19 @@ const started = fixture("approval.held_started", 2, {
   asker: AGENT,
   started_by: ME,
 });
+/** The harness's Chips's rules switch, on its everywhere row (ADR 0300). */
+const rules = (seq: number, on: boolean) =>
+  fixture("policy.updated", seq, {
+    space_id: undefined,
+    harness_id: HARNESS,
+    policy: { autonomy: 1, rules: [], chips_rules: on },
+  });
 const asking = buildModel([created]);
-const working = buildModel([created, started]);
+// A yes holds on only while the harness's Chips's rules are on, so they are.
+const working = buildModel([created, rules(2, true), started]);
+/** The same yes still in the log, with the rules turned off after it, and with none ever set. */
+const leftOver = buildModel([created, rules(2, true), started, rules(3, false)]);
+const neverSet = buildModel([created, started]);
 const since = started.ts as string;
 const NOW = Date.parse(since) + 60_000;
 const page = (
@@ -55,6 +66,17 @@ describe("an agent's Permissions page (ADR 0286)", () => {
     expect(view.headline).toMatch(/^Jiro is working without asking in /);
     expect(view.sub).toContain("Until you stop it");
     expect(view.mayStop).toBe(true);
+  });
+
+  it("says it asks while its harness's Chips's rules are off, whatever yes is left in the log (ADR 0300)", () => {
+    for (const model of [leftOver, neverSet]) {
+      expect(model.spaces[0]?.letWork).toHaveLength(1);
+      const view = page(model);
+      expect(view.held).toBeUndefined();
+      expect(view.headline).toBe("Jiro decides when to ask. You decide the answer.");
+      expect(view.mayStop).toBe(false);
+      expect(view.banner.closed).toBeUndefined();
+    }
   });
 
   it("has nothing to say about a space it isn't in", () => {
@@ -99,6 +121,18 @@ describe("the row on the agent's page", () => {
     });
   });
 
+  it("has no Working without asking row while the harness's Chips's rules are off (ADR 0300)", () => {
+    const closed = { choices: {}, closed: [{ spaceId: SPACE, asker: AGENT, since }] };
+    for (const model of [leftOver, neverSet]) {
+      expect(permissionsRow(input(model), AGENT, NOW)).toEqual({
+        value: "Asks you",
+        working: false,
+        sub: undefined,
+      });
+      expect(permissionsRow(input(model, closed), AGENT, NOW).sub).toBeUndefined();
+    }
+  });
+
   it("gives the hour's end instead when a yes has one", () => {
     const hour = fixture("approval.request", 2, { space_id: SPACE, approval_id: "apr_1" });
     const yes = fixture("approval.resolved", 3, {
@@ -106,7 +140,7 @@ describe("the row on the agent's page", () => {
       approval_id: "apr_1",
       for_minutes: 60,
     });
-    const model = buildModel([created, hour, yes]);
+    const model = buildModel([created, rules(2, true), hour, yes]);
     const asker = model.spaces[0]?.letWork?.[0]?.asker as string;
     const here: Directory = {
       ...directory,

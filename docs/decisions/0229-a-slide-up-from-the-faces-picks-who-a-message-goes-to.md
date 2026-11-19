@@ -153,3 +153,38 @@ selector. Right now it only comes up when we drag up on the agent selector butto
   and puts it away (`FaceColumn.tsx`, `FieldSlideOn`).
 - The Mac and the web are unchanged: a press and a drag in the words there selects them, and the
   faces take the movement from the mouse.
+
+## Addendum, 18 November 2026: People, and a crowded room
+
+Arjun: "I need two more options for the selector: 1. where there are 2 or more other people in the
+room with agents. Then there should be another icon to message only the people in the room 2. I
+want to see how the selector will look if there were too many people in the room, say 50? How will
+we handle that? show mocks first". From the mock (https://claude.ai/artifact/Bo8gbxGMxVosHkTM92CrEX,
+`chips-notes/mocks/selector-people-crowd/`): "Build 1A and 2A".
+
+- **People, his 1A.** Where the writer has two or more other people and at least one agent (core's
+  `offersPeople`), the column and the list have one more choice, People, standing over Everyone at
+  the foot: the two groups nearest the thumb, the single faces above them in the order they had.
+  Its mark is Everyone's tile cut from the people's colours, but round, as a person's face is.
+  Its tag and row say who reads it and "no agent answers". It is a pick of its own, `people`
+  (`AimPick`), kept for the room like the others: it goes as every person's id in `to` when the
+  message is sent, so whoever is here then has it and the server is unchanged, and the field says
+  People. One person left is that one by name, none is no pick, and an @ still decides. In the list,
+  under People, the people's circles are filled, and a circle tapped adds to them or takes out as a
+  list. The phone, the iPad, the web and the Mac have it.
+- **A short column in a crowded room, his 2A.** Where the faces don't fit the column, it no longer
+  scrolls. It holds, from the top: All N, the lead, then whoever the writer has been talking with
+  here, the latest first (core's `recentIn`: whom their own messages went to by name, and who else
+  wrote), then the room's own order, as many as fit, standing in the list's order; then People and
+  Everyone. Letting go on All opens the field's list. A room whose faces all fit keeps the whole
+  column, as before. With the keys up there is less room, so the short column is shorter
+  (`columnChoices.ts`). The name's 60 points (`CROWN`) now count against the room's bar only, as
+  point 4 and the name's note say, not against half the window too (`columnRoom`): with People's
+  slot, a room of five faces fell 3 points short on an iPhone 17 Pro and lost two faces to All. Before, a room of fifty had the lead about four seconds of holding away.
+- **The list searches a crowded room.** With more than twelve faces the list has a search line over
+  its rows, which stand under Agents and People; People and Everyone stay at its foot whatever is
+  searched. On the web and the Mac a letter typed on a row goes to the search line, the down arrow
+  goes back to the rows, and Enter there picks the first found.
+- Not chosen: People heading the people's part of the column (1B), a reach mid-column that scrolls
+  away in a crowded room; and a grid of every face (2B), smaller faces under a thumb that covers
+  them, which scrolled again with the keys up.

@@ -50,6 +50,63 @@ export type OwnEntry = z.infer<typeof ownEntry>;
 
 const entries = z.array(ownEntry).max(OWN_RULES_MAX);
 
+/** The most modes a harness offers. */
+export const OWN_MODES_MAX = 12;
+
+export const ownMode = z
+  .object({
+    id: z
+      .string()
+      .min(1)
+      .max(80)
+      .describe(
+        "The mode as the harness names it on the wire, what `policy.mode.id` carries: `auto`.",
+      ),
+    name: z
+      .string()
+      .min(1)
+      .max(80)
+      .describe("Its name, as the harness's own picker says it: `Auto`."),
+    words: z
+      .string()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe("What it does, in a plain line, for the row under its name."),
+    everything: z
+      .boolean()
+      .optional()
+      .describe(
+        "In it the harness never asks: Claude Code's Bypass permissions, Codex's Full access.",
+      ),
+  })
+  .describe("One mode a harness offers to run its sessions in (ADR 0300, 19 November addendum).");
+export type OwnMode = z.infer<typeof ownMode>;
+
+export const ownModes = z
+  .object({
+    base: z
+      .string()
+      .min(1)
+      .max(80)
+      .describe("The mode its sessions start in, and go back to when a picked mode's time is up."),
+    running: z
+      .string()
+      .min(1)
+      .max(80)
+      .optional()
+      .describe(
+        "The mode its sessions run in now, which can differ from the one picked: Claude Code runs Auto as Accept edits on a model that can't use it.",
+      ),
+    offers: z
+      .array(ownMode)
+      .min(1)
+      .max(OWN_MODES_MAX)
+      .describe("Each mode it offers, in its order."),
+  })
+  .describe("The modes a harness offers, and the one it starts in.");
+export type OwnModes = z.infer<typeof ownModes>;
+
 export const ownRules = z
   .object({
     read_from: z
@@ -75,6 +132,11 @@ export const ownRules = z
       .boolean()
       .optional()
       .describe("It runs everything without asking, so nothing it does reaches Chips as an ask."),
+    modes: ownModes
+      .optional()
+      .describe(
+        "The modes a person may put its sessions in from Chips (`policy.mode`), and the one they start in. Absent: it can't be switched from Chips.",
+      ),
     runs: entries.describe("What it runs without asking."),
     asks: entries.optional().describe("What it always asks about, whatever else it lets through."),
     refuses: entries.optional().describe("What it never does."),

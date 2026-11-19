@@ -57,6 +57,8 @@ export function fakeStore(snapshot: Snapshot): Store & {
     resumeHarness: record("resumeHarness"),
     setChipsRules: (harnessId: string, on: boolean) =>
       calls.push({ name: "setChipsRules", args: { harnessId, on } }),
+    setMode: (harnessId: string, mode: unknown) =>
+      calls.push({ name: "setMode", args: { harnessId, mode } }),
     setWorkspaceRules: record("setWorkspaceRules"),
     readOwnRules: async () => ({ own_rules: null, heard_at: null }),
     send: record("send"),
@@ -389,6 +391,11 @@ export function snapshot(
     readonly busy?: ReadonlySet<string>;
     readonly connection?: Snapshot["connection"];
     readonly members?: readonly string[];
+    /**
+     * Scout's Chips's rules switch (ADR 0300): absent, never set, which reads off for a harness
+     * with nothing of Chips's. A yes that holds on is drawn only while it is on.
+     */
+    readonly chipsRules?: boolean;
   } = {},
 ): Snapshot {
   return {
@@ -406,6 +413,20 @@ export function snapshot(
     model: {
       needsYou: over.needsYou ?? [needsItem()],
       lanes: [],
+      harnesses:
+        over.chipsRules === undefined
+          ? {}
+          : {
+              har_scout: {
+                harnessId: "har_scout",
+                autonomy: 1,
+                maxAutonomy: 2,
+                rules: [],
+                bySpace: {},
+                spentUsd: 0,
+                chipsRules: over.chipsRules,
+              },
+            },
       spaces: [
         {
           id: "sp_1",

@@ -8,7 +8,7 @@
 
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import type { SignedAttachment } from "@chipschat/protocol";
+import type { PolicyMode, SignedAttachment } from "@chipschat/protocol";
 import {
   type AnyEvent,
   type ContextBudget,
@@ -23,6 +23,7 @@ import { type AskedListing, Asks, type ClaimedSpace, firstWords, type SpaceAsked
 import { type ChipsEvents, type ConnectionState, Emitter, type Handler } from "./events.js";
 import { download, type Uploaded, type UploadInput, upload } from "./files.js";
 import type { LaneWire } from "./lane.js";
+import { ModeWatch } from "./mode.js";
 import { type Ack, createOutbox, RefusedError } from "./outbox.js";
 import { Project, type ProjectOptions } from "./project.js";
 import { type PlannedStep, Run } from "./run.js";
@@ -272,6 +273,11 @@ export class Chips {
   private since: number | undefined;
   private connectionState: ConnectionState = "connecting";
   private helloEvent: Hello | undefined;
+  /** The mode a person picked for this harness's sessions (Chips ADR 0300), said as it changes. */
+  private readonly modes = new ModeWatch({
+    now: () => Date.now(),
+    changed: (mode) => this.emitter.emit("mode", mode),
+  });
   /** What this harness last said is wrong on its side, said again whenever it reconnects. */
   private trouble: string | undefined;
   /**
@@ -480,6 +486,17 @@ export class Chips {
 
   get policy(): Hello["policy"] {
     return this.hello.policy;
+  }
+
+  /**
+   * The mode a person picked in Chips for this harness's sessions (Chips ADR 0300, addendum of 19
+   * November 2026), while it holds: one of the modes the harness offers in its own rules
+   * (`settings.ownRules`, `modes`). Nothing while none is picked, or once its `until` has passed.
+   * Put each session in it where the agent offers it, else in the mode it starts in; the `mode`
+   * event says when it changes, its end included.
+   */
+  get mode(): PolicyMode | undefined {
+    return this.modes.current;
   }
 
   /** The highest `seq` heard, to persist for `since` on the next start. */
@@ -883,6 +900,7 @@ export class Chips {
   close(): void {
     this.closed = true;
     clearTimeout(this.timer);
+    this.modes.stop();
     // What was unanswered is kept for the next start before the outbox lets it go.
     clearTimeout(this.saving);
     this.saving = undefined;
@@ -1035,6 +1053,7 @@ export class Chips {
   private onHello(socket: SocketLike, hello: Hello): void {
     this.helloEvent = hello;
     this.emitter.emit("hello", hello);
+    this.modes.fromHello(hello.policy);
     // After a restart, from just before the first message still to be heard again.
     const again = this.replay?.again;
     const from = again !== undefined && again.size > 0 ? Math.min(...again) - 1 : this.since;
@@ -1183,6 +1202,7 @@ export class Chips {
       this.save();
     }
     this.settleWaiters(event);
+    this.modes.heard(event, this.me()?.harness_id);
     this.emitter.emit("event", event as unknown as AnyEvent);
     this.routeToRuns(event);
     // After the run has heard it: a stopped run is let go.

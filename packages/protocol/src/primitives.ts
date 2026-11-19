@@ -327,6 +327,56 @@ export const policyHold = z
   .describe("A harness's asks turned off: Chips says yes for it until `until`.");
 export type PolicyHold = z.infer<typeof policyHold>;
 
+/**
+ * The mode a person put a harness's sessions in from Chips (ADR 0300, addendum of 19 November
+ * 2026): one of the modes the harness offers (`own_rules.modes`), for a while or until a person
+ * changes it. The harness puts its sessions back in the mode it starts in once `until` has passed.
+ */
+export const policyMode = z
+  .object({
+    id: z
+      .string()
+      .min(1)
+      .max(80)
+      .describe("The mode as the harness names it on the wire: `auto`, `bypassPermissions`."),
+    name: z
+      .string()
+      .min(1)
+      .max(80)
+      .optional()
+      .describe(
+        "Its name as the harness offered it (`own_rules.modes`), for the record: `Auto`. Sent by the person's client.",
+      ),
+    back_to: z
+      .string()
+      .min(1)
+      .max(80)
+      .optional()
+      .describe(
+        "The name of the mode its sessions go back to, as the harness offered it: `Default`. Sent by the person's client.",
+      ),
+    everything: z
+      .boolean()
+      .optional()
+      .describe(
+        "In it the harness never asks, as it said when it offered it: the apps wear yellow while it holds. Sent by the person's client.",
+      ),
+    until: isoTimestamp
+      .optional()
+      .describe(
+        "When its sessions go back to the mode they start in. Absent: when a person changes it.",
+      ),
+    by: z
+      .string()
+      .min(1)
+      .max(120)
+      .optional()
+      .describe("Who picked it. Filled in by Chips from the credential that sent it."),
+    at: isoTimestamp.optional().describe("When it was picked. Filled in by Chips."),
+  })
+  .describe("The mode a person picked for a harness's sessions, and until when.");
+export type PolicyMode = z.infer<typeof policyMode>;
+
 export const policy = z
   .object({
     autonomy: autonomyLevel,
@@ -345,6 +395,12 @@ export const policy = z
       .optional()
       .describe(
         "Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one.",
+      ),
+    mode: policyMode
+      .nullable()
+      .optional()
+      .describe(
+        "The mode a person put its sessions in (ADR 0300, 19 November addendum), for every space: kept only with no `space_id`. `null` puts them back in the mode they start in; absent leaves it as it was.",
       ),
   })
   .describe("A harness's autonomy level and the rules that fill in the details.");

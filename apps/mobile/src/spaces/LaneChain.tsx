@@ -230,6 +230,7 @@ export function Faces({
   size = "sm",
   ground,
   everyone = false,
+  people = false,
   counted = true,
 }: {
   readonly step: Step;
@@ -239,6 +240,11 @@ export function Faces({
   /** The faces are Everyone in the room, which is the mark from two (`marked`). */
   readonly everyone?: boolean | undefined;
   /**
+   * The faces are every person in the room and no agent (ADR 0229's addendum of 18 November 2026):
+   * the mark from two, as Everyone's is, but round, as a person's face is.
+   */
+  readonly people?: boolean | undefined;
+  /**
    * A mark says how many beside it, except as a choice: there the words say who, and the number
    * pushed the mark off the line the other choices' faces stand on (Arjun, 6 November 2026).
    */
@@ -247,7 +253,9 @@ export function Faces({
   const palette = usePalette();
   const hops: readonly Hop[] = isGroup(step) ? step : [step];
   const ring = ground ?? palette.bg;
-  if (marked(hops.length, everyone)) return <Mark hops={hops} size={size} counted={counted} />;
+  if (marked(hops.length, everyone || people)) {
+    return <Mark hops={hops} size={size} counted={counted} round={people} />;
+  }
   return (
     <View style={styles.faces}>
       {hops.map((hop, index) => (
@@ -322,10 +330,13 @@ function Mark({
   hops,
   size,
   counted,
+  round = false,
 }: {
   readonly hops: readonly Hop[];
   readonly size: AvatarSize;
   readonly counted: boolean;
+  /** People's mark: a circle, where a mark with an agent in it is a face's square. */
+  readonly round?: boolean | undefined;
 }) {
   const palette = usePalette();
   const side = avatarSide(size);
@@ -341,7 +352,7 @@ function Mark({
         style={{
           width: side,
           height: side,
-          borderRadius: avatarCorner(size, "agent"),
+          borderRadius: round ? side / 2 : avatarCorner(size, "agent"),
           overflow: "hidden",
         }}
       >

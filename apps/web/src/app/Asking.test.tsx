@@ -123,6 +123,7 @@ function service(sent: SetRulesInput[]): PermissionsService {
     snoozeHarness: () => undefined,
     resumeHarness: () => undefined,
     setChipsRules: () => undefined,
+    setMode: () => undefined,
     setWorkspaceRules: () => undefined,
     readOwnRules: async () => ({ own_rules: null, heard_at: null }),
   };
@@ -354,6 +355,8 @@ describe("the ask card (ADR 0195)", () => {
     harnessId: string | undefined = KIT,
     role: WorkspaceRole | undefined = undefined,
     keepsHeldYes: boolean | undefined = undefined,
+    /** The asking harness's Chips's rules (ADR 0300): on unless a test turns them off. */
+    chipsOn: boolean | undefined = undefined,
   ) {
     const decided: DecisionInput[] = [];
     render(
@@ -381,11 +384,59 @@ describe("the ask card (ADR 0195)", () => {
         onDecide={(_, input) => decided.push(input)}
         workspaceRole={role}
         keepsHeldYes={keepsHeldYes}
+        chipsOn={chipsOn}
         spaceName="Bakery"
       />,
     );
     return decided;
   }
+
+  describe("while the harness's Chips's rules are off (ADR 0300)", () => {
+    const off = (over: Partial<Approval>, role: WorkspaceRole = "owner") =>
+      card(over, KIT, role, undefined, false);
+
+    it("says why a command Chips can't read has no Always, since one it reads has one", () => {
+      for (const [command, why] of [
+        [
+          "for r in a; do ls; done",
+          "This command does more than Chips can read, so there is no Always for it.",
+        ],
+        ["ls && rm -rf build", "There is no Always for asks that use rm."],
+      ] as const) {
+        off({ actionKind: "acp.execute", risk: [], input: { command } });
+        expect(screen.getByTestId("once-only").textContent, command).toBe(why);
+        expect(screen.queryByTestId("let-work-switch"), command).toBeNull();
+        expect(screen.queryByText("For an hour"), command).toBeNull();
+        expect(screen.queryByText("Always"), command).toBeNull();
+        cleanup();
+      }
+      off({ actionKind: "acp.execute", risk: [], input: { command: "git status" } });
+      expect(screen.getByText("Always")).toBeTruthy();
+      expect(screen.queryByTestId("once-only")).toBeNull();
+    });
+
+    it("still says an ask that matters is answered each time", () => {
+      off({ matters: true });
+      expect(screen.getByTestId("once-only").textContent).toBe(
+        "You answer asks like this each time, so there is no Always.",
+      );
+    });
+
+    it("asks an owner no space for an Always the harness keeps, and sends none", () => {
+      const decided = off({ actionKind: "file.edit", risk: [] });
+      fireEvent.click(screen.getByLabelText("Always"));
+      expect(screen.getByTestId("harness-keeps").textContent).toBe(
+        "Kit keeps this and won't ask about it again.",
+      );
+      expect(screen.queryByLabelText("In every space")).toBeNull();
+      expect(screen.queryByLabelText("In this space")).toBeNull();
+      expect(screen.queryByTestId("standing")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Approve always" }));
+      expect(decided).toEqual([{ decision: "approved", scope: "always" }]);
+      // What was given names no space: the harness keeps it its own way.
+      expect(screen.getByRole("button", { name: "Always" }).dataset["answered"]).toBe("true");
+    });
+  });
 
   it("offers neither the switch nor the hour to a server that wouldn't keep them (ADR 0281)", () => {
     const decided = card(
@@ -471,6 +522,27 @@ describe("the ask card (ADR 0195)", () => {
     expect(screen.getByRole("button", { name: "Always, in Bakery" })).toBeTruthy();
   });
 
+  it("offers a command's Always for the harness to keep while its Chips's rules are off (ADR 0300)", () => {
+    const decided = card(
+      { actionKind: "acp.execute", risk: [], input: { command: "git status" } },
+      KIT,
+      "owner",
+      undefined,
+      false,
+    );
+    expect(screen.queryByText("For an hour")).toBeNull();
+    expect(screen.queryByTestId("let-work-switch")).toBeNull();
+    fireEvent.click(screen.getByLabelText("Always"));
+    expect(screen.getByTestId("harness-keeps").textContent).toBe(
+      "Kit keeps this and won't ask about it again.",
+    );
+    expect(screen.queryByLabelText("In this space")).toBeNull();
+    expect(document.querySelector("[data-lit=true]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Approve always" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "always" }]);
+    expect(screen.getByRole("button", { name: "Always" }).dataset["answered"]).toBe("true");
+  });
+
   it("keeps a member's Always to this space, and draws the hour For an hour gives", () => {
     const decided = card(
       { actionKind: "acp.execute", risk: [], input: { command: "git status" } },
@@ -487,7 +559,7 @@ describe("the ask card (ADR 0195)", () => {
       /^Now, \d{1,2}:\d\d [AP]MUntil \d{1,2}:\d\d [AP]M$/,
     );
     expect(screen.getByTestId("for-a-while").textContent).toBe(
-      "Everything Kit asks in this space goes ahead without a card for the hour, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+      "Kit's asks in this space go ahead without a card for the hour. Commands like rm and git push still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Approve for an hour" }));
     expect(decided).toEqual([{ decision: "approved", scope: "once", forMinutes: 60 }]);
@@ -532,7 +604,7 @@ describe("the ask card (ADR 0195)", () => {
     expect(screen.queryByLabelText("For an hour")).toBeNull();
     expect(screen.queryByTestId("once-only")).toBeNull();
     expect(screen.getByTestId("until-stopped").textContent).toBe(
-      "Everything Kit asks here goes ahead without a card until you stop it, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+      "Kit's asks here go ahead without a card until you stop it. Commands like rm and git push still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Approve and let it work" }));
     expect(decided).toEqual([{ decision: "approved", scope: "once", untilStopped: true }]);

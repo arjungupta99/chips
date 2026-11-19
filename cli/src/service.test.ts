@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasSessionIn,
   LABEL,
   launchdPlist,
   mayFail,
+  reloadCommands,
+  reloadService,
   restartCommand,
   serviceEnvironment,
   serviceHere,
@@ -27,6 +30,32 @@ const spec = {
 };
 
 describe("the login service", () => {
+  it("has a session to start in unless the check says it has none, or fails saying nothing", () => {
+    expect(hasSessionIn("systemd", { ok: true, output: "HOME=/home/ada\nLANG=C.UTF-8\n" })).toBe(
+      true,
+    );
+    expect(hasSessionIn("launchd", { ok: true, output: "gui/501 = {\n" })).toBe(true);
+    // No user manager to talk to: under su, in a container with systemd installed, on WSL without it.
+    for (const output of [
+      "Failed to connect to bus: No medium found",
+      "Failed to connect to user scope bus via local transport: $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined",
+      "System has not been booted with systemd as init system (PID 1). Can't operate.\nFailed to connect to bus: Host is down",
+    ]) {
+      expect(hasSessionIn("systemd", { ok: false, output })).toBe(false);
+    }
+    expect(
+      hasSessionIn("launchd", {
+        ok: false,
+        output: "Bad request.\nCould not find domain for user gui: 501",
+      }),
+    ).toBe(false);
+    // No systemctl at all, as in a bare Ubuntu container: the run fails and prints nothing.
+    expect(hasSessionIn("systemd", { ok: false, output: "" })).toBe(false);
+    expect(hasSessionIn("systemd", { ok: false, output: "\n" })).toBe(false);
+    // Some other failure is left for the start to say.
+    expect(hasSessionIn("systemd", { ok: false, output: "Access denied" })).toBe(true);
+  });
+
   it("is a launch agent on a Mac, a user unit on Linux, and nothing elsewhere", () => {
     expect(serviceKind("darwin")).toBe("launchd");
     expect(serviceKind("linux")).toBe("systemd");
@@ -130,6 +159,63 @@ describe("the login service", () => {
     ]);
     expect(stopCommands("systemd", 1000)).toEqual([
       ["systemctl", "--user", "disable", "--now", "chips.service"],
+    ]);
+  });
+
+  it("loads a bridge's service again from its file, waiting while launchd lets the old copy go", async () => {
+    const path = "/Users/ada/Library/LaunchAgents/chat.chips.opencode.plist";
+    const ran: string[] = [];
+    let refusals = 2;
+    const run = async (command: readonly string[]) => {
+      ran.push(command.join(" "));
+      // Not loaded yet: unloading fails, which is fine. Loading fails while the old copy goes.
+      if (command[1] === "bootout") return { ok: false };
+      if (command[1] === "bootstrap" && refusals > 0) {
+        refusals -= 1;
+        return { ok: false };
+      }
+      return { ok: true };
+    };
+    const input = { kind: "launchd" as const, label: "chat.chips.opencode", path, uid: 501 };
+    expect(await reloadService(input, run, 0)).toBe(true);
+    expect(ran).toEqual([
+      "launchctl enable gui/501/chat.chips.opencode",
+      "launchctl bootout gui/501/chat.chips.opencode",
+      `launchctl bootstrap gui/501 ${path}`,
+      `launchctl bootstrap gui/501 ${path}`,
+      `launchctl bootstrap gui/501 ${path}`,
+    ]);
+    // One that never loads is said not to have started, after about ten seconds of tries.
+    ran.length = 0;
+    refusals = 1000;
+    expect(await reloadService(input, run, 0)).toBe(false);
+    expect(ran.filter((each) => each.includes("bootstrap"))).toHaveLength(40);
+
+    ran.length = 0;
+    const unit = "/home/ada/.config/systemd/user/chat.chips.opencode.service";
+    expect(
+      await reloadService(
+        { kind: "systemd", label: "chat.chips.opencode", path: unit, uid: 1000 },
+        run,
+        0,
+      ),
+    ).toBe(true);
+    expect(ran).toEqual([
+      "systemctl --user daemon-reload",
+      "systemctl --user restart chat.chips.opencode.service",
+    ]);
+    expect(
+      await reloadService(
+        { kind: "systemd", label: "chat.chips.opencode", path: unit, uid: 1000 },
+        async (command) => ({ ok: command[1] !== "--user" || command[2] !== "restart" }),
+        0,
+      ),
+    ).toBe(false);
+    expect(reloadCommands("launchd", "chat.chips.hermes", "/p", 501)[2]).toEqual([
+      "launchctl",
+      "bootstrap",
+      "gui/501",
+      "/p",
     ]);
   });
 

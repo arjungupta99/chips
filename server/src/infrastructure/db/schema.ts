@@ -464,6 +464,8 @@ export interface HarnessPolicyTable {
   hold: string | null;
   /** Its Chips's rules switch (ADR 0300): 1 on, 0 off, null never set; only on the `*` row. */
   chips_rules: number | null;
+  /** The mode a person picked (ADR 0300, 19 November addendum), as JSON: `PolicyMode`; only on the `*` row. */
+  mode: string | null;
   updated_at: string;
   updated_seq: number;
 }

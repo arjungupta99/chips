@@ -14,7 +14,7 @@ import {
   type Snapshot,
   type Store,
 } from "@chipschat/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /** What each harness last said, kept for the session. */
 const heard = new Map<string, OwnRulesView>();
@@ -35,13 +35,32 @@ function readOne(store: Store, directory: Directory, harnessId: string): Promise
 const keepsOwn = (snapshot: Snapshot) => snapshot.keepsOwnRules !== false;
 
 /**
+ * After a mode is picked or ends, the harness says what it runs in again: read it a moment later,
+ * and once more after that, by when a bridge has moved its sessions (ADR 0300, 19 November addendum).
+ */
+export const READ_AGAIN_MS: readonly number[] = [1500, 6000];
+
+/**
+ * A harness's mode as far as what it says it runs in goes: it changes when a mode is picked, put
+ * back, or its time is up.
+ */
+export function modeKey(snapshot: Snapshot, harnessId: string, now: number): string {
+  const policy = snapshot.model.harnesses?.[harnessId];
+  const until = policy?.mode?.until;
+  const over = until !== undefined && Date.parse(until) <= now;
+  return `${policy?.mode?.id ?? ""}|${policy?.modeSince ?? ""}|${over ? "over" : ""}`;
+}
+
+/**
  * What a harness last said, read as its page opens: what was heard before while the read is on its
- * way, `undefined` before anything was, and `NOT_SAID` from a server that keeps none.
+ * way, `undefined` before anything was, and `NOT_SAID` from a server that keeps none. `again`
+ * changing (its mode picked, put back, or its time up) reads it again shortly after.
  */
 export function useOwnRules(
   store: Store,
   snapshot: Snapshot,
   harnessId: string,
+  again?: string,
 ): OwnRulesView | undefined {
   const keeps = keepsOwn(snapshot);
   const [view, setView] = useState<OwnRulesView | undefined>(() =>
@@ -62,6 +81,25 @@ export function useOwnRules(
       live = false;
     };
   }, [keeps, harnessId, store]);
+  // What `again` was as the page opened: the read above covers that one.
+  const opened = useRef(again);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: read again when `again` changes only.
+  useEffect(() => {
+    if (again === opened.current || !keeps) return;
+    opened.current = undefined;
+    let live = true;
+    const timers = READ_AGAIN_MS.map((ms) =>
+      setTimeout(() => {
+        void readOne(store, snapshot.directory, harnessId).then((next) => {
+          if (live) setView(next);
+        });
+      }, ms),
+    );
+    return () => {
+      live = false;
+      for (const timer of timers) clearTimeout(timer);
+    };
+  }, [again]);
   return view;
 }
 

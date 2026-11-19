@@ -12,7 +12,7 @@ the decision, records it, and never executes anything itself.
 | --- | --- |
 | **L0 · Observe** | Reads and proposes. Every action needs a yes. For brand-new harnesses and sensitive rooms. |
 | **L1 · Ask first** | Reads are free. Every write and every external action asks. Where every new harness starts. |
-| **L2 · Ask when it matters** | Policy decides. Money, external messages, deletions and anything irreversible ask. Everything else — a shell command, a file write — runs unasked and shows up in the receipt. The level the dial is built for, once a harness has earned it. |
+| **L2 · Ask when it matters** | Policy decides. Money, external messages, deletions and anything irreversible ask. A command that deletes, pushes or leaves the machine (`rm`, `git push`, `ssh`) asks too. Everything else — any other shell command, a file write — runs unasked and shows up in the receipt. The level the dial is built for, once a harness has earned it. |
 | **L3 · Autonomous, report back** | Runs end to end, posts a summary and a receipt. You audit or roll back. |
 
 L3 is earned, not granted: Chips suggests moving up after a streak of approvals with zero edits,

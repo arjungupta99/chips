@@ -6,6 +6,10 @@
  * every device and across a reload; Disable banner turns it off for the agent; the harness's switch
  * turns it off for all of them, with Undo; Stop brings the asks back.
  *
+ * And with the rules off (ADR 0300, addendum of 19 November 2026): the card offers no yes that
+ * holds on, the server refuses one from an app that still does, no band and no Working without
+ * asking row are drawn, and turning the rules off ends a yes that was holding.
+ *
  * Its own harness and room, so the demo room is left as the other specs find it. With
  * `CHIPS_E2E_SHOTS` set to a folder, it leaves a picture of each step there.
  */
@@ -247,6 +251,185 @@ test("let work from a card; its row, ×, Disable banner and the harness's switch
     await openRoom(page, owner.space);
     await expect(page.getByRole("button", { name: "Approve once" }).last()).toBeEnabled();
     await shot(page, "11-asks-again");
+  } finally {
+    harness.close();
+  }
+});
+
+/**
+ * An app from before the switch still offers For an hour and Let it work (the App Store's 1.3.0).
+ * This stands in for one on the page's own socket: while `held` is set, a yes the page sends goes
+ * out with it, as that app would send it. What the server refuses is kept in `refused`.
+ */
+async function olderApp(page: Page) {
+  const app: {
+    held: Record<string, unknown> | undefined;
+    refused: string[];
+    /** Every event the server sent this page, as any app hears them. */
+    heard: Record<string, unknown>[];
+  } = { held: undefined, refused: [], heard: [] };
+  await page.routeWebSocket(/\/v1\/ws/, (socket) => {
+    const server = socket.connectToServer();
+    socket.onMessage((message) => {
+      server.send(typeof message === "string" ? withHeld(message, app.held) : message);
+    });
+    server.onMessage((message) => {
+      if (typeof message === "string") note(app, JSON.parse(message) as Record<string, unknown>);
+      socket.send(message);
+    });
+  });
+  return app;
+}
+
+/** Keeps what the server said to the page: an answer it refused, and each event it sent. */
+function note(
+  app: { refused: string[]; heard: Record<string, unknown>[] },
+  frame: Record<string, unknown>,
+): void {
+  if (frame["frame"] === "error") app.refused.push(String(frame["message"]));
+  if (frame["frame"] === "event") app.heard.push(frame["event"] as Record<string, unknown>);
+  if (frame["frame"] === "events")
+    app.heard.push(...(frame["events"] as Record<string, unknown>[]));
+}
+
+function withHeld(message: string, held: Record<string, unknown> | undefined): string {
+  if (held === undefined) return message;
+  const frame = JSON.parse(message) as { frame?: string; event?: Record<string, unknown> };
+  if (frame.frame !== "event" || frame.event?.["type"] !== "approval.resolved") return message;
+  return JSON.stringify({ ...frame, event: { ...frame.event, ...held } });
+}
+
+/** Turns the harness's Chips's rules off again, where they were turned on. */
+async function chipsRulesOff(page: Page, harness: string): Promise<void> {
+  await openTab(page, "Agents");
+  await page
+    .getByTestId("harness-shelf")
+    .getByRole("button", { name: new RegExp(`^${harness}\\b`) })
+    .click();
+  await page.getByRole("main", { name: harness }).getByTestId("harness-asks-row").click();
+  await page.getByTestId("perms-chips-row").click();
+  await page.getByTestId("perms-chips").getByTestId("perms-switch").click();
+  await expect(page.getByTestId("perms-chips").getByTestId("perms-switch")).not.toBeChecked();
+}
+
+test("with the harness's Chips's rules off no yes holds on: none is offered, one is refused, and turning them off ends one", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const { owner, agent } = await ready("Godwit");
+  const app = await olderApp(page);
+  await pair(page);
+  const harness = await Harness.connect(newRunId(), { token: owner.token, space: owner.space });
+  const actor = { kind: "agent", id: agent.id };
+  const ask = async (command: string) => {
+    const approvalId = newApprovalId();
+    await harness.send("approval.request", {
+      approval_id: approvalId,
+      action: { kind: "garden.shell", input: { command } },
+      risk: [],
+      expires_in: 3600,
+      actor,
+    });
+    return approvalId;
+  };
+  const answer = async (approvalId: string, by: string) =>
+    (await harness.waitFor((frame) => answered(frame, approvalId), by))["event"] as Record<
+      string,
+      unknown
+    >;
+  const card = () => page.getByRole("article", { name: /Approval/ }).last();
+  /** No band in the room, and no Working without asking row on the agent's card. */
+  const noSignOfWorking = async (row: string) => {
+    await openRoom(page, owner.space);
+    await expect(band(page)).toHaveCount(0);
+    await openTab(page, "Agents");
+    await page.getByTestId(`agent-${agent.id}`).click();
+    await expect(page.getByTestId("agent-permissions")).toContainText(row);
+    await expect(page.getByTestId("agent-working")).toHaveCount(0);
+  };
+  // The specs share one workspace, and the page hears its history from the start: count only the
+  // stops in this test's room.
+  const stops = () =>
+    app.heard.filter(
+      (event) => event["type"] === "approval.held_stopped" && event["space_id"] === owner.space,
+    );
+
+  try {
+    await harness.send("run.started", { goal: "Read the bridge notes.", plan: [], actor });
+
+    // A new harness's rules are off. A loop Chips can't read is a yes or a no: no hour, no
+    // switch, and the line says why it has no Always, as one Chips reads would.
+    await openRoom(page, owner.space);
+    const loop = await ask("for r in acp hermes; do head -30 $r/README.md; done");
+    await expect(card().getByRole("button", { name: "Approve once" })).toBeEnabled();
+    await expect(card().getByText("For an hour", { exact: true })).toHaveCount(0);
+    await expect(card().getByRole("switch")).toHaveCount(0);
+    await expect(card().getByTestId("once-only")).toHaveText(
+      "This command does more than Chips can read, so there is no Always for it.",
+    );
+    await shot(page, "off-1-card");
+
+    // An older app's Let it work, then its For an hour: each is refused, in words that say what
+    // to do, and the ask still waits on its card.
+    for (const [at, held] of [{ until_stopped: true }, { for_minutes: 60 }].entries()) {
+      app.held = held;
+      await card().getByRole("button", { name: "Approve once" }).click();
+      await expect.poll(() => app.refused.length).toBe(at + 1);
+      expect(app.refused[at]).toBe(
+        "a yes holds on only while the harness's Chips's rules are on: answer this once, or turn them on in the harness's Permissions first",
+      );
+      await expect(card().getByRole("button", { name: "Approve once" })).toBeEnabled();
+    }
+    app.held = undefined;
+    expect(harness.frames.some((frame) => answered(frame, loop))).toBe(false);
+    await noSignOfWorking("Asks you");
+    await shot(page, "off-2-refused");
+
+    // A yes once is still a yes, and the next ask comes to the card as every one does.
+    await openRoom(page, owner.space);
+    await card().getByRole("button", { name: "Approve once" }).click();
+    const once = await answer(loop, "the person's yes");
+    expect(once).toMatchObject({ decision: "approved", scope: "once" });
+    expect(once["until_stopped"]).toBeUndefined();
+    await ask("ls");
+    await expect(card().getByRole("button", { name: "Approve once" })).toBeEnabled();
+
+    // On, Let it work holds and the room says so.
+    await chipsRulesOn(page, owner.name);
+    await openRoom(page, owner.space);
+    await letWorkFromCard(page, agent.name);
+    await expect(band(page)).toHaveText(
+      new RegExp(`^${agent.name} is working without asking\\s*Stop$`),
+    );
+    expect(await answer(await ask("ls build"), "policy")).toMatchObject({
+      resolved_by: "system",
+    });
+    await openTab(page, "Agents");
+    await page.getByTestId(`agent-${agent.id}`).click();
+    await expect(page.getByTestId("agent-working")).toHaveCount(1);
+    await shot(page, "off-3-working");
+
+    // Turned off, the yes ends: Chips writes the stop, the band and the row go, and the next ask
+    // comes to the card. Turned on again, it has not come back.
+    expect(stops()).toEqual([]);
+    await chipsRulesOff(page, owner.name);
+    await expect.poll(() => stops().length).toBe(1);
+    expect(stops()[0]).toMatchObject({
+      space_id: owner.space,
+      asker: agent.id,
+      actor: { kind: "system" },
+    });
+    await noSignOfWorking("Asks you");
+    await ask("ls -la");
+    await openRoom(page, owner.space);
+    await expect(card().getByRole("button", { name: "Approve once" })).toBeEnabled();
+    await shot(page, "off-4-stopped");
+    await chipsRulesOn(page, owner.name);
+    await noSignOfWorking("Chips's rules on");
+    await ask("pwd");
+    await openRoom(page, owner.space);
+    await expect(card().getByRole("button", { name: "Approve once" })).toBeEnabled();
+    expect(stops()).toHaveLength(1);
   } finally {
     harness.close();
   }

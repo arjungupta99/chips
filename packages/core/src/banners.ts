@@ -11,7 +11,7 @@
 
 import { type Directory, harnessOf, nameOf } from "./events.js";
 import { lettingWork } from "./model/readers.js";
-import type { LetWork, Space } from "./model/types.js";
+import type { LetWork, Space, WorkspaceModel } from "./model/types.js";
 
 export interface ClosedBanner {
   readonly spaceId: string;
@@ -57,13 +57,14 @@ export function bannerClosed(banners: Banners, spaceId: string, held: LetWork): 
 
 /** The agents whose banner a space shows this person now, against the clock. */
 export function bannersToShow(
+  model: WorkspaceModel,
   space: Space | undefined,
   directory: Directory,
   banners: Banners,
   now: number = Date.now(),
 ): readonly LetWork[] {
   if (space === undefined) return [];
-  return lettingWork(space, now).filter(
+  return lettingWork(model, directory, space, now).filter(
     (held) =>
       bannerWanted(banners, directory, held.asker) && !bannerClosed(banners, space.id, held),
   );

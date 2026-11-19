@@ -35,6 +35,7 @@ import { AlwaysList } from "../harnesses/AlwaysList";
 import { Count } from "../harnesses/Asking";
 import { DotRow, Hero } from "../harnesses/AskingMotion";
 import { type Always, useAlways } from "../harnesses/useAlways";
+import { CodeWords } from "../needs/Asked";
 import { type Asker, useDust } from "../spaces/Dust";
 import { ListDust } from "../spaces/SelectMotion";
 import { UndoPill } from "../spaces/UndoPill";
@@ -160,9 +161,7 @@ function Top({
       <Text style={[styles.headline, { color: palette.ink }]} testID="permissions-headline">
         {view.headline}
       </Text>
-      <Text style={[styles.sub, { color: palette.ink2 }]} testID="permissions-sub">
-        {view.sub}
-      </Text>
+      <CodeWords words={view.sub} style={styles.sub} ink={palette.ink2} testID="permissions-sub" />
       {view.mayStop ? <Act words={STOP_WORDS} onPress={stop} testID="permissions-stop" /> : null}
     </GrowingView>
   );

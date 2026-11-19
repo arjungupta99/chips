@@ -753,7 +753,7 @@ function SetUp({
         <GroupRow
           label="Permissions"
           value={asks.value}
-          goldValue={asks.off}
+          goldValue={asks.off || asks.gold === true}
           mark={<RowMark icon="lock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
           onPress={() => onOpen("asks")}
           accessibilityHint="Shows what it runs on its own, what Chips answers, and its snooze"

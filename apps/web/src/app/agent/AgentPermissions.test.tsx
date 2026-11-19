@@ -20,13 +20,20 @@ const directory: Directory = {
   usr_dana: { id: "usr_dana", kind: "person", displayName: "Dana", role: "member" },
 };
 
-function modelOf(working: boolean): WorkspaceModel {
+/**
+ * A yes holds on only while the harness's Chips's rules are on (ADR 0300), so they are unless a
+ * test says they were turned off, or never set.
+ */
+function modelOf(working: boolean, rules: "on" | "off" | "never" = "on"): WorkspaceModel {
+  const chipsRules = rules === "never" ? undefined : rules === "on";
   return {
     people: {
       [ME]: { participantId: ME, displayName: "Arjun", role: "owner" },
       usr_dana: { participantId: "usr_dana", displayName: "Dana", role: "member" },
     },
-    harnesses: { [HARNESS]: { harnessId: HARNESS, autonomy: 1, rules: [], bySpace: {} } },
+    harnesses: {
+      [HARNESS]: { harnessId: HARNESS, autonomy: 1, rules: [], bySpace: {}, chipsRules },
+    },
     spaces: [
       {
         id: SPACE,
@@ -43,7 +50,14 @@ function modelOf(working: boolean): WorkspaceModel {
 }
 
 function mount(
-  options: { working?: boolean; banners?: Banners; selfId?: string; keepsBanners?: boolean } = {},
+  options: {
+    working?: boolean;
+    banners?: Banners;
+    selfId?: string;
+    keepsBanners?: boolean;
+    /** The harness's Chips's rules: on unless said, `"never"` for a switch never set. */
+    rules?: "off" | "never";
+  } = {},
 ) {
   const service: BannerService = {
     banners: options.banners,
@@ -58,10 +72,10 @@ function mount(
     undoHarnessBanner: vi.fn(async () => undefined),
   };
   const onOpenHarness = vi.fn();
-  render(
+  const view = render(
     <AgentPermissions
       agentId={AGENT}
-      model={modelOf(options.working === true)}
+      model={modelOf(options.working === true, options.rules ?? "on")}
       directory={directory}
       selfId={options.selfId ?? ME}
       service={service}
@@ -70,7 +84,7 @@ function mount(
       onOpenHarness={onOpenHarness}
     />,
   );
-  return { service, onOpenHarness };
+  return { service, onOpenHarness, unmount: view.unmount };
 }
 
 describe("an agent's Permissions (ADR 0286)", () => {
@@ -91,6 +105,35 @@ describe("an agent's Permissions (ADR 0286)", () => {
     expect(screen.getByTestId("asking-hero").dataset["working"]).toBe("true");
     fireEvent.click(screen.getByTestId("permissions-stop"));
     expect(service.stopLetWork).toHaveBeenCalledWith({ spaceId: SPACE, asker: AGENT });
+  });
+
+  it("says it asks while its harness's Chips's rules are off, whatever yes the space still holds (ADR 0300)", () => {
+    for (const rules of ["off", "never"] as const) {
+      const { unmount } = mount({
+        working: true,
+        rules,
+        banners: { choices: {}, closed: [{ spaceId: SPACE, asker: AGENT, since: SINCE }] },
+      });
+      expect(screen.getByTestId("permissions-headline").textContent).toBe(
+        "Jiro decides when to ask. You decide the answer.",
+      );
+      expect(screen.queryByTestId("permissions-stop")).toBeNull();
+      expect(screen.queryByTestId("permissions-closed")).toBeNull();
+      expect(screen.getByTestId("asking-hero").dataset["working"]).not.toBe("true");
+      unmount();
+    }
+  });
+
+  it("says what still comes to a person while it works, with the commands in code", () => {
+    mount({ working: true });
+    const sub = screen.getByTestId("permissions-sub");
+    expect(sub.textContent).toBe(
+      "Until you stop it. Commands like rm and git push still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
+    );
+    expect([...sub.querySelectorAll("code")].map((code) => code.textContent)).toEqual([
+      "rm",
+      "git push",
+    ]);
   });
 
   it("switches the banner and says what the switch is at", () => {
@@ -150,5 +193,22 @@ describe("an agent's Permissions (ADR 0286)", () => {
     const row = screen.getByTestId(`agent-${AGENT}`);
     expect(row.textContent).toContain("Not asking");
     expect(row.querySelector("[title='Banner off']")).not.toBeNull();
+  });
+
+  it("says nobody isn't asking there while the harness's Chips's rules are off (ADR 0300)", () => {
+    render(
+      <Part
+        part="agents"
+        harnessId={HARNESS}
+        model={modelOf(true, "off")}
+        directory={directory}
+        selfId={ME}
+        banners={{ choices: {}, closed: [] }}
+        onOpenAgent={() => undefined}
+        onOpenSpace={() => undefined}
+        onOpenFile={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId(`agent-${AGENT}`).textContent).not.toContain("Not asking");
   });
 });

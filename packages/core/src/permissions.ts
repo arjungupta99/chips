@@ -17,7 +17,6 @@
 import {
   askedCommand,
   askLineFor,
-  chipsRulesOn,
   commandKind,
   commandParts,
   NEVER_STANDING,
@@ -25,6 +24,7 @@ import {
   neverStanding,
   type OwnEntry,
   type OwnKind,
+  type OwnModes,
   type OwnRules,
   type OwnRulesRead,
   standingOffer,
@@ -46,8 +46,15 @@ import {
   harnessAsks,
 } from "./asking.js";
 import { type Directory, harnessOf, nameOf, workspaceHarnesses } from "./events.js";
-import { mayTurnDial } from "./model/readers.js";
-import type { Approval, Hold, Rule, WorkspaceModel } from "./model/types.js";
+import { chipsRulesOnFor, mayTurnDial } from "./model/readers.js";
+import type {
+  Approval,
+  AuditEntry,
+  Hold,
+  PickedMode,
+  Rule,
+  WorkspaceModel,
+} from "./model/types.js";
 import { roomName } from "./rooms.js";
 
 // ------------------------------------------------------------------ text with code in it
@@ -244,6 +251,250 @@ export function roomHolds(
   });
 }
 
+// ------------------------------------------------------------------ its mode
+
+/**
+ * The mode a person put a harness's sessions in (ADR 0300, addendum of 19 November 2026), while it
+ * holds at `now`: nothing once its end has passed, or while none is picked.
+ */
+export function modeIn(
+  model: WorkspaceModel,
+  harnessId: string,
+  now: number = Date.now(),
+): PickedMode | undefined {
+  const mode = model.harnesses?.[harnessId]?.mode;
+  if (mode === undefined) return undefined;
+  return mode.until === undefined || Date.parse(mode.until) > now ? mode : undefined;
+}
+
+export const MODE_HEADING = "Mode";
+export const MODE_LENGTH_HEADING = "For how long";
+export const CANCEL_WORDS = "Cancel";
+/** How long a mode is picked for: the lengths Stop asking has, and Keep it for no end. */
+export const MODE_LENGTHS: readonly SnoozeLength[] = ["1h", "8h", "tomorrow", "stopped"];
+
+/** A length as its chip says it: `1 hour`, `8 hours`, `Until tomorrow`, `Keep it`. */
+export function modeLengthWords(length: SnoozeLength): string {
+  return length === "stopped" ? "Keep it" : snoozeChipWords(length);
+}
+
+/** The button that puts it in a mode once a length is picked: `Use Auto`. */
+export function modeConfirmWords(name: string): string {
+  return `Use ${name}`;
+}
+
+/** One mode on the picker, in the harness's own words. */
+export interface ModeChoice {
+  readonly id: string;
+  readonly name: string;
+  readonly words: string | undefined;
+  /** In it the harness never asks: Bypass permissions, Full access. */
+  readonly everything: boolean;
+  /** The mode its sessions start in. */
+  readonly base: boolean;
+}
+
+/** The Mode picker on a harness's settings page (ADR 0300, 19 November addendum). */
+export interface ModePicker {
+  readonly choices: readonly ModeChoice[];
+  /** The mode its sessions start in, and go back to. */
+  readonly base: ModeChoice;
+  /** The mode in force: the pick while it holds, else the one it starts in. */
+  readonly current: ModeChoice;
+  /** The pick, while it holds. */
+  readonly picked: PickedMode | undefined;
+  /** Under the mode in force while a pick holds: `Back to Default at 10:41 AM`, `Until you change it`. */
+  readonly back: string | undefined;
+  /** An owner or an admin, on a server that keeps it: the choices turn. */
+  readonly may: boolean;
+  /** Its last word says it runs in another mode than the one in force. */
+  readonly differs: string | undefined;
+  readonly foot: string;
+}
+
+/** What the picker reads beside what the harness last said. */
+export interface ModePickerInput {
+  readonly model: WorkspaceModel;
+  readonly directory: Directory;
+  readonly keepsHarnessRules?: boolean | undefined;
+  /** The server keeps a harness's mode (ADR 0300, 19 November addendum). */
+  readonly keepsHarnessMode?: boolean | undefined;
+}
+
+/** An owner or an admin, on a server that keeps a mode: a mode may be picked (SEC-1). */
+export function mayModeOf(input: ModePickerInput, selfId: string | undefined): boolean {
+  return (
+    input.keepsHarnessRules !== false &&
+    input.keepsHarnessMode !== false &&
+    mayTurnDial(input.model, selfId)
+  );
+}
+
+/** When a pick, or its end, last changed what the harness should run in. */
+function modeChangedAt(model: WorkspaceModel, harnessId: string, now: number): number | undefined {
+  const policy = model.harnesses?.[harnessId];
+  const since = policy?.modeSince === undefined ? undefined : Date.parse(policy.modeSince);
+  const until = policy?.mode?.until === undefined ? undefined : Date.parse(policy.mode.until);
+  const ended = until !== undefined && until <= now ? until : undefined;
+  if (since === undefined) return ended;
+  return ended === undefined ? since : Math.max(since, ended);
+}
+
+/**
+ * The picker, where the harness says what modes it offers and the server keeps a pick; nothing
+ * elsewhere, and the page shows the mode as a row it can't change, as before.
+ */
+export function modePicker(
+  input: ModePickerInput,
+  harnessId: string,
+  selfId: string | undefined,
+  own: OwnRulesView,
+  now: number = Date.now(),
+): ModePicker | undefined {
+  const modes = own.modes;
+  if (modes === undefined || input.keepsHarnessMode === false) return undefined;
+  const choices = choicesOf(modes);
+  const base = choices.find((choice) => choice.base);
+  if (base === undefined) return undefined;
+  const { model, directory } = input;
+  const name = nameOf(directory, harnessId);
+  const picked = modeIn(model, harnessId, now);
+  const chosen =
+    picked === undefined ? undefined : choices.find((choice) => choice.id === picked.id);
+  const current = chosen ?? base;
+  // What it says it runs in counts only once it said so after the last change.
+  const changed = modeChangedAt(model, harnessId, now);
+  const heard = own.heardAt === undefined ? undefined : Date.parse(own.heardAt);
+  const fresh = changed === undefined || (heard !== undefined && heard >= changed);
+  return {
+    choices,
+    base,
+    current,
+    picked,
+    back: chosen === undefined || chosen.base ? undefined : backWords(picked, base, now),
+    may: mayModeOf(input, selfId),
+    differs: fresh ? differsWords(name, modes, choices, current) : undefined,
+    foot: `Chips starts each of its ${name} sessions in this mode, and switches it back when the time is up. Your own ${name} keeps its own mode.`,
+  };
+}
+
+/** The modes a harness offers, as the picker's rows. */
+function choicesOf(modes: NonNullable<OwnRulesView["modes"]>): ModeChoice[] {
+  return modes.offers.map((offer) => ({
+    id: offer.id,
+    name: offer.name,
+    words: offer.words,
+    everything: offer.everything === true,
+    base: offer.id === modes.base,
+  }));
+}
+
+/** When a pick goes back: "Back to Default at 10:41 AM", or "Until you change it". */
+function backWords(picked: PickedMode | undefined, base: ModeChoice, now: number) {
+  if (picked === undefined) return undefined;
+  return picked.until === undefined
+    ? "Until you change it"
+    : `Back to ${base.name} at ${whenWords(picked.until, now)}`;
+}
+
+/** What the page says when the harness runs in another mode than the one in force. */
+function differsWords(
+  name: string,
+  modes: NonNullable<OwnRulesView["modes"]>,
+  choices: readonly ModeChoice[],
+  current: ModeChoice,
+): string | undefined {
+  const running = modes.running;
+  if (running === undefined || running === current.id) return undefined;
+  const runningName = choices.find((choice) => choice.id === running)?.name ?? running;
+  return `${name} is running in ${runningName}: it couldn't use ${current.name}.`;
+}
+
+/**
+ * A line of the workspace's log as it reads: a mode picked or put back with the harness's name and
+ * when it ends, as of when it was picked (`put Claude Code in Auto until 10:41 AM`); any other line
+ * as the log wrote it.
+ */
+export function auditWords(entry: AuditEntry, directory: Directory): string {
+  const mode = entry.mode;
+  if (mode === undefined) return entry.what;
+  const name = nameOf(directory, mode.harnessId);
+  if (mode.back === true) return `put ${name} back in ${mode.name ?? "the mode it starts in"}`;
+  const until =
+    mode.until === undefined
+      ? "until you change it"
+      : `until ${whenWords(mode.until, Date.parse(entry.ts))}`;
+  return `put ${name} in ${mode.name ?? "a mode"} ${until}`;
+}
+
+/** A harness in a mode that never asks, while it holds: what yellow says about it. */
+export interface NeverAsking {
+  readonly mode: PickedMode;
+  readonly name: string;
+  /** `until 10:41 AM`, `until you change it`. */
+  readonly until: string;
+  /** `Back to Default`. */
+  readonly back: string;
+}
+
+/** Whether a pick that never asks holds for this harness: Bypass permissions, Full access. */
+export function neverAsking(
+  model: WorkspaceModel,
+  harnessId: string,
+  now: number = Date.now(),
+): NeverAsking | undefined {
+  const mode = modeIn(model, harnessId, now);
+  if (mode?.everything !== true) return undefined;
+  return {
+    mode,
+    name: mode.name ?? mode.id,
+    until: mode.until === undefined ? "until you change it" : `until ${whenWords(mode.until, now)}`,
+    back: `Back to ${mode.backTo ?? "its own mode"}`,
+  };
+}
+
+/** One yellow band at the top of a space while a harness of an agent in it never asks. */
+export interface ModeBand {
+  readonly harnessId: string;
+  /** `Claude Code asks nothing until 10:41 AM`. */
+  readonly words: string;
+  /** `Back to Default`. */
+  readonly back: string;
+}
+
+/**
+ * The yellow bands a space shows (ADR 0300, decision 5 and the 19 November addendum): one for each
+ * harness with an agent in it while a mode that never asks holds for it.
+ */
+export function roomModes(
+  model: WorkspaceModel,
+  directory: Directory,
+  spaceId: string,
+  now: number = Date.now(),
+): readonly ModeBand[] {
+  const space = model.spaces.find((each) => each.id === spaceId);
+  if (space === undefined) return [];
+  const harnesses = new Set(
+    space.members
+      .filter((member) => {
+        const kind = directory[member]?.kind;
+        return kind !== undefined && kind !== "person";
+      })
+      .map((member) => harnessOf(directory, member)),
+  );
+  return [...harnesses].flatMap((harnessId) => {
+    const open = neverAsking(model, harnessId, now);
+    if (open === undefined) return [];
+    return [
+      {
+        harnessId,
+        words: `${nameOf(directory, harnessId)} asks nothing ${open.until}`,
+        back: open.back,
+      },
+    ];
+  });
+}
+
 // ------------------------------------------------------------------ what it runs on its own
 
 /** One kind of thing its own settings let through, as the page lists it. */
@@ -278,6 +529,10 @@ export interface OwnRulesView {
   readonly notice: OwnNotice | undefined;
   /** The mode its sessions run in, as the harness names it (`Default`), when it says. */
   readonly mode?: string | undefined;
+  /** The modes a person may pick for it from Chips, when it says (ADR 0300, 19 November addendum). */
+  readonly modes?: OwnModes | undefined;
+  /** When Chips heard this copy. */
+  readonly heardAt?: string | undefined;
 }
 
 /** Nothing said: a harness whose bridge doesn't send a copy yet, or a server that doesn't keep one. */
@@ -398,20 +653,32 @@ function namedInCode(items: readonly string[]): string {
   return more > 0 ? `${named.join(", ")} and ${more} more` : listWords(named);
 }
 
+/** Where a harness's own rules were read from, its note, and the mode its sessions run in. */
+function ownRulesFoot(rules: OwnRules): string {
+  const from = rules.read_from.map((place) => `\`${place}\``);
+  const runs =
+    rules.everything === true
+      ? `Its sessions here run in ${rules.mode} mode.`
+      : `Its sessions here run in ${rules.mode} mode, so anything not on this list asks.`;
+  return [
+    from.length === 0 ? undefined : `Read from ${listWords(from)}.`,
+    rules.note,
+    rules.mode === undefined ? undefined : runs,
+  ]
+    .filter((part): part is string => part !== undefined)
+    .join(" ");
+}
+
 /** What a harness last said it runs on its own, in the page's words; `NOT_SAID` before it said. */
 export function ownRulesView(name: string, read: OwnRulesRead | undefined): OwnRulesView {
   const rules = read?.own_rules ?? undefined;
   if (rules === undefined || rules === null) return NOT_SAID;
-  const foot = [
-    `Read from ${listWords(rules.read_from.map((place) => `\`${place}\``))}.`,
-    rules.note,
-    rules.mode === undefined
-      ? undefined
-      : `Its sessions here run in ${rules.mode} mode, so anything not on this list asks.`,
-  ]
-    .filter((part): part is string => part !== undefined)
-    .join(" ");
-  const mode = rules.mode === undefined ? {} : { mode: rules.mode };
+  const foot = ownRulesFoot(rules);
+  const mode = {
+    ...(rules.mode === undefined ? {} : { mode: rules.mode }),
+    ...(rules.modes === undefined ? {} : { modes: rules.modes }),
+    ...(read?.heard_at == null ? {} : { heardAt: read.heard_at }),
+  };
   if (rules.everything === true) {
     return {
       ...mode,
@@ -489,8 +756,15 @@ export interface HarnessPermissions {
   readonly maySwitch: boolean;
   /** The main page's top line: who decides what to ask, and what Chips does with it. */
   readonly lead: string;
-  /** While it runs everything without asking: the one yellow banner's words (ADR 0300). */
-  readonly open: { readonly title: string; readonly sub: string } | undefined;
+  /**
+   * While it runs everything without asking: the one yellow banner's words (ADR 0300), and, while
+   * a pick put it there, the button that puts it back, for an owner or an admin.
+   */
+  readonly open:
+    | { readonly title: string; readonly sub: string; readonly back?: string | undefined }
+    | undefined;
+  /** The Mode picker on its settings page, where it offers modes (ADR 0300, 19 November addendum). */
+  readonly mode: ModePicker | undefined;
   /** The row that opens its own settings. */
   readonly settingsRow: {
     readonly title: string;
@@ -498,6 +772,8 @@ export interface HarnessPermissions {
     readonly sub: string;
     /** Its settings let a never-list command through: said in amber. */
     readonly warn: boolean;
+    /** It runs everything without asking: the value in gold. */
+    readonly gold: boolean;
   };
   /** The row that opens Chips's rules. */
   readonly chipsRow: { readonly value: string; readonly sub: string };
@@ -528,6 +804,8 @@ export interface HarnessPermissionsInput {
   readonly keepsHarnessRules?: boolean | undefined;
   /** The server keeps the Chips's rules switch (ADR 0300): the switch turns. */
   readonly keepsChipsRules?: boolean | undefined;
+  /** The server keeps a harness's mode (ADR 0300, 19 November addendum): the picker turns. */
+  readonly keepsHarnessMode?: boolean | undefined;
 }
 
 /** Of a harness's command asks, those Chips couldn't read, so no rule could answer. */
@@ -567,6 +845,13 @@ function subOf(name: string, to: AsksGoTo, off: { readonly hold: Hold } | undefi
 }
 
 /** A harness's Permissions page. `own` is what its last copy says, once read. */
+/** The first gate's short words: what it runs on its own, in the mode it runs in. */
+function ownGate(own: OwnRulesView, mode: ModePicker | undefined, neverAsks: boolean): string {
+  if (neverAsks || own.everything) return "runs all";
+  if (mode !== undefined && !mode.current.base) return mode.current.name;
+  return own.mode ?? (own.said ? `${own.count} run` : "not said");
+}
+
 export function harnessPermissions(
   input: HarnessPermissionsInput,
   harnessId: string,
@@ -583,8 +868,14 @@ export function harnessPermissions(
   const on = rules.filter((rule) => rule.on).length;
   const asks = harnessAsks(model, directory, harnessId);
   const unread = unreadable(asks);
+  const mode = modePicker(input, harnessId, selfId, own, now);
+  const never = neverAsking(model, harnessId, now);
   return {
-    ...pagesOf(name, own, rules, chipsOn, off, now),
+    ...pagesOf(
+      { name, own, rules, chipsOn, off, mode, never, mayMode: mayModeOf(input, selfId) },
+      now,
+    ),
+    mode,
     harnessId,
     name,
     mayChange: input.keepsHarnessRules !== false && mayTurnDial(model, selfId),
@@ -596,7 +887,7 @@ export function harnessPermissions(
     headline: headlineOf(name, own, off !== undefined),
     sub: subOf(name, asksGoTo(directory, harnessId, selfId), off),
     gates: {
-      own: own.everything ? "runs all" : (own.mode ?? (own.said ? `${own.count} run` : "not said")),
+      own: ownGate(own, mode, never !== undefined),
       chips:
         off !== undefined
           ? "saying yes"
@@ -619,20 +910,8 @@ export const WHERE_SET_HEADING = "Where it's set";
 export const CHIPS_RULES_TITLE = "Chips's rules";
 export const STOP_ASKING_HEADING = "Stop asking";
 export const STOP_ASKING_TITLE = "Stop asking for a while";
-const NEVER_PAUSED = "never to `rm`, `git push` and the like";
-
-/** Whether Chips's rules answer a harness's asks (ADR 0300): as set, else as never set reads. */
-export function chipsRulesOnFor(model: WorkspaceModel, harnessId: string): boolean {
-  const policy = model.harnesses?.[harnessId];
-  const rooms = Object.values(policy?.bySpace ?? {});
-  return chipsRulesOn(policy?.chipsRules, {
-    harnessRules: (policy?.rules.length ?? 0) > 0 || rooms.some((room) => room.rules.length > 0),
-    harnessLevel: (policy?.autonomy ?? 0) >= 2 || rooms.some((room) => room.autonomy >= 2),
-    harnessHold: policy?.hold !== undefined,
-    workspaceRules: (model.workspaceRules?.rules.length ?? 0) > 0,
-    workspaceHold: model.workspaceRules?.hold !== undefined,
-  });
-}
+/** What a pause still asks about, in a row's words: the pause's list (`NEVER_FOR_A_WHILE`). */
+const NEVER_PAUSED = "never to `rm`, `sudo`, `git push` or what reaches another computer";
 
 type Off = { readonly hold: Hold; readonly every: boolean } | undefined;
 
@@ -642,19 +921,41 @@ function pausedWords(off: Off, now: number): string {
   return until === undefined ? "until you turn it back on" : `until ${whenWords(until, now)}`;
 }
 
+/**
+ * The settings row's value: the mode in force, as soon as it is picked; what the harness last said
+ * before there is one.
+ */
+function settingsValue(
+  own: OwnRulesView,
+  mode: ModePicker | undefined,
+  never: NeverAsking | undefined,
+): string {
+  if (never !== undefined) return never.name;
+  if (mode !== undefined) return mode.current.name;
+  if (own.everything) return "Runs all";
+  return own.mode ?? (own.said ? "Its own" : "Not said");
+}
+
 /** The row that opens the harness's own settings: its mode, and what gets through. */
-function settingsRowOf(name: string, own: OwnRulesView) {
-  const warn = own.conflicts.length > 0;
-  const runs = own.everything
+function settingsRowOf(
+  name: string,
+  own: OwnRulesView,
+  mode: ModePicker | undefined,
+  never: NeverAsking | undefined,
+) {
+  const warn = own.conflicts.length > 0 && never === undefined;
+  const all = own.everything || never !== undefined;
+  const runs = all
     ? "Runs everything without asking"
     : `${own.count} ${plural(own.count, "kind", "kinds")} of work run without asking`;
   const said = own.said ? runs : "Doesn't say yet what it runs on its own";
   return {
     title: `${name}'s settings`,
-    value: own.everything ? "Runs all" : (own.mode ?? (own.said ? "Its own" : "Not said")),
+    value: settingsValue(own, mode, never),
     // A row's line is plain text in both apps, so the commands go without code marks.
     sub: warn ? `Lets ${listWords(own.conflicts)} through` : said,
     warn,
+    gold: all,
   };
 }
 
@@ -683,7 +984,14 @@ function pauseOf(off: Off, now: number) {
 }
 
 /** The Chips's rules page (ADR 0300). */
-function chipsPageOf(name: string, own: OwnRulesView, chipsOn: boolean, off: Off, now: number) {
+function chipsPageOf(
+  name: string,
+  own: OwnRulesView,
+  chipsOn: boolean,
+  off: Off,
+  never: NeverAsking | undefined,
+  now: number,
+) {
   return {
     switchSub: chipsOn
       ? "On. Chips answers the asks your rules cover."
@@ -691,36 +999,55 @@ function chipsPageOf(name: string, own: OwnRulesView, chipsOn: boolean, off: Off
     offFoot: `Turn them on to let Chips answer some of ${name}'s asks for you: rules you write, a don't-ask-again Chips keeps for all its agents, and Stop asking for a while. Your rules are kept while they're off.`,
     pause: pauseOf(off, now),
     rulesFoot: `Chips's rules answer only what ${name} asks. They can't make it ask about something its settings let through.`,
-    note: own.everything
-      ? `${name} runs everything without asking, so these rules have nothing to answer.`
-      : undefined,
+    note:
+      never !== undefined
+        ? `${name} is in ${never.name}, so it asks nothing and these rules have nothing to answer until it's back in ${never.mode.backTo ?? "its own mode"}.`
+        : own.everything
+          ? `${name} runs everything without asking, so these rules have nothing to answer.`
+          : undefined,
   };
 }
 
 /** The main page's rows and the Chips's rules page, in words (ADR 0300). */
 function pagesOf(
-  name: string,
-  own: OwnRulesView,
-  rules: readonly AlwaysRule[],
-  chipsOn: boolean,
-  off: Off,
+  page: {
+    readonly name: string;
+    readonly own: OwnRulesView;
+    readonly rules: readonly AlwaysRule[];
+    readonly chipsOn: boolean;
+    readonly off: Off;
+    readonly mode: ModePicker | undefined;
+    readonly never: NeverAsking | undefined;
+    readonly mayMode: boolean;
+  },
   now: number,
 ) {
+  const { name, own, rules, chipsOn, off, mode, never, mayMode } = page;
   const on = rules.filter((rule) => rule.on).length;
   return {
     chipsOn,
     lead: chipsOn
       ? `${name} decides what to ask. Chips answers the ones your rules cover and brings you the rest.`
       : `${name} decides what to ask. Chips brings every ask to you.`,
-    open: own.everything
-      ? {
-          title: "Nothing asks",
-          sub: `${own.mode ?? name} runs everything without asking, so nothing reaches Chips.`,
-        }
-      : undefined,
-    settingsRow: settingsRowOf(name, own),
+    open:
+      never !== undefined
+        ? {
+            title: "Nothing asks",
+            sub:
+              never.mode.until === undefined
+                ? `${never.name} · until you change it`
+                : `${never.name} · ${never.back.charAt(0).toLowerCase()}${never.back.slice(1)} at ${whenWords(never.mode.until, now)}`,
+            ...(mayMode ? { back: never.back } : {}),
+          }
+        : own.everything
+          ? {
+              title: "Nothing asks",
+              sub: `${own.mode ?? name} runs everything without asking, so nothing reaches Chips.`,
+            }
+          : undefined,
+    settingsRow: settingsRowOf(name, own, mode, never),
     chipsRow: chipsRowOf(chipsOn, off, on, now),
-    chipsPage: chipsPageOf(name, own, chipsOn, off, now),
+    chipsPage: chipsPageOf(name, own, chipsOn, off, never, now),
   };
 }
 
@@ -731,7 +1058,10 @@ export function permissionsRowWords(
   harnessId: string,
   selfId: string | undefined,
   now: number = Date.now(),
-): { readonly value: string; readonly off: boolean } {
+): { readonly value: string; readonly off: boolean; readonly gold?: true | undefined } {
+  // Yellow while it is in a mode that never asks (ADR 0300, 19 November addendum).
+  const never = neverAsking(model, harnessId, now);
+  if (never !== undefined) return { value: never.name, off: false, gold: true };
   if (!chipsRulesOnFor(model, harnessId)) return { value: "Asks you", off: false };
   const off = holdOf(model, harnessId, now);
   if (off !== undefined) {
@@ -818,29 +1148,55 @@ export function youPermissions(
     mayChange: input.keepsHarnessRules !== false && mayTurnDial(model, selfId),
     every,
     rules: alwaysRules(model, directory, EVERY_HARNESS, selfId, now),
-    harnesses: workspaceHarnesses(directory).map((harness) => {
-      const own = owns[harness.id];
-      const chipsOn = chipsRulesOnFor(model, harness.id);
-      const hold = chipsOn ? holding(heldOn(model, harness.id), now) : undefined;
-      const rules = alwaysRules(model, directory, harness.id, selfId, now);
-      const line =
-        hold !== undefined
-          ? hold.until === undefined
-            ? "Chips says yes for it"
-            : `Chips says yes for it until ${whenWords(hold.until, now)}`
-          : harnessLine(own, chipsOn ? rules : []);
-      return {
-        harnessId: harness.id,
-        name: harness.displayName,
-        asking: hold === undefined,
-        line,
-        // Yellow is for a harness that runs everything without asking (ADR 0300).
-        gold: own?.everything === true,
-        warn: (own?.conflicts.length ?? 0) > 0 || own?.everything === true,
-        chipsOn,
-      };
-    }),
+    harnesses: workspaceHarnesses(directory).map((harness) =>
+      youHarness(input, harness, owns[harness.id], selfId, now),
+    ),
   };
+}
+
+/** One harness's row on You → Permissions. */
+function youHarness(
+  input: HarnessPermissionsInput,
+  harness: { readonly id: string; readonly displayName: string },
+  own: OwnRulesView | undefined,
+  selfId: string | undefined,
+  now: number,
+): YouPermissions["harnesses"][number] {
+  const { model, directory } = input;
+  const chipsOn = chipsRulesOnFor(model, harness.id);
+  const hold = chipsOn ? holding(heldOn(model, harness.id), now) : undefined;
+  const rules = alwaysRules(model, directory, harness.id, selfId, now);
+  // A mode a person picked, while it holds, says itself first (ADR 0300, 19 November addendum).
+  const mode = modeIn(model, harness.id, now);
+  const never = mode?.everything === true;
+  const line =
+    hold !== undefined
+      ? youHoldLine(hold, now)
+      : mode !== undefined
+        ? `${mode.name ?? mode.id} ${untilWords(mode.until, now)}`
+        : harnessLine(own, chipsOn ? rules : []);
+  return {
+    harnessId: harness.id,
+    name: harness.displayName,
+    asking: hold === undefined,
+    line,
+    // Yellow is for a harness that runs everything without asking (ADR 0300).
+    gold: own?.everything === true || never,
+    warn: (own?.conflicts.length ?? 0) > 0 || own?.everything === true || never,
+    chipsOn,
+  };
+}
+
+/** "Chips says yes for it until 10:41 AM", while its asks are off. */
+function youHoldLine(hold: Hold, now: number): string {
+  return hold.until === undefined
+    ? "Chips says yes for it"
+    : `Chips says yes for it until ${whenWords(hold.until, now)}`;
+}
+
+/** "until 10:41 AM", or "until you change it" for a pick with no end. */
+function untilWords(until: string | undefined, now: number): string {
+  return until === undefined ? "until you change it" : `until ${whenWords(until, now)}`;
 }
 
 // ------------------------------------------------------------------ a new rule

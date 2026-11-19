@@ -74,6 +74,7 @@ import * as computerUpdates from "./migrations/0064-computer-updates.js";
 import * as bridgeSwitches from "./migrations/0065-bridge-switches.js";
 import * as harnessPermissions from "./migrations/0066-harness-permissions.js";
 import * as chipsRulesSwitch from "./migrations/0067-chips-rules-switch.js";
+import * as harnessMode from "./migrations/0068-harness-mode.js";
 import type { Database } from "./schema.js";
 
 /** A migration is written against the schema of its own moment, not today's `Database`. */
@@ -155,6 +156,7 @@ export const MIGRATIONS: readonly Migration[] = [
   bridgeSwitches,
   harnessPermissions,
   chipsRulesSwitch,
+  harnessMode,
 ];
 
 export interface MigrationResult {

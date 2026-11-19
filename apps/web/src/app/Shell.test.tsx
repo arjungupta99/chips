@@ -185,6 +185,7 @@ interface FakeStore extends Store {
   readonly ruled: Parameters<Store["setRules"]>[0][];
   readonly snoozed: { harnessId: string; snooze: Parameters<Store["snoozeHarness"]>[1] | null }[];
   readonly switched: { harnessId: string; on: boolean }[];
+  readonly moded: { harnessId: string; mode: unknown }[];
   readonly everyRuled: Parameters<Store["setWorkspaceRules"]>[0][];
   readonly read: [string, number][];
   readonly readMany: (readonly string[])[];
@@ -339,6 +340,7 @@ function fakeStore(initial: Snapshot): FakeStore {
     ruled: [],
     snoozed: [],
     switched: [],
+    moded: [],
     everyRuled: [],
     read: [],
     readMany: [],
@@ -948,6 +950,9 @@ function fakeStore(initial: Snapshot): FakeStore {
     },
     setChipsRules(harnessId: string, on: boolean) {
       store.switched.push({ harnessId, on });
+    },
+    setMode(harnessId: string, mode: unknown) {
+      store.moded.push({ harnessId, mode });
     },
     setWorkspaceRules(input) {
       store.everyRuled.push(input);
@@ -1623,17 +1628,46 @@ describe("the approval card", () => {
   it("draws the room's band while the agent works without asking, and Stop sends (ADR 0281)", () => {
     const store = renderShell([
       ...opened(),
-      fixture("run.started", 4),
-      fixture("approval.request", 5, {
+      // A yes holds on only while the harness's Chips's rules are on (ADR 0300), so they are.
+      fixture("policy.updated", 4, {
+        space_id: undefined,
+        policy: { autonomy: 1, rules: [], chips_rules: true },
+      }),
+      fixture("run.started", 5),
+      fixture("approval.request", 6, {
         action: { kind: "tracker.write", input: { row: 4471 } },
         risk: [],
       }),
-      fixture("approval.resolved", 6, { resolved_by: ARJUN, until_stopped: true }),
+      fixture("approval.resolved", 7, { resolved_by: ARJUN, until_stopped: true }),
     ]);
     const band = screen.getByTestId("let-work-band");
     expect(band.textContent).toMatch(/ is working without askingStop$/);
     fireEvent.click(within(band).getByRole("button", { name: /^Stop .* working without asking$/ }));
     expect(store.stoppedWork).toEqual([{ spaceId: expect.any(String), asker: expect.any(String) }]);
+  });
+
+  it("draws no band for a yes left in the log once the harness's Chips's rules are off (ADR 0300)", () => {
+    const held = [
+      fixture("run.started", 5),
+      fixture("approval.request", 6, {
+        action: { kind: "tracker.write", input: { row: 4471 } },
+        risk: [],
+      }),
+      fixture("approval.resolved", 7, { resolved_by: ARJUN, until_stopped: true }),
+    ];
+    const rules = (seq: number, on: boolean) =>
+      fixture("policy.updated", seq, {
+        space_id: undefined,
+        policy: { autonomy: 1, rules: [], chips_rules: on },
+      });
+    // Turned off after the yes, with no stop in the log: an older server, or one not yet caught up.
+    const off = renderShell([...opened(), rules(4, true), ...held, rules(8, false)]);
+    expect(screen.queryByTestId("let-work-band")).toBeNull();
+    expect(off.stoppedWork).toEqual([]);
+    cleanup();
+    // Never set, and nothing of Chips's on the harness.
+    renderShell([...opened(), ...held]);
+    expect(screen.queryByTestId("let-work-band")).toBeNull();
   });
 
   it("sends Let it work as a yes until stopped (ADR 0281)", () => {
@@ -5621,6 +5655,94 @@ describe("a group space (M3.3)", () => {
       expect(option.querySelector(".aim-owner")?.textContent).toBe("Dana's agent");
       // The reader's own says nothing of whose.
       expect(within(menu).getByRole("option", { name: "Scout, @Scout" })).toBeTruthy();
+    });
+
+    describe("People, and a crowded list (ADR 0229's addendum of 18 November 2026)", () => {
+      const NAMES = [
+        "Kay",
+        "Nia",
+        "Omar",
+        "Mei",
+        "Jonas",
+        "Sara",
+        "Ken",
+        "Ivy",
+        "Leo",
+        "Ben",
+        "Zoe",
+        "Ali",
+      ];
+      const idOf = (name: string) => `usr_01K4ZQPX00000000000${name.toUpperCase().padEnd(5, "0")}`;
+      const folks: Directory = {
+        ...WIDER,
+        ...Object.fromEntries(
+          NAMES.map((name) => [idOf(name), { id: idOf(name), kind: "person", displayName: name }]),
+        ),
+      };
+      /** PO-4471 with Ledger, Dana and the first `count` of `NAMES`. */
+      const room = (count: number) => [
+        ...group(),
+        ...NAMES.slice(0, count).map((name, at) =>
+          fixture("membership.added", 5 + at, {
+            actor: person(ARJUN),
+            participant_id: idOf(name),
+            participant_kind: "person",
+            role: "guest",
+          }),
+        ),
+      ];
+
+      it("offers People above Everyone, round, and sends to every person and no agent", () => {
+        const store = renderShell(room(1), { directory: folks });
+        fireEvent.click(capsule());
+        const people = screen.getByRole("option", { name: /^People/ });
+        expect(within(people).getByText("Dana and Kay · no agent answers")).toBeTruthy();
+        // At the foot with Everyone, not one of the rows that scroll.
+        expect(screen.getByTestId("aim-rows").contains(people)).toBe(false);
+        expect(within(people).getByTestId("faces-mark").getAttribute("data-round")).toBe("true");
+        fireEvent.click(people);
+        expect(capsule().getAttribute("aria-label")).toBe("To People, 2 people");
+        send("Don't tell Scout");
+        expect(store.sent).toEqual([
+          {
+            spaceId: SPACE,
+            text: "Don't tell Scout",
+            to: [DANA, idOf("Kay")],
+            addressedTo: [],
+            addressedPeople: [DANA, idOf("Kay")],
+          },
+        ]);
+      });
+
+      it("offers no People with one other person", () => {
+        renderShell(group(), { directory: WIDER });
+        fireEvent.click(capsule());
+        expect(screen.queryByRole("option", { name: /^People/ })).toBeNull();
+      });
+
+      it("searches a crowded list, its rows under Agents and People, and a letter on a row types there", () => {
+        renderShell(room(12), { directory: folks });
+        fireEvent.click(capsule());
+        const rows = screen.getByTestId("aim-rows");
+        expect(within(rows).getByText("Agents · 2")).toBeTruthy();
+        expect(within(rows).getByText("People · 13")).toBeTruthy();
+        // The list opens on the row the faces say; a letter typed there is the search's.
+        fireEvent.keyDown(screen.getByRole("listbox"), { key: "o" });
+        const search = screen.getByTestId("aim-search") as HTMLInputElement;
+        expect(search.value).toBe("o");
+        expect(document.activeElement).toBe(search);
+        fireEvent.change(search, { target: { value: "oma" } });
+        expect(
+          within(rows)
+            .getAllByRole("option")
+            .map((option) => option.textContent),
+        ).toEqual([expect.stringContaining("Omar")]);
+        // People and Everyone stay at the foot whatever is searched; Enter picks the first found.
+        expect(screen.getByRole("option", { name: /^People/ })).toBeTruthy();
+        fireEvent.keyDown(search, { key: "Enter" });
+        expect(screen.queryByRole("listbox")).toBeNull();
+        expect(capsule().getAttribute("aria-label")).toBe("To Omar");
+      });
     });
 
     describe("a room of many (ADR 0113)", () => {

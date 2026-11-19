@@ -163,7 +163,8 @@ function useAnswer(props: DecideProps) {
   const picked: Lasting = keeps || chosen !== "hour" ? chosen : "once";
   // The switch stands over the choices and keeps the one picked under it (ADR 0281).
   const lasting: Lasting = letWork && keeps ? "work" : picked;
-  const mayEverywhere = props.mayEverywhere === true;
+  // Where a Chips rule holds; the harness's own always has no such choice (ADR 0300).
+  const mayEverywhere = props.mayEverywhere === true && props.chipsOn !== false;
   const { where, setWhere, everywhere, reach } = useReach(lasting, mayEverywhere);
 
   const decide = (input: Decided) => {
@@ -204,7 +205,9 @@ function useAnswer(props: DecideProps) {
     handTo: props.handTo,
     onHand: props.onHand,
   };
-  return { tray, plate, lit: lasting === "always" && standing.kind === "starts" };
+  // The words a Chips rule keeps; the harness keeps its own while they are off (ADR 0300).
+  const lit = lasting === "always" && standing.kind === "starts" && props.chipsOn !== false;
+  return { tray, plate, lit };
 }
 
 export function Decide(props: DecideProps) {

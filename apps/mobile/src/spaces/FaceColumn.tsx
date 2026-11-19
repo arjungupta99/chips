@@ -23,6 +23,10 @@
  * drag of theirs that has begun keeps the finger. Out past the edge it is the column's, and from
  * there it goes as a slide up from the faces does. A finger that lands on the faces is theirs.
  *
+ * People stands at the foot over Everyone where the field offers it, and in a room whose faces
+ * don't fit, the column is a short one that never scrolls, with All at its top (`columnChoices.ts`):
+ * letting go there opens the field's list (ADR 0229's addendum of 18 November 2026).
+ *
  * The column and the tag are the system's glass, so they grow out of the faces and shrink back
  * into them, and never fade: glass that comes into being under an opacity of nought is drawn
  * without its material (`LiftedMotion.tsx`). On the web target there is no column, but in the
@@ -42,7 +46,7 @@
 import type { Directory } from "@chipschat/core";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector, type PanGesture } from "react-native-gesture-handler";
 import Animated, {
   type AnimatedRef,
@@ -142,15 +146,18 @@ export interface FaceSlide {
 
 export function useFaceSlide({
   faces,
+  groups = 0,
   room,
   enabled,
   onTouch,
   onLit,
   onPick,
 }: {
-  /** How many faces stand over Everyone. */
+  /** How many faces stand over the groups at the foot. */
   readonly faces: number;
-  /** How tall the column may stand over the field (`listRoom`), once measured. */
+  /** How many groups stand over Everyone at the foot: People, where it is offered. */
+  readonly groups?: number;
+  /** How tall the column may stand over the field (`columnRoom`), once measured. */
   readonly room: number | undefined;
   readonly enabled: boolean;
   /** A finger is down on the faces or the field: the field may want to measure where it is. */
@@ -161,7 +168,7 @@ export function useFaceSlide({
   readonly onPick: (index: number) => void;
 }): FaceSlide {
   const still = useReduceMotion();
-  const shape = useMemo(() => shapeOf(faces, room), [faces, room]);
+  const shape = useMemo(() => shapeOf(faces, room, groups), [faces, room, groups]);
   const anchor = useAnimatedRef<View>();
   const form = useSharedValue(shape);
   const up = useSharedValue(0);
@@ -402,7 +409,8 @@ export function FaceColumn({
   const shade = alpha(SHADE, useScheme() === "dark" ? DIM.dark : DIM.light);
   // The values alone go to the UI thread: the gesture beside them in `slide` cannot be copied there.
   const { shape, shown, lift, form, foot, middle, dimmed } = slide;
-  const everyone = choices.at(-1);
+  // People and Everyone, at the foot under the line.
+  const ends = choices.slice(shape.faces);
   const popped = useAnimatedStyle(() => ({
     transform: [{ scale: SMALL + (1 - SMALL) * shown.value }],
   }));
@@ -418,7 +426,7 @@ export function FaceColumn({
   const stack = (
     <View style={[styles.window, { height: shape.view }]}>
       <Animated.View style={[styles.stack, lifted]}>
-        {choices.slice(0, -1).map((choice, index) => (
+        {choices.slice(0, shape.faces).map((choice, index) => (
           <Slot
             key={choice.ids.join(",")}
             slide={slide}
@@ -445,16 +453,23 @@ export function FaceColumn({
               {stack}
             </MaskedView>
           )}
-          {everyone === undefined ? null : (
+          {ends.length === 0 ? null : (
             <View style={[styles.foot, { borderColor: palette.line }]}>
-              <Slot
-                slide={slide}
-                index={shape.faces}
-                choice={everyone}
-                directory={directory}
-                ground={palette.surface}
-                foot
-              />
+              {ends.map((choice, place) => {
+                const tall = choice.pick === "all" ? FOOT : SLOT;
+                return (
+                  <Slot
+                    key={String(choice.pick)}
+                    slide={slide}
+                    index={shape.faces + place}
+                    choice={choice}
+                    directory={directory}
+                    ground={palette.surface}
+                    // The line over the foot is the first slot's.
+                    height={place === 0 ? tall - StyleSheet.hairlineWidth : tall}
+                  />
+                );
+              })}
             </View>
           )}
         </Capsule>
@@ -511,7 +526,7 @@ function Slot({
   choice,
   directory,
   ground,
-  foot = false,
+  height = SLOT,
 }: {
   readonly slide: FaceSlide;
   readonly index: number;
@@ -519,10 +534,11 @@ function Slot({
   readonly directory: Directory;
   readonly ground: string;
   /**
-   * Everyone's, under the line: the mark from two (`marked`), as big as the faces above it and
-   * with no number, so it stands on their line and the tag says who.
+   * How tall it stands: a face's, or Everyone's at the foot. People and Everyone, under the line,
+   * are the mark from two (`marked`), as big as the faces above them and with no number, so they
+   * stand on their line and the tag says who.
    */
-  readonly foot?: boolean;
+  readonly height?: number;
 }) {
   const { form, lift, up, across } = slide;
   const grown = useAnimatedStyle(() => {
@@ -531,15 +547,30 @@ function Slot({
     return { transform: [{ scale: grownBy(at, up.value, across.value, shape) }] };
   });
   return (
-    <View style={[styles.slot, foot ? styles.footSlot : null]}>
+    <View style={[styles.slot, { height }]}>
       <Animated.View style={grown}>
-        <Faces
-          step={stepOf(directory, choice.ids)}
-          ground={ground}
-          everyone={choice.pick === "all"}
-          counted={false}
-        />
+        {choice.more === true ? (
+          <More count={choice.ids.length} />
+        ) : (
+          <Faces
+            step={stepOf(directory, choice.ids)}
+            ground={ground}
+            everyone={choice.pick === "all"}
+            people={choice.pick === "people"}
+            counted={false}
+          />
+        )}
       </Animated.View>
+    </View>
+  );
+}
+
+/** All, at the top of a short column: a face's circle drawn in dashes, with how many are here. */
+function More({ count }: { readonly count: number }) {
+  const palette = usePalette();
+  return (
+    <View style={[styles.more, { borderColor: palette.ink4 }]} testID="face-column-more">
+      <Text style={[styles.moreCount, { color: palette.ink2 }]}>{count}</Text>
     </View>
   );
 }
@@ -602,7 +633,17 @@ const styles = StyleSheet.create({
   stack: { position: "absolute", left: 0, right: 0, bottom: 0 },
   slot: { height: SLOT, alignItems: "center", justifyContent: "center" },
   foot: { borderTopWidth: StyleSheet.hairlineWidth, marginHorizontal: SPACE.sm },
-  footSlot: { height: FOOT - StyleSheet.hairlineWidth },
+  // A face's own size in the column (`sm`).
+  more: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moreCount: { fontSize: 11.5, fontWeight: "700", fontVariant: ["tabular-nums"] },
   // On the column's top, its left edge on the column's.
   tagRoom: {
     position: "absolute",

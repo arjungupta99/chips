@@ -64,7 +64,7 @@ import {
   filmOf,
   NOT_IN_DEMO_WORDS,
 } from "./script.js";
-import { CARD, type Draft, directoryRows, HISTORY, roomFaces } from "./workspace.js";
+import { CARD, type Draft, directoryRows, ERRAND, HISTORY, roomFaces } from "./workspace.js";
 
 /** The code and refusal the demo turns things away with, for a client to offer Set up my own Chips. */
 export const NOT_IN_DEMO = "not_in_demo";
@@ -143,6 +143,14 @@ export interface ServeOptions {
 const MINUTE = 60_000;
 /** How long the canned answer takes to come, so it reads as an answer and not an echo. */
 const ANSWER_MS = 1200;
+
+/** A message for people and no agent (ADR 0204), which gives no agent a turn. */
+function forPeopleAlone(event: ClientEvent): boolean {
+  if (event["addressed_people"] === undefined) return false;
+  const agents = event["addressed_to"] as readonly string[] | undefined;
+  return agents === undefined || agents.length === 0;
+}
+
 /** Chips's own relay, the one a server is given when it has none of its own (ADR 0245). */
 const DEMO_RELAY = "wss://relay.chipschat.ai";
 
@@ -223,10 +231,12 @@ export function serveDemo(options: ServeOptions = {}): DemoServer {
 
   /**
    * A person's message once the film is over: the one canned answer, from the agent it was for,
-   * unless that agent's harness is offline, when the room's waiting line says so instead.
+   * unless that agent's harness is offline, when the room's waiting line says so instead. A
+   * message for people alone gives no agent a turn (ADR 0204), so nobody answers it.
    */
   const answer = (event: ClientEvent): void => {
     if (!answering || event.type !== "message.post" || event.space_id === undefined) return;
+    if (forPeopleAlone(event)) return;
     const space = event.space_id;
     const aimed = (event["addressed_to"] as readonly string[] | undefined)?.[0];
     const agent = book.agent(aimed ?? book.members(space).find(book.isAgent) ?? "");
@@ -612,6 +622,7 @@ function readsOf(
   };
   const patterns: readonly (readonly [RegExp, (id: string, query: Query) => unknown])[] = [
     [/^\/v1\/spaces\/([^/]+)\/spend$/, (id) => jobSpend(book, id)],
+    [/^\/v1\/harnesses\/([^/]+)\/own-rules$/, (id) => ownRulesOf(book, id, seen.now())],
     [/^\/v1\/spaces\/([^/]+)\/files$/, (id, query) => ({ files: roomFiles(book, id, query) })],
     [
       /^\/v1\/people\/([^/]+)\/devices$/,
@@ -634,6 +645,74 @@ function readsOf(
 }
 
 type Query = ReadonlyMap<string, string>;
+
+/**
+ * What Errand runs on its own, as a bridge says it (ADR 0299), with the modes a person may pick
+ * for it (ADR 0300, 19 November addendum), so the Demo shows the Mode picker. It runs in the pick
+ * while it holds, as a bridge would put it. The other harnesses say nothing yet.
+ */
+function ownRulesOf(book: Book, harnessId: string, now: string): unknown {
+  if (harnessId !== ERRAND) return { own_rules: null, heard_at: null };
+  const said = book.events.findLast(
+    (event) =>
+      event["type"] === "policy.updated" &&
+      event.space_id == null &&
+      event["harness_id"] === ERRAND &&
+      (event["policy"] as { mode?: unknown } | undefined)?.mode !== undefined,
+  );
+  const pick = (said?.["policy"] as { mode?: { id?: string; until?: string } | null } | undefined)
+    ?.mode;
+  const holds =
+    pick !== undefined && pick !== null && (pick.until === undefined || pick.until > now);
+  const running = holds && typeof pick?.id === "string" ? pick.id : "default";
+  const offers = [
+    {
+      id: "default",
+      name: "Default",
+      words: "Asks before edits and commands its settings don't allow.",
+    },
+    {
+      id: "acceptEdits",
+      name: "Accept edits",
+      words: "Edits files without asking. Commands still ask.",
+    },
+    {
+      id: "auto",
+      name: "Auto",
+      words: "Errand judges each step and asks only when one looks risky.",
+    },
+    {
+      id: "bypassPermissions",
+      name: "Bypass permissions",
+      words: "Never asks. Whatever it does just happens.",
+      everything: true,
+    },
+  ];
+  const name = offers.find((offer) => offer.id === running)?.name ?? "Default";
+  return {
+    own_rules: {
+      read_from: ["~/.errand/settings.json"],
+      note: "Your own Errand reads the same file, so a change there changes both.",
+      mode: name,
+      modes: { base: "default", running, offers },
+      ...(running === "bypassPermissions"
+        ? { everything: true, runs: [] }
+        : {
+            runs: [
+              { kind: "read", name: "Read", raw: "Read" },
+              { kind: "command", name: "ls", words: ["ls"], raw: "Bash(ls:*)" },
+              { kind: "command", name: "git", words: ["git", "status"], raw: "Bash(git status:*)" },
+              ...(running === "acceptEdits"
+                ? [{ kind: "write", name: "Edit", raw: "acceptEdits" }]
+                : []),
+            ],
+            asks: [],
+            refuses: [],
+          }),
+    },
+    heard_at: now,
+  };
+}
 
 /** A query string, read by hand: React Native's `URL` has no `searchParams` to read it with. */
 function queryOf(search: string): Query {

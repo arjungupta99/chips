@@ -27,15 +27,19 @@ import {
   bannerClosed,
   bannerOffWords,
   bannerWanted,
+  chipsRulesOnFor,
   type Directory,
   EVERY_HARNESS,
   type HoldBand,
+  harnessOf,
   type LetWork,
   lettingWork,
+  type ModeBand,
   mayTurnDial,
   NO_BANNERS,
   nameOf,
   roomHolds,
+  roomModes,
   type Space,
   STOP_WORDS,
   STOPPED_MS,
@@ -68,6 +72,14 @@ const quietly = (done: Promise<void>) => {
   done.catch(() => feel.warning());
 };
 
+/** For each yes kept in the space, whether its asker's harness has Chips's rules on. */
+function switchesSaid(store: Store, directory: Directory, space: Space): string {
+  const { model } = store.getSnapshot();
+  return (space.letWork ?? [])
+    .map((held) => (chipsRulesOnFor(model, harnessOf(directory, held.asker)) ? "1" : "0"))
+    .join("");
+}
+
 export function LetWorkBand({
   store,
   space,
@@ -91,6 +103,9 @@ export function LetWorkBand({
     store.subscribe,
     () => store.getSnapshot().keepsBanners !== false,
   );
+  // Whose harness has Chips's rules on, since a yes holds on only for those (ADR 0300): read as
+  // a word, so the band is drawn again when a switch turns and for nothing else in the model.
+  useSyncExternalStore(store.subscribe, () => switchesSaid(store, directory, space));
   const [after, setAfter] = useState<Readonly<Record<string, After>>>({});
   const say = (asker: string, next: After | undefined) =>
     setAfter(({ [asker]: _was, ...others }) =>
@@ -108,7 +123,7 @@ export function LetWorkBand({
     };
   }, [after]);
   if (space.state !== "open") return null;
-  const holding = lettingWork(space, now);
+  const holding = lettingWork(store.getSnapshot().model, directory, space, now);
   const shown = holding.filter(
     (held) =>
       after[held.asker] !== undefined ||
@@ -248,6 +263,77 @@ export function HoldBands({
                 label={`Turn ${name}'s asks back on`}
                 onPress={() => resume(hold.harnessId)}
                 testID="hold-band-resume"
+              />
+            ) : null}
+          </Band>
+        );
+      })}
+    </View>
+  );
+}
+
+/** The modes that never ask a room shows, said as one string as `holdsSaid` does. */
+function modesSaid(store: Store, spaceId: string, selfId: string): string {
+  const { model, directory, keepsHarnessRules, keepsHarnessMode } = store.getSnapshot();
+  return JSON.stringify({
+    bands: roomModes(model, directory, spaceId, Date.now()),
+    may: keepsHarnessRules !== false && keepsHarnessMode !== false && mayTurnDial(model, selfId),
+  });
+}
+
+/**
+ * A harness with an agent in the room in a mode that never asks (ADR 0300, decision 5 and the 19
+ * November addendum): the gold band, `Claude Code asks nothing until 10:41 AM`, with Back to
+ * Default for an owner or an admin. Its words open the harness's Permissions. When its time is up
+ * it folds away.
+ */
+export function ModeBands({
+  store,
+  space,
+  directory,
+  selfId,
+}: {
+  readonly store: Store;
+  readonly space: Space;
+  readonly directory: Directory;
+  readonly selfId: string;
+}) {
+  const router = useRouter();
+  // A tick, so a band whose length has run out goes.
+  useNow(true);
+  const said = useSyncExternalStore(store.subscribe, () => modesSaid(store, space.id, selfId));
+  const { bands, may } = JSON.parse(said) as {
+    readonly bands: readonly ModeBand[];
+    readonly may: boolean;
+  };
+  if (space.state !== "open" || bands.length === 0) return null;
+  return (
+    <View testID="mode-bands">
+      {bands.map((band) => {
+        const name = nameOf(directory, band.harnessId);
+        return (
+          <Band
+            key={band.harnessId}
+            words={band.words}
+            live
+            onOpen={() => {
+              feel.tap();
+              router.push({
+                pathname: "/harnesses/[id]/[part]",
+                params: { id: band.harnessId, part: "asks" },
+              });
+            }}
+            openLabel={`${band.words}. Opens ${name}'s permissions`}
+          >
+            {may ? (
+              <PillAct
+                words={band.back}
+                label={`Put ${name} ${band.back.charAt(0).toLowerCase()}${band.back.slice(1)}`}
+                onPress={() => {
+                  feel.tap();
+                  store.setMode(band.harnessId, null);
+                }}
+                testID="mode-band-back"
               />
             ) : null}
           </Band>

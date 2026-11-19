@@ -45,8 +45,9 @@ import { type Duo, DuoContext } from "../ui/duo";
 import { PIN_REST } from "../ui/outline";
 import { avatarHue, hueColours, sourceColours } from "../ui/sourceColours";
 import { BUBBLE, ICON_GROUNDS, light, SPACE } from "../ui/tokens";
-import { listRoom } from "./AddressInField";
+import { columnRoom, listRoom } from "./AddressInField";
 import { forgetDrafts, quietFoot } from "./Composer";
+import { CROWN, shapeOf } from "./faceColumnMath";
 import { ARRIVE_MS, LEAVE_MS } from "./PausedBanner";
 import { homeward, madeHere } from "./RoomMotion";
 import { MARKS_MS, PLACING_MS, SpaceView } from "./SpaceView";
@@ -3861,6 +3862,148 @@ describe("a slide up from the faces (ADR 0229)", () => {
   });
 });
 
+describe("People, and a crowded room's column and list (ADR 0229's addendum of 18 November 2026)", () => {
+  const HIDDEN = { includeHiddenElements: true } as const;
+  interface Told {
+    readonly faces: number;
+    readonly groups?: number;
+    readonly onTouch: () => void;
+    readonly onLit: (index: number) => void;
+    readonly onPick: (index: number) => void;
+  }
+  const told = () => (globalThis as unknown as { faceSlide: Told }).faceSlide;
+  const NAMES = [
+    "Kay",
+    "Nia",
+    "Omar",
+    "Mei",
+    "Jonas",
+    "Sara",
+    "Ken",
+    "Ivy",
+    "Leo",
+    "Ben",
+    "Zoe",
+    "Ali",
+    "Eva",
+    "Max",
+    "Tara",
+  ];
+  const folks = (count: number) => NAMES.slice(0, count).map((name) => `per_${name.toLowerCase()}`);
+  /** A room of Scout, Dana and `count` more people, and the writer. */
+  const room = (count: number, lines: readonly LineModel[] = []) => {
+    const snapshot = state(lines, {
+      members: ["per_arjun", "har_scout", "per_dana", ...folks(count)],
+    });
+    return {
+      ...snapshot,
+      directory: {
+        ...snapshot.directory,
+        ...Object.fromEntries(
+          NAMES.slice(0, count).map((name) => [
+            `per_${name.toLowerCase()}`,
+            { id: `per_${name.toLowerCase()}`, kind: "person", displayName: name },
+          ]),
+        ),
+      },
+    } as Snapshot;
+  };
+
+  beforeEach(() => {
+    jest
+      .spyOn(View.prototype as unknown as { measureInWindow: () => void }, "measureInWindow")
+      .mockImplementation(((answer: (x: number, y: number, w: number, h: number) => void) =>
+        answer(16, 700, 140, 34)) as never);
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  it("offers People above Everyone with two other people and an agent, and sends to them alone", async () => {
+    const { store, element } = open(room(1));
+    await render(element);
+    await userEvent.press(screen.getByTestId("address-capsule"));
+    const people = screen.getByRole("menuitem", {
+      name: "People, dana ruiz and kay · no agent answers",
+    });
+    // At the foot with Everyone, not one of the rows that scroll.
+    expect(
+      within(screen.getByTestId("address-scroll")).queryByRole("menuitem", { name: /^People/ }),
+    ).toBeNull();
+    // A round mark, as a person's face is.
+    expect(within(people).getByTestId("faces-mark", HIDDEN)).toBeTruthy();
+    await userEvent.press(people);
+    expect(screen.getByRole("button", { name: "To People, 2 people" })).toBeTruthy();
+    expect(screen.getByTestId("composer-hint", HIDDEN)).toHaveTextContent("Message People");
+    await userEvent.type(screen.getByTestId("composer"), "Don't tell Scout about the cake");
+    await userEvent.press(screen.getByRole("button", { name: "Send" }));
+    expect(store.calls).toContainEqual({
+      name: "send",
+      args: {
+        spaceId: "sp_1",
+        text: "Don't tell Scout about the cake",
+        to: ["per_dana", "per_kay"],
+        addressedTo: [],
+        addressedPeople: ["per_dana", "per_kay"],
+      },
+    });
+  });
+
+  it("offers no People with one other person", async () => {
+    await render(open(state([], { members: ["per_arjun", "per_dana", "har_scout"] })).element);
+    await userEvent.press(screen.getByTestId("address-capsule"));
+    expect(screen.queryByRole("menuitem", { name: /^People,/ })).toBeNull();
+  });
+
+  it("stands People over Everyone at the column's foot, and picks it there", async () => {
+    await render(open(room(1)).element);
+    expect(told().faces).toBe(3);
+    expect(told().groups).toBe(1);
+    await act(() => told().onLit(3));
+    expect(screen.getByRole("button", { name: "To People, 2 people" })).toBeTruthy();
+    await act(() => {
+      told().onPick(3);
+      told().onLit(-1);
+    });
+    expect(screen.getByRole("button", { name: "To People, 2 people" })).toBeTruthy();
+  });
+
+  it("searches a crowded list, its rows under Agents and People", async () => {
+    await render(open(room(14)).element);
+    await userEvent.press(screen.getByTestId("address-capsule"));
+    const scroll = screen.getByTestId("address-scroll");
+    expect(within(scroll).getByText("Agents · 1")).toBeTruthy();
+    expect(within(scroll).getByText("People · 15")).toBeTruthy();
+    await userEvent.type(screen.getByTestId("address-search"), "omar");
+    expect(
+      within(scroll)
+        .getAllByRole("menuitem")
+        .map((item) => item.props["accessibilityLabel"]),
+    ).toEqual(["Omar, @Omar"]);
+    // People and Everyone stay at the foot whatever is searched.
+    expect(screen.getByRole("menuitem", { name: /^People,/ })).toBeTruthy();
+    await userEvent.press(within(scroll).getByRole("menuitem", { name: "Omar, @Omar" }));
+    expect(screen.getByRole("button", { name: "To Omar" })).toBeTruthy();
+  });
+
+  it("keeps a short column in a room whose faces don't fit it, and All opens the list", async () => {
+    const lines = [line({ authorId: "per_arjun", addressedTo: [], addressedPeople: ["per_tara"] })];
+    await render(open(room(15, lines)).element);
+    // Measured as a finger lands: before that the column is the whole room.
+    expect(told().faces).toBe(17);
+    await act(() => told().onTouch());
+    const faces = told().faces;
+    expect(faces).toBeLessThan(17);
+    // All lights without changing what the field says, and letting go there opens the list.
+    await act(() => told().onLit(0));
+    expect(screen.getByRole("button", { name: "To Tara" })).toBeTruthy();
+    await act(() => {
+      told().onPick(0);
+      told().onLit(-1);
+    });
+    expect(screen.getByTestId("address-search")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "To Tara" })).toBeTruthy();
+  });
+});
+
 describe("a room of many agents (ADR 0113)", () => {
   // The faces are seen, never read out: a query finds them only when asked to.
   const HIDDEN = { includeHiddenElements: true } as const;
@@ -3966,6 +4109,16 @@ describe("a room of many agents (ADR 0113)", () => {
     expect(listRoom(874, { top: 480, height: 50 }, 108)).toBe(480 - 108 - SPACE.sm);
     // The keys down: half the window, less the row.
     expect(listRoom(874, { top: 794, height: 50 }, 108)).toBe(874 / 2 - 50);
+  });
+
+  it("gives the column of faces the list's room, with the name over it counted against the bar only", () => {
+    // The keys down: the column itself stands in half the window, and its name above that.
+    const down = columnRoom(874, { top: 794, height: 50 }, 108);
+    expect(down).toBe(874 / 2 - 50 + CROWN);
+    // Six faces, People and Everyone fit an iPhone 17 Pro, so nothing is crowded out.
+    expect(shapeOf(6, down, 1).most).toBe(0);
+    // The keys up: the bar decides, and the name stays under it.
+    expect(columnRoom(874, { top: 480, height: 50 }, 108)).toBe(480 - 108 - SPACE.sm);
   });
 
   it("keeps Everyone picked as everyone when an agent joins before the send", async () => {

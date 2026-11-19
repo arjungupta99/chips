@@ -311,7 +311,7 @@ describe("a command's yes beyond once (ADR 0239)", () => {
       /^Now, \d{1,2}:\d\d [AP]MUntil \d{1,2}:\d\d [AP]M$/,
     );
     expect(screen.getByTestId("for-a-while")).toHaveTextContent(
-      "Everything Scout asks in this space goes ahead without a card for the hour, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+      "Scout's asks in this space go ahead without a card for the hour. Commands like rm and git push still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
     );
     await userEvent.press(screen.getByRole("button", { name: "Approve for an hour" }));
     expect(decided).toEqual([{ decision: "approved", scope: "once", forMinutes: 60 }]);
@@ -381,7 +381,7 @@ describe("letting the agent work without asking (ADR 0281)", () => {
     expect(screen.queryByTestId("lasting")).toBeNull();
     expect(screen.queryByTestId("hour-strip")).toBeNull();
     expect(screen.getByTestId("until-stopped")).toHaveTextContent(
-      "Everything Scout asks here goes ahead without a card until you stop it, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+      "Scout's asks here go ahead without a card until you stop it. Commands like rm and git push still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
     );
     await userEvent.press(screen.getByRole("button", { name: "Approve and let it work" }));
     expect(decided).toEqual([{ decision: "approved", scope: "once", untilStopped: true }]);
@@ -611,9 +611,77 @@ describe("the answer, in the hand", () => {
 });
 
 describe("an ask while its harness's Chips's rules are off (ADR 0300)", () => {
+  const command = (line: string): Partial<Approval> => ({
+    actionKind: "acp.execute",
+    risk: [],
+    input: { command: line },
+  });
+  const off = (over: Partial<Approval>, props: Partial<Parameters<typeof Decide>[0]> = {}) =>
+    view(over, { chipsOn: false, mayEverywhere: true, spaceName: "Bakery", ...props });
+
   it("offers the harness's own choices: no hour and no Let it work", async () => {
     await render(view({}, { chipsOn: false }).element);
     expect(screen.queryByText("For an hour")).toBeNull();
     expect(screen.queryByTestId("let-work")).toBeNull();
+  });
+
+  it("offers a command's Always for the harness to keep: no words lit and no Where", async () => {
+    const { element, decided } = view(
+      { actionKind: "acp.execute", risk: [], input: { command: "git status" } },
+      { chipsOn: false, mayEverywhere: true },
+    );
+    await render(element);
+    expect(screen.queryByRole("radio", { name: "For an hour" })).toBeNull();
+    await userEvent.press(screen.getByRole("radio", { name: "Always" }));
+    expect(screen.getByTestId("harness-keeps")).toHaveTextContent(
+      "Scout keeps this and won't ask about it again.",
+    );
+    expect(screen.queryAllByTestId("lit-words")).toHaveLength(0);
+    expect(screen.queryByTestId("where")).toBeNull();
+    await userEvent.press(screen.getByRole("button", { name: "Approve always" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "always" }]);
+    expect(screen.getByRole("button", { name: "Always" })).toBeDisabled();
+  });
+
+  it("asks an owner no space for an Always the harness keeps, and sends none", async () => {
+    const { element, decided } = off({ actionKind: "file.edit", risk: [] });
+    await render(element);
+    await userEvent.press(screen.getByRole("radio", { name: "Always" }));
+    expect(screen.getByTestId("harness-keeps")).toHaveTextContent(
+      "Scout keeps this and won't ask about it again.",
+    );
+    // Where it holds is Chips's to say, and Chips keeps nothing here.
+    expect(screen.queryByTestId("where")).toBeNull();
+    expect(screen.queryByRole("radio", { name: "In every space" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "In this space" })).toBeNull();
+    expect(screen.queryByTestId("reach")).toBeNull();
+    await userEvent.press(screen.getByRole("button", { name: "Approve always" }));
+    expect(decided).toEqual([{ decision: "approved", scope: "always" }]);
+    // What Approve turns to names no space either.
+    expect(screen.getByRole("button", { name: "Always" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /in every space|in Bakery/ })).toBeNull();
+  });
+
+  it("says why a command Chips can't read has no Always, since one it reads has one", async () => {
+    for (const [line, why] of [
+      [
+        "for r in a; do ls; done",
+        "This command does more than Chips can read, so there is no Always for it.",
+      ],
+      ["ls && rm -rf build", "There is no Always for asks that use rm."],
+    ] as const) {
+      const shown = await render(off(command(line)).element);
+      expect(screen.getByTestId("once-only")).toHaveTextContent(why);
+      expect(screen.queryByTestId("lasting")).toBeNull();
+      expect(screen.getByRole("button", { name: "Approve once" })).toBeTruthy();
+      await shown.unmount();
+    }
+  });
+
+  it("still says an ask that matters is answered each time", async () => {
+    await render(off({ matters: true }).element);
+    expect(screen.getByTestId("once-only")).toHaveTextContent(
+      "You answer asks like this each time, so there is no Always.",
+    );
   });
 });

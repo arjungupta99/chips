@@ -212,6 +212,8 @@ interface HarnessOptions {
   readonly workspace?: WorkspacePolicyView;
   /** Rules decided for the fixtures' run this session. */
   readonly session?: readonly PolicyRule[];
+  /** The yeses still holding for the harness and its agents (ADR 0281). Absent, none. */
+  readonly held?: readonly { readonly space_id: string; readonly asker: string }[];
   /** The messages that exist, by wire id. Absent, the fixtures' message exists and is Scout's. */
   readonly messages?: Readonly<Record<string, MessageView>>;
   /** The lane the fixtures' run is, when it is one. Absent, the run is nobody's lane. */
@@ -389,6 +391,9 @@ function harness(options: HarnessOptions = {}) {
     },
     async rulesForAWhile() {
       return [];
+    },
+    async heldBy() {
+      return [...(options.held ?? [])];
     },
     async workspaceRole(_workspaceId: string, participantId: string) {
       const roles = options.workspaceRoles ?? WORKSPACE_ROLES_BY_DEFAULT;
@@ -2454,6 +2459,7 @@ describe("rules a person writes, and a harness's asks turned off (ADR 0299)", ()
     (h.store.appended[0] as Record<string, unknown> | undefined)?.["policy"] as {
       rules: PolicyRule[];
       hold?: unknown;
+      mode?: unknown;
     };
   const { space_id: _none, ...everywhere } = fixture("policy.updated");
   const send = (
@@ -2576,6 +2582,63 @@ describe("rules a person writes, and a harness's asks turned off (ADR 0299)", ()
     });
     expect(inRoom.ok).toBe(false);
     if (!inRoom.ok) expect(inRoom.error.kind).toBe("invalid");
+  });
+
+  it("stamps a mode a person picked, keeps one only for every space, and lets a member pick none (ADR 0300)", async () => {
+    const h = harness();
+    const picked = await send(
+      h,
+      {
+        autonomy: 1,
+        rules: [],
+        mode: {
+          id: "auto",
+          name: "Auto",
+          back_to: "Default",
+          until: "2025-09-02T09:00:00.000Z",
+          by: "usr_x",
+          at: "2020-01-01T00:00:00.000Z",
+        },
+      },
+      "m1",
+    );
+    expect(picked.ok, JSON.stringify(picked)).toBe(true);
+    expect(appendedPolicy(h).mode).toEqual({
+      id: "auto",
+      name: "Auto",
+      back_to: "Default",
+      until: "2025-09-02T09:00:00.000Z",
+      by: ARJUN.participantId,
+      at: NOW,
+    });
+
+    const back = harness();
+    expect((await send(back, { autonomy: 1, rules: [], mode: null }, "m2")).ok).toBe(true);
+    expect(appendedPolicy(back).mode).toBeNull();
+
+    const inRoom = await harness().submit({
+      event: {
+        ...fixture("policy.updated"),
+        actor: { kind: "person", id: ARJUN.participantId },
+        policy: { autonomy: 1, rules: [], mode: { id: "auto" } },
+      },
+      principal: ARJUN,
+      idempotencyKey: "m3",
+    });
+    expect(inRoom.ok).toBe(false);
+    if (!inRoom.ok) expect(inRoom.error.kind).toBe("invalid");
+
+    const byMember = await harness().submit({
+      event: {
+        ...everywhere,
+        actor: { kind: "person", id: DANA.participantId },
+        policy: { autonomy: 1, rules: [], mode: { id: "bypassPermissions" } },
+      },
+      principal: DANA,
+      idempotencyKey: "m4",
+    });
+    expect(byMember.ok).toBe(false);
+    if (!byMember.ok) expect(byMember.error.kind).toBe("wrong_role");
   });
 
   it("says yes while a hold holds, never past what matters unless it says so, and never past a no", async () => {

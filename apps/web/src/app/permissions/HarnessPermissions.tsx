@@ -6,9 +6,10 @@
  * - The main page: the gates on the path from the harness to the person, the yellow banner only
  *   while Claude Code runs in Bypass permissions, "Where it's set" with a row for the harness's
  *   own settings and one for Chips's rules, and every ask so far.
- * - <Harness>'s settings: its mode, the notice when what it runs on its own covers something
- *   Chips would never let a rule allow, and what its settings let through, ask about and never
- *   run, each with where it's kept.
+ * - <Harness>'s settings: its mode, which a person picks there where the harness offers modes
+ *   (ADR 0300, addendum of 19 November 2026), the notice when what it runs on its own covers
+ *   something Chips would never let a rule allow, and what its settings let through, ask about
+ *   and never run, each with where it's kept.
  * - Chips's rules: the switch, then Stop asking and the rules, with Add a rule.
  */
 
@@ -27,6 +28,7 @@ import {
   harnessAskKey,
   harnessPermissions,
   MAKE_ASK_WORDS,
+  MODE_HEADING,
   NOT_SAID,
   nameOf,
   OWN_GATE_WORDS,
@@ -40,7 +42,6 @@ import {
   type SnoozeLength,
   STOP_ASKING_HEADING,
   STOP_ASKING_TITLE,
-  segments,
   snoozeUntil,
   WHERE_SET_HEADING,
   type WorkspaceModel,
@@ -49,33 +50,29 @@ import { Icon, type IconName } from "@chipschat/ui";
 import { Fragment, useState } from "react";
 import { AlwaysList } from "../AlwaysList.tsx";
 import { AsksSoFar, Count, Hero, UNDO_TITLE } from "../Asking.tsx";
+import { Coded } from "../Coded.tsx";
 import { GroupRow } from "../GroupRow.tsx";
 import { UndoPill } from "../room/UndoPill.tsx";
 import { type Always, useAlways } from "../useAlways.ts";
+import { useNow } from "../useNow.ts";
 import { Switch } from "../you/controls.tsx";
+import { ModePicker } from "./ModePicker.tsx";
 import { LengthChips } from "./StopLengths.tsx";
 import { type PermissionsService, rulesSender, useOwnRules } from "./service.ts";
 
-const MODE_HEADING = "Mode";
 const MODE_SUB = "The mode Chips runs its sessions in. Anything not on its lists asks.";
 const NOT_SAID_WORDS =
   "It doesn't say yet what it runs on its own. Everything it asks still comes to you.";
 
-/** Words with stretches in code, as core marks them with backticks. */
-export function Coded(props: { readonly text: string }) {
-  return (
-    <>
-      {segments(props.text).map((part, at) =>
-        part.code === true ? (
-          // biome-ignore lint/suspicious/noArrayIndexKey: a stretch's place is its order.
-          <code key={at}>{part.text}</code>
-        ) : (
-          // biome-ignore lint/suspicious/noArrayIndexKey: as above.
-          <Fragment key={at}>{part.text}</Fragment>
-        ),
-      )}
-    </>
-  );
+/**
+ * A harness's mode as far as what it says it runs in goes: it changes when a mode is picked, put
+ * back, or its time is up, and each change reads what it says again (ADR 0300, 19 November addendum).
+ */
+function modeKey(model: WorkspaceModel, harnessId: string, now: number): string {
+  const policy = model.harnesses?.[harnessId];
+  const until = policy?.mode?.until;
+  const over = until !== undefined && Date.parse(until) <= now;
+  return `${policy?.mode?.id ?? ""}|${policy?.modeSince ?? ""}|${over ? "over" : ""}`;
 }
 
 /** What the three pages read: the store's rules as the list keeps them, and what it last said. */
@@ -86,18 +83,22 @@ function usePage(
   selfId: string | undefined,
   service: PermissionsService | undefined,
 ) {
+  // A pick's end passes while the page is open: the clock moves it on.
+  const now = useNow();
   const always = useAlways(model, rulesSender(service));
-  const own = useOwnRules(service, directory, harnessId);
+  const own = useOwnRules(service, directory, harnessId, modeKey(model, harnessId, now));
   const page = harnessPermissions(
     {
       model: always.model,
       directory,
       keepsHarnessRules: service?.keepsHarnessRules,
       keepsChipsRules: service?.keepsChipsRules,
+      keepsHarnessMode: service?.keepsHarnessMode,
     },
     harnessId,
     selfId,
     own ?? NOT_SAID,
+    now,
   );
   return { always, page };
 }
@@ -147,6 +148,16 @@ export function HarnessPermissions(props: {
             <b>{page.open.title}</b>
             <small>{page.open.sub}</small>
           </span>
+          {page.open.back !== undefined && service !== undefined && (
+            <button
+              type="button"
+              className="perms-back"
+              onClick={() => service.setMode(harnessId, null)}
+              data-testid="perms-open-back"
+            >
+              {page.open.back}
+            </button>
+          )}
         </div>
       )}
       <div className="asking-part-h">
@@ -157,7 +168,7 @@ export function HarnessPermissions(props: {
           label={page.settingsRow.title}
           sub={page.settingsRow.sub}
           value={page.settingsRow.value}
-          goldValue={page.open !== undefined}
+          goldValue={page.settingsRow.gold}
           tone={page.settingsRow.warn ? "danger" : undefined}
           mark={{ icon: "terminal", ground: 0 }}
           lines={2}
@@ -192,31 +203,49 @@ export function HarnessPermissions(props: {
   );
 }
 
-/** Its own settings (ADR 0300): its mode, the notice, and what its settings let through. */
+/**
+ * Its own settings (ADR 0300): its mode, the picker where it offers modes (19 November addendum),
+ * the notice, and what its settings let through.
+ */
 export function HarnessSettings(props: {
+  readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly harnessId: string;
+  readonly selfId: string | undefined;
   readonly service: PermissionsService | undefined;
 }) {
-  const own = useOwnRules(props.service, props.directory, props.harnessId) ?? NOT_SAID;
+  const { page } = usePage(
+    props.model,
+    props.directory,
+    props.harnessId,
+    props.selfId,
+    props.service,
+  );
+  const own = page.own;
   return (
     <section
       className="asking perms"
       aria-label={`${nameOf(props.directory, props.harnessId)}'s settings`}
       data-testid="perms-settings"
     >
-      <div className="asking-part-h">
-        <h4>{MODE_HEADING}</h4>
-      </div>
-      <ul className="hp-group">
-        <GroupRow
-          label={own.mode ?? (own.said ? "Its own" : "Not said")}
-          sub={own.everything ? "Runs everything without asking" : MODE_SUB}
-          goldValue={own.everything}
-          mark={{ icon: "terminal", ground: 0 }}
-          testId="perms-mode"
-        />
-      </ul>
+      {page.mode !== undefined ? (
+        <ModePicker picker={page.mode} harnessId={props.harnessId} service={props.service} />
+      ) : (
+        <>
+          <div className="asking-part-h">
+            <h4>{MODE_HEADING}</h4>
+          </div>
+          <ul className="hp-group">
+            <GroupRow
+              label={own.mode ?? (own.said ? "Its own" : "Not said")}
+              sub={own.everything ? "Runs everything without asking" : MODE_SUB}
+              goldValue={own.everything}
+              mark={{ icon: "terminal", ground: 0 }}
+              testId="perms-mode"
+            />
+          </ul>
+        </>
+      )}
       {own.notice !== undefined && <Notice notice={own.notice} />}
       <OwnList own={own} />
       {!own.said && (
@@ -230,7 +259,7 @@ export function HarnessSettings(props: {
 
 /**
  * Chips's rules for one harness (ADR 0300): the switch; and while it's on, Stop asking, which never
- * says yes to the never list, then the rules and Add a rule.
+ * says yes to its own short list (`rm`, `git push`), then the rules and Add a rule.
  */
 export function ChipsRules(props: {
   readonly model: WorkspaceModel;

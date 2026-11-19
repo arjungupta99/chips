@@ -29,6 +29,11 @@
  * letting go on a row picks it alone and closes the list. Letting go anywhere else after moving
  * leaves who it goes to as it was, and closes the list. A press let go where it began is a click,
  * and leaves the list open.
+ *
+ * People (ADR 0229's addendum of 18 November 2026): where the writer has two or more other people
+ * and an agent, a row above Everyone picks every person here and no agent, and the two stay at the
+ * list's foot. A room of more than twelve has a search line over the rows, which stand under
+ * Agents and People; typing on a row types there.
  */
 
 import {
@@ -37,6 +42,7 @@ import {
   addedTo,
   aimOf,
   aimsAtEveryone,
+  aimWords,
   aimWordsOf,
   belongsTo,
   cantAnswer,
@@ -46,6 +52,7 @@ import {
   faceOf,
   harnessUnder,
   nameOf,
+  offersPeople,
   roomHandles,
   roomLeadOf,
   type Space,
@@ -64,6 +71,8 @@ import {
 
 /** How far a press moves before letting go is a slide's, not a click's (ADR 0229). */
 const SLIDE_PX = 6;
+/** From more rows than this, the list has a search line and stands its rows under Agents and People. */
+const SEARCH_FROM = 12;
 
 /**
  * Where each room's pick is kept: this browser's storage, which the Mac app's window has too, so
@@ -73,7 +82,8 @@ const SLIDE_PX = 6;
 const PICKS = "chips.picks";
 
 function isPick(value: unknown): value is AimPick {
-  return value === "all" || (Array.isArray(value) && value.every((id) => typeof id === "string"));
+  if (value === "all" || value === "people") return true;
+  return Array.isArray(value) && value.every((id) => typeof id === "string");
 }
 
 /** What was kept, by room; nonsense, or no storage, is nothing. */
@@ -159,9 +169,11 @@ export interface AddressProps {
 interface Choice {
   readonly key: string;
   readonly ids: readonly string[];
-  /** What picking it keeps: the harness, or `all` (ADR 0113). */
+  /** What picking it keeps: the harness, `people`, or `all` (ADR 0113). */
   readonly pick: AimPick;
   readonly words: string;
+  /** An agent's row, which a crowded list stands under Agents. */
+  readonly agent?: boolean | undefined;
   /** Said under Everyone: that each of them will answer. */
   readonly under?: string | undefined;
   /** Under an agent: the @ that reaches it (ADR 0091). */
@@ -193,8 +205,8 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
 
 /**
  * Each harness, the lead first (ADR 0113), with the @ that reaches it and the lead marked (ADR
- * 0104), then each other person with theirs (ADR 0204), then all of them: the phone's menu and the
- * desktop's are the same list.
+ * 0104), then each other person with theirs (ADR 0204), then People where it is offered, then all
+ * of them: the phone's menu and the desktop's are the same list.
  */
 function choicesOf(props: AddressProps): Choice[] {
   const { harnesses, people, directory, space, selfId } = props;
@@ -207,6 +219,7 @@ function choicesOf(props: AddressProps): Choice[] {
       ids: [id],
       pick: [id],
       words: nameOf(directory, id),
+      agent: true,
       handle: handles[id],
       lead: id === leads,
       owner: ownerWords(directory, id, selfId),
@@ -219,6 +232,17 @@ function choicesOf(props: AddressProps): Choice[] {
       words: nameOf(directory, id),
       handle: handles[id],
     })),
+    ...(offersPeople(space, directory, selfId)
+      ? [
+          {
+            key: "people",
+            ids: people,
+            pick: "people" as const,
+            words: "People",
+            under: `${aimWords(people, space, directory)} · no agent answers`,
+          },
+        ]
+      : []),
     {
       key: "everyone",
       ids: [...harnesses, ...people],
@@ -272,6 +296,25 @@ function AimBy({ by }: { readonly by: Aim["by"] }) {
   return <Icon name="down" size={12} className="aim-chevron" />;
 }
 
+/** Whether a choice is one of the groups at the list's foot: People or Everyone. */
+function isGroup(choice: Choice): boolean {
+  return !Array.isArray(choice.pick);
+}
+
+/** Whether a key is a letter typed, rather than one that moves or picks. */
+function typed(event: KeyboardEvent<HTMLElement>): boolean {
+  if (event.metaKey || event.ctrlKey || event.altKey) return false;
+  return event.key.length === 1 && event.key !== " ";
+}
+
+/** Whether a row is one the search's words find: by name, or by the @ that reaches it. */
+function matches(choice: Choice, query: string): boolean {
+  const words = query.trim().toLowerCase().replace(/^@/, "");
+  if (words === "") return true;
+  const handle = (choice.handle ?? "").toLowerCase().replace(/^@/, "");
+  return choice.words.toLowerCase().includes(words) || handle.includes(words);
+}
+
 /** What leads the field, and what the field opens into: the composer's `lead` and `above`. */
 export interface AddressInField {
   readonly lead: ReactNode;
@@ -302,13 +345,19 @@ export function useAddressInField(props: AddressProps): AddressInField {
   // Under Everyone no agent is selected: the first one added starts afresh (`addedTo`).
   // Everyone as Everyone, rather than a list that holds them all: the rows say which.
   const whole = aimsAtEveryone(aim, props.picked);
-  const included = (choice: Choice) =>
-    choice.pick === "all" ? whole : !whole && choice.ids.every((id) => aim.ids.includes(id));
+  const included = (choice: Choice) => {
+    if (choice.pick === "all") return whole;
+    if (choice.pick === "people") return aim.people === true;
+    return !whole && choice.ids.every((id) => aim.ids.includes(id));
+  };
   const words = aimWordsOf(aim, space, directory);
   const everyone = words === "Everyone";
-  // How many, where the mark stands for Everyone (ADR 0113); "4 agents" says so already.
+  const people = aim.people === true;
+  // How many, where the mark stands for Everyone or People (ADR 0113); "4 agents" says so already.
   const many =
-    everyone && marked(aim.ids.length, true) ? `, ${countedWords(aim.ids, directory)}` : "";
+    (everyone || people) && marked(aim.ids.length, true)
+      ? `, ${countedWords(aim.ids, directory)}`
+      : "";
   // Pressed, the list opens at once; let go on a row after sliding, and that row is picked alone.
   const press = (event: PressEvent<HTMLButtonElement>) => {
     if (event.button !== 0 || event.isPrimary === false) return;
@@ -361,7 +410,12 @@ export function useAddressInField(props: AddressProps): AddressInField {
           →
         </span>
         {aim.ids.length > 0 && (
-          <FaceGroup faces={facesOf(aim.ids, directory)} small everyone={everyone} />
+          <FaceGroup
+            faces={facesOf(aim.ids, directory)}
+            small
+            everyone={everyone}
+            people={people}
+          />
         )}
       </span>
       <AimBy by={aim.by} />
@@ -408,15 +462,46 @@ function Menu(props: {
   readonly onAdd: (choice: Choice) => void;
 }) {
   const { choices, current, list } = props;
-  const [active, setActive] = useState(Math.max(current, 0));
+  const faces = choices.filter((choice) => !isGroup(choice));
+  const ends = choices.filter(isGroup);
+  const searching = faces.length > SEARCH_FROM;
+  const [query, setQuery] = useState("");
+  const search = useRef<HTMLInputElement>(null);
+  const found = searching ? faces.filter((choice) => matches(choice, query)) : faces;
+  // The rows in the order they are drawn: the ones found, then People and Everyone.
+  const visible = [...found, ...ends];
+  const [active, setActive] = useState(() =>
+    Math.max(
+      0,
+      visible.findIndex((choice) => choice.key === choices[current]?.key),
+    ),
+  );
   const [above, setAbove] = useState(false);
   useEffect(() => {
     list.current
       ?.querySelector<HTMLButtonElement>('[data-active="true"]')
       ?.focus({ preventScroll: true });
   }, [list]);
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const choice = choices[active];
+  const focusRow = (index: number) =>
+    list.current?.querySelectorAll<HTMLButtonElement>('[role="option"]')[index]?.focus();
+  // The search line's keys: Escape closes, the down arrow goes to the rows, Enter picks the first.
+  const onSearchKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      props.onClose(true);
+    } else if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActive(0);
+      focusRow(0);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      const first = found[0];
+      if (first !== undefined) props.onChoose(first);
+    }
+  };
+  // A row's keys: Space adds, Enter picks, the arrows walk, Escape and Tab close.
+  const onRowKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const choice = visible[active];
     const pressed = pressOf(event.key, choice);
     if (pressed !== undefined && choice !== undefined) {
       // The option's own click is held back (`onKeyUp`, and Enter here), so it happens once.
@@ -425,16 +510,28 @@ function Menu(props: {
       else props.onChoose(choice);
       return;
     }
-    const next = stepOf(event.key, active, choices.length);
+    const next = stepOf(event.key, active, visible.length);
+    if (next === undefined) return;
+    event.preventDefault();
     if (next === "close") {
-      event.preventDefault();
       props.onClose(true);
       return;
     }
-    if (next === undefined) return;
-    event.preventDefault();
     setActive(next);
-    list.current?.querySelectorAll<HTMLButtonElement>('[role="option"]')[next]?.focus();
+    focusRow(next);
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.target === search.current) {
+      onSearchKey(event);
+    } else if (searching && typed(event)) {
+      // A letter typed on a row is the search's.
+      event.preventDefault();
+      setQuery((now) => now + event.key);
+      setActive(0);
+      search.current?.focus();
+    } else {
+      onRowKey(event);
+    }
   };
   const option = (choice: Choice, index: number) => (
     <button
@@ -449,7 +546,7 @@ function Menu(props: {
       onClick={(event) => {
         // A click on the circle adds or takes out; anywhere else picks it alone, and closes.
         const circle = (event.target as Element).closest(".aim-add") !== null;
-        if (circle && choice.pick !== "all") props.onAdd(choice);
+        if (circle && !isGroup(choice)) props.onAdd(choice);
         else props.onChoose(choice);
       }}
       onPointerEnter={() => setActive(index)}
@@ -460,6 +557,7 @@ function Menu(props: {
           faces={facesOf(choice.ids, props.directory)}
           small
           everyone={choice.pick === "all"}
+          people={choice.pick === "people"}
           counted={false}
         />
       </span>
@@ -491,7 +589,8 @@ function Menu(props: {
       <Picked choice={choice} on={props.included(choice)} />
     </button>
   );
-  const last = choices.length - 1;
+  const agents = found.filter((choice) => choice.agent === true);
+  const people = found.filter((choice) => choice.agent !== true);
   return (
     <div
       ref={list}
@@ -504,20 +603,52 @@ function Menu(props: {
       onKeyDown={onKeyDown}
       // A button clicks on Space's release: here Space has added already, on its press.
       onKeyUp={(event) => {
-        if (event.key === " ") event.preventDefault();
+        if (event.key === " " && event.target !== search.current) event.preventDefault();
       }}
     >
-      {/* The harnesses scroll, fading at the top while there are more above; Everyone stays. */}
+      {searching && (
+        <label className="aim-search">
+          <Icon name="search" size={14} />
+          <input
+            ref={search}
+            type="search"
+            aria-label="Search who it goes to"
+            placeholder={`Search ${faces.length}`}
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setActive(0);
+            }}
+            data-testid="aim-search"
+          />
+        </label>
+      )}
+      {/* The rows scroll, fading at the top while there are more above; People and Everyone stay. */}
       <div
         className="aim-rows"
         data-above={above ? "true" : undefined}
         data-testid="aim-rows"
         onScroll={(event) => setAbove(event.currentTarget.scrollTop > 1)}
       >
-        {choices.slice(0, last).map(option)}
+        {!searching ? (
+          found.map(option)
+        ) : found.length === 0 ? (
+          <div className="aim-section">No one by that name</div>
+        ) : (
+          <>
+            {agents.length > 0 && (
+              <div className="aim-section" aria-hidden="true">{`Agents · ${agents.length}`}</div>
+            )}
+            {agents.map((choice, index) => option(choice, index))}
+            {people.length > 0 && (
+              <div className="aim-section" aria-hidden="true">{`People · ${people.length}`}</div>
+            )}
+            {people.map((choice, index) => option(choice, agents.length + index))}
+          </>
+        )}
       </div>
       <div className="aim-everyone">
-        {choices.slice(last).map((choice) => option(choice, last))}
+        {ends.map((choice, index) => option(choice, found.length + index))}
       </div>
     </div>
   );
@@ -528,7 +659,7 @@ function Menu(props: {
  * (ADR 0114). Seen, not read out: the option's own selected state says it.
  */
 function Picked({ choice, on }: { readonly choice: Choice; readonly on: boolean }) {
-  if (choice.pick === "all") {
+  if (isGroup(choice)) {
     return on ? <Icon name="check" size={14} className="aim-check" /> : null;
   }
   return (
@@ -565,11 +696,11 @@ function labelOf(choice: Choice): string | undefined {
 /**
  * What a key does to the list's active row (ADR 0114): Space is the circle's, an agent added or
  * taken out with the list left open; Enter is the name's, picked alone and the list closed.
- * Everyone is picked by either.
+ * People and Everyone are picked by either.
  */
 function pressOf(key: string, choice: Choice | undefined): "add" | "choose" | undefined {
   if (choice === undefined || (key !== " " && key !== "Enter")) return undefined;
-  return key === " " && choice.pick !== "all" ? "add" : "choose";
+  return key === " " && !isGroup(choice) ? "add" : "choose";
 }
 
 /**

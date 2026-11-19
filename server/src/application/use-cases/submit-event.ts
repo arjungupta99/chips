@@ -60,6 +60,7 @@ import {
   type Decision,
   estimateCost,
   evaluate,
+  holdsOn,
   isGuest,
   type MessageFacts,
   matters,
@@ -71,6 +72,7 @@ import {
   type RunFacts,
   refuseAgentNotTheirs,
   refuseCapsOverCeiling,
+  refuseHeldRulesOff,
   refuseHeldStart,
   refuseLimits,
   refuseNotAnApprover,
@@ -94,7 +96,7 @@ import {
   type SpaceFacts,
   settlesItsOwn,
 } from "../../domain/index.js";
-import { holdRules, keepHold, keepWritten } from "../../domain/written-rules.js";
+import { holdRules, keepHold, keepMode, keepWritten } from "../../domain/written-rules.js";
 import { type AgentDeps, defaultAgentOf, takenNames } from "../agents.js";
 import type { UploadsRegistry } from "../ports/attachments.js";
 import type { Principal } from "../ports/identity.js";
@@ -184,6 +186,7 @@ export interface SubmitEventDeps {
     | "chipsRules"
     | "sessionRules"
     | "rulesForAWhile"
+    | "heldBy"
     | "participant"
     | "membersOf"
     | "laneByRun"
@@ -543,6 +546,19 @@ function heldBy(hold: PolicyHold | null | undefined, by: string, at: string) {
   return hold === undefined || hold === null ? undefined : keepHold(hold, by, at);
 }
 
+/**
+ * Why a space's policy may not carry what a harness has once for every space: a hold (ADR 0299),
+ * its Chips's rules switch, or its mode (ADR 0300); nothing when it carries none.
+ */
+function everywhereOnly(policy: Policy, hold: PolicyHold | undefined): string | undefined {
+  if (hold !== undefined) return "A harness's asks are turned off in every space at once.";
+  if (policy.chips_rules !== undefined) {
+    return "A harness's Chips's rules are switched for every space at once.";
+  }
+  if (policy.mode !== undefined) return "A harness's mode is picked for every space at once.";
+  return undefined;
+}
+
 async function keepHarnessRules(
   event: Record<string, unknown>,
   principal: Principal,
@@ -553,15 +569,8 @@ async function keepHarnessRules(
   const policy = event["policy"] as Policy;
   const space = typeof event["space_id"] === "string" ? event["space_id"] : undefined;
   const hold = heldBy(policy.hold, by, at);
-  if (space !== undefined && hold !== undefined) {
-    return { kind: "invalid", message: "A harness's asks are turned off in every space at once." };
-  }
-  if (space !== undefined && policy.chips_rules !== undefined) {
-    return {
-      kind: "invalid",
-      message: "A harness's Chips's rules are switched for every space at once.",
-    };
-  }
+  const everywhere = space === undefined ? undefined : everywhereOnly(policy, hold);
+  if (everywhere !== undefined) return { kind: "invalid", message: everywhere };
   const view = await deps.readModels.harnessPolicy(
     principal.workspaceId,
     String(event["harness_id"]),
@@ -570,7 +579,15 @@ async function keepHarnessRules(
   const previous = view?.space_id === (space ?? "*") ? view.rules : [];
   const kept = keepWritten(previous, policy.rules, by, at);
   if (!kept.ok) return { kind: "invalid", message: kept.why };
-  event["policy"] = { ...policy, rules: kept.rules, ...(hold === undefined ? {} : { hold }) };
+  event["policy"] = {
+    ...policy,
+    rules: kept.rules,
+    ...(hold === undefined ? {} : { hold }),
+    // A mode is stamped as a hold is (ADR 0300, 19 November addendum); `null` goes as it came.
+    ...(policy.mode === undefined || policy.mode === null
+      ? {}
+      : { mode: keepMode(policy.mode, by, at) }),
+  };
   return undefined;
 }
 
@@ -1327,10 +1344,74 @@ async function gather(
   if (onMessage !== undefined) return { ok: false, error: onMessage };
   const decision = await gatherDecision(event, principal, deps, standing.value.role, run.value);
   if (!decision.ok) return decision;
+  // Last, so somebody who may not answer, or whose agent it isn't, is told that first.
+  const switched = await gatherSwitch(event, principal, deps, {
+    run: run.value,
+    askRun: decision.value.askRun ?? null,
+    participant: standing.value.participant,
+  });
+  if (!switched.ok) return switched;
   return {
     ok: true,
-    value: { run: run.value, message, ...standing.value, ...roles.value, ...decision.value },
+    value: {
+      run: run.value,
+      message,
+      ...standing.value,
+      ...roles.value,
+      ...decision.value,
+      ...switched.value,
+    },
   };
+}
+
+/**
+ * Rule 18's lookup (ADR 0300, addendum of 19 November 2026): whether Chips's rules are on for the
+ * harness a yes that holds on would be kept for, and for the harness whose policy is changing, read
+ * before the change lands so `stopHeldWithRulesOff` knows how it found them.
+ */
+async function gatherSwitch(
+  event: Record<string, unknown>,
+  principal: Principal,
+  deps: SubmitEventDeps,
+  found: {
+    readonly run: RunFacts | null;
+    readonly askRun: string | null;
+    readonly participant: ParticipantFacts | null;
+  },
+): Promise<GatheredPart<Pick<AuthorizeContext, "chipsRules">>> {
+  const harnessId = await switchedHarness(event, principal, deps, found);
+  if (harnessId === undefined) return { ok: true, value: { chipsRules: null } };
+  const chipsRules = await rulesOnFor(principal.workspaceId, harnessId, deps);
+  const refused = refuseHeldRulesOff(event, chipsRules);
+  if (refused !== undefined) return { ok: false, error: refused };
+  return { ok: true, value: { chipsRules } };
+}
+
+/**
+ * The harness whose switch an event is judged by: the one whose policy changes; the one an agent
+ * let work is an agent of; and for a yes that holds on, the one whose run asked, read off the ask
+ * itself and not the run the answer was posted to. Nothing for any other event.
+ */
+async function switchedHarness(
+  event: Record<string, unknown>,
+  principal: Principal,
+  deps: SubmitEventDeps,
+  found: {
+    readonly run: RunFacts | null;
+    readonly askRun: string | null;
+    readonly participant: ParticipantFacts | null;
+  },
+): Promise<string | undefined> {
+  const type = event["type"];
+  if (type === "policy.updated") return String(event["harness_id"]);
+  if (type === "approval.held_started") {
+    const asker = found.participant;
+    if (asker === null || asker.kind === "person") return undefined;
+    return asker.kind === "agent" ? asker.harness : asker.id;
+  }
+  if (type !== "approval.resolved" || !holdsOn(event) || found.askRun === null) return undefined;
+  if (found.run?.run_id === found.askRun) return found.run.harness_id;
+  return (await deps.readModels.run(principal.workspaceId, found.askRun))?.harness_id;
 }
 
 /**
@@ -1715,6 +1796,7 @@ function participantFacts(
           ? {
               lead: participant.lead === true,
               archived: participant.state === "archived",
+              ...(participant.harness_id === undefined ? {} : { harness: participant.harness_id }),
               ...place,
             }
           : {}),
@@ -1768,7 +1850,48 @@ async function decide(
   ) {
     await ruleFromAlways(event, principal, context, deps);
   }
+  if (event.type === "policy.updated") await stopHeldWithRulesOff(event, principal, context, deps);
   return undefined;
+}
+
+/**
+ * A yes that holds on lives only while its harness's Chips's rules are on (ADR 0300, addendum of
+ * 19 November 2026). A change to a harness's policy that leaves them off, or that found them off,
+ * ends every yes still holding for the harness and its agents. Chips writes the stop itself, in
+ * each space, naming the person who made the change: every app takes its band down, one from
+ * before the switch too, and no yes left over comes back to life when the rules are turned on.
+ */
+async function stopHeldWithRulesOff(
+  event: StoredEvent,
+  principal: Principal,
+  context: AuthorizeContext,
+  deps: SubmitEventDeps,
+): Promise<void> {
+  const { workspaceId } = principal;
+  const harnessId = String(event.payload["harness_id"]);
+  const wereOn = context.chipsRules !== false;
+  if (wereOn && (await rulesOnFor(workspaceId, harnessId, deps))) return;
+  const agents = await deps.readModels.agentsOf(workspaceId, harnessId);
+  const now = deps.clock.nowIso();
+  const holding = await deps.readModels.heldBy(
+    workspaceId,
+    [harnessId, ...agents.map((agent) => agent.agent_id)],
+    now,
+  );
+  for (const held of holding) {
+    await deps.store.append({
+      v: 1,
+      type: "approval.held_stopped",
+      id: deps.ids.next("event"),
+      ts: now,
+      workspace_id: workspaceId,
+      space_id: held.space_id,
+      actor: { kind: "system", id: "system" },
+      idempotency_key: `${event.id}-stops-${held.space_id}-${held.asker}`,
+      asker: held.asker,
+      stopped_by: principal.participantId,
+    });
+  }
 }
 
 interface ActionShape {
@@ -1926,6 +2049,19 @@ async function evaluateAsk(
   );
 }
 
+/** Whether Chips's rules are on for a harness (ADR 0300), as the engine reads the switch. */
+async function rulesOnFor(
+  workspaceId: string,
+  harnessId: string,
+  deps: SubmitEventDeps,
+): Promise<boolean> {
+  const [switched, workspace] = await Promise.all([
+    deps.readModels.chipsRules(workspaceId, harnessId),
+    deps.readModels.workspacePolicy(workspaceId),
+  ]);
+  return chipsRulesOn(switched.set, hasOfChips(switched, workspace));
+}
+
 /** What a harness and its workspace have of Chips's own, for a switch never set (ADR 0300). */
 function hasOfChips(
   switched: ChipsRulesView,
@@ -1953,12 +2089,8 @@ async function fillKeeps(
   if (event["type"] !== "approval.resolved") return;
   delete event["keeps"];
   if (event["scope"] !== "always" || context.run === null) return;
-  const { workspaceId } = principal;
-  const [switched, workspace] = await Promise.all([
-    deps.readModels.chipsRules(workspaceId, context.run.harness_id),
-    deps.readModels.workspacePolicy(workspaceId),
-  ]);
-  if (!chipsRulesOn(switched.set, hasOfChips(switched, workspace))) event["keeps"] = "harness";
+  const on = await rulesOnFor(principal.workspaceId, context.run.harness_id, deps);
+  if (!on) event["keeps"] = "harness";
 }
 
 /**

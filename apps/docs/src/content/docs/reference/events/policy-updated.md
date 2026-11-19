@@ -50,6 +50,7 @@ Every event also carries the [envelope](/reference/envelope/).
 | `policy.rules[].made_at` | no | `string` | When a person's answer made it (ADR 0195): Always, or This session. Filled in by Chips. A rule a person's answer made never allows an action that matters. |
 | `policy.hold` | no | object | Its asks turned off (ADR 0299), for every space: kept only with no `space_id`. `null` turns them back on; absent leaves it as it was. |
 | `policy.chips_rules` | no | `boolean` | Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one. |
+| `policy.mode` | no | object | The mode a person put its sessions in (ADR 0300, 19 November addendum), for every space: kept only with no `space_id`. `null` puts them back in the mode they start in; absent leaves it as it was. |
 | `workspace_max_autonomy` | yes | `0 \| 1 \| 2 \| 3` | The workspace cap. It always wins. |
 | `budget_usd` | no | `number` | The harness's spending ceiling, in US dollars. Absent leaves it as it was; the harness's spend is what `usage` has added up. |
 | `changed_by` | yes | `string` | Who changed it, or `system` for an earned promotion. Filled in by Chips from the credential that sent it. |

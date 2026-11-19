@@ -86,7 +86,7 @@ test("Chips's rules off, then on with Stop asking, rm still asks, and Ask again"
     await expect(bands).toContainText(/Chips is saying yes for Marlow until /, { timeout: 20_000 });
     await page.screenshot({ path: test.info().outputPath("hold-band.png") });
 
-    // Never the never list: rm still comes to the person.
+    // Never the pause's list: rm still comes to the person.
     await run("rm seeds/old.txt");
     await expect(asks(page).getByText("Marlow asks").last()).toBeVisible({ timeout: 20_000 });
 

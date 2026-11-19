@@ -7,8 +7,9 @@
  * - The main page: the gates, the yellow banner only while Claude Code runs in Bypass
  *   permissions, "Where it's set" with a row for the harness's own settings and one for Chips's
  *   rules, and every ask so far.
- * - <Harness>'s settings: its mode, the notice, and what its settings let through, ask about and
- *   never run.
+ * - <Harness>'s settings: its mode, which a person picks there where the harness offers modes
+ *   (ADR 0300, addendum of 19 November 2026), the notice, and what its settings let through, ask
+ *   about and never run.
  * - Chips's rules: the switch, then Stop asking and the rules, with Add a rule.
  *
  * The page's Undo pill and the layer its dust is drawn in stand beside the scroll (`overlays`).
@@ -27,6 +28,8 @@ import {
   harnessAskKey,
   harnessPermissions,
   MAKE_ASK_WORDS,
+  MODE_HEADING,
+  modePicker,
   NOT_SAID,
   nameOf,
   OWN_GATE_WORDS,
@@ -35,6 +38,7 @@ import {
   type OwnNotice,
   type OwnRow,
   type OwnRulesView,
+  type HarnessPermissions as PermissionsPage,
   pasteWords,
   REMOVED_WORDS,
   type Snapshot,
@@ -54,18 +58,20 @@ import { type Asker, useDust } from "../../spaces/Dust";
 import { ListDust } from "../../spaces/SelectMotion";
 import { UndoPill } from "../../spaces/UndoPill";
 import { Card } from "../../ui/Card";
-import { Group, GroupFoot, GroupHeading, GroupRow, RowMark } from "../../ui/Group";
+import { Group, GroupFoot, GroupHeading, GroupRow, MARKED_INSET, RowMark } from "../../ui/Group";
 import * as feel from "../../ui/haptics";
 import { Icon } from "../../ui/Icon";
 import type { IconName } from "../../ui/icons";
 import { usePalette } from "../../ui/theme";
 import { ON_GOLD, RADIUS, SPACE, TEXT } from "../../ui/tokens";
+import { useNow } from "../../ui/useNow";
 import { useReduceMotion } from "../../ui/useReduceMotion";
 import { AlwaysList } from "../AlwaysList";
 import { AsksSoFar, Count } from "../Asking";
 import { DotRow, Hero } from "../AskingMotion";
 import { type Always, useAlways } from "../useAlways";
-import { useOwnRules } from "./ownRules";
+import { ModePicker } from "./ModePicker";
+import { modeKey, useOwnRules } from "./ownRules";
 import { LengthChips, useFold } from "./StopLengths";
 
 const MODE_SUB = "The mode Chips runs its sessions in. Anything not on its lists asks.";
@@ -100,9 +106,13 @@ export function useHarnessPermissions({
   readonly onOpenPart: (part: "settings" | "chips") => void;
 }): PermissionsSection {
   const always = useAlways(store, snapshot);
-  const own = useOwnRules(store, snapshot, harnessId);
+  // A pick's end passes while the page is open: the clock moves it on.
+  const now = useNow(true);
+  const own = useOwnRules(store, snapshot, harnessId, modeKey(snapshot, harnessId, now));
   const page = (
     <Page
+      store={store}
+      now={now}
       snapshot={snapshot}
       harnessId={harnessId}
       selfId={selfId}
@@ -122,6 +132,7 @@ function pageOf(
   harnessId: string,
   selfId: string | undefined,
   own: OwnRulesView,
+  now: number = Date.now(),
 ) {
   return harnessPermissions(
     {
@@ -129,14 +140,60 @@ function pageOf(
       directory: snapshot.directory,
       keepsHarnessRules: snapshot.keepsHarnessRules,
       keepsChipsRules: snapshot.keepsChipsRules,
+      keepsHarnessMode: snapshot.keepsHarnessMode,
     },
     harnessId,
     selfId,
     own,
+    now,
+  );
+}
+
+/**
+ * The one yellow banner while it runs everything without asking (ADR 0300), with Back to Default
+ * while a mode a person picked is why.
+ */
+function OpenBanner({
+  open,
+  onBack,
+}: {
+  readonly open: NonNullable<PermissionsPage["open"]>;
+  readonly onBack: () => void;
+}) {
+  const palette = usePalette();
+  return (
+    <View
+      style={[styles.open, styles.inset, { backgroundColor: palette.goldSoft }]}
+      testID="perms-open"
+    >
+      <RowMark icon="info" tint={palette.gold} ink={ON_GOLD} />
+      <View style={styles.noticeWords}>
+        <Text style={[styles.noticeTitle, { color: palette.goldDeep }]}>{open.title}</Text>
+        <Text style={[styles.note, { color: palette.ink2 }]}>{open.sub}</Text>
+      </View>
+      {open.back === undefined ? null : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            feel.tap();
+            onBack();
+          }}
+          style={({ pressed }) => [
+            styles.again,
+            { backgroundColor: palette.goldDeep, opacity: pressed ? 0.7 : 1 },
+          ]}
+          testID="perms-open-back"
+        >
+          <Text style={[styles.againWords, { color: palette.bg }]}>{open.back}</Text>
+        </Pressable>
+      )}
+    </View>
   );
 }
 
 function Page({
+  store,
+  now,
   snapshot,
   harnessId,
   selfId,
@@ -145,6 +202,8 @@ function Page({
   onOpenAsks,
   onOpenPart,
 }: {
+  readonly store: Store;
+  readonly now: number;
   readonly snapshot: Snapshot;
   readonly harnessId: string;
   readonly selfId: string | undefined;
@@ -155,7 +214,7 @@ function Page({
 }) {
   const palette = usePalette();
   const { directory } = snapshot;
-  const page = pageOf(always, snapshot, harnessId, selfId, own);
+  const page = pageOf(always, snapshot, harnessId, selfId, own, now);
   const owner = directory[harnessId]?.ownerId;
   const to = asksGoTo(directory, harnessId, selfId);
   return (
@@ -179,16 +238,7 @@ function Page({
         </Text>
       </Card>
       {page.open === undefined ? null : (
-        <View
-          style={[styles.open, styles.inset, { backgroundColor: palette.goldSoft }]}
-          testID="perms-open"
-        >
-          <RowMark icon="info" tint={palette.gold} ink={ON_GOLD} />
-          <View style={styles.noticeWords}>
-            <Text style={[styles.noticeTitle, { color: palette.goldDeep }]}>{page.open.title}</Text>
-            <Text style={[styles.note, { color: palette.ink2 }]}>{page.open.sub}</Text>
-          </View>
-        </View>
+        <OpenBanner open={page.open} onBack={() => store.setMode(harnessId, null)} />
       )}
       <View>
         <GroupHeading>{WHERE_SET_HEADING}</GroupHeading>
@@ -198,7 +248,7 @@ function Page({
             sub={page.settingsRow.sub}
             subLines={2}
             value={page.settingsRow.value}
-            goldValue={page.open !== undefined}
+            goldValue={page.settingsRow.gold}
             {...(page.settingsRow.warn ? { tone: "danger" as const } : {})}
             mark={<RowMark icon="terminal" />}
             onPress={() => onOpenPart("settings")}
@@ -234,33 +284,56 @@ function Page({
   );
 }
 
-/** Its own settings (ADR 0300): its mode, the notice, and what its settings let through. */
+/**
+ * Its own settings (ADR 0300): its mode, the picker where it offers modes (19 November addendum),
+ * the notice, and what its settings let through.
+ */
 export function HarnessSettings({
   store,
   snapshot,
   harnessId,
+  selfId,
 }: {
   readonly store: Store;
   readonly snapshot: Snapshot;
   readonly harnessId: string;
+  readonly selfId: string | undefined;
 }) {
   const palette = usePalette();
-  const own = useOwnRules(store, snapshot, harnessId) ?? NOT_SAID;
+  const now = useNow(true);
+  const own =
+    useOwnRules(store, snapshot, harnessId, modeKey(snapshot, harnessId, now)) ?? NOT_SAID;
+  const picker = modePicker(
+    {
+      model: snapshot.model,
+      directory: snapshot.directory,
+      keepsHarnessRules: snapshot.keepsHarnessRules,
+      keepsHarnessMode: snapshot.keepsHarnessMode,
+    },
+    harnessId,
+    selfId,
+    own,
+    now,
+  );
   return (
     <View style={styles.page} testID="perms-settings">
-      <View>
-        <GroupHeading>Mode</GroupHeading>
-        <Group>
-          <GroupRow
-            label={own.mode ?? (own.said ? "Its own" : "Not said")}
-            sub={own.everything ? "Runs everything without asking" : MODE_SUB}
-            subLines={2}
-            goldValue={own.everything}
-            mark={<RowMark icon="terminal" />}
-            testID="perms-mode"
-          />
-        </Group>
-      </View>
+      {picker !== undefined ? (
+        <ModePicker picker={picker} harnessId={harnessId} store={store} />
+      ) : (
+        <View>
+          <GroupHeading>{MODE_HEADING}</GroupHeading>
+          <Group>
+            <GroupRow
+              label={own.mode ?? (own.said ? "Its own" : "Not said")}
+              sub={own.everything ? "Runs everything without asking" : MODE_SUB}
+              subLines={2}
+              goldValue={own.everything}
+              mark={<RowMark icon="terminal" />}
+              testID="perms-mode"
+            />
+          </Group>
+        </View>
+      )}
       {own.notice === undefined ? null : <Notice notice={own.notice} />}
       <OwnList own={own} />
       {own.said ? null : (
@@ -274,7 +347,7 @@ export function HarnessSettings({
 
 /**
  * Chips's rules for one harness (ADR 0300): the switch; and while it's on, Stop asking, which never
- * says yes to the never list, then the rules and Add a rule. Its Undo pill and dust stand beside.
+ * says yes to its own short list (`rm`, `git push`), then the rules and Add a rule. Its Undo pill and dust stand beside.
  */
 export function useChipsRules({
   store,
@@ -416,55 +489,69 @@ function StopAsking({
   readonly onAgain: () => void;
 }) {
   const palette = usePalette();
+  const fold = useFold();
   const [open, setOpen] = useState(false);
   return (
     <View>
       <GroupHeading>{STOP_ASKING_HEADING}</GroupHeading>
       <Group>
-        <GroupRow
-          label={pause.title}
-          sub={<Coded text={pause.sub} style={[styles.note, { color: palette.ink3 }]} />}
-          subLines={3}
-          mark={
-            <RowMark
-              icon="clock"
-              tint={pause.holding ? palette.accent : undefined}
-              ink={pause.holding ? "#ffffff" : undefined}
-            />
-          }
-          {...(may && !pause.holding ? { onPress: () => setOpen((was) => !was) } : {})}
-          trailing={
-            may && pause.holding ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  feel.tap();
-                  onAgain();
-                }}
-                style={({ pressed }) => [
-                  styles.again,
-                  { backgroundColor: palette.accent, opacity: pressed ? 0.7 : 1 },
-                ]}
-                testID="perms-ask-again"
-              >
-                <Text style={styles.againWords}>{ASK_AGAIN_WORDS}</Text>
-              </Pressable>
-            ) : undefined
-          }
-          under={
-            open && !pause.holding ? (
+        {/* One child of the card, so the lengths open under the row with no hairline between. */}
+        <View>
+          <GroupRow
+            label={pause.title}
+            sub={<Coded text={pause.sub} style={[styles.note, { color: palette.ink3 }]} />}
+            subLines={3}
+            mark={
+              <RowMark
+                icon="clock"
+                tint={pause.holding ? palette.accent : undefined}
+                ink={pause.holding ? "#ffffff" : undefined}
+              />
+            }
+            {...(may && !pause.holding
+              ? {
+                  onPress: () => {
+                    fold();
+                    setOpen((was) => !was);
+                  },
+                }
+              : {})}
+            trailing={
+              may && pause.holding ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    feel.tap();
+                    onAgain();
+                  }}
+                  style={({ pressed }) => [
+                    styles.again,
+                    { backgroundColor: palette.accent, opacity: pressed ? 0.7 : 1 },
+                  ]}
+                  testID="perms-ask-again"
+                >
+                  <Text style={styles.againWords}>{ASK_AGAIN_WORDS}</Text>
+                </Pressable>
+              ) : undefined
+            }
+            testID="perms-stop"
+          />
+          {/* Under the row, in from the left where its words start, as the web's fold has them.
+              A row's `under` is drawn in the row's own line, so the chips there took its width. */}
+          {open && !pause.holding ? (
+            <View style={styles.lengths}>
               <LengthChips
                 label={STOP_ASKING_TITLE}
                 onPick={(length) => {
+                  fold();
                   setOpen(false);
                   onStop(length);
                 }}
                 testID="perms-stop-len"
               />
-            ) : undefined
-          }
-          testID="perms-stop"
-        />
+            </View>
+          ) : null}
+        </View>
       </Group>
     </View>
   );
@@ -722,6 +809,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.lg,
   },
   again: { borderRadius: 999, paddingHorizontal: SPACE.md, paddingVertical: 6 },
+  lengths: { paddingLeft: MARKED_INSET, paddingRight: SPACE.lg, paddingBottom: SPACE.md },
   againWords: { color: "#ffffff", fontSize: TEXT.sm, fontWeight: "700" },
   // Groups keep their own margin from the edge; cards here keep the same.
   inset: { marginHorizontal: SPACE.lg },

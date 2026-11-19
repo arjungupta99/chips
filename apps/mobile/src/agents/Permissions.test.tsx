@@ -19,7 +19,16 @@ const AGENT = "agt_jiro";
 const ME = "per_arjun";
 const SPACE = "spc_explain";
 
-function page(options: { working?: boolean; more?: Partial<Snapshot>; selfId?: string } = {}) {
+function page(
+  options: {
+    working?: boolean;
+    more?: Partial<Snapshot>;
+    selfId?: string;
+    /** The harness's Chips's rules (ADR 0300): on unless said, since a yes holds on only then. */
+    rules?: "off" | "never";
+  } = {},
+) {
+  const chipsRules = options.rules === "never" ? undefined : options.rules !== "off";
   const base = snapshot();
   const shot = {
     ...base,
@@ -35,7 +44,9 @@ function page(options: { working?: boolean; more?: Partial<Snapshot>; selfId?: s
         [ME]: { participantId: ME, displayName: "Arjun", role: "owner" },
         per_dana: { participantId: "per_dana", displayName: "Dana", role: "member" },
       },
-      harnesses: { [HARNESS]: { harnessId: HARNESS, autonomy: 1, rules: [], bySpace: {} } },
+      harnesses: {
+        [HARNESS]: { harnessId: HARNESS, autonomy: 1, rules: [], bySpace: {}, chipsRules },
+      },
       spaces: [
         {
           id: SPACE,
@@ -100,6 +111,24 @@ describe("an agent's Permissions (ADR 0286)", () => {
       name: "stopLetWork",
       args: { spaceId: SPACE, asker: AGENT },
     });
+  });
+
+  it("says what still comes to a person while it works, with the commands in code", async () => {
+    await render(page({ working: true }).element);
+    expect(screen.getByTestId("permissions-sub")).toHaveTextContent(
+      "Until you stop it. Commands like rm and git push still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
+    );
+  });
+
+  it("says it asks while its harness's Chips's rules are off, whatever yes the space still holds (ADR 0300)", async () => {
+    for (const rules of ["off", "never"] as const) {
+      const view = await render(page({ working: true, rules }).element);
+      expect(screen.getByTestId("permissions-headline")).toHaveTextContent(
+        "Jiro decides when to ask. You decide the answer.",
+      );
+      expect(screen.queryByTestId("permissions-stop")).toBeNull();
+      await view.unmount();
+    }
   });
 
   it("doesn't offer Let it work to somebody who may not give that yes", async () => {

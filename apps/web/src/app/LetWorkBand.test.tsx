@@ -4,7 +4,13 @@
  * a word that it did.
  */
 
-import { BANNER_HIDDEN_MS, type Directory, type Space, STOPPED_MS } from "@chipschat/core";
+import {
+  BANNER_HIDDEN_MS,
+  type Directory,
+  type Space,
+  STOPPED_MS,
+  type WorkspaceModel,
+} from "@chipschat/core";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BannerService } from "./agent/bannerService.ts";
@@ -15,6 +21,14 @@ const directory: Directory = { [KIT]: { id: KIT, kind: "harness", displayName: "
 const NOW = Date.parse("2026-11-06T10:00:00.000Z");
 const SINCE = "2026-11-06T09:50:00.000Z";
 
+/** Kit's Chips's rules switch as said; nothing said, it was never set (ADR 0300). */
+function workspace(chipsRules?: boolean): WorkspaceModel {
+  const kit = { harnessId: KIT, autonomy: 1, rules: [], bySpace: {}, chipsRules };
+  return { harnesses: { [KIT]: kit } } as unknown as WorkspaceModel;
+}
+/** A yes holds on only while the harness's Chips's rules are on, so they are. */
+const ON = workspace(true);
+
 function room(letWork?: unknown[], state = "open"): Space {
   return { id: "sp_1", state, ...(letWork === undefined ? {} : { letWork }) } as unknown as Space;
 }
@@ -24,10 +38,14 @@ describe("the band of an agent working without asking (ADR 0281)", () => {
   afterEach(() => vi.useRealTimers());
 
   it("says nothing where nobody was let work, or in an archived room", () => {
-    const { rerender } = render(<LetWorkBand space={room()} directory={directory} now={NOW} />);
+    const { rerender } = render(
+      <LetWorkBand model={ON} space={room()} directory={directory} now={NOW} />,
+    );
     expect(screen.queryByTestId("let-work-band")).toBeNull();
     const held = [{ asker: KIT, by: "usr_a", since: SINCE }];
-    rerender(<LetWorkBand space={room(held, "closed")} directory={directory} now={NOW} />);
+    rerender(
+      <LetWorkBand model={ON} space={room(held, "closed")} directory={directory} now={NOW} />,
+    );
     expect(screen.queryByTestId("let-work-band")).toBeNull();
   });
 
@@ -36,6 +54,7 @@ describe("the band of an agent working without asking (ADR 0281)", () => {
     const held = [{ asker: KIT, by: "usr_a", since: SINCE }];
     const band = (space: Space) => (
       <LetWorkBand
+        model={ON}
         space={space}
         directory={directory}
         now={NOW}
@@ -61,15 +80,33 @@ describe("the band of an agent working without asking (ADR 0281)", () => {
     expect(screen.queryByTestId("let-work-band")).toBeNull();
   });
 
+  it("says nothing while the harness's Chips's rules are off, whatever yes the space still holds (ADR 0300)", () => {
+    const held = [{ asker: KIT, by: "usr_a", since: SINCE }];
+    const band = (model: WorkspaceModel | undefined) => (
+      <LetWorkBand model={model} space={room(held)} directory={directory} now={NOW} />
+    );
+    const { rerender } = render(band(ON));
+    expect(screen.getByTestId("let-work-band")).toBeTruthy();
+    // Turned off, never set, and no model to read the switch from.
+    for (const model of [workspace(false), workspace(), undefined]) {
+      rerender(band(model));
+      expect(screen.queryByTestId("let-work-band")).toBeNull();
+    }
+    rerender(band(ON));
+    expect(screen.getByTestId("let-work-band")).toBeTruthy();
+  });
+
   it("says until when for an hour, and goes once the hour is up", () => {
     const hour = { asker: KIT, by: "usr_a", since: SINCE, until: "2026-11-06T10:50:00.000Z" };
     const { rerender } = render(
-      <LetWorkBand space={room([hour])} directory={directory} now={NOW} />,
+      <LetWorkBand model={ON} space={room([hour])} directory={directory} now={NOW} />,
     );
     expect(screen.getByTestId("let-work-band").textContent).toMatch(
       /^Kit isn't asking until \d{1,2}:50 [AP]M$/,
     );
-    rerender(<LetWorkBand space={room([hour])} directory={directory} now={NOW + 51 * 60_000} />);
+    rerender(
+      <LetWorkBand model={ON} space={room([hour])} directory={directory} now={NOW + 51 * 60_000} />,
+    );
     expect(screen.queryByTestId("let-work-band")).toBeNull();
   });
 
@@ -99,6 +136,7 @@ describe("the band of an agent working without asking (ADR 0281)", () => {
     }
     const band = (made: BannerService, onOpen?: (asker: string) => void) => (
       <LetWorkBand
+        model={ON}
         space={room([HELD])}
         directory={directory}
         now={NOW}

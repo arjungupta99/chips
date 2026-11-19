@@ -1110,6 +1110,23 @@ export interface Hello {
     } | null;
     /** Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one. */
     chips_rules?: boolean;
+    /** The mode a person put its sessions in (ADR 0300, 19 November addendum), for every space: kept only with no `space_id`. `null` puts them back in the mode they start in; absent leaves it as it was. */
+    mode?: {
+      /** The mode as the harness names it on the wire: `auto`, `bypassPermissions`. */
+      id: string;
+      /** Its name as the harness offered it (`own_rules.modes`), for the record: `Auto`. Sent by the person's client. */
+      name?: string;
+      /** The name of the mode its sessions go back to, as the harness offered it: `Default`. Sent by the person's client. */
+      back_to?: string;
+      /** In it the harness never asks, as it said when it offered it: the apps wear yellow while it holds. Sent by the person's client. */
+      everything?: boolean;
+      /** When its sessions go back to the mode they start in. Absent: when a person changes it. */
+      until?: string;
+      /** Who picked it. Filled in by Chips from the credential that sent it. */
+      by?: string;
+      /** When it was picked. Filled in by Chips. */
+      at?: string;
+    } | null;
   };
   /** The ceiling, and what has been spent. */
   budget?: {
@@ -2174,6 +2191,23 @@ export interface PolicyUpdated {
     } | null;
     /** Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one. */
     chips_rules?: boolean;
+    /** The mode a person put its sessions in (ADR 0300, 19 November addendum), for every space: kept only with no `space_id`. `null` puts them back in the mode they start in; absent leaves it as it was. */
+    mode?: {
+      /** The mode as the harness names it on the wire: `auto`, `bypassPermissions`. */
+      id: string;
+      /** Its name as the harness offered it (`own_rules.modes`), for the record: `Auto`. Sent by the person's client. */
+      name?: string;
+      /** The name of the mode its sessions go back to, as the harness offered it: `Default`. Sent by the person's client. */
+      back_to?: string;
+      /** In it the harness never asks, as it said when it offered it: the apps wear yellow while it holds. Sent by the person's client. */
+      everything?: boolean;
+      /** When its sessions go back to the mode they start in. Absent: when a person changes it. */
+      until?: string;
+      /** Who picked it. Filled in by Chips from the credential that sent it. */
+      by?: string;
+      /** When it was picked. Filled in by Chips. */
+      at?: string;
+    } | null;
   };
   /** The workspace cap. It always wins. */
   workspace_max_autonomy: 0 | 1 | 2 | 3;

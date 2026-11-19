@@ -3,7 +3,7 @@ import {
   askedCommand,
   commandParts,
   commandStarts,
-  neverForAWhile,
+  NEVER_STANDING,
   neverStanding,
   standingOffer,
   startOf,
@@ -242,19 +242,72 @@ describe("what a standing yes remembers, and what it never covers (ADR 0239)", (
   });
 });
 
-describe("what a pause leaves to a person (ADR 0300)", () => {
-  it("leaves a command that uses the never list, read or not, and lets the rest go", () => {
-    expect(neverForAWhile("ls -la && pnpm test")).toBe(false);
-    expect(neverForAWhile("pnpm test 2>&1 | tail -5")).toBe(false);
-    expect(neverForAWhile("echo $HOME > out.txt")).toBe(false);
-    expect(neverForAWhile("git status && git diff")).toBe(false);
-    expect(neverForAWhile("rm -rf build")).toBe(true);
-    expect(neverForAWhile("cd x && git push origin main")).toBe(true);
-    expect(neverForAWhile("for f in *.log; do rm $f; done")).toBe(true);
-    expect(neverForAWhile("echo $(sudo cat /etc/hosts)")).toBe(true);
-    expect(neverForAWhile("X=1 /bin/rm -f a")).toBe(true);
-    expect(neverForAWhile(["git", "push"])).toBe(true);
-    // `git` alone, or a word that only looks like one, isn't.
-    expect(neverForAWhile("echo git pushed > log; cat log")).toBe(false);
+describe("the never list's holes (ADR 0300, addendum of 19 November 2026)", () => {
+  const offer = (command: string) => standingOffer({ kind: "acp.bash", input: { command } });
+  const part = (command: string) => commandParts(command)?.[0] ?? [];
+
+  it("gives no Always whose start lets a worse command through", () => {
+    // An Always on the first kept a start the second begins with, so the second went ahead.
+    const kept: readonly (readonly [string, string, string])[] = [
+      ["gh repo view o/x", "gh repo delete o/x --yes", "gh repo delete"],
+      ["gh pr view 12", "gh pr merge 12 --admin", "gh pr merge"],
+      ["gh release view v1", "gh release delete v1 --yes", "gh release delete"],
+      ["kubectl get pods", "kubectl delete pod web-1", "kubectl delete"],
+    ];
+    for (const [first, second, listed] of kept) {
+      const starts = offer(first);
+      expect(starts?.kind, first).toBe("starts");
+      if (starts?.kind !== "starts") continue;
+      const lets = starts.starts.some((start) => startsWith(part(second), start));
+      // `kubectl get` never began `kubectl delete`; the `gh` ones did.
+      expect(lets, first).toBe(first.startsWith("gh"));
+      expect(offer(second), second).toEqual({ kind: "never", command: listed });
+    }
+    // These took an Always themselves, for a start that runs anything.
+    const never: readonly (readonly [string, string, string])[] = [
+      ["gh api repos/o/r", "gh api -X DELETE repos/o/r", "gh api"],
+      ["pnpm exec tsc", "pnpm exec rm -rf dist", "pnpm exec"],
+      ["pnpm dlx cowsay hi", "pnpm dlx rimraf dist", "pnpm dlx"],
+      ["npm exec -- eslint .", "npm exec -- rimraf dist", "npm exec"],
+      ["yarn exec tsc", "yarn exec rm -rf dist", "yarn exec"],
+      ["yarn dlx cowsay hi", "yarn dlx rimraf dist", "yarn dlx"],
+      ["uv run pytest", "uv run rm -rf dist", "uv run"],
+      ["docker run --rm alpine ls", "docker run -v /:/host alpine rm -rf /host/tmp", "docker run"],
+      ["docker exec web ls", "docker exec web rm -rf /data", "docker exec"],
+      ["kubectl exec web -- ls", "kubectl exec web -- rm -rf /data", "kubectl exec"],
+      ["osascript -e 'return 1'", "osascript -e 'do shell script \"rm -rf x\"'", "osascript -e"],
+      ["awk '{print $1}' a.txt", "awk 'BEGIN{system(\"rm -rf x\")}'", "awk"],
+      ["git checkout main", "git checkout -- .", "git checkout"],
+      ["git restore --staged a.txt", "git restore .", "git restore"],
+      ["deno eval '1'", "deno eval 'Deno.removeSync(\"x\")'", "deno eval"],
+      ["node -p '1+1'", 'node -p \'require("fs").rmSync("x")\'', "node -p"],
+      ["node --print '1+1'", "node --print 'process.exit()'", "node --print"],
+    ];
+    for (const [first, second, listed] of never) {
+      expect(offer(first), first).toEqual({ kind: "never", command: listed });
+      expect(offer(second), second).toEqual({ kind: "never", command: listed });
+    }
+    // What they stand beside still takes one.
+    expect(offer("gh repo view o/x")).toEqual({ kind: "starts", starts: [["gh", "repo"]] });
+    expect(offer("git status && git log -3")).toEqual({
+      kind: "starts",
+      starts: [
+        ["git", "status"],
+        ["git", "log"],
+      ],
+    });
+    expect(offer("pnpm test")).toEqual({ kind: "starts", starts: [["pnpm", "test"]] });
+    expect(offer("node --check a.js")).toEqual({ kind: "starts", starts: [["node", "--check"]] });
+  });
+
+  it("matches an entry of three words in order, wherever they stand", () => {
+    const never = (command: string) => neverStanding(commandParts(command) ?? []);
+    expect(never("gh -R o/x repo delete --yes")).toBe("gh repo delete");
+    expect(never("gh repo list")).toBeUndefined();
+    expect(never("gh release list")).toBeUndefined();
+    expect(never("gh pr checks 12")).toBeUndefined();
+    // In order: `delete` before `repo` is some other command.
+    expect(never("gh secret delete repo")).toBeUndefined();
+    expect(NEVER_STANDING.every((entry) => entry.length >= 1 && entry.length <= 3)).toBe(true);
   });
 });

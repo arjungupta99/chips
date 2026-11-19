@@ -7,8 +7,9 @@
 
 import { EVERY_HARNESS, type Snapshot, type Space } from "@chipschat/core";
 import { fireEvent, render, screen, userEvent } from "@testing-library/react-native";
-import { HoldBands } from "../../spaces/LetWorkBand";
+import { HoldBands, ModeBands } from "../../spaces/LetWorkBand";
 import { approval, fakeStore, snapshot } from "../../testing/fixtures";
+import { HarnessSettings } from "./HarnessPermissions";
 import { NewRule } from "./NewRule";
 
 const asked = (id: string, command: string) =>
@@ -20,8 +21,12 @@ const asked = (id: string, command: string) =>
     resolved: { decision: "approved", by: "per_arjun", at: "2026-11-18T09:00:00.000Z" },
   } as unknown as Parameters<typeof approval>[0]);
 
-/** Scout asked twice in its room, `ls -la` and `git log`; `hold` as given. */
-function asking(hold?: { until?: string; by: string }, every?: { until?: string }): Snapshot {
+/** Scout asked twice in its room, `ls -la` and `git log`; `hold` and `mode` as given. */
+function asking(
+  hold?: { until?: string; by: string },
+  every?: { until?: string },
+  mode?: Record<string, unknown>,
+): Snapshot {
   const base = snapshot();
   return {
     ...base,
@@ -53,6 +58,7 @@ function asking(hold?: { until?: string; by: string }, every?: { until?: string 
           rules: [],
           bySpace: {},
           ...(hold === undefined ? {} : { hold }),
+          ...(mode === undefined ? {} : { mode }),
         },
       },
       workspaceRules: { rules: [], ...(every === undefined ? {} : { hold: every }) },
@@ -146,5 +152,142 @@ describe("the room's line while Chips says yes for a harness (ADR 0299, 0300)", 
       />,
     );
     expect(screen.queryByTestId("hold-bands")).toBeNull();
+  });
+});
+
+describe("the Mode picker on a harness's settings page (ADR 0300, 19 November addendum)", () => {
+  const OFFERS = {
+    read_from: ["~/.claude/settings.json"],
+    mode: "Default",
+    runs: [],
+    modes: {
+      base: "default",
+      running: "default",
+      offers: [
+        {
+          id: "default",
+          name: "Default",
+          words: "Asks before edits and commands its settings don't allow.",
+        },
+        {
+          id: "auto",
+          name: "Auto",
+          words: "Claude Code judges each step and asks only when one looks risky.",
+        },
+        {
+          id: "bypassPermissions",
+          name: "Bypass permissions",
+          words: "Never asks.",
+          everything: true,
+        },
+      ],
+    },
+  };
+  const offering = (snap: Snapshot) => ({
+    ...fakeStore(snap),
+    readOwnRules: async () => ({ own_rules: OFFERS, heard_at: new Date().toISOString() }),
+  });
+  const owner = (snap: Snapshot): Snapshot =>
+    ({
+      ...snap,
+      keepsHarnessMode: true,
+      model: {
+        ...snap.model,
+        people: {
+          per_arjun: {
+            participantId: "per_arjun",
+            role: "owner",
+            displayName: "Arjun",
+            joinedAt: "2026-09-01",
+          },
+        },
+      },
+    }) as unknown as Snapshot;
+
+  it("offers the harness's modes, asks for how long, and puts it in the one picked", async () => {
+    const snap = owner(asking());
+    const store = offering(snap);
+    await render(
+      <HarnessSettings store={store} snapshot={snap} harnessId="har_scout" selfId="per_arjun" />,
+    );
+    expect(await screen.findByTestId("perms-modes")).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /^Default\./ })).toBeChecked();
+    expect(screen.getByTestId("perms-mode-foot")).toHaveTextContent(
+      "Chips starts each of its Scout sessions in this mode, and switches it back when the time is up. Your own Scout keeps its own mode.",
+    );
+    await userEvent.press(screen.getByTestId("perms-mode-auto"));
+    expect(screen.getByTestId("perms-mode-use")).toHaveTextContent("Use Auto");
+    await userEvent.press(screen.getByTestId("perms-mode-len-stopped"));
+    await userEvent.press(screen.getByTestId("perms-mode-use"));
+    expect(store.calls.filter((each) => each.name === "setMode")).toEqual([
+      {
+        name: "setMode",
+        args: {
+          harnessId: "har_scout",
+          mode: {
+            id: "auto",
+            name: "Auto",
+            backTo: "Default",
+            everything: false,
+            until: undefined,
+          },
+        },
+      },
+    ]);
+    expect(screen.queryByTestId("perms-mode-long")).toBeNull();
+  });
+
+  it("ticks a pick that holds with when it goes back, and Default puts it back at once", async () => {
+    const until = new Date(Date.now() + 3_600_000).toISOString();
+    const snap = owner(
+      asking(undefined, undefined, {
+        id: "bypassPermissions",
+        name: "Bypass permissions",
+        backTo: "Default",
+        everything: true,
+        until,
+      }),
+    );
+    const store = offering(snap);
+    await render(
+      <HarnessSettings store={store} snapshot={snap} harnessId="har_scout" selfId="per_arjun" />,
+    );
+    expect(await screen.findByTestId("perms-mode-back")).toHaveTextContent(/^Back to Default at /);
+    expect(screen.getByRole("radio", { name: /^Bypass permissions\./ })).toBeChecked();
+    await userEvent.press(screen.getByTestId("perms-mode-default"));
+    expect(store.calls).toContainEqual({
+      name: "setMode",
+      args: { harnessId: "har_scout", mode: null },
+    });
+  });
+
+  it("wears a gold band in the room while a mode that never asks holds, with Back to Default", async () => {
+    const until = new Date(Date.now() + 3_600_000).toISOString();
+    const snap = owner(
+      asking(undefined, undefined, {
+        id: "bypassPermissions",
+        name: "Bypass permissions",
+        backTo: "Default",
+        everything: true,
+        until,
+      }),
+    );
+    const store = fakeStore(snap);
+    await render(
+      <ModeBands
+        store={store}
+        space={snap.model.spaces[0] as Space}
+        directory={snap.directory}
+        selfId="per_arjun"
+      />,
+    );
+    expect(screen.getByTestId("mode-bands")).toHaveTextContent(
+      /^Scout asks nothing until .*Back to Default$/,
+    );
+    await fireEvent.press(screen.getByTestId("mode-band-back"));
+    expect(store.calls).toContainEqual({
+      name: "setMode",
+      args: { harnessId: "har_scout", mode: null },
+    });
   });
 });

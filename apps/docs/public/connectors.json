@@ -96,7 +96,7 @@
             }
           },
           {
-            "says": "Sign in with your ChatGPT account. Your browser opens with OpenAI's sign-in.",
+            "says": "Sign in with your ChatGPT account. Your browser opens with OpenAI's sign-in. On a machine with no screen, run codex login --device-auth instead.",
             "line": "codex login",
             "done": {
               "signedIn": true

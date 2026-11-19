@@ -47,7 +47,8 @@ function write(): void {
 }
 
 function isPick(value: unknown): value is AimPick {
-  return value === "all" || (Array.isArray(value) && value.every((id) => typeof id === "string"));
+  if (value === "all" || value === "people") return true;
+  return Array.isArray(value) && value.every((id) => typeof id === "string");
 }
 
 /** What was kept last time, held for `pickFor`. Read once, at launch; nonsense is nothing. */

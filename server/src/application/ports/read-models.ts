@@ -13,6 +13,7 @@ import type {
   ExchangeStretch,
   NO_SPEND_CEILING,
   PolicyHold,
+  PolicyMode,
   PolicyRule,
   PostedFile,
   RoomSpend,
@@ -197,6 +198,8 @@ export interface HarnessPolicyView {
   readonly everywhere_rules?: readonly PolicyRule[] | undefined;
   /** Its asks turned off (ADR 0299), from its everywhere row, whichever row this is. */
   readonly hold?: PolicyHold | null | undefined;
+  /** The mode a person picked for its sessions (ADR 0300, 19 November addendum), from its everywhere row. */
+  readonly mode?: PolicyMode | undefined;
   readonly budget_usd: number | null;
   readonly spent_usd: number;
   readonly updated_seq: number;
@@ -1020,6 +1023,15 @@ export interface ReadModels {
     participantId: string,
     now: string,
   ) => Promise<PolicyRule[]>;
+  /**
+   * Where a yes still holds for any of these askers (ADR 0281), each space and asker once: what a
+   * harness's Chips's rules going off ends (ADR 0300, addendum of 19 November 2026).
+   */
+  readonly heldBy: (
+    workspaceId: string,
+    askers: readonly string[],
+    now: string,
+  ) => Promise<{ readonly space_id: string; readonly asker: string }[]>;
   /**
    * Whether a ref names a visit to this space, for a message that says which session it is for
    * (ADR 0040). A ref that names nothing here is refused rather than dropped: dropping it would

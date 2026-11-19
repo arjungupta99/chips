@@ -47,6 +47,11 @@ export interface FaceGroupProps {
   /** The faces are Everyone in the room, which is the mark from two (`marked`). */
   readonly everyone?: boolean;
   /**
+   * The faces are every person in the room and no agent (ADR 0229's addendum of 18 November
+   * 2026): the mark from two, as Everyone's is, but round, as a person's face is.
+   */
+  readonly people?: boolean;
+  /**
    * A mark says how many beside it, except as a choice: there the words say who, and the number
    * pushed the mark off the line the other choices' faces stand on (Arjun, 6 November 2026).
    */
@@ -98,14 +103,16 @@ export function FaceGroup({
   faces,
   small = false,
   everyone = false,
+  people = false,
   counted = true,
   className,
 }: FaceGroupProps) {
-  if (marked(faces.length, everyone)) {
+  if (marked(faces.length, everyone || people)) {
     return (
       <span
         className={className === undefined ? "ui-faces" : `ui-faces ${className}`}
         data-size={small ? "small" : undefined}
+        data-round={people ? "true" : undefined}
         data-testid="faces-mark"
         aria-hidden="true"
       >

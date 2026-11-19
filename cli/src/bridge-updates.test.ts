@@ -16,11 +16,12 @@ import {
   readFileSync,
   readlinkSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openKeyStore } from "@chipschat/harness";
+import { openKeyStore, serviceFile } from "@chipschat/harness";
 import { BridgeRefusal } from "@chipschat/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { bridgeHands, bridgeServicePath } from "./bridge-hands.js";
@@ -31,12 +32,15 @@ import {
   forgetService,
   LOCK_STALE_MS,
   LockHeld,
+  namingTheLink,
   nodeMeets,
   noteJournal,
   pointTo,
   prune,
   readJournal,
   readRecord,
+  releaseNamed,
+  serviceOnLink,
   stagedHere,
   stageRelease,
   startedOnNow,
@@ -363,6 +367,182 @@ describe("switching one service", () => {
   });
 });
 
+/** A kept service's file as the SDK's keep writes it, naming `program`'s folder, on `platform`. */
+function keepsFile(label: string, root: string, platform = "darwin"): string {
+  const file = serviceFile(
+    {
+      label,
+      command: ["/Users/ada/.local/lib/chips/current/runtime/node", join(root, "dist", "main.js")],
+      folder: root,
+      environment: { CHIPS_URL: "http://127.0.0.1:4431", PATH: "/usr/bin:/bin" },
+    },
+    { platform, home: join(dir, "home"), env: {} },
+  );
+  if (file === undefined) throw new Error(`no service file on ${platform}`);
+  mkdirSync(join(file.path, ".."), { recursive: true });
+  writeFileSync(file.path, file.contents, { mode: 0o600 });
+  return file.path;
+}
+
+describe("a service whose file names a release's own folder", () => {
+  it("is read as running that release, on a Mac and on Linux", () => {
+    for (const platform of ["darwin", "linux"]) {
+      const pinned = readFileSync(
+        keepsFile("chat.chips.claude", join(folder(), "package-1.0.30"), platform),
+        "utf8",
+      );
+      expect(releaseNamed(pinned, folder())).toBe("1.0.30");
+      const linked = namingTheLink(pinned, folder());
+      expect(linked).not.toContain("package-1.0.30");
+      expect(linked).toContain(`${join(folder(), "package", "dist", "main.js")}`);
+      expect(linked).toContain(
+        platform === "darwin"
+          ? `<string>${join(folder(), "package")}</string>`
+          : `WorkingDirectory=${join(folder(), "package")}\n`,
+      );
+      expect(releaseNamed(linked, folder())).toBeUndefined();
+      // Another bridge's releases, and its link, are no business of this one's.
+      expect(releaseNamed(pinned, join(bridges(), "chipschat-other"))).toBeUndefined();
+    }
+    expect(releaseNamed(undefined, folder())).toBeUndefined();
+    expect(releaseNamed("<string>/x/chipschat-fake/package-1.0.30-rc.1</string>", folder())).toBe(
+      "1.0.30-rc.1",
+    );
+  });
+
+  it("is put on the link when keep wrote it, read by its user alone, and only then", () => {
+    const path = keepsFile("chat.chips.claude", join(folder(), "package-1.0.30"));
+    expect(serviceOnLink(path, folder())).toBe(true);
+    expect(releaseNamed(readFileSync(path, "utf8"), folder())).toBeUndefined();
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+    // Once on the link, nothing more changes.
+    expect(serviceOnLink(path, folder())).toBe(false);
+    expect(serviceOnLink(undefined, folder())).toBe(false);
+    expect(serviceOnLink(join(dir, "none.plist"), folder())).toBe(false);
+    // A file somebody wrote by hand, without keep's words, is theirs.
+    const theirs = join(dir, "theirs.plist");
+    const written = `<plist><string>${join(folder(), "package-1.0.30", "dist", "main.js")}</string></plist>`;
+    writeFileSync(theirs, written);
+    expect(serviceOnLink(theirs, folder())).toBe(false);
+    expect(readFileSync(theirs, "utf8")).toBe(written);
+  });
+});
+
+describe("switching a service whose file names a release's own folder", () => {
+  beforeEach(() => {
+    for (const version of ["1.0.29", "1.0.30", "1.0.31"]) unpacked(version);
+    pointTo(folder(), "1.0.30");
+    recorded("1.0.30");
+  });
+
+  const trying = {
+    label: "chat.chips.claude",
+    harnessId: "har_1",
+    from: "1.0.30",
+    to: "1.0.31",
+    at: "2026-11-19T10:00:00.000Z",
+  };
+
+  it("puts keep's file on the link, loads it again, and only then says it runs the new one", async () => {
+    const files: Record<string, string> = {
+      "chat.chips.claude": keepsFile("chat.chips.claude", join(folder(), "package-1.0.30")),
+    };
+    const restarted: [string, boolean | undefined][] = [];
+    const started = await switchService({
+      bridges: bridges(),
+      name: NAME,
+      label: "chat.chips.claude",
+      version: "1.0.31",
+      trying,
+      restart: async (label, afresh) => {
+        restarted.push([label, afresh]);
+        // Loaded again from a file that names the link, which now points at the new release.
+        expect(releaseNamed(readFileSync(files[label] ?? "", "utf8"), folder())).toBeUndefined();
+        expect(versionInUse(folder())).toBe("1.0.31");
+        return true;
+      },
+      serviceFile: (label) => files[label],
+    });
+    expect(started).toBe(true);
+    expect(restarted).toEqual([["chat.chips.claude", true]]);
+    expect(readJournal(folder()).startedOn?.["chat.chips.claude"]).toBe("1.0.31");
+
+    // Next time, the file names the link already: a plain start again.
+    restarted.length = 0;
+    await switchService({
+      bridges: bridges(),
+      name: NAME,
+      label: "chat.chips.claude",
+      version: "1.0.30",
+      trying: null,
+      restart: async (label, afresh) => {
+        restarted.push([label, afresh]);
+        return true;
+      },
+      serviceFile: (label) => files[label],
+    });
+    expect(restarted).toEqual([["chat.chips.claude", false]]);
+  });
+
+  it("says a file of somebody's own runs its release, keeps that release, and didn't switch", async () => {
+    const theirs = join(dir, "theirs.plist");
+    writeFileSync(
+      theirs,
+      `<plist><string>${join(folder(), "package-1.0.29", "dist", "main.js")}</string></plist>`,
+    );
+    writeJournal(folder(), {
+      ...readJournal(folder()),
+      startedOn: { "chat.chips.claude": "1.0.30" },
+    });
+    const afreshes: (boolean | undefined)[] = [];
+    const started = await switchService({
+      bridges: bridges(),
+      name: NAME,
+      label: "chat.chips.claude",
+      version: "1.0.31",
+      trying,
+      restart: async (_label, afresh) => {
+        afreshes.push(afresh);
+        return true;
+      },
+      serviceFile: (label) => (label === "chat.chips.claude" ? theirs : undefined),
+    });
+    expect(started).toBe(false);
+    expect(afreshes).toEqual([false]);
+    expect(readJournal(folder()).startedOn?.["chat.chips.claude"]).toBe("1.0.29");
+    expect(stagedHere(folder())).toContain("1.0.29");
+  });
+
+  it("keeps the release another service's file still names, whatever the journal said", async () => {
+    // Codex's file names 1.0.29; an older `--update` wrote it down as on the release in use.
+    const files: Record<string, string> = {
+      "chat.chips.codex": keepsFile("chat.chips.codex", join(folder(), "package-1.0.29")),
+    };
+    writeJournal(folder(), {
+      ...readJournal(folder()),
+      startedOn: { "chat.chips.codex": "1.0.30" },
+    });
+    await switchService({
+      bridges: bridges(),
+      name: NAME,
+      label: "chat.chips.claude",
+      version: "1.0.31",
+      trying,
+      restart: async () => true,
+      serviceFile: (label) => files[label],
+    });
+    expect(readJournal(folder()).startedOn).toEqual({
+      "chat.chips.claude": "1.0.31",
+      "chat.chips.codex": "1.0.29",
+    });
+    expect(stagedHere(folder()).sort()).toEqual(["1.0.29", "1.0.30", "1.0.31"]);
+    // Codex's own file is left for its own switch, which loads it again.
+    expect(releaseNamed(readFileSync(files["chat.chips.codex"] ?? "", "utf8"), folder())).toBe(
+      "1.0.29",
+    );
+  });
+});
+
 describe("the hands the server gets", () => {
   it("list each bridge here with its harnesses, its releases and its journal", async () => {
     unpacked("1.0.30");
@@ -482,6 +662,20 @@ describe("the harness a kept bridge joined as, found where the bridge itself fin
 });
 
 describe("a service started again by hand", () => {
+  it("is written down as on the release its file still names, where it names one", () => {
+    unpacked("1.0.30");
+    unpacked("1.0.31");
+    pointTo(folder(), "1.0.31");
+    const files: Record<string, string> = {
+      "chat.chips.claude": keepsFile("chat.chips.claude", join(folder(), "package-1.0.30")),
+    };
+    startedOnNow(folder(), ["chat.chips.claude", "chat.chips.codex"], (label) => files[label]);
+    expect(readJournal(folder()).startedOn).toEqual({
+      "chat.chips.claude": "1.0.30",
+      "chat.chips.codex": "1.0.31",
+    });
+  });
+
   it("is written down as on the release in use", () => {
     unpacked("1.0.31");
     pointTo(folder(), "1.0.31");

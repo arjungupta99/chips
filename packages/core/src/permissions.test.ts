@@ -18,17 +18,23 @@ import type { ClientEvent, Directory } from "./events.js";
 import { buildModel } from "./model/index.js";
 import type { WorkspaceModel } from "./model/types.js";
 import {
+  auditWords,
   COMMANDS_KIND,
   draftProblem,
   draftRules,
   harnessPermissions,
   holdOf,
+  MODE_LENGTHS,
+  modeConfirmWords,
+  modeLengthWords,
+  modePicker,
   NOT_SAID,
   newRuleOptions,
   ownRulesView,
   permissionsRowWords,
   permissionsSummary,
   roomHolds,
+  roomModes,
   rulePreview,
   segments,
   withDraft,
@@ -190,15 +196,17 @@ describe("what a harness runs on its own (ADR 0299)", () => {
       "git push",
       "find -exec",
       "git clean",
+      "git checkout",
+      "git restore",
       "find -execdir",
       "find -ok",
       "find -delete",
     ]);
     expect(view.notice?.title).toBe(
-      "Claude Code runs `curl`, `git push`, `find -exec` and 4 more without a card.",
+      "Claude Code runs `curl`, `git push`, `find -exec` and 6 more without a card.",
     );
     expect(view.notice?.line).toBe(
-      '"ask": ["Bash(curl:*)", "Bash(git push:*)", "Bash(find:*)", "Bash(git clean:*)"]',
+      '"ask": ["Bash(curl:*)", "Bash(git push:*)", "Bash(find:*)", "Bash(git clean:*)", "Bash(git checkout:*)", "Bash(git restore:*)"]',
     );
     expect(view.foot).toBe(
       "Read from `~/.claude/settings.json` and `.claude/settings.json`. Its sessions here run in Default mode, so anything not on this list asks.",
@@ -213,6 +221,12 @@ describe("what a harness runs on its own (ADR 0299)", () => {
     });
     expect(view.everything).toBe(true);
     expect(view.notice?.title).toMatch(/runs everything without asking/);
+    // In a mode that never asks, nothing off the list asks either.
+    const bypass = ownRulesView("Claude Code", {
+      own_rules: { read_from: [], mode: "Bypass permissions", everything: true, runs: [] },
+      heard_at: at(9),
+    });
+    expect(bypass.foot).toBe("Its sessions here run in Bypass permissions mode.");
     expect(ownRulesView("Hermes", { own_rules: null, heard_at: null })).toBe(NOT_SAID);
     expect(ownRulesView("Hermes", undefined)).toBe(NOT_SAID);
   });
@@ -366,6 +380,9 @@ describe("You → Permissions and the rules for every harness (ADR 0299)", () =>
             made_at: at(8),
           },
         ],
+        // The fixture's own hold ends at 10:41 UTC, which is still ahead of NOW wherever the
+        // reader's clock is behind UTC's afternoon (CI runs in UTC), so it is cleared here.
+        hold: null,
       }),
       policy(2, { policy: { autonomy: 1, rules: [], hold: { by: ARJUN, at: at(9) } } }),
     ]),
@@ -477,5 +494,218 @@ describe("a new rule (ADR 0299)", () => {
     expect(draftProblem({ ...draft, starts: ["rm"] })).toBe("Pick how the commands start.");
     expect(draftProblem(draft)).toBeUndefined();
     expect(withDraft([{ match: "file.read", decision: "allow" }], draft)).toHaveLength(3);
+  });
+});
+
+describe("the mode a person picks for a harness (ADR 0300, 19 November addendum)", () => {
+  const AGENT = "hrn_01K4ZQPX0000000000000000A1";
+  const agents: Directory = {
+    ...directory,
+    [AGENT]: { id: AGENT, kind: "agent", displayName: "Jiro", harnessId: KIT },
+  };
+  const MODES: NonNullable<OwnRules["modes"]> = {
+    base: "default",
+    running: "default",
+    offers: [
+      {
+        id: "default",
+        name: "Default",
+        words: "Asks before edits and commands its settings don't allow.",
+      },
+      {
+        id: "acceptEdits",
+        name: "Accept edits",
+        words: "Edits files without asking. Commands still ask.",
+      },
+      {
+        id: "auto",
+        name: "Auto",
+        words: "Claude Code judges each step and asks only when one looks risky.",
+      },
+      {
+        id: "bypassPermissions",
+        name: "Bypass permissions",
+        words: "Never asks.",
+        everything: true,
+      },
+    ],
+  };
+  const OFFERS: OwnRules = { ...CLAUDE_CODE, modes: MODES };
+  const heard = (rules: OwnRules, when = at(9, 40)) =>
+    ownRulesView("Claude Code", { own_rules: rules, heard_at: when });
+  const BYPASS = {
+    id: "bypassPermissions",
+    name: "Bypass permissions",
+    back_to: "Default",
+    everything: true,
+    until: at(10, 41),
+    by: ARJUN,
+    at: at(9, 0),
+  };
+  const picked = (mode: Record<string, unknown> | null, seq = 3) =>
+    policy(seq, { changed_by: ARJUN, policy: { autonomy: 1, rules: [], mode } });
+  const base = [
+    fixture("space.created", 1),
+    fixture("membership.added", 2, { participant_id: AGENT, participant_kind: "agent" }),
+  ];
+
+  it("offers the modes the harness says, in its words, the one it starts in ticked", () => {
+    const model = owned(buildModel(base));
+    const picker = modePicker({ model, directory }, KIT, ARJUN, heard(OFFERS), NOW);
+    expect(picker?.choices.map((choice) => choice.name)).toEqual([
+      "Default",
+      "Accept edits",
+      "Auto",
+      "Bypass permissions",
+    ]);
+    expect(picker?.current.id).toBe("default");
+    expect(picker?.choices[3]?.everything).toBe(true);
+    expect(picker?.back).toBeUndefined();
+    expect(picker?.may).toBe(true);
+    expect(picker?.foot).toBe(
+      "Chips starts each of its Claude Code sessions in this mode, and switches it back when the time is up. Your own Claude Code keeps its own mode.",
+    );
+    // A member sees it, without the choices; an older server, or a harness that offers none, shows none.
+    expect(modePicker({ model, directory }, KIT, DANA, heard(OFFERS), NOW)?.may).toBe(false);
+    expect(
+      modePicker({ model, directory, keepsHarnessMode: false }, KIT, ARJUN, heard(OFFERS), NOW),
+    ).toBeUndefined();
+    expect(modePicker({ model, directory }, KIT, ARJUN, heard(CLAUDE_CODE), NOW)).toBeUndefined();
+    expect(MODE_LENGTHS.map(modeLengthWords)).toEqual([
+      "1 hour",
+      "8 hours",
+      "Until tomorrow",
+      "Keep it",
+    ]);
+    expect(modeConfirmWords("Auto")).toBe("Use Auto");
+  });
+
+  it("ticks a pick while it holds, says when it goes back, and the one it starts in after", () => {
+    const model = owned(
+      buildModel([
+        ...base,
+        picked({ id: "auto", name: "Auto", back_to: "Default", until: at(10, 41) }),
+      ]),
+    );
+    const picker = modePicker(
+      { model, directory },
+      KIT,
+      ARJUN,
+      heard({ ...OFFERS, modes: { ...MODES, running: "auto" } }),
+      NOW,
+    );
+    expect(picker?.current.id).toBe("auto");
+    expect(picker?.back).toBe("Back to Default at 10:41 AM");
+    expect(picker?.differs).toBeUndefined();
+    const after = modePicker(
+      { model, directory },
+      KIT,
+      ARJUN,
+      heard(OFFERS, at(10, 42)),
+      Date.parse(at(11)),
+    );
+    expect(after?.current.id).toBe("default");
+    expect(after?.back).toBeUndefined();
+    const kept = owned(buildModel([...base, picked({ id: "auto", name: "Auto" })]));
+    expect(modePicker({ model: kept, directory }, KIT, ARJUN, heard(OFFERS), NOW)?.back).toBe(
+      "Until you change it",
+    );
+    // And nothing once put back.
+    const back = owned(buildModel([...base, picked({ id: "auto" }), picked(null, 4)]));
+    expect(modePicker({ model: back, directory }, KIT, ARJUN, heard(OFFERS), NOW)?.current.id).toBe(
+      "default",
+    );
+  });
+
+  it("says when the harness runs in another mode, once it said so after the pick", () => {
+    const model = owned(buildModel([...base, picked({ id: "auto", name: "Auto" })]));
+    const fallback = { ...OFFERS, modes: { ...MODES, running: "acceptEdits" } };
+    expect(modePicker({ model, directory }, KIT, ARJUN, heard(fallback), NOW)?.differs).toBe(
+      "Claude Code is running in Accept edits: it couldn't use Auto.",
+    );
+    // Its word from before the pick is old news.
+    expect(
+      modePicker({ model, directory }, KIT, ARJUN, heard(fallback, "2026-09-01T00:00:00.000Z"), NOW)
+        ?.differs,
+    ).toBeUndefined();
+  });
+
+  it("wears yellow while a mode that never asks holds: the banner, the rows and a band in each space", () => {
+    const model = owned(buildModel([...base, picked(BYPASS)]));
+    const page = harnessPermissions({ model, directory }, KIT, ARJUN, heard(OFFERS), NOW);
+    expect(page.open).toEqual({
+      title: "Nothing asks",
+      sub: "Bypass permissions · back to Default at 10:41 AM",
+      back: "Back to Default",
+    });
+    expect(page.settingsRow).toMatchObject({
+      value: "Bypass permissions",
+      gold: true,
+      warn: false,
+    });
+    expect(page.gates.own).toBe("runs all");
+    expect(page.chipsPage.note).toBe(
+      "Claude Code is in Bypass permissions, so it asks nothing and these rules have nothing to answer until it's back in Default.",
+    );
+    // A member sees the banner, without the button.
+    expect(
+      harnessPermissions({ model, directory }, KIT, DANA, heard(OFFERS), NOW).open?.back,
+    ).toBeUndefined();
+    expect(roomModes(model, agents, SPACE, NOW)).toEqual([
+      { harnessId: KIT, words: "Claude Code asks nothing until 10:41 AM", back: "Back to Default" },
+    ]);
+    expect(permissionsRowWords(model, directory, KIT, ARJUN, NOW)).toEqual({
+      value: "Bypass permissions",
+      off: false,
+      gold: true,
+    });
+    const row = youPermissions({ model, directory }, ARJUN, {}, NOW).harnesses.find(
+      (each) => each.harnessId === KIT,
+    );
+    expect(row).toMatchObject({ line: "Bypass permissions until 10:41 AM", gold: true });
+
+    // Its time up, the yellow goes.
+    const later = Date.parse(at(11));
+    expect(roomModes(model, agents, SPACE, later)).toEqual([]);
+    expect(
+      harnessPermissions({ model, directory }, KIT, ARJUN, heard(OFFERS, at(10, 42)), later).open,
+    ).toBeUndefined();
+    // A mode that asks wears none.
+    const auto = owned(
+      buildModel([...base, picked({ id: "auto", name: "Auto", until: at(10, 41) })]),
+    );
+    expect(roomModes(auto, agents, SPACE, NOW)).toEqual([]);
+    expect(
+      harnessPermissions({ model: auto, directory }, KIT, ARJUN, heard(OFFERS), NOW).settingsRow,
+    ).toMatchObject({
+      value: "Auto",
+      gold: false,
+    });
+  });
+
+  it("writes each pick in the record, with the harness and the mode's name", () => {
+    const model = buildModel([...base, picked(BYPASS), picked(null, 4)]);
+    // Oldest first, as they happened.
+    const lines = model.audit
+      .filter((entry) => entry.mode !== undefined)
+      .sort((a, b) => a.seq - b.seq);
+    expect(lines.map((entry) => entry.what)).toEqual([
+      "put it in Bypass permissions",
+      "put it back in Default",
+    ]);
+    expect(lines[0]?.mode).toEqual({
+      harnessId: KIT,
+      name: "Bypass permissions",
+      until: at(10, 41),
+    });
+    expect(lines[1]?.mode).toEqual({ harnessId: KIT, back: true, name: "Default" });
+    expect(lines[0]?.who).toBe(ARJUN);
+    const said = lines.map((entry) => auditWords(entry, directory));
+    expect(said[0]).toMatch(/^put Claude Code in Bypass permissions until /);
+    expect(said[1]).toBe("put Claude Code back in Default");
+    const kept = buildModel([...base, picked({ id: "auto", name: "Auto" })]).audit[0];
+    expect(kept === undefined ? "" : auditWords(kept, directory)).toBe(
+      "put Claude Code in Auto until you change it",
+    );
   });
 });

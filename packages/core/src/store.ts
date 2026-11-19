@@ -50,6 +50,7 @@ import {
   type ExchangeLimits,
   eventIdOfMessage,
   HARNESS_CAPABILITIES,
+  HARNESS_MODE,
   HARNESS_RULES,
   type HarnessContextView,
   type HarnessJobsView,
@@ -71,6 +72,7 @@ import {
   OWN_RULES,
   type OwnRulesRead,
   type PolicyHold,
+  type PolicyMode,
   type ProjectChangeAnswer,
   type ProjectFilesAnswer,
   type ProjectFolderOpenAnswer,
@@ -144,6 +146,7 @@ import {
   withMadeHere,
 } from "./madeHere.js";
 import {
+  chipsRulesOnFor,
   createFold,
   type Line,
   myRole,
@@ -340,10 +343,15 @@ export interface Snapshot {
   /** Whether the server keeps what a harness runs on its own (ADR 0299), as its last hello said. */
   readonly keepsOwnRules?: boolean | undefined;
   /**
-   * Whether the server keeps a harness's Chips's rules switch and keeps a pause off the never list
-   * (ADR 0300), as its last hello said. False from an older one, which would drop the switch.
+   * Whether the server keeps a harness's Chips's rules switch and keeps a pause off its list (`rm`,
+   * `git push`; ADR 0300), as its last hello said. False from an older one, which would drop the switch.
    */
   readonly keepsChipsRules?: boolean | undefined;
+  /**
+   * Whether the server keeps the mode a person picks for a harness (ADR 0300, addendum of 19
+   * November 2026), as its last hello said. False from an older one, which would drop it.
+   */
+  readonly keepsHarnessMode?: boolean | undefined;
   /**
    * The computer's version, as its last hello said (everything in step): a browser tab that sees
    * it change has the old code of a computer that was updated under it. Absent until a hello.
@@ -551,6 +559,12 @@ export interface Store {
    * also ends a Stop asking, which nothing would read.
    */
   readonly setChipsRules: (harnessId: string, on: boolean) => void;
+  /**
+   * Put a harness's sessions in one of the modes it offers, until `until` or until a person
+   * changes it, or back in the mode they start in (`null`) (ADR 0300, 19 November addendum); its
+   * level and rules as they are. An owner's or an admin's.
+   */
+  readonly setMode: (harnessId: string, mode: ModeInput | null) => void;
   /**
    * The rules for every harness (ADR 0299), sent whole; an owner's or an admin's. The hold stays as
    * it is unless `hold` says: a snooze, or `null` for asks back on.
@@ -1804,6 +1818,7 @@ export function createStore(options: StoreOptions): Store {
   let keepsHarnessRules: boolean | undefined;
   let keepsOwnRules: boolean | undefined;
   let keepsChipsRules: boolean | undefined;
+  let keepsHarnessMode: boolean | undefined;
   let serverVersion: string | undefined;
   /** The snapshot's `banners`: the cache's or the server's, with the changes on their way. */
   let banners: Banners = NO_BANNERS;
@@ -1905,6 +1920,7 @@ export function createStore(options: StoreOptions): Store {
       keepsHarnessRules,
       keepsOwnRules,
       keepsChipsRules,
+      keepsHarnessMode,
       serverVersion,
       ...gone(),
       ...onItsWay(),
@@ -2311,6 +2327,7 @@ export function createStore(options: StoreOptions): Store {
     const rules = said.includes(HARNESS_RULES);
     const own = said.includes(OWN_RULES);
     const switches = said.includes(CHIPS_RULES);
+    const modes = said.includes(HARNESS_MODE);
     if (
       keeps === keepsHeldYes &&
       keepsChoices === keepsBanners &&
@@ -2319,10 +2336,12 @@ export function createStore(options: StoreOptions): Store {
       jobs === keepsSpendJobs &&
       rules === keepsHarnessRules &&
       own === keepsOwnRules &&
-      switches === keepsChipsRules
+      switches === keepsChipsRules &&
+      modes === keepsHarnessMode
     ) {
       return;
     }
+    keepsHarnessMode = modes;
     keepsHarnessRules = rules;
     keepsOwnRules = own;
     keepsChipsRules = switches;
@@ -2438,10 +2457,50 @@ export function createStore(options: StoreOptions): Store {
     dispatch({
       type: "policy.updated",
       harness_id: harnessId,
-      policy: { autonomy: policy?.autonomy ?? 1, rules: [...(policy?.rules ?? [])], hold },
+      policy: {
+        autonomy: policy?.autonomy ?? 1,
+        rules: [...(policy?.rules ?? [])],
+        hold,
+        ...switchAsRead(harnessId),
+      },
       idempotency_key: key,
     });
     notify();
+  };
+
+  /**
+   * A Chips's rules switch never set reads from what the harness has of Chips's (ADR 0300), so
+   * taking away its last rule or its hold turned it off by itself, and the rules page folded as
+   * the rule went (permissions review of 19 November 2026, B6). What it read goes with the first
+   * change a person makes to its rules or its hold, and from then on it is set: only the switch
+   * turns it. Nothing for one already set.
+   */
+  const switchAsRead = (harnessId: string): { chips_rules?: boolean } => {
+    const model = fold.model();
+    return model.harnesses[harnessId]?.chipsRules === undefined
+      ? { chips_rules: chipsRulesOnFor(model, harnessId) }
+      : {};
+  };
+
+  /**
+   * The same before a change to one space's rules: the switch is kept on the harness's everywhere
+   * row, so it is sent there first, with that row's level and rules as the model has them. Not
+   * for a harness with nothing set everywhere: the level the model shows for it is a stand-in, and
+   * sending it would set a level nobody chose.
+   */
+  const setSwitchAsRead = (harnessId: string): void => {
+    const read = switchAsRead(harnessId);
+    const policy = fold.model().harnesses[harnessId];
+    if (read.chips_rules === undefined) return;
+    if (policy === undefined || policy.everywhereStandIn === true) return;
+    const key = `policy-${harnessId}-${randomKey()}`;
+    track(key, harnessId);
+    dispatch({
+      type: "policy.updated",
+      harness_id: harnessId,
+      policy: { autonomy: policy.autonomy, rules: [...policy.rules], ...read },
+      idempotency_key: key,
+    });
   };
 
   /**
@@ -3444,13 +3503,19 @@ export function createStore(options: StoreOptions): Store {
         (input.spaceId === undefined ? undefined : policy?.bySpace[input.spaceId]?.autonomy) ??
         policy?.autonomy ??
         1;
+      // A switch never set is set as it reads, so this change can't turn it (B6).
+      if (input.spaceId !== undefined) setSwitchAsRead(input.harnessId);
       const key = `policy-${input.harnessId}-${randomKey()}`;
       track(key, input.harnessId);
       dispatch({
         type: "policy.updated",
         ...(input.spaceId === undefined ? {} : { space_id: input.spaceId }),
         harness_id: input.harnessId,
-        policy: { autonomy: level, rules: [...input.rules] },
+        policy: {
+          autonomy: level,
+          rules: [...input.rules],
+          ...(input.spaceId === undefined ? switchAsRead(input.harnessId) : {}),
+        },
         idempotency_key: key,
       });
       notify();
@@ -3476,6 +3541,23 @@ export function createStore(options: StoreOptions): Store {
           rules: [...(policy?.rules ?? [])],
           chips_rules: on,
           ...(!on && policy?.hold !== undefined ? { hold: null } : {}),
+        },
+        idempotency_key: key,
+      });
+      notify();
+    },
+
+    setMode(harnessId, mode) {
+      const policy = fold.model().harnesses[harnessId];
+      const key = `policy-${harnessId}-${randomKey()}`;
+      track(key, harnessId);
+      dispatch({
+        type: "policy.updated",
+        harness_id: harnessId,
+        policy: {
+          autonomy: policy?.autonomy ?? 1,
+          rules: [...(policy?.rules ?? [])],
+          mode: mode === null ? null : modeWire(mode),
         },
         idempotency_key: key,
       });
@@ -4997,6 +5079,27 @@ function namesIn(event: ClientEvent): string[] {
 /** The decision keyed by its idempotency key, for a screen that wants to know what is busy. */
 export function decisionKey(approvalId: string, decision: string): string {
   return `${approvalId}-${decision}`;
+}
+
+/** A mode a person picks for a harness, as the page has it (ADR 0300, 19 November addendum). */
+export interface ModeInput {
+  readonly id: string;
+  readonly name?: string | undefined;
+  /** The name of the mode it goes back to, for the line a put-back writes. */
+  readonly backTo?: string | undefined;
+  readonly everything?: boolean | undefined;
+  readonly until?: string | undefined;
+}
+
+/** A mode as the wire says it; who and when are Chips's to fill in. */
+function modeWire(mode: ModeInput): PolicyMode {
+  return {
+    id: mode.id,
+    ...(mode.name === undefined ? {} : { name: mode.name }),
+    ...(mode.backTo === undefined ? {} : { back_to: mode.backTo }),
+    ...(mode.everything === true ? { everything: true } : {}),
+    ...(mode.until === undefined ? {} : { until: mode.until }),
+  };
 }
 
 /** A snooze as the wire says it; who and when are Chips's to fill in. */

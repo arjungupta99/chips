@@ -340,16 +340,7 @@ function stampHold(hold: unknown, ts: string): Stamped | null | undefined {
  * every space only.
  */
 function policyOf(sent: OutboxEvent, ts: string, known: Known): Stamped | undefined {
-  if (sent["type"] === "policy.workspace_updated") {
-    const hold = stampHold(sent["hold"], ts);
-    return {
-      ...sent,
-      rules: stampRules(sent["rules"], ts),
-      ...(hold === undefined ? {} : { hold }),
-      changed_by: DEMO_PERSON_ID,
-      actor: BY_YOU,
-    };
-  }
+  if (sent["type"] === "policy.workspace_updated") return workspacePolicyOf(sent, ts);
   const harness = String(sent["harness_id"]);
   if (!HARNESSES.some((each) => each.id === harness)) return undefined;
   const space = sent["space_id"];
@@ -357,17 +348,40 @@ function policyOf(sent: OutboxEvent, ts: string, known: Known): Stamped | undefi
   const policy = (sent["policy"] ?? {}) as Stamped;
   const hold = stampHold(policy["hold"], ts);
   if (space !== undefined && hold !== undefined && hold !== null) return undefined;
+  // A mode is picked for every space, stamped as a hold is (ADR 0300, 19 November addendum).
+  const mode = policy["mode"];
+  if (space !== undefined && mode !== undefined) return undefined;
   return {
     ...sent,
     policy: {
       ...policy,
       rules: stampRules(policy["rules"], ts),
       ...(hold === undefined ? {} : { hold }),
+      ...stampMode(mode, ts),
     },
     workspace_max_autonomy: DEMO_MAX_AUTONOMY,
     changed_by: DEMO_PERSON_ID,
     actor: BY_YOU,
   };
+}
+
+/** The rules for every harness, and their asks turned off, stamped as the server stamps them. */
+function workspacePolicyOf(sent: OutboxEvent, ts: string): Stamped {
+  const hold = stampHold(sent["hold"], ts);
+  return {
+    ...sent,
+    rules: stampRules(sent["rules"], ts),
+    ...(hold === undefined ? {} : { hold }),
+    changed_by: DEMO_PERSON_ID,
+    actor: BY_YOU,
+  };
+}
+
+/** A mode You picked, stamped as the server stamps it; `null` goes as it came. */
+function stampMode(mode: unknown, ts: string): { mode?: Stamped } {
+  return mode === undefined || mode === null
+    ? {}
+    : { mode: { ...(mode as Stamped), by: DEMO_PERSON_ID, at: ts } };
 }
 
 /** A room You opens, with a title and asked of nobody: a new room only, never one again. */

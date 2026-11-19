@@ -24,6 +24,9 @@
  * speaks for an action whole: the command is read part by part (`commandParts`), and it goes ahead
  * on those rules only when every part starts with one that allows it, never when a part uses a
  * command no standing yes is given for. A part one denies denies it.
+ *
+ * Since ADR 0300 a pause (a `*` yes) and the L2 preset leave a command on the pause's list to a
+ * person: `rm`, `git push`, a `curl` past this machine (`neverForAWhile`).
  */
 
 import {
@@ -285,14 +288,21 @@ function speaks(rule: PolicyRule, action: PolicyAction): boolean {
 }
 
 /**
- * A pause, a `*` yes (Stop asking, Let it work, an hour), never says yes to a command that uses
- * one on the never list, or that names one where the reader can't follow it (ADR 0300): that ask
- * goes to a person. Before, a pause let `rm -rf` and `git push` through, since a command is never
- * one that "matters".
+ * A pause, a `*` yes (Stop asking, Let it work, an hour), never says yes to a command on the
+ * pause's list (ADR 0300, and its addendum of 19 November 2026): that ask goes to a person.
+ * Before, a pause let `rm -rf` and `git push` through, since a command is never one that
+ * "matters".
  */
 function pausedOnNever(rule: PolicyRule, action: PolicyAction): boolean {
-  if (rule.match !== "*" || rule.decision !== "allow" || action.command === undefined) return false;
-  return neverForAWhile(action.command);
+  return rule.match === "*" && rule.decision === "allow" && leftToAPerson(action);
+}
+
+/**
+ * Whether the action is a command a pause leaves to a person: it deletes, acts as somebody else,
+ * leaves the machine or rewrites history, or Chips can't tell what it runs (`neverForAWhile`).
+ */
+function leftToAPerson(action: PolicyAction): boolean {
+  return action.command !== undefined && neverForAWhile(action.command);
 }
 
 function isRead(kind: string): boolean {
@@ -348,8 +358,12 @@ function preset(level: AutonomyLevel, action: PolicyAction): Decision {
         ? allow("reads are free")
         : ask("every write and every external action asks");
     case 2:
-      return matters(action)
-        ? ask("money, external messages, deletions and anything irreversible ask")
+      if (matters(action)) {
+        return ask("money, external messages, deletions and anything irreversible ask");
+      }
+      // What a pause leaves to a person, the level does too (ADR 0300, addendum of 19 November).
+      return leftToAPerson(action)
+        ? ask("a command that deletes, pushes or leaves the machine asks")
         : allow("runs and shows up in the receipt");
     default:
       return allow("runs end to end and reports back");

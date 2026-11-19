@@ -263,6 +263,68 @@ export function restartCommand(kind: ServiceKind, label: string, uid: number): C
 }
 
 /**
+ * A kept bridge's service loaded again from its file, and started: what a file changed since it was
+ * loaded needs, since `kickstart -k` and `systemctl --user restart` start what the service manager
+ * read when it loaded it. On a Mac they are the commands the SDK's keep first loads it with.
+ */
+export function reloadCommands(
+  kind: ServiceKind,
+  label: string,
+  path: string,
+  uid: number,
+): readonly Command[] {
+  return kind === "launchd"
+    ? [
+        ["launchctl", "enable", `gui/${uid}/${label}`],
+        ["launchctl", "bootout", `gui/${uid}/${label}`],
+        ["launchctl", "bootstrap", `gui/${uid}`, path],
+      ]
+    : [
+        ["systemctl", "--user", "daemon-reload"],
+        ["systemctl", "--user", "restart", `${label}.service`],
+      ];
+}
+
+/** Tries at loading a launch agent again: `bootout` returns before the bridge it stops has gone. */
+const RELOAD_TRIES = 40;
+
+/**
+ * `reloadCommands` run in order; whether the service was loaded and started. Unloading one that
+ * isn't loaded is fine, and loading is tried again for about ten seconds while launchd lets the
+ * copy it stopped go, as the SDK's keep does.
+ */
+export async function reloadService(
+  input: {
+    readonly kind: ServiceKind;
+    readonly label: string;
+    readonly path: string;
+    readonly uid: number;
+  },
+  run: (command: Command) => Promise<{ readonly ok: boolean }>,
+  pauseMs = 250,
+): Promise<boolean> {
+  for (const command of reloadCommands(input.kind, input.label, input.path, input.uid)) {
+    const ok = await triedFor(command, run, pauseMs);
+    if (!ok && !(command[0] === "launchctl" && command[1] === "bootout")) return false;
+  }
+  return true;
+}
+
+/** A command run until it works: loading a launch agent `RELOAD_TRIES` times, the rest once. */
+async function triedFor(
+  command: Command,
+  run: (command: Command) => Promise<{ readonly ok: boolean }>,
+  pauseMs: number,
+): Promise<boolean> {
+  const tries = command[0] === "launchctl" && command[1] === "bootstrap" ? RELOAD_TRIES : 1;
+  for (let tried = 0; tried < tries; tried += 1) {
+    if (tried > 0) await new Promise((done) => setTimeout(done, pauseMs));
+    if ((await run(command)).ok) return true;
+  }
+  return false;
+}
+
+/**
  * What says how many times a kept bridge's service has been started: launchd prints the job, with
  * its `runs`; systemd answers with how many times it started the unit again itself. Read by the
  * computer watching a bridge through its first day on a release (bridges-keep-current.md, rule 3).
@@ -310,6 +372,18 @@ export const NO_SESSION = {
   systemd:
     /Failed to connect to (user scope )?bus|DBUS_SESSION_BUS_ADDRESS|not been booted with systemd/,
 } as const;
+
+/**
+ * Whether what `sessionCommand` answered says there is a session to start a service in: it
+ * worked, or it failed for some other reason than having none. A failure that says nothing is no
+ * session, as when the image has no `systemctl` at all (a bare container): the commands that start
+ * the service would fail the same way, and `chips up` reads their silence as no session too.
+ */
+export function hasSessionIn(kind: ServiceKind, asked: { ok: boolean; output: string }): boolean {
+  if (asked.ok) return true;
+  const printed = asked.output.trim();
+  return printed !== "" && !NO_SESSION[kind].test(printed);
+}
 
 /**
  * Which commands may fail without anything being wrong: unloading an agent that was not loaded

@@ -341,6 +341,7 @@ function PermissionsGroup({
           mark={<RowMark icon="unlock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
           accessibilityLabel={`${PERMISSIONS_TITLE}, ${row.value}, ${sub}`}
           value={row.value}
+          goldValue={row.gold === true}
           onPress={onPress}
           testID="agent-permissions"
         />

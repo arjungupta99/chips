@@ -29,6 +29,7 @@ import {
   NO_BANNERS,
   nameOf,
   roomHolds,
+  roomModes,
   type Space,
   STOP_WORDS,
   STOPPED_MS,
@@ -51,6 +52,8 @@ type After =
 const BACK_MS = 800;
 
 export function LetWorkBand(props: {
+  /** Says whose Chips's rules are on: a yes holds on only for those (ADR 0300). */
+  readonly model: WorkspaceModel | undefined;
   readonly space: Space;
   readonly directory: Directory;
   readonly now: number;
@@ -79,8 +82,8 @@ export function LetWorkBand(props: {
       for (const timer of timers) clearTimeout(timer);
     };
   }, [after]);
-  if (space.state !== "open") return null;
-  const holding = lettingWork(space, props.now);
+  if (props.model === undefined || space.state !== "open") return null;
+  const holding = lettingWork(props.model, directory, space, props.now);
   const shown = holding.filter(
     (held) =>
       after[held.asker] !== undefined ||
@@ -199,6 +202,52 @@ export function HoldBands(props: {
                 data-testid="hold-band-resume"
               >
                 {ASK_AGAIN_WORDS}
+              </button>
+            )}
+          </Band>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * A harness of an agent here in a mode that never asks (ADR 0300, decision 5 and the 19 November
+ * addendum): the gold band, `Claude Code asks nothing until 10:41 AM`, with Back to Default for an
+ * owner or an admin. Its words open the harness's Permissions. When its time is up it folds away.
+ */
+export function ModeBands(props: {
+  readonly model: WorkspaceModel | undefined;
+  readonly space: Space;
+  readonly directory: Directory;
+  readonly now: number;
+  readonly service: PermissionsService | undefined;
+  readonly mayChange: boolean;
+  readonly onOpenPermissions?: ((harnessId: string) => void) | undefined;
+}) {
+  const { model, service } = props;
+  if (model === undefined || props.space.state !== "open") return null;
+  const bands = roomModes(model, props.directory, props.space.id, props.now);
+  if (bands.length === 0) return null;
+  return (
+    <div className="letwork-bands" data-testid="mode-bands">
+      {bands.map((band) => {
+        const open = props.onOpenPermissions;
+        return (
+          <Band
+            key={band.harnessId}
+            words={band.words}
+            onOpen={open === undefined ? undefined : () => open(band.harnessId)}
+            openLabel={`${band.words}. Opens its permissions`}
+          >
+            {props.mayChange && service !== undefined && service.keepsHarnessMode !== false && (
+              <button
+                type="button"
+                className="letwork-stop"
+                onClick={() => service.setMode(band.harnessId, null)}
+                data-testid="mode-band-back"
+              >
+                {band.back}
               </button>
             )}
           </Band>

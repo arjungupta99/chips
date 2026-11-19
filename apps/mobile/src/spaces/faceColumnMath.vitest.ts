@@ -23,7 +23,13 @@ const five = shapeOf(5, undefined);
 
 describe("shapeOf", () => {
   it("shows every face where there is no measure or room enough", () => {
-    expect(five).toEqual({ faces: 5, view: 5 * SLOT, height: 5 * SLOT + FOOT + 2 * PAD, most: 0 });
+    expect(five).toEqual({
+      faces: 5,
+      groups: 0,
+      view: 5 * SLOT,
+      height: 5 * SLOT + FOOT + 2 * PAD,
+      most: 0,
+    });
     expect(shapeOf(5, 1000)).toEqual(five);
   });
 
@@ -118,5 +124,37 @@ describe("scrollSpeed", () => {
   it("never brings them past the top face", () => {
     expect(liftedBy(crowded.most - 3, SPEED, 1, crowded)).toBe(crowded.most);
     expect(liftedBy(0, -SPEED, 1, crowded)).toBe(0);
+  });
+});
+
+describe("People at the foot, over Everyone (ADR 0229's addendum of 18 November 2026)", () => {
+  // Birthday dinner: Milo, Theo, Rosa, Ana and Raj, then People, then Everyone.
+  const dinner = shapeOf(5, undefined, 1);
+
+  it("stands a face taller for People, and keeps it out of the faces' window", () => {
+    expect(dinner.height).toBe(five.height + SLOT);
+    expect(dinner.view).toBe(five.view);
+    // In a measured room the faces give People its slot.
+    expect(shapeOf(13, 387, 1).view).toBe(shapeOf(13, 387).view - SLOT);
+  });
+
+  it("finds Everyone at the very foot, People over it, then the faces", () => {
+    expect(faceAt(PAD + FOOT / 2, 0, dinner, 0)).toBe(6);
+    expect(faceAt(PAD + FOOT + SLOT / 2, 0, dinner, 0)).toBe(5);
+    expect(faceAt(PAD + FOOT + SLOT + SLOT / 2, 0, dinner, 0)).toBe(4);
+    expect(faceAt(PAD + FOOT + SLOT + 5 * SLOT - 1, 0, dinner, 0)).toBe(0);
+  });
+
+  it("puts each slot's middle where the finger finds it", () => {
+    for (let index = 0; index <= 6; index += 1) {
+      expect(faceAt(middleOf(index, dinner, 0), 0, dinner, 0)).toBe(index);
+    }
+  });
+
+  it("scrolls from the top of the faces, over People", () => {
+    const crowded = shapeOf(13, 387, 1);
+    const top = PAD + FOOT + SLOT + crowded.view;
+    expect(scrollSpeed(top + 20, 0, crowded, 0)).toBe(SPEED);
+    expect(scrollSpeed(top - EDGE, 0, crowded, 0)).toBe(0);
   });
 });

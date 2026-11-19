@@ -82,6 +82,32 @@ describe("the four levels, against every flag", () => {
     expect(evaluate({ kind: "drive.read" }, noRules(0), open).decision).toBe("ask");
   });
 
+  it("asks at L2 for a command a pause would leave to a person (ADR 0300, addendum of 19 November 2026)", () => {
+    const run = (command: string | string[], level: 1 | 2 | 3 = 2) =>
+      evaluate({ kind: "acp.bash", command }, noRules(level), open);
+    expect(run("pnpm test").decision).toBe("allow");
+    expect(run("python3 -c 'print(1)'").decision).toBe("allow");
+    expect(run("curl -s http://localhost:3000/health").decision).toBe("allow");
+    expect(run("rm -rf build")).toMatchObject({
+      decision: "ask",
+      approvers: ["owner"],
+      reason: "L2 · Ask when it matters: a command that deletes, pushes or leaves the machine asks",
+    });
+    expect(run("cd x && git push origin main").decision).toBe("ask");
+    expect(run(["bash", "-lc", "rm -rf build"]).decision).toBe("ask");
+    expect(run("curl -s https://example.com").decision).toBe("ask");
+    // With a pause on top, the same: the pause passes it on, and the level asks.
+    const paused: HarnessPolicy = { autonomy: 2, rules: [{ match: "*", decision: "allow" }] };
+    expect(evaluate({ kind: "acp.bash", command: "rm -rf build" }, paused, open).decision).toBe(
+      "ask",
+    );
+    expect(evaluate({ kind: "acp.bash", command: "pnpm test" }, paused, open).decision).toBe(
+      "allow",
+    );
+    // L3 runs end to end, as it says.
+    expect(run("rm -rf build", 3).decision).toBe("allow");
+  });
+
   it("stops at L2 for a hot risk class even with no flag set", () => {
     const action: PolicyAction = { kind: "vault.open", risk: ["credential"] };
     expect(evaluate(action, noRules(2), open).decision).toBe("ask");
@@ -284,12 +310,27 @@ describe("rules", () => {
     expect(run({ kind: "shell.exec", command: "for r in a b; do head -3 $r; done" })).toBe("allow");
     expect(run({ kind: "shell.exec", command: "pnpm test 2>&1 | tail -5" })).toBe("allow");
     expect(run({ kind: "file.write" })).toBe("allow");
-    // Never the never list (ADR 0300): rm and git push go to a person, read or not.
+    // Never the pause's list (ADR 0300): rm and git push go to a person, read or not.
     expect(run({ kind: "shell.exec", command: "rm -rf build && git push" })).toBe("ask");
     expect(run({ kind: "acp.bash", command: "git push origin main" })).toBe("ask");
     expect(run({ kind: "shell.exec", command: "for f in *.log; do rm $f; done" })).toBe("ask");
     expect(run({ kind: "shell.exec", command: "echo $(sudo cat /etc/hosts)" })).toBe("ask");
-    expect(run({ kind: "shell.exec", command: ["bash", "-c", "ls"] })).toBe("ask");
+    // A string a shell is handed is read through to what it runs (addendum of 19 November 2026).
+    expect(run({ kind: "shell.exec", command: ["bash", "-c", "ls"] })).toBe("allow");
+    expect(run({ kind: "shell.exec", command: ["bash", "-lc", "ls && rm -rf x"] })).toBe("ask");
+    // The pause's list is shorter than the never list, and reads the program, not the words.
+    expect(run({ kind: "acp.bash", command: "python3 -c 'print(1)' && sed -i '' s/a/b/ f" })).toBe(
+      "allow",
+    );
+    expect(run({ kind: "acp.bash", command: "timeout 20 pnpm test" })).toBe("allow");
+    expect(run({ kind: "acp.bash", command: "python3 - <<'EOF'\nprint('<dd> rm')\nEOF" })).toBe(
+      "allow",
+    );
+    expect(run({ kind: "acp.bash", command: "curl -s http://127.0.0.1:4173/home.html" })).toBe(
+      "allow",
+    );
+    expect(run({ kind: "acp.bash", command: "curl -s https://example.com" })).toBe("ask");
+    expect(run({ kind: "acp.bash", command: "r''m -rf x > log.txt" })).toBe("ask");
     // What matters still waits for a person.
     expect(run({ kind: "shell.exec", command: "ls", irreversible: true })).toBe("ask");
     expect(run({ kind: "email.send", external: true })).toBe("ask");

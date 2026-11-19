@@ -21,8 +21,9 @@ function room(letWork?: readonly LetWork[], state: "open" | "closed" = "open"): 
   return { id: "sp_1", state, ...(letWork === undefined ? {} : { letWork }) } as unknown as Space;
 }
 
-function band(space: Space) {
-  const shot = snapshot();
+/** A yes holds on only while the harness's Chips's rules are on (ADR 0300), so Scout's are. */
+function band(space: Space, rules: "on" | "off" | "never" = "on") {
+  const shot = snapshot(rules === "never" ? {} : { chipsRules: rules === "on" });
   const store = fakeStore(shot);
   return {
     store,
@@ -82,6 +83,43 @@ describe("the band of an agent working without asking (ADR 0281)", () => {
     expect(screen.queryByTestId("let-work-band")).toBeNull();
   });
 
+  it("says nothing while the harness's Chips's rules are off, and comes when they are turned on (ADR 0300)", async () => {
+    const held = room([{ asker: "har_scout", by: "per_arjun", since: SINCE }]);
+    // Turned off, and never set: the yes is still in the space, and nothing is drawn for it.
+    for (const rules of ["off", "never"] as const) {
+      const view = await render(band(held, rules).element);
+      expect(screen.queryByTestId("let-work-band")).toBeNull();
+      await view.unmount();
+    }
+    // The switch turns while the room is open: the band follows the store's word.
+    let shot = snapshot({ chipsRules: false });
+    const heard = new Set<(snapshot: Snapshot) => void>();
+    const store = {
+      ...fakeStore(shot),
+      getSnapshot: () => shot,
+      subscribe: (listener: (snapshot: Snapshot) => void) => {
+        heard.add(listener);
+        return () => {
+          heard.delete(listener);
+        };
+      },
+    };
+    await render(<LetWorkBand store={store} space={held} directory={shot.directory} />);
+    expect(screen.queryByTestId("let-work-band")).toBeNull();
+    await act(async () => {
+      shot = snapshot({ chipsRules: true });
+      for (const listener of heard) listener(shot);
+    });
+    expect(screen.getByTestId("let-work-band")).toHaveTextContent(
+      "Scout is working without askingStop",
+    );
+    await act(async () => {
+      shot = snapshot({ chipsRules: false });
+      for (const listener of heard) listener(shot);
+    });
+    expect(screen.queryByTestId("let-work-band")).toBeNull();
+  });
+
   it("says nothing in an archived room, where nobody works", async () => {
     await render(
       band(room([{ asker: "har_scout", by: "per_arjun", since: SINCE }], "closed")).element,
@@ -97,7 +135,12 @@ describe("the band of an agent working without asking (ADR 0281)", () => {
         jest.advanceTimersByTime(ms);
       });
     const mounted = (banners?: Banners, more: Partial<Snapshot> = {}) => {
-      const shot = { ...snapshot(), banners, keepsBanners: true, ...more } as Snapshot;
+      const shot = {
+        ...snapshot({ chipsRules: true }),
+        banners,
+        keepsBanners: true,
+        ...more,
+      } as Snapshot;
       const store = fakeStore(shot);
       return {
         store,
@@ -188,8 +231,11 @@ describe("the band of an agent working without asking (ADR 0281)", () => {
     it("opens what can be done about it from its words", async () => {
       const opened: string[] = [];
       const shot = {
-        ...snapshot(),
-        directory: { agt_jiro: { id: "agt_jiro", kind: "agent", displayName: "Jiro" } },
+        ...snapshot({ chipsRules: true }),
+        directory: {
+          har_scout: { id: "har_scout", kind: "harness", displayName: "Scout" },
+          agt_jiro: { id: "agt_jiro", kind: "agent", displayName: "Jiro", harnessId: "har_scout" },
+        },
       } as unknown as Snapshot;
       const store = fakeStore(shot);
       await render(

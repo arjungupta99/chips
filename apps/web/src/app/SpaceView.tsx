@@ -142,7 +142,7 @@ import {
 import { FeedbackGiven, NoteForm, type OnFeedback, saidName } from "./Feedback.tsx";
 import { ForkLine, NewAgentLine } from "./ForkLine.tsx";
 import type { FileService } from "./files.ts";
-import { HoldBands, LetWorkBand } from "./LetWorkBand.tsx";
+import { HoldBands, LetWorkBand, ModeBands } from "./LetWorkBand.tsx";
 import {
   EditForm,
   type LineHandlers,
@@ -522,6 +522,15 @@ export function SpaceView(props: SpaceViewProps) {
           headEnd={props.headEnd}
           onGoTo={goToLine}
         />
+        <ModeBands
+          model={props.model}
+          space={space}
+          directory={directory}
+          now={now}
+          service={props.permissions}
+          mayChange={mayTurnDialIn(props.model, selfId)}
+          onOpenPermissions={props.onOpenPermissions}
+        />
         <HoldBands
           model={props.model}
           space={space}
@@ -532,6 +541,7 @@ export function SpaceView(props: SpaceViewProps) {
           onOpenPermissions={props.onOpenPermissions}
         />
         <LetWorkBand
+          model={props.model}
           space={space}
           directory={directory}
           now={now}

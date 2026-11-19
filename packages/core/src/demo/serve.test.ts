@@ -15,9 +15,9 @@ import { fakeClock, watch } from "../testing/demo.js";
 import type { TransportOptions } from "../transport.js";
 import { DEMO_DEVICE_ID, DEMO_PERSON_ID, demoDevice } from "./device.js";
 import { INVITE_CARD, inviteCardBytes } from "./picture.js";
-import { APPROVALS, type DemoFilm, filmOf, RUNS } from "./script.js";
+import { APPROVALS, CANNED_ANSWER, type DemoFilm, filmOf, RUNS } from "./script.js";
 import { NOT_IN_DEMO, serveDemo } from "./serve.js";
-import { AGENTS, BIRTHDAY, CARD, GARDEN, roomFaces, STUDIO } from "./workspace.js";
+import { AGENTS, BIRTHDAY, CARD, GARDEN, PEOPLE, roomFaces, STUDIO } from "./workspace.js";
 
 const WHOLE = filmOf().chapters.length;
 
@@ -268,6 +268,33 @@ describe("the demo's socket", () => {
     transport.send({ ...message, idempotency_key: "k-5" });
     await settle();
     expect(socket.heard.acks).toHaveLength(2);
+  });
+
+  it("answers You from the agent a message was for, and a message for people alone from nobody (ADR 0204)", async () => {
+    const clock = fakeClock();
+    const server = serveDemo({ from: WHOLE, clock });
+    server.answering(true);
+    const socket = wire();
+    const transport = server.storeOptions.connect(socket.options);
+    await settle();
+    const send = (key: string, to: readonly string[]) =>
+      transport.send({
+        type: "message.post",
+        space_id: BIRTHDAY,
+        text: key,
+        to,
+        idempotency_key: key,
+      });
+    const answers = () =>
+      socket.heard.events
+        .filter((event) => event["text"] === CANNED_ANSWER)
+        .map((event) => event.actor.id);
+    send("Just us: who books the table?", [PEOPLE.rosa.id]);
+    await clock.advance(5000);
+    expect(answers()).toEqual([]);
+    send("And you, Milo?", [PEOPLE.rosa.id, AGENTS.milo.id]);
+    await clock.advance(5000);
+    expect(answers()).toEqual([AGENTS.milo.id]);
   });
 
   it("takes a harness's asks turned off and a rule written, stamped as a server stamps them (ADR 0299)", async () => {

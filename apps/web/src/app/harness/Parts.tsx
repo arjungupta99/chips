@@ -204,8 +204,10 @@ function PermissionsPart(props: PartProps) {
     <div className="hp-part" data-testid={`${props.part}-part`}>
       {props.part === "settings" ? (
         <HarnessSettings
+          model={props.model}
           directory={props.directory}
           harnessId={props.harnessId}
+          selfId={props.selfId}
           service={service}
         />
       ) : (
@@ -276,11 +278,13 @@ function readOnly(props: PartProps): PermissionsService | undefined {
     snoozeHarness: () => undefined,
     resumeHarness: () => undefined,
     setChipsRules: () => undefined,
+    setMode: () => undefined,
     setWorkspaceRules: () => undefined,
     readOwnRules: () => Promise.resolve({ own_rules: null, heard_at: null }),
     keepsHarnessRules: false,
     keepsOwnRules: false,
     keepsChipsRules: false,
+    keepsHarnessMode: false,
   };
 }
 

@@ -52,12 +52,14 @@ import {
   namesAuthors,
   nextAddress,
   nextAim,
+  offersPeople,
   othersIn,
   parentOf,
   pausedIn,
   pauseWords,
   pinnedLines,
   type Run,
+  recentIn,
   replyAgent,
   roomHandles,
   roomLeadOf,
@@ -2912,6 +2914,107 @@ describe("a group space (M3.3)", () => {
           ["Just you", [SCOUT]],
         ]);
         expect(space.lines.find((line) => line.text === "Again?")?.addressedPeople).toEqual([DANA]);
+      });
+    });
+
+    describe("message only the people (ADR 0229's addendum of 18 November 2026)", () => {
+      const KAY = "usr_01K4ZQPX00000000000000000K";
+      const people = {
+        ...DIRECTORY,
+        [KAY]: { id: KAY, kind: "person", displayName: "Kay" },
+      } as Directory;
+      const kayJoins = fixture("membership.added", 90, {
+        participant_id: KAY,
+        participant_kind: "person",
+        role: "guest",
+      });
+      const withKay = (...lines: ClientEvent[]) => spaceOf([...room(), kayJoins, ...lines]);
+
+      it("offers People with two or more other people and an agent", () => {
+        expect(offersPeople(spaceOf(room()), DIRECTORY, ARJUN)).toBe(false);
+        expect(offersPeople(withKay(), people, ARJUN)).toBe(true);
+        // Kay's own field counts Arjun and Dana.
+        expect(offersPeople(withKay(), people, KAY)).toBe(true);
+        const noAgents = {
+          ...people,
+          [SCOUT]: { ...people[SCOUT], removedAt: "x" },
+          [LEDGER]: { ...people[LEDGER], removedAt: "x" },
+        };
+        expect(offersPeople(withKay(), noAgents as Directory, ARJUN)).toBe(false);
+      });
+
+      it("aims People at every other person and no agent, and says People", () => {
+        const space = withKay();
+        const aim = aimOf("hi", "people", space, people, ARJUN);
+        expect(aim).toEqual({ ids: [DANA, KAY], by: "pick", people: true });
+        expect(aim && aimWordsOf(aim, space, people)).toBe("People");
+        expect(wireTo(aim)).toEqual([DANA, KAY]);
+        expect(aim && aimsAtEveryone(aim, "people")).toBe(false);
+        // An @ still decides.
+        expect(aimOf("@Scout hi", "people", space, people, ARJUN)).toEqual({
+          ids: [SCOUT],
+          by: "at",
+        });
+      });
+
+      it("keeps People people when somebody joins, and one left is that one by name", () => {
+        expect(aimOf("hi", "people", spaceOf(room()), DIRECTORY, ARJUN)).toEqual({
+          ids: [DANA],
+          by: "pick",
+        });
+        const fourth = "usr_01K4ZQPX00000000000000000L";
+        const more = {
+          ...people,
+          [fourth]: { id: fourth, kind: "person", displayName: "Lee" },
+        } as Directory;
+        const joined = withKay(
+          fixture("membership.added", 91, {
+            participant_id: fourth,
+            participant_kind: "person",
+            role: "guest",
+          }),
+        );
+        expect(aimOf("hi", "people", joined, more, ARJUN)?.ids).toEqual([DANA, KAY, fourth]);
+      });
+
+      it("reads a send to People as People after it, and so does a pick of each of them", () => {
+        const space = withKay(
+          said(ARJUN, "just us", { addressed_to: [], addressed_people: [DANA, KAY] }),
+        );
+        expect(aimOf("next", undefined, space, people, ARJUN)).toEqual({
+          ids: [DANA, KAY],
+          by: "default",
+          people: true,
+        });
+        expect(aimOf("next", [KAY, DANA], space, people, ARJUN)).toEqual({
+          ids: [KAY, DANA],
+          by: "pick",
+          people: true,
+        });
+        // One of them is that one, by name.
+        const kayOnly = withKay(said(ARJUN, "Kay?", { addressed_to: [], addressed_people: [KAY] }));
+        expect(aimOf("next", undefined, kayOnly, people, ARJUN)).toEqual({
+          ids: [KAY],
+          by: "default",
+        });
+      });
+
+      it("adds an agent to People as a list, from a circle", () => {
+        const space = withKay();
+        const aim = aimOf("hi", "people", space, people, ARJUN);
+        expect(aim && addedTo(aim, "people", SCOUT, space, people)).toEqual([DANA, KAY, SCOUT]);
+      });
+
+      it("knows who the writer has been talking with, the latest first", () => {
+        const space = withKay(
+          said(DANA, "morning"),
+          said(ARJUN, "Ledger, the totals?", { addressed_to: [LEDGER] }),
+          said(LEDGER, "Sent."),
+          said(ARJUN, "Kay, lunch?", { addressed_to: [], addressed_people: [KAY] }),
+          said(ARJUN, "everyone", { addressed_to_all: true }),
+        );
+        expect(recentIn(space, people, ARJUN)).toEqual([KAY, LEDGER, DANA]);
+        expect(recentIn(space, people, KAY)).toEqual([ARJUN, LEDGER, DANA]);
       });
     });
 

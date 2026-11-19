@@ -16,6 +16,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   accessSync,
+  chmodSync,
   closeSync,
   constants,
   existsSync,
@@ -35,7 +36,7 @@ import {
   writeFileSync,
   writeSync,
 } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { STEP_MARK } from "@chipschat/harness";
 import {
   type BridgeOutcome,
@@ -183,11 +184,15 @@ export function writeRecord(folder: string, record: BridgeRecord): void {
   writeWhole(join(folder, RECORD), `${JSON.stringify(record, null, 2)}\n`);
 }
 
-/** A file written beside itself, flushed, and renamed into place: the last good one, or this. */
-export function writeWhole(path: string, text: string): void {
+/**
+ * A file written beside itself, flushed, and renamed into place: the last good one, or this. With
+ * `mode`, it is read and written by whom that says from the start.
+ */
+export function writeWhole(path: string, text: string, mode?: number): void {
   const next = `${path}.next`;
-  const file = openSync(next, "w");
+  const file = openSync(next, "w", mode ?? 0o666);
   try {
+    if (mode !== undefined) chmodSync(next, mode);
     writeSync(file, text);
     fsyncSync(file);
   } finally {
@@ -201,7 +206,9 @@ export function writeWhole(path: string, text: string): void {
  * (bridges-keep-current.md, rule 4). The services keep naming `package/…`; Node follows the link
  * when a bridge starts, so a bridge still running goes on loading its own version's files, which
  * stay until nothing needs them: the one in use, the one before it (to put back), and any a kept
- * service still started on.
+ * service still started on. A service that names a release's own folder instead, as the bridges'
+ * keep wrote one until it named the link it was started through, is made to name the link before
+ * it is started again (`serviceOnLink`).
  */
 
 const LINK = "package";
@@ -352,8 +359,11 @@ export function adoptLayout(folder: string): void {
   symlinkSync(`${LINK}-${named}`, link);
 }
 
-/** `package` pointed at `version`'s folder in one rename, and the journal told which came before. */
-export function pointTo(folder: string, version: string): void {
+/**
+ * `package` pointed at `version`'s folder in one rename, and the journal told which came before.
+ * `serviceFile` finds the kept services' files, for any that names a release of its own.
+ */
+export function pointTo(folder: string, version: string, serviceFile?: ServiceFileOf): void {
   if (!SAFE_VERSION.test(version)) throw new BridgeError(`${version} is not a version.`);
   if (!existsSync(join(folder, `${LINK}-${version}`, "package.json"))) {
     throw new BridgeError(`${version} isn't unpacked here.`);
@@ -362,7 +372,7 @@ export function pointTo(folder: string, version: string): void {
   const before = versionInUse(folder);
   // Every service kept here runs the release the link is leaving until it is started again: that
   // is written down before the link moves, so its files stay and it is read as what it runs.
-  const startedOn = startedBefore(folder, readRecord(folder), readJournal(folder));
+  const startedOn = startedBefore(folder, readRecord(folder), readJournal(folder), serviceFile);
   const next = join(folder, `${LINK}.next`);
   rmSync(next, { force: true });
   symlinkSync(`${LINK}-${version}`, next);
@@ -374,6 +384,72 @@ export function pointTo(folder: string, version: string): void {
     ...(Object.keys(startedOn).length === 0 ? {} : { startedOn }),
     ...(before !== undefined && before !== version ? { previous: before } : {}),
   });
+}
+
+/** The words that say a service's file is keep's own (the SDK's), and not somebody's. */
+const KEEPS_OWN = "Written by a Chips harness's keep";
+
+/**
+ * A release's own folder under `folder` as a service file names it, `/chipschat-opencode/package-1.0.32`,
+ * up to where the path goes on (`/dist/main.js`) or ends: in a launch agent's `<string>`, in a
+ * unit's quoted word, or at the end of its line. The folder is matched by its own name, which a
+ * package's name makes plain, so however a file writes the folders above it, it is found.
+ */
+function releaseFolderIn(folder: string): RegExp {
+  const name = basename(folder).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `/${name}/${LINK}-(\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?)(?=[/<"\\s]|$)`,
+    "gm",
+  );
+}
+
+/** A service's file, or nothing where there is none or it can't be read. */
+export function readService(path: string | undefined): string | undefined {
+  if (path === undefined) return undefined;
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The release a service runs whatever the link says, where its file names that release's own
+ * folder under `folder`; none where it names the link.
+ */
+export function releaseNamed(contents: string | undefined, folder: string): string | undefined {
+  return contents === undefined ? undefined : releaseFolderIn(folder).exec(contents)?.[1];
+}
+
+/** A service's file with each release's own folder under `folder` named by the link instead. */
+export function namingTheLink(contents: string, folder: string): string {
+  return contents.replace(releaseFolderIn(folder), `/${basename(folder)}/${LINK}`);
+}
+
+/**
+ * A kept service's file made to name the link where it names a release's own folder, as the
+ * bridges' keep wrote it until it named the link it was started through (`chips connect` in Chips
+ * 1.3.0, 19 November 2026). Such a service went on running its release after each update moved the
+ * link, while the journal said it ran the new one, and couldn't start at all once that release's
+ * folder was pruned. Only a file keep wrote is changed, still read by its user alone: somebody's
+ * own is left as it is. Whether it changed, so the service is loaded again from it: launchd and
+ * systemd start what they read when they loaded it.
+ */
+export function serviceOnLink(path: string | undefined, folder: string): boolean {
+  const contents = readService(path);
+  if (path === undefined || contents === undefined || !contents.includes(KEEPS_OWN)) return false;
+  const named = namingTheLink(contents, folder);
+  if (named === contents) return false;
+  writeWhole(path, named, 0o600);
+  return true;
+}
+
+/**
+ * What a kept service runs: the release its file names, where it names one, else the one the link
+ * points at. `startedOn` is told this, never a release the service doesn't run.
+ */
+function runsFrom(folder: string, path: string | undefined): string | undefined {
+  return releaseNamed(readService(path), folder) ?? versionInUse(folder);
 }
 
 /** Throws what `pointTo` would, before anything is written. */
@@ -753,10 +829,22 @@ async function exactRelease(
 }
 
 /**
+ * A kept service started again. `afresh` loads its file again first, which a file changed since it
+ * was loaded needs: `launchctl kickstart -k` and `systemctl --user restart` start what the service
+ * manager read when it loaded it. Whether it started.
+ */
+export type RestartService = (label: string, afresh?: boolean) => Promise<boolean>;
+
+/** The file keep wrote for a kept service, by its label: none where this machine keeps none. */
+export type ServiceFileOf = (label: string) => string | undefined;
+
+/**
  * `package` pointed at a staged release and the one service started again on it. Every other
  * service kept on the package is written down as started on the release the link left, so the
  * files it runs stay until it restarts too. `trying` is in the journal before the link moves, so a
- * computer that stops halfway knows what to finish.
+ * computer that stops halfway knows what to finish. A service whose file names a release's own
+ * folder is made to name the link and loaded again; one that still names a release (somebody's own
+ * file) is written down as on that release, and the switch didn't happen.
  */
 export async function switchService(input: {
   readonly bridges: string;
@@ -764,7 +852,8 @@ export async function switchService(input: {
   readonly label: string;
   readonly version: string;
   readonly trying: BridgeTrying | null;
-  readonly restart: (label: string) => Promise<boolean>;
+  readonly restart: RestartService;
+  readonly serviceFile?: ServiceFileOf | undefined;
 }): Promise<boolean> {
   const folder = bridgeFolder(input.bridges, input.name);
   try {
@@ -773,9 +862,11 @@ export async function switchService(input: {
       // Refused before the journal is told anything is being tried: a `trying` left by a switch
       // that never happened would be "put back" five minutes on, and its release skipped a week.
       mustBeUnpacked(folder, input.version);
+      const service = input.serviceFile?.(input.label);
+      const afresh = serviceOnLink(service, folder);
       const record = readRecord(folder);
       const journal = readJournal(folder);
-      const startedOn = startedBefore(folder, record, journal);
+      const startedOn = startedBefore(folder, record, journal, input.serviceFile);
       // The release it leaves keeps its checksum, for `bridge.json` if it is put back.
       const staged =
         record === undefined || record.integrity === ""
@@ -788,7 +879,7 @@ export async function switchService(input: {
         ...(staged === undefined ? {} : { staged }),
         ...(input.trying === null ? {} : { trying: input.trying }),
       });
-      pointTo(folder, input.version);
+      pointTo(folder, input.version, input.serviceFile);
       if (record !== undefined && record.version !== input.version) {
         writeRecord(folder, {
           ...record,
@@ -796,14 +887,9 @@ export async function switchService(input: {
           integrity: staged?.[input.version] ?? "",
         });
       }
-      const started = await input.restart(input.label);
-      const now = readJournal(folder);
-      writeJournal(folder, {
-        ...now,
-        startedOn: { ...now.startedOn, [input.label]: input.version },
-      });
-      prune(folder);
-      return started;
+      const started = await input.restart(input.label, afresh);
+      const onIt = startedOnSwitch(folder, input.label, input.version, service);
+      return started && onIt;
     });
   } catch (error) {
     if (error instanceof LockHeld) throw new BridgeRefusal("busy", error.message);
@@ -811,31 +897,62 @@ export async function switchService(input: {
   }
 }
 
-/** Each kept service's release, the one the link points at for those no update started yet. */
+/**
+ * A switched service written down as on what it runs now, `version` unless its file still names a
+ * release of its own, and what nothing needs any more pruned; whether it runs `version`.
+ */
+function startedOnSwitch(
+  folder: string,
+  label: string,
+  version: string,
+  service: string | undefined,
+): boolean {
+  const runs = releaseNamed(readService(service), folder) ?? version;
+  const now = readJournal(folder);
+  writeJournal(folder, { ...now, startedOn: { ...now.startedOn, [label]: runs } });
+  prune(folder);
+  return runs === version;
+}
+
+/**
+ * Each kept service's release: the one its file names, where it names one, whatever the journal
+ * said; else the one the link points at, for those no update started yet.
+ */
 function startedBefore(
   folder: string,
   record: BridgeRecord | undefined,
   journal: BridgeJournal,
+  serviceFile?: ServiceFileOf,
 ): Record<string, string> {
   const startedOn: Record<string, string> = { ...journal.startedOn };
   const before = versionInUse(folder) ?? record?.version;
-  if (before === undefined) return startedOn;
-  for (const kept of Object.values(record?.kept ?? {})) startedOn[kept.label] ??= before;
+  for (const kept of Object.values(record?.kept ?? {})) {
+    const named = releaseNamed(readService(serviceFile?.(kept.label)), folder);
+    if (named !== undefined) startedOn[kept.label] = named;
+    else if (before !== undefined) startedOn[kept.label] ??= before;
+  }
   return startedOn;
 }
 
 /**
- * Services started again by hand (`chips connect`, `--update`) on the release in use, written in
- * the journal so the computer reads what they run: a service no update started is read as the
- * release in use only until the link moves.
+ * Services started again by hand (`chips connect`, `--update`), written in the journal as on what
+ * they run, so the computer reads it: the release in use, or the one a service's file still names
+ * (`runsFrom`). A service no update started is read as the release in use only until the link moves.
  */
-export function startedOnNow(folder: string, labels: readonly string[]): void {
-  const version = versionInUse(folder);
-  if (version === undefined || labels.length === 0) return;
+export function startedOnNow(
+  folder: string,
+  labels: readonly string[],
+  serviceFile?: ServiceFileOf,
+): void {
   const journal = readJournal(folder);
   const startedOn = { ...journal.startedOn };
-  for (const label of labels) startedOn[label] = version;
-  writeJournal(folder, { ...journal, startedOn });
+  for (const label of labels) {
+    const runs = runsFrom(folder, serviceFile?.(label));
+    if (runs !== undefined) startedOn[label] = runs;
+  }
+  if (Object.entries(startedOn).some(([label, runs]) => journal.startedOn?.[label] !== runs)) {
+    writeJournal(folder, { ...journal, startedOn });
+  }
 }
 
 /**
@@ -1044,6 +1161,8 @@ export async function fetchBridge(input: {
   readonly onRelease?: ((version: string, reused: boolean) => void) | undefined;
   /** How much of the download is here, as it comes. */
   readonly onProgress?: ((received: number, total: number | undefined) => void) | undefined;
+  /** The kept services' files, so none that names a release of its own loses it to `prune`. */
+  readonly serviceFile?: ServiceFileOf | undefined;
 }): Promise<Fetched> {
   const { spec } = input;
   const fetching = input.fetch ?? fetch;
@@ -1059,7 +1178,7 @@ export async function fetchBridge(input: {
   const bytes = await download(release, spec, fetching, input.onProgress);
   await withLock(folder, () => {
     unpack(folder, bytes, release.version);
-    pointTo(folder, release.version);
+    pointTo(folder, release.version, input.serviceFile);
     prune(folder);
     writeRecord(folder, {
       package: spec.name,

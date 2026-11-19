@@ -140,6 +140,7 @@ describe("the handshake", () => {
           "harness_rules",
           "own_rules",
           "chips_rules",
+          "harness_mode",
         ],
       },
       autonomy: 2,
@@ -150,6 +151,49 @@ describe("the handshake", () => {
     expect(hello?.["spaces"]).toEqual([ws.spaceId]);
     const harnesses = (hello?.["harnesses"] ?? []) as { owner_id: string }[];
     expect(harnesses[0]?.owner_id).toBe(ws.arjun.participantId);
+  });
+
+  it("hands a harness the mode a person picked for it, with its end (ADR 0300)", async () => {
+    const mode = {
+      id: "auto",
+      until: "2030-01-01T00:00:00.000Z",
+      by: ws.arjun.participantId,
+      at: "2026-11-19T00:00:00.000Z",
+    };
+    await ws.gateway.deps.store.append({
+      v: 1,
+      type: "policy.updated",
+      id: ws.ids.next("event"),
+      ts: new Date(clock).toISOString(),
+      workspace_id: ws.workspaceId,
+      actor: { kind: "person", id: ws.arjun.participantId },
+      idempotency_key: ws.ids.next("event"),
+      harness_id: ws.scout.participantId,
+      policy: { autonomy: 2, rules: [], mode },
+      workspace_max_autonomy: 3,
+      changed_by: ws.arjun.participantId,
+    } as IncomingEvent);
+    const wire = open("harness");
+    await wire.session.receive(HELLO);
+    expect(wire.events()[0]?.["policy"]).toEqual({ autonomy: 2, rules: [], mode });
+
+    // Put back in the mode it starts in, the hello says none.
+    await ws.gateway.deps.store.append({
+      v: 1,
+      type: "policy.updated",
+      id: ws.ids.next("event"),
+      ts: new Date(clock).toISOString(),
+      workspace_id: ws.workspaceId,
+      actor: { kind: "person", id: ws.arjun.participantId },
+      idempotency_key: ws.ids.next("event"),
+      harness_id: ws.scout.participantId,
+      policy: { autonomy: 2, rules: [], mode: null },
+      workspace_max_autonomy: 3,
+      changed_by: ws.arjun.participantId,
+    } as IncomingEvent);
+    const again = open("harness");
+    await again.session.receive(HELLO);
+    expect(again.events()[0]?.["policy"]).toEqual({ autonomy: 2, rules: [] });
   });
 
   it("says what the workspace is called now, so a device paired under an old name takes the new one", async () => {

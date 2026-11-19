@@ -31,6 +31,7 @@ import { useRef, useState } from "react";
 import { AlwaysList } from "../AlwaysList.tsx";
 import { Count, Dots, Hero, UNDO_TITLE } from "../Asking.tsx";
 import { AsksDialog } from "../AsksDialog.tsx";
+import { Coded } from "../Coded.tsx";
 import { UndoPill } from "../room/UndoPill.tsx";
 import { useAlways } from "../useAlways.ts";
 import { useNow } from "../useNow.ts";
@@ -151,7 +152,7 @@ function Top(props: {
         {view.headline}
       </p>
       <p className="asking-sub" data-testid="permissions-sub">
-        {view.sub}
+        <Coded text={view.sub} />
       </p>
       {view.mayStop && spaceId !== undefined && (
         <button

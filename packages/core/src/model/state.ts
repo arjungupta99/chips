@@ -20,6 +20,7 @@ import type {
   Line,
   PausedSpend,
   PersonModel,
+  PickedMode,
   Pin,
   ProjectChange,
   Question,
@@ -107,6 +108,9 @@ export interface MutablePolicy {
   hold?: Hold | undefined;
   /** Its Chips's rules switch as last set (ADR 0300); absent while never set. */
   chipsRules?: boolean | undefined;
+  /** The mode a person picked (ADR 0300, 19 November addendum), and when it last changed. */
+  mode?: PickedMode | undefined;
+  modeSince?: string | undefined;
   rooms: Map<string, { autonomy: 0 | 1 | 2 | 3; rules: Rule[] }>;
 }
 

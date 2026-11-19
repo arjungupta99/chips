@@ -1292,6 +1292,7 @@ const PROJECTORS: Readonly<Record<string, Projector>> = {
       rules: unknown[];
       hold?: unknown;
       chips_rules?: boolean;
+      mode?: unknown;
     }>(event, "policy");
     const budget = field<number>(event, "budget_usd");
     return [
@@ -1313,6 +1314,10 @@ const PROJECTORS: Readonly<Record<string, Projector>> = {
           ...(event.space_id !== undefined || policy.chips_rules === undefined
             ? {}
             : { chips_rules: policy.chips_rules ? 1 : 0 }),
+          // And the mode a person picked (ADR 0300, 19 November addendum); `null` clears it.
+          ...(event.space_id !== undefined || policy.mode === undefined
+            ? {}
+            : { mode: holdOf(policy.mode) }),
           updated_at: event.ts,
           updated_seq: event.seq,
         },

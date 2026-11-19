@@ -11,7 +11,7 @@
  */
 
 import type { AuditEntry, Directory, WorkspaceModel } from "@chipschat/core";
-import { nameOf } from "@chipschat/core";
+import { auditWords, nameOf } from "@chipschat/core";
 import { clockTime, shortDayWords } from "./time.ts";
 
 export interface LogProps {
@@ -62,7 +62,7 @@ export function Log({ model, directory, onOpen }: LogProps) {
               <span className="audit-kind">{KIND_LABEL[entry.kind]}</span>
               <span className="you-lrow-lab">
                 <span>
-                  {entry.what}
+                  {auditWords(entry, directory)}
                   {entry.reason !== undefined && (
                     <span className="audit-reason"> · {entry.reason}</span>
                   )}

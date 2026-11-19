@@ -561,6 +561,31 @@ Still not built:
   (`engines.chips`) yet, so there is nothing to test against;
 - phase 5's provenance check before unpacking.
 
+## Found 19 November: services that named a release's own folder
+
+Rule 4 has the service files name `package/…`. A bridge kept by `chips connect` named
+`package-<version>/dist/main.js` instead, for both its program and its working folder. `chips connect`
+starts the bridge at `package/dist/main.js`, but Node resolves links in the path of the file it
+starts, and each bridge's keep built the service from `import.meta.url`. Each update then moved the
+link and restarted the service. launchd (`kickstart -k`) and systemd (`restart`) run what they loaded
+from the file, so the service went on running the old release while `updates.json` said it ran the
+new one. Once `prune` removed the old folder, the bridge couldn't start at all. This was seen on
+Arjun's Mac: OpenCode connected by 1.3.0's CLI on 17 November stayed on 1.0.32 after an update to
+1.0.34.
+
+Fixed in both places:
+- **Each bridge's keep** names the path it was started at (`process.argv[1]`) when that path is its
+  own file reached through a link, so the service it writes names `package`. A command a package
+  manager links to the file (`chips-opencode`) is left out.
+- **The CLI repairs files that already name a release**, which strangers' machines have from 1.3.0.
+  Before it starts a kept service again (the computer's `switchService`, `chips connect --update`,
+  or connect with an older bridge), it rewrites such a file to name the link, if keep wrote it. It
+  then loads the file again (`launchctl bootout` + `bootstrap`, or `systemctl --user daemon-reload` +
+  `restart`) rather than kickstarting it. A file somebody wrote by hand is left as it is.
+  `startedOn` is written as the release the service's file actually runs. A switch to a release
+  that file doesn't run is reported as not started, so the computer puts the release back. Any
+  release a kept service's file names is written down before the link moves, so `prune` keeps it.
+
 ## Later: each bridge updates itself (C)
 
 Kept for when bridges on other machines need it. The failure review of 13 November shaped it.

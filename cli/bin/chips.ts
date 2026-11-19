@@ -31,7 +31,7 @@ import {
   sqlitePathFrom,
 } from "@chipschat/server";
 import { type Flags, readArgs } from "../src/args.js";
-import { bridgeHands } from "../src/bridge-hands.js";
+import { bridgeHands, bridgeServicePath } from "../src/bridge-hands.js";
 import { NPM_REGISTRY } from "../src/bridges.js";
 import {
   type BridgeCard,
@@ -111,6 +111,7 @@ import {
 } from "../src/release.js";
 import {
   LABEL,
+  reloadService,
   restartCommand,
   serviceHere,
   serviceKind,
@@ -621,9 +622,23 @@ function bridgeDepsOf(
     env: machine.environment,
     console: out,
     json,
-    restart: async (label) =>
-      kind === undefined ? false : (await run(restartCommand(kind, label, uid()))).ok,
+    serviceFile: (label) => serviceFileOf(label, machine),
+    restart: async (label, afresh = false) => {
+      if (kind === undefined) return false;
+      if (!afresh) return (await run(restartCommand(kind, label, uid()))).ok;
+      const path = serviceFileOf(label, machine);
+      return path !== undefined && (await reloadService({ kind, label, path, uid: uid() }, run));
+    },
   };
+}
+
+/** Where keep wrote a kept bridge's service on this machine. */
+function serviceFileOf(label: string, machine: ReturnType<typeof thisMachine>): string | undefined {
+  return bridgeServicePath(label, {
+    platform: machine.platform,
+    home: machine.home,
+    env: machine.environment,
+  });
 }
 
 /**
@@ -683,6 +698,7 @@ function handsHere(
     nodeVersion: process.versions.node,
     env: machine.environment,
     restart: deps.restart ?? (async () => false),
+    serviceFile: deps.serviceFile,
     fetch: deps.fetch,
     // How many times launchd or systemd has started a bridge's service, for its first day (rule 3).
     starts: async (label) => {

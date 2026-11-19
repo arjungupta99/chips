@@ -54,6 +54,24 @@ const copy = {
   read_from: ["~/.claude/settings.json"],
   note: "Your own Claude Code reads the same file.",
   mode: "Default",
+  // The modes a person may pick from Chips (ADR 0300, 19 November addendum).
+  modes: {
+    base: "default",
+    running: "default",
+    offers: [
+      {
+        id: "default",
+        name: "Default",
+        words: "Asks before edits and commands its settings don't allow.",
+      },
+      {
+        id: "bypassPermissions",
+        name: "Bypass permissions",
+        words: "Never asks.",
+        everything: true,
+      },
+    ],
+  },
   runs: [
     { kind: "read", name: "Read", raw: "Read" },
     { kind: "command", name: "git", words: ["git"], raw: "Bash(git:*)" },

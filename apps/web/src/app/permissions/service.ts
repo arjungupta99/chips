@@ -18,7 +18,7 @@ import {
   type Store,
 } from "@chipschat/core";
 import type { OwnRulesRead } from "@chipschat/protocol";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface PermissionsService {
   readonly setRules: (input: SetRulesInput) => void;
@@ -26,6 +26,8 @@ export interface PermissionsService {
   readonly resumeHarness: (harnessId: string) => void;
   /** Switch its Chips's rules on or off (ADR 0300). */
   readonly setChipsRules: (harnessId: string, on: boolean) => void;
+  /** Put its sessions in a mode it offers, or back (`null`) (ADR 0300, 19 November addendum). */
+  readonly setMode: Store["setMode"];
   readonly setWorkspaceRules: (input: {
     readonly rules?: readonly Rule[] | undefined;
     readonly hold?: SnoozeInput | null | undefined;
@@ -37,6 +39,8 @@ export interface PermissionsService {
   readonly keepsOwnRules?: boolean | undefined;
   /** False from a server that keeps no Chips's rules switch (ADR 0300): the switch is still. */
   readonly keepsChipsRules?: boolean | undefined;
+  /** False from a server that keeps no mode (ADR 0300, 19 November addendum): no picker. */
+  readonly keepsHarnessMode?: boolean | undefined;
 }
 
 /** The store and the snapshot's two flags, as the pages want them. */
@@ -46,11 +50,13 @@ export function permissionsServiceOf(store: Store, snapshot: Snapshot): Permissi
     snoozeHarness: (harnessId, snooze) => store.snoozeHarness(harnessId, snooze),
     resumeHarness: (harnessId) => store.resumeHarness(harnessId),
     setChipsRules: (harnessId, on) => store.setChipsRules(harnessId, on),
+    setMode: (harnessId, mode) => store.setMode(harnessId, mode),
     setWorkspaceRules: (input) => store.setWorkspaceRules(input),
     readOwnRules: (harnessId) => store.readOwnRules(harnessId),
     keepsHarnessRules: snapshot.keepsHarnessRules,
     keepsOwnRules: snapshot.keepsOwnRules,
     keepsChipsRules: snapshot.keepsChipsRules,
+    keepsHarnessMode: snapshot.keepsHarnessMode,
   };
 }
 
@@ -88,14 +94,21 @@ function readOne(
 }
 
 /**
+ * After a mode is picked or ends, the harness says what it runs in again: read it a moment later,
+ * and once more after that, by when a bridge has moved its sessions (ADR 0300, 19 November addendum).
+ */
+export const READ_AGAIN_MS: readonly number[] = [1500, 6000];
+
+/**
  * What a harness last said it runs on its own, read as its page opens: what was heard before while
  * the read is on its way, `undefined` before anything was, and `NOT_SAID` from a server that keeps
- * none.
+ * none. `again` changing (its mode picked, put back, or its time up) reads it again shortly after.
  */
 export function useOwnRules(
   service: PermissionsService | undefined,
   directory: Directory,
   harnessId: string,
+  again?: string,
 ): OwnRulesView | undefined {
   const keeps = service !== undefined && service.keepsOwnRules !== false;
   const [view, setView] = useState<OwnRulesView | undefined>(() =>
@@ -116,6 +129,25 @@ export function useOwnRules(
       live = false;
     };
   }, [keeps, harnessId]);
+  // What `again` was as the page opened: the read above covers that one.
+  const opened = useRef(again);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: read again when `again` changes only.
+  useEffect(() => {
+    if (again === opened.current || !keeps || service === undefined) return;
+    opened.current = undefined;
+    let live = true;
+    const timers = READ_AGAIN_MS.map((ms) =>
+      setTimeout(() => {
+        void readOne(service, directory, harnessId).then((next) => {
+          if (live) setView(next);
+        });
+      }, ms),
+    );
+    return () => {
+      live = false;
+      for (const timer of timers) clearTimeout(timer);
+    };
+  }, [again]);
   return view;
 }
 

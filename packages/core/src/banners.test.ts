@@ -15,7 +15,7 @@ import {
   withBannerChanges,
 } from "./banners.js";
 import type { Directory } from "./events.js";
-import type { LetWork, Space } from "./model/types.js";
+import type { LetWork, Space, WorkspaceModel } from "./model/types.js";
 
 const directory: Directory = {
   har: { id: "har", kind: "harness", displayName: "Claude Code" },
@@ -38,6 +38,17 @@ const closedFor = (asker: string, since = "2026-11-08T10:00:00.000Z") => ({
   since,
 });
 const space = (...letWork: LetWork[]) => ({ id: "spc", letWork }) as unknown as Space;
+/** A workspace where each harness's Chips's rules switch is as said; never set where not. */
+const workspace = (switches: Record<string, boolean>) =>
+  ({
+    harnesses: Object.fromEntries(
+      Object.entries(switches).map(([harnessId, chipsRules]) => [
+        harnessId,
+        { harnessId, autonomy: 1, rules: [], bySpace: {}, chipsRules },
+      ]),
+    ),
+  }) as unknown as WorkspaceModel;
+const RULES_ON = workspace({ har: true, other: true });
 const changes = (...each: BannerChange[]) => new Map(each.map((one, at) => [String(at), one]));
 const choose = (choices: Record<string, boolean>): Banners => ({ choices, closed: [] });
 const NOW = Date.parse("2026-11-08T11:00:00.000Z");
@@ -67,12 +78,24 @@ describe("whether a banner shows (ADR 0286)", () => {
     const hour = { ...held("ada"), until: "2026-11-08T10:30:00.000Z" };
     const room = space(held("jiro"), held("kit"), hour);
     const banners: Banners = { choices: { kit: false }, closed: [] };
-    expect(bannersToShow(room, directory, banners, NOW).map((each) => each.asker)).toEqual([
-      "jiro",
-    ]);
+    const shown = (model: WorkspaceModel, each: Banners, in_: Space = room) =>
+      bannersToShow(model, in_, directory, each, NOW).map((one) => one.asker);
+    expect(shown(RULES_ON, banners)).toEqual(["jiro"]);
     const closed: Banners = { choices: {}, closed: [closedFor("jiro")] };
-    expect(bannersToShow(room, directory, closed, NOW).map((each) => each.asker)).toEqual(["kit"]);
-    expect(bannersToShow(undefined, directory, NO_BANNERS, NOW)).toEqual([]);
+    expect(shown(RULES_ON, closed)).toEqual(["kit"]);
+    expect(bannersToShow(RULES_ON, undefined, directory, NO_BANNERS, NOW)).toEqual([]);
+  });
+
+  it("shows none for a harness whose Chips's rules are off, set so or never set (ADR 0300)", () => {
+    const room = space(held("jiro"), held("far"), held("other"));
+    const shown = (model: WorkspaceModel) =>
+      bannersToShow(model, room, directory, NO_BANNERS, NOW).map((one) => one.asker);
+    expect(shown(RULES_ON)).toEqual(["jiro", "far", "other"]);
+    // Jiro's harness is off; Far's, and Codex itself, are on.
+    expect(shown(workspace({ har: false, other: true }))).toEqual(["far", "other"]);
+    // Never set and with nothing of Chips's, a harness reads off.
+    expect(shown(workspace({ har: true }))).toEqual(["jiro"]);
+    expect(shown(workspace({}))).toEqual([]);
   });
 });
 

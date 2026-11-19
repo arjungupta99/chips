@@ -189,6 +189,27 @@ const WORKING_ROOM = {
   letWork: [{ asker: "har_scout", by: "per_arjun", since: "2026-11-06T09:50:00.000Z" }],
 };
 
+/**
+ * Scout's policy, when a test gives it rules or lets it work. A yes holds on only while its Chips's
+ * rules are on (ADR 0300), so with `working` they are, unless the test says otherwise.
+ */
+function scoutsPolicy(over: { rules?: unknown[]; working?: boolean; chipsRules?: boolean }) {
+  if (over.rules === undefined && over.working !== true) return {};
+  const chipsRules = over.working === true ? { chipsRules: over.chipsRules ?? true } : {};
+  return {
+    har_scout: {
+      harnessId: "har_scout",
+      autonomy: 1,
+      maxAutonomy: 2,
+      rules: over.rules ?? [],
+      budgetUsd: 20,
+      spentUsd: 0,
+      bySpace: {},
+      ...chipsRules,
+    },
+  };
+}
+
 function fake(
   over: {
     role?: string;
@@ -214,6 +235,8 @@ function fake(
     asks?: boolean;
     /** Scout let work without asking in a room (ADR 0281). */
     working?: boolean;
+    /** With `working`: Scout's Chips's rules switch (ADR 0300), on unless said. */
+    chipsRules?: boolean;
   } = {},
 ) {
   const snapshot = {
@@ -240,20 +263,7 @@ function fake(
       needsYou: [],
       lanes: [],
       fleet: [],
-      harnesses:
-        over.rules === undefined
-          ? {}
-          : {
-              har_scout: {
-                harnessId: "har_scout",
-                autonomy: 1,
-                maxAutonomy: 2,
-                rules: over.rules,
-                budgetUsd: 20,
-                spentUsd: 0,
-                bySpace: {},
-              },
-            },
+      harnesses: scoutsPolicy(over),
       spaces: [ASKED_ROOM, WORKING_ROOM].filter(
         (room) => (room === ASKED_ROOM ? over.asks : over.working) === true,
       ),
@@ -1257,6 +1267,15 @@ describe("beside the list on an iPad (ADR 0256, 3 November 2026)", () => {
     expect(page.getByTestId("perms-line-har_scout")).toHaveTextContent(
       "Doesn't say yet what it runs on its own",
     );
+  });
+
+  it("lists nobody as working without asking once the harness's Chips's rules are off (ADR 0300)", async () => {
+    await render(<IPad store={fake({ working: true, chipsRules: false })} />);
+    await userEvent.press(await screen.findByTestId("permissions-row"));
+    const page = within(screen.getByTestId("permissions-page"));
+    expect(page.getByTestId("perms-harness-har_scout")).toBeTruthy();
+    expect(page.queryByTestId("perms-working-har_scout")).toBeNull();
+    expect(page.queryByTestId("perms-working-stop-har_scout")).toBeNull();
   });
 
   it("lists each harness beside the list, marked where Chips's rules are on (ADR 0300)", async () => {

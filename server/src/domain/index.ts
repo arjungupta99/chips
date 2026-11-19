@@ -12,7 +12,9 @@ export type {
 } from "./authorize.js";
 export {
   authorize,
+  holdsOn,
   refuseAgentNotTheirs,
+  refuseHeldRulesOff,
   refuseHeldStart,
   refuseNotAnApprover,
   refuseOnAgentMembership,

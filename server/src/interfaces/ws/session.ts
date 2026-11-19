@@ -41,6 +41,7 @@ import { type HarnessSight, shown, shows, sightOf } from "../../application/harn
 import type {
   EventStore,
   FanOut,
+  HarnessPolicyView,
   IdGenerator,
   MemberView,
   Principal,
@@ -482,12 +483,7 @@ export class Session {
         ...(agents === undefined ? {} : { agents }),
         autonomy: policy?.autonomy ?? 1,
         spaces,
-        ...(policy === undefined
-          ? {}
-          : { policy: { autonomy: policy.autonomy, rules: policy.rules } }),
-        ...(policy?.budget_usd == null
-          ? {}
-          : { budget: { limit_usd: policy.budget_usd, spent_usd: policy.spent_usd } }),
+        ...helloPolicy(policy),
         ...workspaceCalled(called),
       },
     });
@@ -1581,6 +1577,24 @@ export class Session {
     this.unsubscribe?.();
     this.unsubscribe = undefined;
   }
+}
+
+/**
+ * The hello's word on a harness's policy: its level and rules, the mode a person picked (ADR 0300,
+ * 19 November addendum), whose end the harness compares with its own clock, and its budget.
+ */
+function helloPolicy(policy: HarnessPolicyView | undefined) {
+  if (policy === undefined) return {};
+  return {
+    policy: {
+      autonomy: policy.autonomy,
+      rules: policy.rules,
+      ...(policy.mode === undefined ? {} : { mode: policy.mode }),
+    },
+    ...(policy.budget_usd == null
+      ? {}
+      : { budget: { limit_usd: policy.budget_usd, spent_usd: policy.spent_usd } }),
+  };
 }
 
 /** The hello's word on what the workspace is called, when it has a name the wire can carry. */

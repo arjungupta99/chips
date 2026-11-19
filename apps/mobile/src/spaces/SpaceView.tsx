@@ -184,7 +184,7 @@ import { useHeldReplies } from "./heldReplies";
 import { type Edge, type RoomSpan, type Told, useHeldWidth } from "./heldWidth";
 import { KeyboardRoom } from "./KeyboardRoom";
 import { Arrow, Faces, stepOf } from "./LaneChain";
-import { HoldBands, LetWorkBand } from "./LetWorkBand";
+import { HoldBands, LetWorkBand, ModeBands } from "./LetWorkBand";
 import { RoomSeen } from "./LiftedMotion";
 import { type Deleting, Line, stampWords } from "./Line";
 import type { LineChange } from "./LinePages";
@@ -1582,6 +1582,7 @@ function Head({
         style={[styles.pinned, { top: headHeight }]}
         onLayout={(event) => onHeight(heightOf(event))}
       >
+        <ModeBands store={store} space={space} directory={directory} selfId={selfId} />
         <HoldBands store={store} space={space} directory={directory} selfId={selfId} />
         <LetWorkBand
           store={store}

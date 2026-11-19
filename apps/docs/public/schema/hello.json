@@ -489,6 +489,63 @@
         "chips_rules": {
           "description": "Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one.",
           "type": "boolean"
+        },
+        "mode": {
+          "description": "The mode a person put its sessions in (ADR 0300, 19 November addendum), for every space: kept only with no `space_id`. `null` puts them back in the mode they start in; absent leaves it as it was.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80,
+                  "description": "The mode as the harness names it on the wire: `auto`, `bypassPermissions`."
+                },
+                "name": {
+                  "description": "Its name as the harness offered it (`own_rules.modes`), for the record: `Auto`. Sent by the person's client.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "back_to": {
+                  "description": "The name of the mode its sessions go back to, as the harness offered it: `Default`. Sent by the person's client.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "everything": {
+                  "description": "In it the harness never asks, as it said when it offered it: the apps wear yellow while it holds. Sent by the person's client.",
+                  "type": "boolean"
+                },
+                "until": {
+                  "description": "When its sessions go back to the mode they start in. Absent: when a person changes it.",
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "by": {
+                  "description": "Who picked it. Filled in by Chips from the credential that sent it.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "at": {
+                  "description": "When it was picked. Filled in by Chips.",
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "description": "The mode a person picked for a harness's sessions, and until when."
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [

@@ -44,6 +44,7 @@ import {
   withoutRule,
   withRuleBack,
   withRules,
+  workingWithoutAsking,
   workingWords,
   workspaceAskHistory,
 } from "./asking.js";
@@ -70,6 +71,14 @@ const directory: Directory = {
   [ARJUN]: { id: ARJUN, kind: "person", displayName: "Arjun" },
   [DANA]: { id: DANA, kind: "person", displayName: "Dana" },
 };
+
+/** Kit's Chips's rules switch turned on or off, on its everywhere row (ADR 0300). */
+const rulesSwitch = (seq: number, on: boolean, harnessId = KIT): ClientEvent =>
+  fixture("policy.updated", seq, {
+    space_id: undefined,
+    harness_id: harnessId,
+    policy: { autonomy: 1, rules: [], chips_rules: on },
+  });
 
 const always = (match: string, by: string, at: string, extra: Record<string, unknown> = {}) => ({
   match,
@@ -453,7 +462,7 @@ describe("the ask card's words (ADR 0195)", () => {
 
   it("says what For an hour lets through, and the strip says until when (ADRs 0280, 0281)", () => {
     expect(whileWords("Ike")).toBe(
-      "Everything Ike asks in this space goes ahead without a card for the hour, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+      "Ike's asks in this space go ahead without a card for the hour. Commands like `rm` and `git push` still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
     );
     expect(whileUntil(Date.parse("2026-11-06T07:08:00.000Z")).toISOString()).toBe(
       "2026-11-06T08:08:00.000Z",
@@ -465,6 +474,8 @@ describe("the ask card's words (ADR 0195)", () => {
     expect(answeredWords("always", now, "everywhere", "Bakery")).toBe("Always, in every space");
     expect(answeredWords("always", now, "space", "Bakery")).toBe("Always, in Bakery");
     expect(answeredWords("work", now, "space", "Bakery")).toBe("Until you stop it");
+    // One the harness keeps (ADR 0300) holds where the harness says, not in a space of Chips's.
+    expect(answeredWords("always", now, "everywhere", "Bakery", true)).toBe("Always");
   });
 
   it("offers Let it work on every ask but one that matters, and says what it lets through (ADR 0281)", () => {
@@ -495,7 +506,7 @@ describe("the ask card's words (ADR 0195)", () => {
     ]);
     // Chips's rules off (ADR 0300): the harness's choices, a don't-ask-again where it keeps one.
     expect(askLastings(standing({ kind: "file.edit" }), true, false)).toEqual(["once", "always"]);
-    expect(askLastings(command, true, false)).toEqual([]);
+    expect(askLastings(command, true, false)).toEqual(["once", "always"]);
     expect(askLastings(unread, true, false)).toEqual([]);
     expect(offersLetWork(command, true, false)).toBe(false);
     expect(letWorkWords("Jiro", "Chips explain")).toEqual({
@@ -503,7 +514,7 @@ describe("the ask card's words (ADR 0195)", () => {
       sub: "In Chips explain, until you stop it",
     });
     expect(untilStoppedWords("Jiro")).toBe(
-      "Everything Jiro asks here goes ahead without a card until you stop it, commands Chips can't read too. Anything that moves money, messages someone outside, or can't be undone still comes to you.",
+      "Jiro's asks here go ahead without a card until you stop it. Commands like `rm` and `git push` still come to you, and so does anything that moves money, messages someone outside or can't be undone.",
     );
   });
 
@@ -512,7 +523,8 @@ describe("the ask card's words (ADR 0195)", () => {
       fixture("approval.request", seq, { approval_id: approvalId, action: { kind: "shell.exec" } }),
       fixture("approval.resolved", seq + 1, { approval_id: approvalId, ...extra }),
     ];
-    const start = [fixture("space.created", 1), fixture("run.started", 2)];
+    // A yes holds on only while the harness's Chips's rules are on (ADR 0300), so they are.
+    const start = [fixture("space.created", 1), rulesSwitch(1, true), fixture("run.started", 2)];
     const hour = buildModel([
       ...start,
       ...given(3, "apr_01K4ZQPX00000000000000000A", { for_minutes: 60 }),
@@ -522,8 +534,22 @@ describe("the ask card's words (ADR 0195)", () => {
     expect(held).toMatchObject({ asker: KIT, by: ARJUN });
     if (held === undefined) throw new Error("not held");
     const at = Date.parse(held.since);
-    expect(lettingWork(room, at + 59 * 60_000)).toHaveLength(1);
-    expect(lettingWork(room, at + 61 * 60_000)).toEqual([]);
+    expect(lettingWork(hour, directory, room, at + 59 * 60_000)).toHaveLength(1);
+    expect(lettingWork(hour, directory, room, at + 61 * 60_000)).toEqual([]);
+
+    // With the rules off, set so or never set, the same yes in the log lets nothing work: no
+    // band, and no row under You (ADR 0300, addendum of 19 November 2026).
+    const yes = given(3, "apr_01K4ZQPX00000000000000000A", { until_stopped: true });
+    const on = buildModel([...start, ...yes]);
+    const off = buildModel([...start, ...yes, rulesSwitch(6, false)]);
+    const never = buildModel([fixture("space.created", 1), fixture("run.started", 2), ...yes]);
+    expect(lettingWork(on, directory, on.spaces[0], at)).toHaveLength(1);
+    expect(workingWithoutAsking(on, directory, at)).toHaveLength(1);
+    for (const model of [off, never]) {
+      expect(model.spaces[0]?.letWork).toHaveLength(1);
+      expect(lettingWork(model, directory, model.spaces[0], at)).toEqual([]);
+      expect(workingWithoutAsking(model, directory, at)).toEqual([]);
+    }
     expect(holdsWords(held)).toMatch(/^Until \d+:\d\d [AP]M$/);
     expect(workingWords("Jiro", held)).toMatch(/^Jiro isn't asking until \d+:\d\d [AP]M$/);
 

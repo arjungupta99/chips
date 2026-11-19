@@ -70,7 +70,9 @@ export function Part({
         />
       );
     case "settings":
-      return <SettingsPage store={store} snapshot={snapshot} harnessId={harnessId} />;
+      return (
+        <SettingsPage store={store} snapshot={snapshot} harnessId={harnessId} selfId={selfId} />
+      );
     case "chips":
       return (
         <ChipsPage
@@ -102,15 +104,17 @@ function SettingsPage({
   store,
   snapshot,
   harnessId,
+  selfId,
 }: {
   readonly store: Store;
   readonly snapshot: Snapshot;
   readonly harnessId: string;
+  readonly selfId: string;
 }) {
   const column = useColumn();
   return (
     <ScrollView contentContainerStyle={[styles.body, column]} testID="settings-part">
-      <HarnessSettings store={store} snapshot={snapshot} harnessId={harnessId} />
+      <HarnessSettings store={store} snapshot={snapshot} harnessId={harnessId} selfId={selfId} />
     </ScrollView>
   );
 }

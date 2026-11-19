@@ -2,7 +2,7 @@
  * A harness's Permissions (ADR 0300), end to end: a new harness starts with Chips's rules off, so
  * its asks come to a person with Yes and No for a command. On its Chips's rules page an owner turns
  * them on and stops asking for an hour: the next ask goes ahead on Chips's yes and the room says so
- * in a plain line, but `rm` still asks, since Stop asking never says yes to the never list. Ask
+ * in a plain line, but `rm` still asks, since Stop asking never says yes to what is on its list. Ask
  * again brings the asks back. A rule written on New rule, beside the page, lets through the
  * commands that start as it says; with the rules turned off again, the same command asks.
  *
@@ -110,7 +110,7 @@ test("Chips's rules off, then on with Stop asking, Ask again, a rule, and off ag
       /^Chips is saying yes for Tansy until /,
     );
 
-    // Never for the never list: rm still comes to the person while Chips says yes.
+    // Never for the pause's list: rm still comes to the person while Chips says yes.
     await deny(await run("rm seeds/old.txt"));
 
     // Ask again: the hold goes, and the next one comes to the person.
