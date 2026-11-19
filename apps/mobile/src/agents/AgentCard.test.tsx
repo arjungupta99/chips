@@ -382,6 +382,47 @@ describe("an agent's card", () => {
     expect(opened).toBe(1);
   });
 
+  it("opens its own page from Working without asking while a card's yes holds (ADR 0300)", async () => {
+    const base = agentsSnapshot();
+    const room = base.directory["agt_shopping"]?.room;
+    const shot = {
+      ...base,
+      model: {
+        ...base.model,
+        spaces: base.model.spaces.map((space) =>
+          space.id === room
+            ? {
+                ...space,
+                letWork: [{ asker: "agt_shopping", by: ME, since: "2026-11-18T10:00:00.000Z" }],
+              }
+            : space,
+        ),
+      },
+    } as Snapshot;
+    const store = fakeStore(shot);
+    const opened: string[] = [];
+    await render(
+      <AgentCard
+        store={store}
+        snapshot={shot}
+        agentId="agt_shopping"
+        selfId={ME}
+        onHistory={() => undefined}
+        onPermissions={() => opened.push("harness")}
+        onWorking={() => opened.push("agent")}
+        onOpenRoom={() => undefined}
+      />,
+    );
+    await userEvent.press(screen.getByTestId("agent-working"));
+    await userEvent.press(screen.getByTestId("agent-permissions"));
+    expect(opened).toEqual(["agent", "harness"]);
+  });
+
+  it("has no Working without asking row while it asks", async () => {
+    await card("agt_shopping");
+    expect(screen.queryByTestId("agent-working")).toBeNull();
+  });
+
   it("stands in one column on a phone", async () => {
     await card("agt_chess");
     expect(screen.queryByTestId("columns")).toBeNull();

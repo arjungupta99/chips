@@ -12,23 +12,27 @@ import {
   type ContextReads,
   type Directory,
   harnessRuns,
-  mayTurnDial,
   nameOf,
   permissionsRow,
   RUN_STATE_WORDS,
   type SetAutonomyInput,
   type SetRulesInput,
   spaceTitle,
-  takesAutonomy,
   type WorkspaceModel,
 } from "@chipschat/core";
-import type { AutonomyLevel } from "@chipschat/protocol";
-import { AutonomyDial, Icon } from "@chipschat/ui";
+import { Icon } from "@chipschat/ui";
 import { useState } from "react";
 import { AgentSections } from "../Agents.tsx";
-import { Asking } from "../Asking.tsx";
 import { HarnessContext } from "../context/HarnessContext.tsx";
 import { GroupRow } from "../GroupRow.tsx";
+import {
+  ChipsRules,
+  HarnessPermissions,
+  HarnessSettings,
+} from "../permissions/HarnessPermissions.tsx";
+import { NewRule } from "../permissions/NewRule.tsx";
+import type { PermissionsService } from "../permissions/service.ts";
+import { useOwnRules } from "../permissions/service.ts";
 import { relativeTime } from "../time.ts";
 import { MayDoPart, OwnerPart, SendsPart, type TokenService, TokensPart } from "./Desk.tsx";
 import type { HarnessPart } from "./parts.ts";
@@ -59,6 +63,12 @@ export interface PartProps {
   readonly tokens?: TokenService | undefined;
   /** What the reader wants of the banner (ADR 0286), for what the rows say beside the agent. */
   readonly banners?: Banners | undefined;
+  /** Its permissions and snooze (ADR 0299). Absent, the page is read only. */
+  readonly permissions?: PermissionsService | undefined;
+  /** Opens another of its pages over this one: New rule from Permissions. */
+  readonly onOpenPart?: ((part: HarnessPart) => void) | undefined;
+  /** Back to the page under this one: New rule, once saved. */
+  readonly onBack?: (() => void) | undefined;
 }
 
 export function Part(props: PartProps) {
@@ -79,6 +89,13 @@ export function Part(props: PartProps) {
       );
     case "asks":
       return <WhenItAsks {...props} />;
+    case "settings":
+    case "chips":
+      return <PermissionsPart {...props} />;
+    case "rule":
+      return props.permissions === undefined ? null : (
+        <RulePart {...props} service={props.permissions} />
+      );
     case "runs":
       return <RecentRuns {...props} />;
     default:
@@ -161,52 +178,45 @@ function AllAgents(props: PartProps) {
 }
 
 /**
- * When it asks you (ADR 0195), whole, as it once stood on the card; and under it, only for a harness
- * that hands its permissions to Chips (ADR 0046), how far it is trusted. The dial turns for an owner
- * or an admin alone (SEC-1); anybody else sees the level, and it does not move.
+ * A harness's Permissions (ADR 0300): the short main page, whose two rows open its own settings and
+ * Chips's rules beside it. The trust dial is gone from it: no harness declares one.
  */
 function WhenItAsks(props: PartProps) {
-  const policy = props.model.harnesses[props.harnessId];
-  const turns = props.onSetAutonomy !== undefined && mayTurnDial(props.model, props.selfId);
   return (
     <div className="hp-part" data-testid="when-it-asks">
-      <Asking
+      <HarnessPermissions
         model={props.model}
         directory={props.directory}
         harnessId={props.harnessId}
         selfId={props.selfId}
-        onSetRules={props.onSetRules}
+        service={props.permissions ?? readOnly(props)}
         onOpenSpace={props.onOpenSpace}
+        onOpenPart={(part) => props.onOpenPart?.(part)}
       />
-      {takesAutonomy(props.directory, props.harnessId) && (
-        <section className="ctx hp-trust" aria-label="How far it is trusted">
-          <div className="ctx-h">
-            <h3 className="agents-h">How far it is trusted</h3>
-          </div>
-          <div className="hp-trust-card">
-            {policy === undefined ? (
-              <p className="hp-note">
-                No policy yet. It gets one the first time it asks for something.
-              </p>
-            ) : (
-              <AutonomyDial
-                value={policy.autonomy}
-                max={policy.maxAutonomy}
-                readOnly={!turns}
-                {...(turns
-                  ? {
-                      onChange: (level: AutonomyLevel) =>
-                        props.onSetAutonomy?.({
-                          harnessId: props.harnessId,
-                          level,
-                          rules: policy.rules,
-                        }),
-                    }
-                  : {})}
-              />
-            )}
-          </div>
-        </section>
+    </div>
+  );
+}
+
+/** Its own settings, or Chips's rules for it (ADR 0300), each a page of its own. */
+function PermissionsPart(props: PartProps) {
+  const service = props.permissions ?? readOnly(props);
+  return (
+    <div className="hp-part" data-testid={`${props.part}-part`}>
+      {props.part === "settings" ? (
+        <HarnessSettings
+          directory={props.directory}
+          harnessId={props.harnessId}
+          service={service}
+        />
+      ) : (
+        <ChipsRules
+          model={props.model}
+          directory={props.directory}
+          harnessId={props.harnessId}
+          selfId={props.selfId}
+          service={service}
+          onNewRule={() => props.onOpenPart?.("rule")}
+        />
       )}
     </div>
   );
@@ -250,6 +260,43 @@ function RecentRuns(props: PartProps) {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * The page's own rules, as `setRules` sends them, where no permissions service was handed in: a
+ * server older than ADR 0299 snoozes nothing and keeps no copy of what a harness runs on its own.
+ */
+function readOnly(props: PartProps): PermissionsService | undefined {
+  const setRules = props.onSetRules;
+  if (setRules === undefined) return undefined;
+  return {
+    setRules,
+    snoozeHarness: () => undefined,
+    resumeHarness: () => undefined,
+    setChipsRules: () => undefined,
+    setWorkspaceRules: () => undefined,
+    readOwnRules: () => Promise.resolve({ own_rules: null, heard_at: null }),
+    keepsHarnessRules: false,
+    keepsOwnRules: false,
+    keepsChipsRules: false,
+  };
+}
+
+/** New rule (ADR 0299), beside the harness's Permissions, back to it once saved. */
+function RulePart(props: PartProps & { readonly service: PermissionsService }) {
+  const own = useOwnRules(props.service, props.directory, props.harnessId);
+  return (
+    <div className="hp-part" data-testid="rule-part">
+      <NewRule
+        model={props.model}
+        directory={props.directory}
+        harnessId={props.harnessId}
+        own={own}
+        service={props.service}
+        onDone={() => props.onBack?.()}
+      />
     </div>
   );
 }

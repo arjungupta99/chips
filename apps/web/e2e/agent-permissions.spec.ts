@@ -1,8 +1,10 @@
 /**
- * An agent's Permissions and the banner (ADR 0286), end to end on the web and the Mac's WebView: an
- * agent is let work from its own page and the server takes its next ask on the spot; the band's ×
- * closes it for that yes, on every device and across a reload; Disable banner turns it off for the
- * agent; the harness's switch turns it off for all of them, with Undo; Stop brings the asks back.
+ * An agent's Permissions and the banner (ADR 0286, ADR 0300), end to end on the web and the Mac's
+ * WebView: an agent's Permissions row opens its harness's; with the harness's Chips's rules on, the
+ * agent is let work from an ask's card and the server takes its next ask on the spot; its card then
+ * shows Working without asking, which opens its own page. The band's × closes it for that yes, on
+ * every device and across a reload; Disable banner turns it off for the agent; the harness's switch
+ * turns it off for all of them, with Undo; Stop brings the asks back.
  *
  * Its own harness and room, so the demo room is left as the other specs find it. With
  * `CHIPS_E2E_SHOTS` set to a folder, it leaves a picture of each step there.
@@ -54,11 +56,32 @@ async function openRoom(page: Page, space: string): Promise<void> {
   await expect(page.getByTestId("messages")).toBeVisible();
 }
 
+/** Its own page, from Working without asking on its card, while a card's yes lets it work. */
 async function openPermissions(page: Page, agent: string): Promise<void> {
   await openTab(page, "Agents");
   await page.getByTestId(`agent-${agent}`).click();
-  await page.getByTestId("agent-permissions").click();
+  await page.getByTestId("agent-working").click();
   await expect(page.getByTestId("permissions")).toBeVisible();
+}
+
+/** Turns the harness's Chips's rules on, on their page beside its Permissions (ADR 0300). */
+async function chipsRulesOn(page: Page, harness: string): Promise<void> {
+  await openTab(page, "Agents");
+  await page
+    .getByTestId("harness-shelf")
+    .getByRole("button", { name: new RegExp(`^${harness}\\b`) })
+    .click();
+  await page.getByRole("main", { name: harness }).getByTestId("harness-asks-row").click();
+  await page.getByTestId("perms-chips-row").click();
+  await page.getByTestId("perms-chips").getByTestId("perms-switch").click();
+  await expect(page.getByTestId("perms-chips").getByTestId("perms-switch")).toBeChecked();
+}
+
+/** The card's Let it work: the switch over its choices, then its yes (ADR 0281). */
+async function letWorkFromCard(page: Page, name: string): Promise<void> {
+  const card = page.getByRole("article", { name: /Approval/ }).last();
+  await card.getByRole("switch", { name: new RegExp(`Let ${name} work without asking`) }).click();
+  await card.getByRole("button", { name: "Approve and let it work" }).click();
 }
 
 const band = (page: Page) => page.getByTestId("let-work-band");
@@ -74,7 +97,7 @@ async function ready(prefix: string) {
   return { owner, agent };
 }
 
-test("let work from its page; ×, Disable banner and the harness's switch only change what shows", async ({
+test("let work from a card; its row, ×, Disable banner and the harness's switch only change what shows", async ({
   page,
 }) => {
   test.setTimeout(120_000);
@@ -102,29 +125,28 @@ test("let work from its page; ×, Disable banner and the harness's switch only c
   try {
     await harness.send("run.started", { goal: "Read the bridge notes.", plan: [], actor });
 
-    // The agent's page: it asks, and Let it work says what it covers before anything changes.
-    await openPermissions(page, agent.id);
-    await expect(page.getByTestId("permissions-headline")).toHaveText(
-      `${agent.name} decides when to ask. You decide the answer.`,
-    );
-    await page.getByTestId("permissions-let-work").click();
-    await expect(page.getByTestId("permissions-confirm")).toContainText("until you stop it");
-    await shot(page, "1-confirm");
-    await page.getByTestId("permissions-cancel").click();
-    await expect(page.getByTestId("permissions-confirm")).toHaveCount(0);
-    await page.getByTestId("permissions-let-work").click();
-    await page.getByRole("button", { name: `Let ${agent.name} work` }).click();
-    await expect(page.getByTestId("permissions-headline")).toHaveText(
-      new RegExp(`^${agent.name} is working without asking in `),
-    );
-    await expect(page.getByTestId("permissions-stop")).toBeVisible();
-    await shot(page, "2-working");
+    // Its Permissions row opens its harness's (ADR 0300); its Chips's rules turn on there.
+    await openTab(page, "Agents");
+    await page.getByTestId(`agent-${agent.id}`).click();
+    await page.getByTestId("agent-permissions").click();
+    await expect(page.getByTestId("perms-chips-row")).toBeVisible();
+    await expect(page.getByTestId("agent-working")).toHaveCount(0);
+    await chipsRulesOn(page, owner.name);
+    expect((await harness.next("policy.updated"))["policy"]).toMatchObject({ chips_rules: true });
+    await shot(page, "1-rules-on");
 
-    // The server took it: the next ask goes ahead on the spot, rm too.
-    expect(await answer(await ask("rm -rf build && ls"), "policy")).toMatchObject({
+    // Let it work, from the card of an ask.
+    await openRoom(page, owner.space);
+    const first = await ask("ls");
+    await letWorkFromCard(page, agent.name);
+    expect(await answer(first, "the person's yes")).toMatchObject({ until_stopped: true });
+
+    // The server took it: the next ask goes ahead on the spot.
+    expect(await answer(await ask("ls build"), "policy")).toMatchObject({
       decision: "approved",
       resolved_by: "system",
     });
+    await shot(page, "2-working");
 
     // The room says so, and its words lead back to the page.
     await openRoom(page, owner.space);
@@ -175,8 +197,8 @@ test("let work from its page; ×, Disable banner and the harness's switch only c
     await expect(band(page)).toHaveCount(0);
     await openTab(page, "Agents");
     await page.getByTestId(`agent-${agent.id}`).click();
-    await expect(page.getByTestId("agent-permissions")).toContainText("Banner off");
-    await page.getByTestId("agent-permissions").click();
+    await expect(page.getByTestId("agent-working")).toContainText("Banner off");
+    await page.getByTestId("agent-working").click();
     await expect(page.getByTestId("permissions-banner-row")).toContainText(
       `Off for ${agent.name} only`,
     );
@@ -220,7 +242,7 @@ test("let work from its page; ×, Disable banner and the harness's switch only c
     await expect(page.getByTestId("permissions-headline")).toHaveText(
       `${agent.name} decides when to ask. You decide the answer.`,
     );
-    await expect(page.getByTestId("permissions-let-work")).toBeVisible();
+    await expect(page.getByTestId("permissions-let-work")).toHaveCount(0);
     await ask("ls");
     await openRoom(page, owner.space);
     await expect(page.getByRole("button", { name: "Approve once" }).last()).toBeEnabled();
@@ -239,14 +261,25 @@ test("a banner closed on one device closes on the others at once, and a new yes 
   const there = await (await browser.newContext()).newPage();
   await pair(here);
   await pair(there);
+  const harness = await Harness.connect(newRunId(), { token: owner.token, space: owner.space });
+  const actor = { kind: "agent", id: agent.id };
+  const ask = async (command: string) => {
+    const approvalId = newApprovalId();
+    await harness.send("approval.request", {
+      approval_id: approvalId,
+      action: { kind: "garden.shell", input: { command } },
+      risk: [],
+      expires_in: 3600,
+      actor,
+    });
+    return approvalId;
+  };
   try {
-    for (const page of [here, there]) {
-      await openPermissions(page, agent.id);
-    }
-    await here.getByTestId("permissions-let-work").click();
-    await here.getByRole("button", { name: `Let ${agent.name} work` }).click();
-    await expect(there.getByTestId("permissions-stop")).toBeVisible();
+    await harness.send("run.started", { goal: "Read the bridge notes.", plan: [], actor });
+    await chipsRulesOn(here, owner.name);
     for (const page of [here, there]) await openRoom(page, owner.space);
+    await ask("ls");
+    await letWorkFromCard(here, agent.name);
     await expect(band(here)).toHaveCount(1);
     await expect(band(there)).toHaveCount(1);
 
@@ -257,11 +290,13 @@ test("a banner closed on one device closes on the others at once, and a new yes 
     // Stopped and let work again is a new yes, so its banner shows on both.
     await openPermissions(here, agent.id);
     await here.getByTestId("permissions-stop").click();
-    await here.getByTestId("permissions-let-work").click();
-    await here.getByRole("button", { name: `Let ${agent.name} work` }).click();
-    await expect(here.getByTestId("permissions-stop")).toBeVisible();
+    await openRoom(here, owner.space);
+    await ask("ls -la");
+    await letWorkFromCard(here, agent.name);
+    await expect(band(here)).toHaveCount(1);
     await expect(band(there)).toHaveCount(1);
   } finally {
+    harness.close();
     await here.context().close();
     await there.context().close();
   }

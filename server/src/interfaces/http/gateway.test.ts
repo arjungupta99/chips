@@ -1667,7 +1667,8 @@ describe("policy at the door (M1.4)", () => {
       actor: { kind: "person", id: ws.arjun.participantId },
       idempotency_key: ws.ids.next("event"),
       harness_id: ws.scout.participantId,
-      policy: { autonomy, rules },
+      // These are Chips's rules at work, so the harness has them on (ADR 0300).
+      policy: { autonomy, rules, chips_rules: true },
       workspace_max_autonomy: 3,
       changed_by: ws.arjun.participantId,
       // biome-ignore lint/suspicious/noExplicitAny: a hand-built validated event for the test.
@@ -2010,20 +2011,22 @@ describe("policy at the door (M1.4)", () => {
     const hour = await answer(runId, id, "while-hour", { for_minutes: 60 });
     expect(hour.status, JSON.stringify(hour.body)).toBe(201);
 
-    // Every command after it, read or not, rm too, and in the next run.
+    // Every command after it, read or not, and in the next run.
     for (const [key, command] of [
       ["while-read", "cd /tmp; cat a.txt | wc -l"],
       ["while-write", "echo hi > out.txt"],
-      ["while-rm", "ls && rm x"],
     ] as const) {
       expect((await askToRun(runId, key, command)).body, command).toMatchObject({
         resolution: "approved",
       });
     }
     const later = await startedRun("while-later");
-    expect((await askToRun(later, "while-later-ask", "git push")).body).toMatchObject({
+    expect((await askToRun(later, "while-later-ask", "ls -la")).body).toMatchObject({
       resolution: "approved",
     });
+    // Never the never list, a part of the command or the whole (ADR 0300).
+    expect((await askToRun(runId, "while-rm", "ls && rm x")).body["resolution"]).toBeUndefined();
+    expect((await askToRun(later, "while-push", "git push")).body["resolution"]).toBeUndefined();
     // Never an ask that matters; and This session saw none of it.
     const matters = await call("POST", `/v1/runs/${later}/events`, {
       headers: { ...ws.scout.headers, "idempotency-key": "while-matters" },
@@ -2073,9 +2076,11 @@ describe("policy at the door (M1.4)", () => {
       ws.gateway.deps.readModels.rulesForAWhile(ws.workspaceId, ws.spaceId, asker, now);
     // No end: a year on, it still holds.
     expect(await held(new Date(Date.now() + 365 * 86_400_000).toISOString())).toHaveLength(1);
-    expect((await askToRun(runId, "held-next", "rm -rf build")).body).toMatchObject({
+    expect((await askToRun(runId, "held-next", "ls build")).body).toMatchObject({
       resolution: "approved",
     });
+    // Never the never list (ADR 0300).
+    expect((await askToRun(runId, "held-rm", "rm -rf build")).body["resolution"]).toBeUndefined();
 
     // A harness doesn't stop it; a person in the space does, and is named as who did.
     const stop = { type: "approval.held_stopped", space_id: ws.spaceId, asker };

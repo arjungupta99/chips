@@ -5,7 +5,8 @@
  * is clicked; then the name, the build in a capsule that copies a line for a bug report, and one
  * sentence on what Chips is. Then Updates (ADR 0296): on the Mac, Chips for Mac and its version;
  * the computer and the Chips it runs; and where a newer version waits, its Install or Update
- * button, which sends out the update dot's ring twice as the page opens. What waits for the
+ * button, which the update dot flies into when it was clicked and which glows while it shows
+ * (ADR 0296, addendum of 17 November 2026). What waits for the
  * computer when it is behind this app is said under them. Then the Update dot switch; what the
  * release changed; the links; the licence and the open-source code Chips is built on; and who
  * made it. What's new, Licence and Acknowledgements open in its place,
@@ -63,6 +64,7 @@ import {
 import { ChipMark, Icon } from "@chipschat/ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CopyBox } from "../ConnectBridge.tsx";
+import { useMissWithoutButton } from "../flight.tsx";
 import { NeedsDot, UpdateButton, useUpdates } from "../updates.tsx";
 import { Switch } from "./controls.tsx";
 import { Group, HUES, ListRow, RowMark } from "./list.tsx";
@@ -248,6 +250,9 @@ function Updates(props: {
   const nightly = selfUpdate?.available === true ? selfUpdate : undefined;
   const foot = updatesFoot(nightly, machine, behind);
   const target = waiting.computer;
+  const appButton = desktop ? appButtonOf(waiting.app, macUpdate) : undefined;
+  // The dot flies into the first button; with none to show, it goes out where it is.
+  useMissWithoutButton(appButton !== undefined || asking.computer !== undefined);
   return (
     <>
       <Group heading={UPDATES_HEADING} label={UPDATES_HEADING} testId="about-updates" foot={foot}>
@@ -268,7 +273,7 @@ function Updates(props: {
               ? () => openLink(ABOUT_LINKS.updating)
               : () => setShowNow((shown) => !shown)
           }
-          order={desktop && waiting.app !== undefined ? 1 : 0}
+          order={appButton === undefined ? 0 : 1}
         />
         {nightly !== undefined && <NightRow on={nightly.automatic} onChange={setNightly} />}
       </Group>
@@ -412,21 +417,30 @@ function AppRowButton(props: {
   readonly openLink: (url: string) => void;
   readonly restartNow: () => void;
 }) {
-  const { waiting, update } = props;
-  if (update?.state === "ready") {
+  const button = appButtonOf(props.waiting, props.update);
+  if (button === "restart") {
     return (
       <UpdateButton label={RESTART_NOW} onClick={props.restartNow} testId="about-restart-app" />
     );
   }
-  const downloads =
-    update?.state === "failed" || (waiting !== undefined && !macUpdatesItself(update));
-  return downloads ? (
+  return button === "install" ? (
     <UpdateButton
       label={INSTALL_BUTTON}
       onClick={() => props.openLink(MAC_DOWNLOAD)}
       testId="about-update-app"
     />
   ) : null;
+}
+
+/** Which button Chips for Mac's row has: Restart now once a release is ready, the download where it can't update itself. */
+function appButtonOf(
+  waiting: UpdateWaiting | undefined,
+  update: MacUpdate | undefined,
+): "restart" | "install" | undefined {
+  if (update?.state === "ready") return "restart";
+  const downloads =
+    update?.state === "failed" || (waiting !== undefined && !macUpdatesItself(update));
+  return downloads ? "install" : undefined;
 }
 
 /** What the computer's row says beside its name while nothing waits for it. */

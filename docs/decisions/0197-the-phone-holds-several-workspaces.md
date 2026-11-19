@@ -2,7 +2,7 @@
 
 Date: 18 October 2026
 Status: Accepted, 18 October 2026, on Arjun's "iPhone switcher: A, from the top of Spaces. Pip:
-A, keep them apart." Built as Phase 4 of [the invited-people plan](../proposals/invited-people-plan.md).
+A, keep them apart." Built as Phase 4 of the invited-people plan (`docs/proposals/invited-people-plan.md`).
 It is the people review's Phase 7, his earlier "2B".
 
 ## Context

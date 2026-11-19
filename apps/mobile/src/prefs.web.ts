@@ -24,6 +24,8 @@ export const SETTINGS = {
   recentSearches: "search.recent",
   /** The change each space's Universe was last opened at here (`spaces/universeSeen.ts`). */
   universeSeen: "universe.seen",
+  /** What this device has seen on each space's Desktop tab, and since when (`spaces/desktopSeen.ts`). */
+  desktopSeen: "desktop.seen",
   /** The made-up workspace kept after its film, Look around (ADR 0213). */
   demo: "demo",
 } as const;

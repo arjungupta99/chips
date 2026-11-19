@@ -47,6 +47,7 @@ import { registerLeadRoutes } from "./routes/lead.js";
 import { registerLockRoutes } from "./routes/lock.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 import { registerOperatorRoutes } from "./routes/operator.js";
+import { registerOwnRulesRoutes } from "./routes/own-rules.js";
 import { isOpenPageRoute, registerPageRoutes } from "./routes/pages.js";
 import { registerPairRoutes } from "./routes/pair.js";
 import { registerPairingCodeRoutes } from "./routes/pairing-codes.js";
@@ -344,6 +345,7 @@ export function createApp(deps: GatewayDeps): Hono<GatewayEnv> {
   registerAgentModelRoutes(app, deps);
   registerAgentHeartbeatRoutes(app, deps);
   registerHarnessJobRoutes(app, deps);
+  registerOwnRulesRoutes(app, deps);
   registerAgentContextWindowRoutes(app, deps);
   registerAgentKeepRoutes(app, deps);
   registerExchangeRoutes(app, deps);

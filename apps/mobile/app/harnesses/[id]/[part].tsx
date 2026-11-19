@@ -1,14 +1,14 @@
 /**
- * One of the pages a harness's page opens (ADR 0254): every agent, its context files, When it asks
- * you, or its recent runs. On a wide screen it opens beside the Agents list instead, through the
+ * One of the pages a harness's page opens (ADR 0254): every agent, its context files, its
+ * Permissions (ADR 0299) and New rule, or its recent runs. On a wide screen it opens beside the Agents list instead, through the
  * tab's own params; a name that is none of them goes back to the harness's page.
  */
 
 import type { Store } from "@chipschat/core";
-import { myRole } from "@chipschat/core";
+import { myRole, nameOf } from "@chipschat/core";
 import { Redirect, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusCount } from "../../../src/context/useFocusCount";
-import { type HarnessPart, isHarnessPart, PART_TITLE } from "../../../src/harnesses/parts";
+import { type HarnessPart, isHarnessPart, partTitle } from "../../../src/harnesses/parts";
 import { Part } from "../../../src/harnesses/parts/Part";
 import { useChips, useSnapshot } from "../../../src/store/provider";
 import { BackToTabs } from "../../../src/ui/backToTabs";
@@ -56,13 +56,13 @@ function One({
   if (myRole(snapshot.model, selfId) === "guest")
     return (
       <Screen>
-        <Stack.Screen options={{ title: PART_TITLE[part] }} />
+        <Stack.Screen options={{ title: partTitle(part, nameOf(snapshot.directory, harnessId)) }} />
         <Empty>Not here: a harness's page is for the people who run the workspace.</Empty>
       </Screen>
     );
   return (
     <Screen>
-      <Stack.Screen options={{ title: PART_TITLE[part] }} />
+      <Stack.Screen options={{ title: partTitle(part, nameOf(snapshot.directory, harnessId)) }} />
       <Part
         part={part}
         store={store}
@@ -74,6 +74,7 @@ function One({
         onOpenPart={(next) =>
           router.push({ pathname: "/harnesses/[id]/[part]", params: { id: harnessId, part: next } })
         }
+        onBack={() => router.back()}
       />
     </Screen>
   );

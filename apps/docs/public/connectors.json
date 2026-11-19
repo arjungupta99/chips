@@ -157,7 +157,7 @@
       "id": "opencode",
       "name": "OpenCode",
       "line": "An open-source coding agent",
-      "needs": "OpenCode installed",
+      "needs": "OpenCode 2 installed",
       "program": "opencode",
       "whose": "OpenCode is made by Anomaly and has its own terms. What you send it goes to the model provider you choose.",
       "terms": "https://opencode.ai/legal/terms-of-service",

@@ -168,10 +168,16 @@ export function useRoom({
 export function RoomName({
   room,
   glassy,
+  widest,
 }: {
   readonly room: Room;
   /** Whether the name floats on glass over the room, or stands in an opaque bar. */
   readonly glassy: boolean;
+  /**
+   * As wide as the name may be, glass and all: what a phone's bar leaves it between its ends
+   * (`ui/titleRoom.ts`). Where the name stands in a bar of this app's own it is held by that bar.
+   */
+  readonly widest?: number | undefined;
 }) {
   const { title, subtitle, warning, named } = room;
   const words = <ArrivingTitle title={title} subtitle={subtitle} warning={warning} named={named} />;
@@ -182,6 +188,7 @@ export function RoomName({
       accessibilityHint="Shows who is in this space, and adds somebody to it"
       onPress={() => room.sheet.show()}
       ref={room.sheet.from}
+      style={widest === undefined ? undefined : { maxWidth: widest }}
       testID="room-capsule"
     >
       {glassy ? (
@@ -201,6 +208,9 @@ export function RoomName({
  * November 2026); this brings its target up to Apple's 44 across. It stands 44 high already.
  */
 const SLOP = { top: 0, bottom: 0, left: 9, right: 9 };
+
+/** Universe's rings, across: what its button is in the bar. */
+export const UNIVERSE_ACROSS = 26;
 
 /**
  * Universe from the room's bar, at the top right (ADR 0227): what the space made, to read on the
@@ -231,7 +241,7 @@ export function UniverseButton({
       style={({ pressed }) => [styles.universe, pressed ? styles.pressed : null]}
       testID="room-universe-button"
     >
-      <CallingMark size={26} ink={palette.ink} ground={palette.bg} calling={calling} />
+      <CallingMark size={UNIVERSE_ACROSS} ink={palette.ink} ground={palette.bg} calling={calling} />
     </Pressable>
   );
 }

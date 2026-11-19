@@ -102,6 +102,11 @@ export interface DecideProps {
   readonly onOpenSpace?: (() => void) | undefined;
   /** What the screen draws under the ask, at the end of what scrolls: why there is no space. */
   readonly under?: ReactNode;
+  /**
+   * Whether the asking harness's Chips's rules are on (ADR 0300). Off, the screen offers the
+   * harness's own choices: Yes, and a don't-ask-again the harness keeps where it can.
+   */
+  readonly chipsOn?: boolean | undefined;
 }
 
 /**
@@ -181,8 +186,9 @@ function useAnswer(props: DecideProps) {
     busy: props.busy,
     lasting: picked,
     setLasting,
-    letWork: offersLetWork(standing, keeps) ? letWork : undefined,
+    letWork: offersLetWork(standing, keeps, props.chipsOn !== false) ? letWork : undefined,
     setLetWork,
+    chipsOn: props.chipsOn,
     keeps,
     where: mayEverywhere ? where : undefined,
     setWhere,

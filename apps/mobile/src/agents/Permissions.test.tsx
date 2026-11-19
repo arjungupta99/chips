@@ -78,31 +78,14 @@ function page(options: { working?: boolean; more?: Partial<Snapshot>; selfId?: s
 const user = () => userEvent.setup();
 
 describe("an agent's Permissions (ADR 0286)", () => {
-  it("says it asks, and opens Let it work in place before anything changes", async () => {
-    const { element, store } = page();
+  it("says it asks, and offers nothing to let it work: an ask's card does that (ADR 0300)", async () => {
+    const { element } = page();
     await render(element);
     expect(screen.getByTestId("permissions-headline")).toHaveTextContent(
       "Jiro decides when to ask. You decide the answer.",
     );
-    await user().press(screen.getByTestId("permissions-let-work"));
-    expect(store.calls.map((each) => each.name)).not.toContain("letAgentWork");
-    expect(screen.getByTestId("permissions-confirm")).toHaveTextContent(/until you stop it/);
-    await user().press(screen.getByTestId("permissions-cancel"));
-    expect(screen.queryByTestId("permissions-confirm")).toBeNull();
-    expect(store.calls.map((each) => each.name)).not.toContain("letAgentWork");
-  });
-
-  it("lets it work on Let Jiro work", async () => {
-    const { element, store } = page();
-    await render(element);
-    await user().press(screen.getByTestId("permissions-let-work"));
-    await user().press(screen.getByRole("button", { name: "Let Jiro work" }));
-    expect(store.calls).toContainEqual({
-      name: "letAgentWork",
-      args: { spaceId: SPACE, asker: AGENT },
-    });
-    expect(screen.queryByTestId("permissions-confirm")).toBeNull();
-    expect(screen.getByTestId("permissions-let-work")).toBeDisabled();
+    expect(screen.queryByTestId("permissions-let-work")).toBeNull();
+    expect(screen.queryByTestId("permissions-stop")).toBeNull();
   });
 
   it("offers Stop while it isn't asking, and stops it", async () => {

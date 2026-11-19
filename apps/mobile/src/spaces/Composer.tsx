@@ -67,7 +67,8 @@
  * In a room with more than one harness, the faces at the front of the field say who the message is
  * for, the empty field says it in words, and a tap on the faces opens the field upward into the
  * list that picks (`AddressInField.tsx`, ADR 0081). A finger that slides up from them instead
- * raises a column of faces, and picks one where it lets go (`FaceColumn.tsx`, ADR 0229). What it
+ * raises a column of faces, and picks one where it lets go (`FaceColumn.tsx`, ADR 0229); so does a
+ * finger that lands anywhere else on the field and drags up out of it. What it
  * says goes with the send as `to`, unless an @ in the words decides; a pick holds for the draft,
  * as the words do.
  *
@@ -135,7 +136,7 @@ import {
   TOKEN,
 } from "./AddressInField";
 import { AttachSheet } from "./AttachSheet";
-import { FaceColumn, type FaceSlide, FaceSlideOn, useFaceSlide } from "./FaceColumn";
+import { FaceColumn, type FaceSlide, FaceSlideOn, FieldSlideOn, useFaceSlide } from "./FaceColumn";
 import { WIDTH as COLUMN_WIDTH } from "./faceColumnMath";
 import { FIELD, FIELD_FOOT } from "./fieldShape";
 import type { FileService } from "./files";
@@ -601,8 +602,9 @@ function useUnderFinger(space: Space, directory: Directory, selfId: string) {
 type UnderFinger = ReturnType<typeof useUnderFinger>;
 
 /**
- * The pan on the field's faces (ADR 0229): it slides while the list is shut, ticks for each face it
- * comes over, and picks the one it lets go on, alone, as a tap on a name in the list does.
+ * The pans on the field's faces and on the rest of the field (ADR 0229): they slide while the list
+ * is shut, tick for each face they come over, and pick the one they let go on, alone, as a tap on a
+ * name in the list does.
  */
 function useSlide(
   under: UnderFinger,
@@ -1072,106 +1074,109 @@ export function Composer({
              * the other way, and stays where it was.
              */}
             <GrowingView layout={RISES}>
-              <Pressable
-                ref={fieldRow}
-                testID="composer-field"
-                accessible={false}
-                onPress={() => input.current?.focus()}
-                style={({ pressed }) => [
-                  styles.field,
-                  aim === undefined ? null : styles.addressed,
-                  pressed ? { backgroundColor: alpha(palette.surface2, 0.6) } : null,
-                ]}
-              >
-                {shown === undefined ? null : (
-                  <>
-                    <GrowingView
-                      style={styles.tokenAt}
-                      layout={GROWS}
-                      onLayout={stack.onToken}
-                      testID="composer-token"
-                    >
-                      <FaceSlideOn slide={slide}>
-                        <AddressToken
-                          aim={shown}
-                          space={space}
-                          directory={directory}
-                          open={listed}
-                          onPress={address.toggle}
-                          routeRef={address.routeRef}
-                        />
-                      </FaceSlideOn>
-                    </GrowingView>
-                    {/* The words as they would sit beside the faces: whether they wrap there. */}
+              {/* A drag up out of the field raises the column too, as one up from the faces does. */}
+              <FieldSlideOn slide={slide}>
+                <Pressable
+                  ref={fieldRow}
+                  testID="composer-field"
+                  accessible={false}
+                  onPress={() => input.current?.focus()}
+                  style={({ pressed }) => [
+                    styles.field,
+                    aim === undefined ? null : styles.addressed,
+                    pressed ? { backgroundColor: alpha(palette.surface2, 0.6) } : null,
+                  ]}
+                >
+                  {shown === undefined ? null : (
+                    <>
+                      <GrowingView
+                        style={styles.tokenAt}
+                        layout={GROWS}
+                        onLayout={stack.onToken}
+                        testID="composer-token"
+                      >
+                        <FaceSlideOn slide={slide}>
+                          <AddressToken
+                            aim={shown}
+                            space={space}
+                            directory={directory}
+                            open={listed}
+                            onPress={address.toggle}
+                            routeRef={address.routeRef}
+                          />
+                        </FaceSlideOn>
+                      </GrowingView>
+                      {/* The words as they would sit beside the faces: whether they wrap there. */}
+                      <Text
+                        style={[styles.input, styles.twin, stack.narrow]}
+                        accessibilityElementsHidden
+                        importantForAccessibility="no-hide-descendants"
+                        onLayout={stack.onNarrow}
+                        testID="composer-narrow-twin"
+                      >
+                        {twinOf(text)}
+                      </Text>
+                    </>
+                  )}
+                  {/*
+                   * The words and their twin, as tall as they need and no taller: the circle beside
+                   * them is measured from this rather than from the field, so a message six lines long
+                   * leaves Send on the bottom line where the thumb left it. They slide aside as the
+                   * faces before them change (`ASIDE`), with the capsule's edge.
+                   */}
+                  <GrowingView
+                    layout={ASIDE}
+                    style={[styles.words, stack.words]}
+                    testID="composer-words"
+                  >
                     <Text
-                      style={[styles.input, styles.twin, stack.narrow]}
+                      style={[styles.input, styles.twin]}
                       accessibilityElementsHidden
                       importantForAccessibility="no-hide-descendants"
-                      onLayout={stack.onNarrow}
-                      testID="composer-narrow-twin"
+                      onLayout={(event) => setMeasured(event.nativeEvent.layout.height)}
+                      testID="composer-twin"
                     >
                       {twinOf(text)}
                     </Text>
-                  </>
-                )}
-                {/*
-                 * The words and their twin, as tall as they need and no taller: the circle beside
-                 * them is measured from this rather than from the field, so a message six lines long
-                 * leaves Send on the bottom line where the thumb left it. They slide aside as the
-                 * faces before them change (`ASIDE`), with the capsule's edge.
-                 */}
-                <GrowingView
-                  layout={ASIDE}
-                  style={[styles.words, stack.words]}
-                  testID="composer-words"
-                >
-                  <Text
-                    style={[styles.input, styles.twin]}
-                    accessibilityElementsHidden
-                    importantForAccessibility="no-hide-descendants"
-                    onLayout={(event) => setMeasured(event.nativeEvent.layout.height)}
-                    testID="composer-twin"
-                  >
-                    {twinOf(text)}
-                  </Text>
-                  <EmptyWords
-                    shown={text === ""}
-                    words={placeholderOf(space, hushed, shown, directory)}
-                  />
-                  <TextInput
-                    ref={input}
-                    accessibilityLabel="Message"
-                    testID="composer"
-                    value={text}
-                    onChangeText={type}
-                    placeholder={placeholderOf(space, hushed, aim, directory)}
-                    placeholderTextColor="transparent"
-                    editable={!disabled}
-                    keyboardAppearance={keyboard}
-                    multiline
-                    // A phone on its side keeps the room in sight over the keys: Android's own
-                    // full-screen field took the whole screen above them (the emulator, 16
-                    // October 2026).
-                    disableFullscreenUI
-                    // Empty, one line, without waiting for the twin to say so.
-                    style={[
-                      styles.input,
-                      { color: palette.ink, height: text === "" ? LINE : heightFor(measured) },
-                    ]}
-                  />
-                </GrowingView>
-                {/* Measured for a staged photo's viewer, which draws its own Send exactly here. */}
-                <GrowingView ref={look.sendRef} collapsable={false} layout={RISES}>
-                  <IconButton
-                    icon="up"
-                    label="Send"
-                    size={SEND}
-                    testID="composer-send"
-                    disabled={!canSend}
-                    onPress={send}
-                  />
-                </GrowingView>
-              </Pressable>
+                    <EmptyWords
+                      shown={text === ""}
+                      words={placeholderOf(space, hushed, shown, directory)}
+                    />
+                    <TextInput
+                      ref={input}
+                      accessibilityLabel="Message"
+                      testID="composer"
+                      value={text}
+                      onChangeText={type}
+                      placeholder={placeholderOf(space, hushed, aim, directory)}
+                      placeholderTextColor="transparent"
+                      editable={!disabled}
+                      keyboardAppearance={keyboard}
+                      multiline
+                      // A phone on its side keeps the room in sight over the keys: Android's own
+                      // full-screen field took the whole screen above them (the emulator, 16
+                      // October 2026).
+                      disableFullscreenUI
+                      // Empty, one line, without waiting for the twin to say so.
+                      style={[
+                        styles.input,
+                        { color: palette.ink, height: text === "" ? LINE : heightFor(measured) },
+                      ]}
+                    />
+                  </GrowingView>
+                  {/* Measured for a staged photo's viewer, which draws its own Send exactly here. */}
+                  <GrowingView ref={look.sendRef} collapsable={false} layout={RISES}>
+                    <IconButton
+                      icon="up"
+                      label="Send"
+                      size={SEND}
+                      testID="composer-send"
+                      disabled={!canSend}
+                      onPress={send}
+                    />
+                  </GrowingView>
+                </Pressable>
+              </FieldSlideOn>
             </GrowingView>
           </Capsule>
           <ColumnOverField

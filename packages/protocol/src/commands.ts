@@ -303,6 +303,26 @@ function programOf(word: string): string {
   return word.slice(word.lastIndexOf("/") + 1);
 }
 
+/** Whether an action kind runs commands, for a rule a person writes (ADR 0299). */
+export function commandKind(kind: string): boolean {
+  return runsShell(kind);
+}
+
+/**
+ * The listed commands a yes for every command starting with `words` lets through (ADR 0299), in
+ * words: `git` covers `git push`, `git reset` and `git clean`, `rm -rf` covers `rm`, and no words
+ * cover all of them. A word with a wildcard covers none, since it says how a command ends.
+ */
+export function neverCovered(words: readonly string[]): string[] {
+  if (words.some((word) => word.includes("*"))) return [];
+  return NEVER_STANDING.filter((entry) =>
+    entry.every(
+      (word, at) =>
+        at >= words.length || (at === 0 ? programOf(words[0] ?? "") : words[at]) === word,
+    ),
+  ).map((entry) => entry.join(" "));
+}
+
 /** The listed command a part uses, in words (`rm`, `git push`); nothing for one not listed. */
 export function neverStanding(parts: CommandParts): string | undefined {
   for (const part of parts) {
@@ -314,6 +334,24 @@ export function neverStanding(parts: CommandParts): string | undefined {
     if (listed !== undefined) return listed.join(" ");
   }
   return undefined;
+}
+
+/**
+ * Whether a pause (Stop asking, Let it work, an hour: a `*` yes) must leave this command to a
+ * person (ADR 0300): one with a part that uses a listed command, or, for one the reader can't
+ * follow, one that names a listed command anywhere in its words. Errs toward asking.
+ */
+export function neverForAWhile(command: string | readonly string[]): boolean {
+  const parts = commandParts(command);
+  if (parts !== undefined) return neverStanding(parts) !== undefined;
+  const words = (typeof command === "string" ? command : command.join(" "))
+    .split(/[\s;&|()`$<>{}"'\\=]+/)
+    .filter((word) => word !== "")
+    .map(programOf);
+  return NEVER_STANDING.some(([first, second]) => {
+    const at = words.indexOf(first ?? "");
+    return at !== -1 && (second === undefined || words.slice(at + 1).includes(second));
+  });
 }
 
 /** Programs whose second word is a command of their own: `git log`, `pnpm test`, `cargo build`. */

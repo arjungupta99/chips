@@ -579,10 +579,12 @@
   stroke-width: 2.4;
 }
 
-/* The gear names the work the row's words are about, where the harness's own emoji was read out
-   (ADR 0090). Quiet: the light round the face is what carries down the rail. */
-.cv-gear {
-  color: var(--ink-4);
+/* A room at work says so before its words, as an agent's row on Agents does (`.agent-working`),
+   in the same green (ADR 0090's addendum). It keeps its width; the words give way. */
+.cv-s .cv-working {
+  flex: none;
+  color: var(--green-ink);
+  font-weight: 600;
 }
 
 .cv-unread {
@@ -2723,6 +2725,12 @@
   border-top: 1px solid var(--line);
   padding-top: 10px;
   margin-top: 4px;
+}
+/* A page that opens on a heading draws no rule above it: nothing comes before it (ADR 0300). */
+.perms > .asking-part-h:first-child {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
 }
 .asking-count {
   border-radius: var(--radius-pill);
@@ -18150,37 +18158,127 @@ button.ctx-row:active,
   }
 }
 
-/* About's Install and Update buttons (ADR 0296): a gold capsule, solid for this app and soft for
-   the computer. As About opens each sends out the dot's ring twice, a glow that widens from behind
-   it and fades, a beat after the one above it (`--ring-at`). */
+/* About's Install, Update and Restart now buttons (ADR 0296, addendum of 17 November 2026): a gold
+   capsule, solid for this app and soft for the computer, that glows on the dot's breath for as long
+   as it shows (`data-glow`). When the dot was clicked, a button waits at the dot's size and unseen
+   while the dot flies to it (`data-grown="seed"`), grows out of it as it lands (`grow`), has a light
+   pass over it once (`data-sweep`), and then glows. The numbers are core's `UPDATE_MOTION`. */
 .update-ring {
   position: relative;
   display: inline-grid;
   flex: none;
   isolation: isolate;
 }
+/* The glow is the shadow of a box no bigger than the button (it swells to the button's size and
+   no further), so no gap shows between the two: a shadow isn't drawn inside its own box. */
 .update-ring::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: 999px;
-  background: var(--gold);
+  box-shadow: 0 0 14px 3px color-mix(in srgb, var(--gold) 85%, transparent);
   opacity: 0;
   pointer-events: none;
-  animation: update-btn-ring 1050ms cubic-bezier(0.215, 0.61, 0.355, 1) var(--ring-at, 280ms) 2;
 }
-@keyframes update-btn-ring {
+.update-ring[data-glow="true"]::before {
+  animation:
+    update-btn-glow-in 600ms cubic-bezier(0.215, 0.61, 0.355, 1) both,
+    update-btn-glow 3400ms ease-in-out 600ms infinite;
+}
+.update-ring[data-glow="true"][data-soft="true"]::before {
+  animation-name: update-btn-glow-in-soft, update-btn-glow-soft;
+}
+@keyframes update-btn-glow-in {
   from {
-    opacity: 0.6;
-    transform: scale(1);
+    opacity: 0;
+    transform: scale(0.94, 0.86);
   }
   to {
+    opacity: 0.4;
+    transform: scale(0.94, 0.86);
+  }
+}
+@keyframes update-btn-glow {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.94, 0.86);
+  }
+  50% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes update-btn-glow-in-soft {
+  from {
     opacity: 0;
-    transform: scale(1.3, 1.55);
+    transform: scale(0.94, 0.86);
+  }
+  to {
+    opacity: 0.28;
+    transform: scale(0.94, 0.86);
+  }
+}
+@keyframes update-btn-glow-soft {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scale(0.94, 0.86);
+  }
+  50% {
+    opacity: 0.7;
+    transform: none;
+  }
+}
+.update-ring[data-grown="seed"] .update-btn {
+  transform: scale(0.18);
+  opacity: 0;
+  transition: none;
+}
+.update-ring[data-grown="grow"] .update-btn {
+  transition:
+    transform 550ms cubic-bezier(0.34, 1.36, 0.64, 1),
+    opacity 100ms linear;
+}
+.update-btn-label {
+  display: inline-block;
+  transition: opacity 220ms var(--ease) 120ms;
+}
+.update-ring[data-grown="seed"] .update-btn-label {
+  opacity: 0;
+  transition: none;
+}
+.update-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 25%,
+    rgb(255 255 255 / 0.75) 50%,
+    transparent 75%
+  );
+  transform: translateX(-120%);
+}
+.update-btn.is-soft::after {
+  background: linear-gradient(105deg, transparent 25%, rgb(255 255 255 / 0.6) 50%, transparent 75%);
+}
+.update-ring[data-sweep="true"] .update-btn::after {
+  animation: update-btn-sweep 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes update-btn-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
   }
 }
 .update-btn {
+  position: relative;
+  overflow: hidden;
   padding: 5px 14px;
   border: 0;
   border-radius: 999px;
@@ -18326,9 +18424,37 @@ button.ctx-row:active,
   .update-dot-core,
   .update-dot::before,
   .update-dot::after,
-  .update-ring::before {
+  .update-ring::before,
+  .update-ring[data-glow="true"]::before,
+  .update-btn::after {
     animation: none;
   }
+  /* The glow holds still, halfway. */
+  .update-ring[data-glow="true"]::before {
+    opacity: 0.7;
+  }
+}
+/* The dot on its way into About's first update button: a copy over the page, x on the outer and y
+   and its swell on the inner, each on its own curve (`flight.tsx`). The dot it left steps out of
+   sight until it has landed. */
+.update-dot[data-away="true"] {
+  visibility: hidden;
+}
+.update-dot-flying {
+  position: fixed;
+  z-index: 1001;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  pointer-events: none;
+}
+.update-dot-flying-core {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--gold) 70%, transparent);
 }
 
 /* ---------- The shell's motion, on the web and the Mac (ADR 0274) ---------- */
@@ -19411,4 +19537,804 @@ button.reply-card,
     background-color var(--motion-fast) var(--ease),
     border-color var(--motion-fast) var(--ease),
     color var(--motion-fast) var(--ease);
+}
+
+/*
+ * A harness's Permissions (ADR 0300): the gates on the path, the notice, Stop asking's lengths,
+ * New rule and You → Permissions. Flat: every control says what it is by its shape and colour. A
+ * fold grows its grid row from nothing, so each change moves; with Reduce Motion it settles at once.
+ */
+.snz-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--motion-base) var(--ease),
+    opacity var(--motion-base) var(--ease);
+}
+.snz-fold[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.snz-in {
+  min-height: 0;
+  overflow: hidden;
+}
+.rule-kind input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.rule-kind:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.snz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+.snz-chip {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
+}
+.snz-chip:hover {
+  background: var(--surface-2);
+}
+.snz-chip:active {
+  transform: scale(0.96);
+}
+.snz-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The two gates on the path: its own settings, then Chips. */
+.asking-path[data-gates="true"] .asking-gates {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  pointer-events: none;
+}
+.asking-gate {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--line-2);
+  background: var(--surface);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.asking-gate b {
+  font-weight: 600;
+  color: var(--ink);
+}
+.asking-gate small {
+  color: var(--ink-3);
+}
+.asking-gate[data-gate="own"] {
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent);
+  background: var(--amber-soft);
+}
+.asking-gate[data-gate="chips"] {
+  border-color: color-mix(in srgb, var(--blue) 45%, transparent);
+  background: var(--blue-soft);
+}
+.asking-hero[data-working="true"] .asking-gate[data-gate="chips"] {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+}
+.asking-hero[data-working="true"] .asking-gate[data-gate="chips"] small {
+  color: var(--gold-deep);
+  font-weight: 600;
+}
+.perms .asking-hero {
+  max-width: 520px;
+}
+
+/* A yes Chips said while its asks were off. */
+.asking-dot[data-dot="snoozed"],
+.asking-key-dot[data-dot="snoozed"] {
+  background: var(--gold);
+}
+
+.perms-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--amber-soft);
+  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+}
+.perms-notice-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.perms-notice-head p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+.perms-notice-head b {
+  color: var(--ink);
+}
+.perms-notice code,
+.perms-row-words code,
+.asking-note code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+.perms-notice-btn {
+  align-self: flex-start;
+  margin-left: 40px;
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--amber);
+  color: #fff;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.perms-notice-btn:hover {
+  background: var(--amber-ink);
+}
+.perms-snip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-left: 40px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.perms-snip p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+.perms-snip pre {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.perms-copy {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
+}
+.perms-copy[data-copied="true"] {
+  border-color: transparent;
+  background: var(--green-soft);
+  color: var(--green-ink);
+}
+.perms-mark {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  transition:
+    background var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease);
+}
+.perms-mark[data-tone="amber"] {
+  background: var(--amber);
+  color: #fff;
+}
+.perms-mark[data-tone="gold"] {
+  background: var(--gold-soft);
+  color: var(--gold-deep);
+}
+.perms-mark[data-tone="accent"] {
+  background: var(--ink);
+  color: var(--bg);
+}
+.perms-mark[data-tone="indigo"] {
+  background: var(--violet-soft);
+  color: var(--violet-ink);
+}
+.perms-right {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.perms-own {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.perms-own-row,
+.perms-always,
+.you-perms-snooze {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+.perms-own-row + .perms-own-row {
+  border-top: 1px solid var(--line);
+}
+.perms-row-words {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.perms-row-words b {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
+}
+.perms-row-words small {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+/* A program on Chips's never list that its own settings let through. */
+.perms-row-words em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--amber-ink);
+}
+.perms-add {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: calc(100% + 20px);
+  margin: 0 -10px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease);
+}
+.perms-add > span:nth-child(2) {
+  flex: 1;
+}
+.perms-add:hover {
+  background: var(--surface-2);
+}
+.perms-add:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.perms-add-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+}
+
+/* New rule. */
+.rule-kinds {
+  display: flex;
+  flex-direction: column;
+}
+.rule-kind {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease);
+}
+.rule-kind:hover {
+  background: var(--surface-2);
+}
+.rule-kind[data-own="true"] {
+  cursor: default;
+  opacity: 0.55;
+}
+.rule-kind[data-own="true"]:hover {
+  background: transparent;
+}
+.rule-kind .perms-row-words code {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+.rule-tick {
+  color: var(--ink);
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
+}
+.rule-kind[data-on="true"] .rule-tick {
+  opacity: 1;
+  transform: none;
+}
+.rule-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease),
+    color var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
+}
+.rule-chip:hover {
+  background: var(--surface-2);
+}
+.rule-chip:active {
+  transform: scale(0.95);
+}
+.rule-chip[aria-pressed="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+.rule-chips[data-answer="deny"] .rule-chip[aria-pressed="true"] {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+}
+.rule-chips[data-answer="ask"] .rule-chip[aria-pressed="true"] {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #fff;
+}
+.rule-chip[data-never="true"] {
+  border-style: dashed;
+}
+.rule-chip:disabled {
+  color: var(--ink-4);
+  background: transparent;
+  cursor: not-allowed;
+}
+.rule-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--green);
+  background: var(--surface);
+  transition: border-color var(--motion-base) var(--ease);
+}
+.rule-preview[data-answer="deny"] {
+  border-color: var(--red);
+}
+.rule-preview[data-answer="ask"] {
+  border-color: var(--amber);
+}
+.rule-preview-h {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: var(--text-md);
+  color: var(--ink-2);
+}
+.rule-count {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--green-ink);
+  font-variant-numeric: tabular-nums;
+}
+.rule-preview[data-answer="deny"] .rule-count {
+  color: var(--red-ink);
+}
+.rule-preview[data-answer="ask"] .rule-count {
+  color: var(--amber-ink);
+}
+.rule-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.rule-dots i,
+.rule-key i {
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--surface-3);
+  transition:
+    background var(--motion-fast) var(--ease),
+    border-color var(--motion-fast) var(--ease),
+    transform var(--motion-fast) var(--ease);
+}
+.rule-dots i[data-dot="lit"],
+.rule-key i[data-dot="lit"] {
+  background: var(--green);
+  transform: scale(1.12);
+}
+.rule-preview[data-answer="deny"] i[data-dot="lit"] {
+  background: var(--red);
+}
+.rule-preview[data-answer="ask"] i[data-dot="lit"] {
+  background: var(--amber);
+}
+.rule-dots i[data-dot="still"],
+.rule-key i[data-dot="still"] {
+  background: transparent;
+  border: 1.5px solid var(--ink-4);
+}
+.rule-dots i[data-dot="never"],
+.rule-key i[data-dot="never"] {
+  background: transparent;
+  border: 1.5px solid var(--red);
+}
+.rule-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+.rule-key > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rule-save {
+  position: relative;
+  height: 40px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--ink);
+  color: var(--bg);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background var(--motion-base) var(--ease);
+}
+.rule-save:hover {
+  background: var(--ink-2);
+}
+.rule-save:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.rule-save:disabled:hover {
+  background: var(--ink);
+}
+.rule-save[data-saved="true"] {
+  background: var(--green);
+}
+.rule-save-l,
+.rule-save-d {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition:
+    opacity var(--motion-fast) var(--ease),
+    transform var(--motion-base) var(--ease);
+}
+.rule-save-d {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.rule-save[data-saved="true"] .rule-save-l {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.rule-save[data-saved="true"] .rule-save-d {
+  opacity: 1;
+  transform: none;
+}
+
+/* A rule's answer, on a harness's Permissions. */
+.always-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  background: var(--green-soft);
+  color: var(--green-ink);
+}
+.always-tag[data-decision="deny"] {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.always-tag[data-decision="ask"] {
+  background: var(--amber-soft);
+  color: var(--amber-ink);
+}
+
+/* You → Permissions. */
+.you-perms {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 18px 20px 48px;
+}
+.you-perms-first {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
+}
+.rule .you-select,
+.rule .you-seg {
+  align-self: flex-start;
+}
+.you-perms-snooze {
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.you-perms-snooze .snz-chips {
+  flex-basis: 100%;
+  padding-left: 40px;
+}
+.you-perms-harnesses {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.you-perms-harnesses > li + li {
+  border-top: 1px solid var(--line);
+}
+.you-perms-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+.you-perms-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 0 -8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--ease);
+}
+.you-perms-open:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.you-perms-open:disabled {
+  cursor: default;
+}
+.you-perms-open small[data-gold="true"],
+.you-perms-open small[data-warn="true"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.you-perms-open small[data-gold="true"] {
+  font-weight: 600;
+  color: var(--gold-deep);
+}
+.you-perms-open small[data-gold="true"]::before,
+.you-perms-open small[data-warn="true"]::before {
+  content: "";
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--gold);
+}
+.you-perms-open small[data-warn="true"]::before {
+  background: var(--amber);
+}
+
+/* The ask's snooze row, under the card. */
+.decide-snooze {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+.decide-snooze-words {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+}
+.decide-snooze-words b {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.decide-snooze-words small {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .snz-fold,
+  .snz-chip,
+  .rule-chip,
+  .rule-tick,
+  .rule-dots i,
+  .rule-save,
+  .rule-save-l,
+  .rule-save-d,
+  .rule-preview {
+    transition: none;
+  }
+}
+
+/* A Chips pause in a room is a plain line; yellow is for a harness that runs everything (ADR 0300). */
+.letwork[data-tone="calm"] {
+  background: color-mix(in srgb, var(--accent) 9%, var(--bg));
+  border-bottom-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.letwork[data-tone="calm"] .letwork-dot {
+  background: var(--accent);
+  animation: none;
+}
+
+/* A harness's Permissions in three pages (ADR 0300). */
+.perms-open,
+.perms-switch,
+.perms-stop-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+}
+.perms-open {
+  margin: 4px 0 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--gold-soft);
+}
+.perms-open .perms-row-words b {
+  color: var(--gold-deep);
+}
+.perms-where {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.perms-stop {
+  border-bottom: 1px solid var(--line);
+}
+.perms-stop[data-on="true"] .perms-row-words b {
+  color: var(--accent);
+}
+.perms-again {
+  flex: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease);
+}
+.perms-again:active {
+  transform: scale(0.96);
+}
+.perms-stop-open {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition:
+    transform var(--motion-fast) var(--ease),
+    background var(--motion-fast) var(--ease);
+}
+.perms-stop-open:hover {
+  background: var(--surface-2);
+}
+.perms-stop-open[aria-expanded="true"] {
+  transform: rotate(90deg);
+}
+.perms-stop .snz-chips {
+  padding: 0 0 12px 40px;
+}
+.perms-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  vertical-align: 1px;
+}
+.you-perms-open > svg:last-child {
+  flex: none;
+  color: var(--ink-4, var(--ink-3));
 }

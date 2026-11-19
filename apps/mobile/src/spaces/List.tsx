@@ -164,9 +164,6 @@ import { actSet, actTone, NO_ACTS, type RoomAct, SwipeRow } from "./SwipeRow";
 import { type Going as GoingOf, type Leaving, type Picking as PickingOf, usePick } from "./usePick";
 import { relativeTime } from "./when";
 
-/** The gear beside a working room's words, as tall as the caption it stands in. */
-const GEAR = 15;
-
 /**
  * Who is reading the list, for what a room with no title is called: "You, Scout", not the
  * reader's own name (ADR 0082). Nobody, and every member is named.
@@ -1765,8 +1762,8 @@ const Row = memo(function Row({
 }) {
   const palette = usePalette();
   // Work going in the room, whether a run of its own or a turn out of the harness's queue
-  // (ADR 0090, ADR 0285): the face wears the pins, and the gear stands where the harness's own
-  // thought-bubble emoji used to be read out.
+  // (ADR 0090, ADR 0285): the face wears the pins, and the words say "Working", in green, as an
+  // agent's row on Agents does (ADR 0090's addendum).
   const working = spaceWorking(space);
   return (
     <>
@@ -1867,9 +1864,9 @@ function RowLine({
         </View>
       ) : null}
       {working ? (
-        <View testID="working-gear">
-          <Icon name="cog" size={GEAR} color={palette.ink3} />
-        </View>
+        <Text testID="working" style={[styles.working, { color: palette.green }]} numberOfLines={1}>
+          Working ·
+        </Text>
       ) : null}
       <Text
         style={[styles.last, { color: waiting ? palette.amberInk : palette.ink3 }]}
@@ -1940,6 +1937,8 @@ const styles = StyleSheet.create({
   name: { fontSize: TEXT.body, fontWeight: "600", flexShrink: 1 },
   when: { fontSize: TEXT.sm, marginLeft: "auto" },
   sub: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // What an agent's row on Agents says while it works (`AgentRow.tsx`), in the same green.
+  working: { fontSize: TEXT.sm, fontWeight: "600" },
   last: { fontSize: TEXT.sm, flexShrink: 1 },
   count: {
     fontSize: TEXT.xs,

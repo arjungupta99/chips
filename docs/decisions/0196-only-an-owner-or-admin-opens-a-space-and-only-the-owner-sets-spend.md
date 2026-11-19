@@ -3,7 +3,7 @@
 Date: 18 October 2026
 Status: Accepted, 18 October 2026, on Arjun's "Does a member get the +? No" and "Can a member set
 Spend per job, or only you? Only me". Built as Phases 1 and 2 of
-[the invited-people plan](../proposals/invited-people-plan.md).
+the invited-people plan (`docs/proposals/invited-people-plan.md`).
 
 ## Context
 

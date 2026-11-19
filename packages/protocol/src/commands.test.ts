@@ -3,6 +3,7 @@ import {
   askedCommand,
   commandParts,
   commandStarts,
+  neverForAWhile,
   neverStanding,
   standingOffer,
   startOf,
@@ -238,5 +239,22 @@ describe("what a standing yes remembers, and what it never covers (ADR 0239)", (
     expect(
       standingOffer({ kind: "jacobian.filesystem.write", input: "/tmp/a.md" }),
     ).toBeUndefined();
+  });
+});
+
+describe("what a pause leaves to a person (ADR 0300)", () => {
+  it("leaves a command that uses the never list, read or not, and lets the rest go", () => {
+    expect(neverForAWhile("ls -la && pnpm test")).toBe(false);
+    expect(neverForAWhile("pnpm test 2>&1 | tail -5")).toBe(false);
+    expect(neverForAWhile("echo $HOME > out.txt")).toBe(false);
+    expect(neverForAWhile("git status && git diff")).toBe(false);
+    expect(neverForAWhile("rm -rf build")).toBe(true);
+    expect(neverForAWhile("cd x && git push origin main")).toBe(true);
+    expect(neverForAWhile("for f in *.log; do rm $f; done")).toBe(true);
+    expect(neverForAWhile("echo $(sudo cat /etc/hosts)")).toBe(true);
+    expect(neverForAWhile("X=1 /bin/rm -f a")).toBe(true);
+    expect(neverForAWhile(["git", "push"])).toBe(true);
+    // `git` alone, or a word that only looks like one, isn't.
+    expect(neverForAWhile("echo git pushed > log; cat log")).toBe(false);
   });
 });

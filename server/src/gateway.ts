@@ -76,6 +76,7 @@ import {
   createPutAgentModel,
   createPutContext,
   createPutHarnessJobs,
+  createPutOwnRules,
   createReadAgentContextWindow,
   createReadAgentHeartbeat,
   createReadAgentModel,
@@ -83,6 +84,7 @@ import {
   createReadContextEdit,
   createReadHarnessJobs,
   createReadJobRuns,
+  createReadOwnRules,
   createRelaySwitch,
   createRemoveHarness,
   createRemovePerson,
@@ -180,6 +182,7 @@ import { createInviteRegistry } from "./infrastructure/store/invite-registry.js"
 import { createJoinRegistry } from "./infrastructure/store/join-registry.js";
 import { membershipGate } from "./infrastructure/store/membership-gate.js";
 import { createNotificationRegistry } from "./infrastructure/store/notification-registry.js";
+import { createOwnRulesRegistry } from "./infrastructure/store/own-rules-registry.js";
 import { createPasskeyRegistry } from "./infrastructure/store/passkey-registry.js";
 import { createPeopleRegistry } from "./infrastructure/store/people-registry.js";
 import { createPinnedSpaceRegistry } from "./infrastructure/store/pinned-space-registry.js";
@@ -810,6 +813,11 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     runs: createReadJobRuns(jobDeps),
     ask: createAskJobChange(jobDeps),
   };
+  const ownRulesDeps = { readModels, ownRules: createOwnRulesRegistry(db), clock: systemClock };
+  const ownRules = {
+    put: createPutOwnRules(ownRulesDeps),
+    read: createReadOwnRules(ownRulesDeps),
+  };
   const windowDeps = {
     readModels,
     windows: windowRegistry,
@@ -1323,6 +1331,7 @@ export function buildGateway(options: BuildGatewayOptions): Gateway {
     agentModels,
     agentHeartbeats,
     harnessJobs,
+    ownRules,
     agentContextWindows,
     declareCapabilities,
     eraseSpace,

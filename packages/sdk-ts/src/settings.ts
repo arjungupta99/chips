@@ -24,6 +24,7 @@ import {
   jobChangeFrame,
   type ModelChangeFrame,
   modelChangeFrame,
+  type OwnRules,
   type WindowChangeFrame,
   type WindowCompactFrame,
   windowChangeFrame,
@@ -112,7 +113,14 @@ export function acceptsFor(handlers: SettingsHandlers | undefined): string[] {
 /** A `PUT` to chipsd with the harness's token, as the connection makes it. */
 export type Put = (path: string, body: Readonly<Record<string, unknown>>) => Promise<unknown>;
 
-type Kind = "context" | "harness-context" | "model" | "heartbeat" | "context-window" | "jobs";
+type Kind =
+  | "context"
+  | "harness-context"
+  | "model"
+  | "heartbeat"
+  | "context-window"
+  | "jobs"
+  | "own-rules";
 
 const PATHS: Readonly<Record<Kind, (id: string) => string>> = {
   context: (id) => `/v1/agents/${encodeURIComponent(id)}/context`,
@@ -121,6 +129,7 @@ const PATHS: Readonly<Record<Kind, (id: string) => string>> = {
   heartbeat: (id) => `/v1/agents/${encodeURIComponent(id)}/heartbeat`,
   "context-window": (id) => `/v1/agents/${encodeURIComponent(id)}/context-window`,
   jobs: (id) => `/v1/harnesses/${encodeURIComponent(id)}/jobs`,
+  "own-rules": (id) => `/v1/harnesses/${encodeURIComponent(id)}/own-rules`,
 };
 
 /** The frames heard here, each by the schema it is read by (SEC-14). */
@@ -191,6 +200,16 @@ export class Settings {
   /** The jobs the harness runs on its own, all of them (`jobs`). */
   jobs(copy: HarnessJobsCopy): Promise<unknown> {
     return this.send("jobs", this.harnessId(), copy, {});
+  }
+
+  /**
+   * What the harness's own settings let through without asking (ADR 0299): where it read them, the
+   * mode it runs in, and each entry. Chips decides nothing from it; a person reads it on the
+   * harness's Permissions page. Send it when connected and whenever the settings are read again;
+   * a copy the same as the last is not sent again. An older Chips has no such page and refuses it.
+   */
+  ownRules(copy: OwnRules): Promise<unknown> {
+    return this.send("own-rules", this.harnessId(), copy, {});
   }
 
   /**

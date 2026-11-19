@@ -10,6 +10,7 @@ import {
   eventIdOfMessage,
   messageIdOf,
   NO_CAPS,
+  type PolicyHold,
   type PolicyRule,
   parseSpaceIcon,
   type SpaceIcon,
@@ -21,6 +22,7 @@ import type {
   AgentView,
   ApprovalView,
   AskedSpaceView,
+  ChipsRulesView,
   ExpiredApproval,
   ForkAsk,
   HarnessPolicyView,
@@ -76,6 +78,11 @@ function toPolicyView(row: HarnessPolicyTable): HarnessPolicyView {
     spent_usd: row.spent_usd,
     updated_seq: row.updated_seq,
   };
+}
+
+/** A hold as a row keeps it, read back; nothing while asks are on (ADR 0299). */
+function holdIn(column: string | null | undefined): PolicyHold | undefined {
+  return column === null || column === undefined ? undefined : (JSON.parse(column) as PolicyHold);
 }
 
 function toQuestionView(row: QuestionsTable): QuestionView {
@@ -1184,9 +1191,29 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
         spent_usd: everywhere?.spent_usd ?? chosen.spent_usd,
       });
       // The level is the room's; the harness's rules everywhere are read after the room's own.
+      // A hold is the everywhere row's, whichever row speaks (ADR 0299).
+      const hold = holdIn(everywhere?.hold);
+      const held = hold === undefined ? view : { ...view, hold };
       return room === undefined || everywhere === undefined
-        ? view
-        : { ...view, everywhere_rules: JSON.parse(everywhere.rules) as PolicyRule[] };
+        ? held
+        : { ...held, everywhere_rules: JSON.parse(everywhere.rules) as PolicyRule[] };
+    },
+
+    async chipsRules(workspaceId: string, harnessId: string): Promise<ChipsRulesView> {
+      const rows = await db
+        .selectFrom("harness_policy")
+        .select(["space_id", "autonomy", "rules", "hold", "chips_rules"])
+        .where("workspace_id", "=", workspaceId)
+        .where("harness_id", "=", harnessId)
+        .execute();
+      const everywhere = rows.find((row) => row.space_id === "*");
+      const set = everywhere?.chips_rules;
+      return {
+        ...(set === null || set === undefined ? {} : { set: set === 1 }),
+        rules: rows.some((row) => (JSON.parse(row.rules) as unknown[]).length > 0),
+        level: rows.some((row) => row.autonomy >= 2),
+        hold: everywhere?.hold !== null && everywhere?.hold !== undefined,
+      };
     },
 
     async workspacePolicy(workspaceId: string): Promise<WorkspacePolicyView | undefined> {
@@ -1196,7 +1223,12 @@ export function createReadModels(db: Kysely<Database>): ReadModels {
         .where("workspace_id", "=", workspaceId)
         .executeTakeFirst();
       if (row === undefined) return undefined;
-      return { max_autonomy: row.max_autonomy, rules: JSON.parse(row.rules) as PolicyRule[] };
+      const hold = holdIn(row.hold);
+      return {
+        max_autonomy: row.max_autonomy,
+        rules: JSON.parse(row.rules) as PolicyRule[],
+        ...(hold === undefined ? {} : { hold }),
+      };
     },
 
     async sessionInSpace(

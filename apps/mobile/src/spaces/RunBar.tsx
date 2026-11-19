@@ -163,31 +163,44 @@ export function PhoneRun({
   runs,
   recipe,
   held,
+  fresh = false,
 }: {
   readonly runs: RunOnMac;
   readonly recipe: RecipeRead;
   /** The run as Universe already holds it; without it the bar holds its own. */
   readonly held?: RunHeld | undefined;
+  /** New on Desktop (ADR 0227's addendum of 17 November 2026): the corner dot, and Run rings twice. */
+  readonly fresh?: boolean;
 }) {
   return held === undefined ? (
-    <OwnRun runs={runs} recipe={recipe} />
+    <OwnRun runs={runs} recipe={recipe} fresh={fresh} />
   ) : (
-    <HeldBar runs={runs} recipe={recipe} held={held} />
+    <HeldBar runs={runs} recipe={recipe} held={held} fresh={fresh} />
   );
 }
 
-function OwnRun({ runs, recipe }: { readonly runs: RunOnMac; readonly recipe: RecipeRead }) {
-  return <HeldBar runs={runs} recipe={recipe} held={useRunOnMac(runs)} />;
+function OwnRun({
+  runs,
+  recipe,
+  fresh,
+}: {
+  readonly runs: RunOnMac;
+  readonly recipe: RecipeRead;
+  readonly fresh: boolean;
+}) {
+  return <HeldBar runs={runs} recipe={recipe} held={useRunOnMac(runs)} fresh={fresh} />;
 }
 
 function HeldBar({
   runs,
   recipe,
   held,
+  fresh,
 }: {
   readonly runs: RunOnMac;
   readonly recipe: RecipeRead;
   readonly held: RunHeld;
+  readonly fresh: boolean;
 }) {
   const bar = useRunBar(held, runs, recipe);
   const ready = recipe !== undefined && !("why" in recipe);
@@ -197,6 +210,7 @@ function HeldBar({
       busy={held.busy}
       onRun={ready ? () => void held.press({ op: "run", command: commandOf(recipe) }) : undefined}
       onStop={() => void held.press({ op: "stop" })}
+      fresh={fresh}
     />
   );
 }
@@ -206,6 +220,7 @@ interface ViewProps {
   readonly busy: boolean;
   readonly onRun: (() => void) | undefined;
   readonly onStop: () => void;
+  readonly fresh: boolean;
 }
 
 /**
@@ -221,7 +236,14 @@ function RunBarView(props: ViewProps) {
   return (
     <MacRow
       testID="run-bar"
-      mark={<RowMark kind={markOf(bar)} icon={bar.kind === "ready" ? "playFill" : "play"} />}
+      mark={
+        <RowMark
+          kind={markOf(bar)}
+          icon={bar.kind === "ready" ? "playFill" : "play"}
+          fresh={props.fresh}
+          testID="run-bar-new"
+        />
+      }
       title={resting ? MAC_ROWS.program : bar.title}
       titleBad={bar.kind === "ended" && bar.tone === "bad"}
       titleTestID="run-bar-state"
@@ -245,7 +267,7 @@ function pressOf(bar: RunBar): "run" | "again" | "none" {
 }
 
 /** Run, also once it ended: the row's name already says how it ended, so the word stays short. */
-function Press({ bar, busy, onRun }: ViewProps) {
+function Press({ bar, busy, onRun, fresh }: ViewProps) {
   const press = pressOf(bar);
   if (press === "none") return null;
   const again = press === "again" ? (bar.press ?? "") : undefined;
@@ -258,6 +280,7 @@ function Press({ bar, busy, onRun }: ViewProps) {
       disabled={bar.kind === "held" || onRun === undefined}
       onPress={() => onRun?.()}
       accessibilityLabel={again ?? bar.title}
+      rings={fresh && again === undefined ? 2 : 0}
       testID={again === undefined ? "run-bar-run" : "run-bar-again"}
     />
   );

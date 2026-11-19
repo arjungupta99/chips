@@ -28,14 +28,21 @@ const openAsking = async (page: Page, harness: string) => {
   await page.getByRole("main", { name: harness }).getByTestId("harness-asks-row").click();
 };
 
-/** What When it asks you holds, on its page. */
+/** What its Permissions holds (ADR 0299, once When it asks you), on its page. */
 const askingOf = (page: Page, harness: string) =>
-  page.getByRole("main", { name: `${harness}: When it asks you` }).getByTestId("asking");
+  page.getByRole("main", { name: `${harness}: Permissions` }).getByTestId("permissions");
+
+/** Its Chips's rules, beside its Permissions (ADR 0300): the rules and how many are on. */
+const openRules = async (page: Page, harness: string) => {
+  await openAsking(page, harness);
+  await askingOf(page, harness).getByTestId("perms-chips-row").click();
+  return page.getByTestId("perms-chips");
+};
 
 test("an Always shows under Allowed always, switches off and on, and goes into dust with Undo", async ({
   page,
 }) => {
-  const thistle = await registerSpecialist("Thistle");
+  const thistle = await registerSpecialist("Thistle", undefined, undefined, true);
   await pair(page);
   const harness = await Harness.connect(newRunId(), { token: thistle.token, space: thistle.space });
   // A kind no other spec asks for, with no flags: a smaller ask, which an Always may cover.
@@ -107,17 +114,19 @@ test("an Always shows under Allowed always, switches off and on, and goes into d
     await harness.next("policy.updated");
     await letThrough();
 
-    // On its When it asks you, under Allowed always: by you, in its room, today.
+    // Its Permissions counts the asks; its Chips's rules list the Always: by you, in every space.
     await openAsking(page, "Thistle");
-    const asking = askingOf(page, "Thistle");
-    await expect(asking.getByTestId("asking-headline")).toHaveText(
-      "Thistle decides when to ask. You decide the answer.",
+    await expect(askingOf(page, "Thistle").getByTestId("perms-headline")).toHaveText(
+      "Thistle decides what to ask. Chips answers the ones your rules cover and brings you the rest.",
     );
-    const list = asking.getByTestId("asking-always");
-    await expect(list.locator("code")).toHaveText(["garden.note"]);
+    await expect(askingOf(page, "Thistle").getByTestId("asking-history")).toContainText(
+      /3 asks since/,
+    );
+    const asking = await openRules(page, "Thistle");
+    const list = asking.getByTestId("perms-rules");
+    await expect(list.locator(".always-words b")).toHaveText(["garden.note"]);
     await expect(list).toContainText(/In every space · by you, /);
     await expect(asking.getByTestId("asking-count")).toHaveText("1 on");
-    await expect(asking.getByTestId("asking-history")).toContainText(/3 asks since/);
 
     // Off: kept, dimmed, sent with `off`, and the next one asks.
     const toggle = asking.getByRole("switch", { name: "Allow garden.note always" });
@@ -131,7 +140,7 @@ test("an Always shows under Allowed always, switches off and on, and goes into d
     await asksAgain();
 
     // On again: through, without asking.
-    await openAsking(page, "Thistle");
+    await openRules(page, "Thistle");
     await toggle.click();
     expect(rules(await harness.next("policy.updated"))).toEqual([
       expect.not.objectContaining({ off: true }),
@@ -142,13 +151,13 @@ test("an Always shows under Allowed always, switches off and on, and goes into d
     // The ×: into dust, gone from the list and the wire; Undo puts it back.
     await asking.getByRole("button", { name: "Remove garden.note" }).click();
     expect(rules(await harness.next("policy.updated"))).toEqual([]);
-    await expect(asking.getByTestId("asking-always-empty")).toBeVisible();
+    await expect(asking.getByTestId("perms-rules")).toHaveCount(0);
     await expect(page.getByTestId("undo-pill")).toContainText("Removed");
     await page.getByTestId("undo-pill-undo").click();
     expect(rules(await harness.next("policy.updated"))).toEqual([
       expect.objectContaining({ match: "garden.note", made_by: demo().person.id }),
     ]);
-    await expect(list.locator("code")).toHaveText(["garden.note"]);
+    await expect(list.locator(".always-words b")).toHaveText(["garden.note"]);
 
     // Removed for good: the next one asks.
     await asking.getByRole("button", { name: "Remove garden.note" }).click();
@@ -164,7 +173,7 @@ test("an Always shows under Allowed always, switches off and on, and goes into d
 test("a command's Always remembers how each part starts, and lets through only commands made of them", async ({
   page,
 }) => {
-  const bramble = await registerSpecialist("Bramble");
+  const bramble = await registerSpecialist("Bramble", undefined, undefined, true);
   await pair(page);
   const harness = await Harness.connect(newRunId(), {
     token: bramble.token,
@@ -233,13 +242,9 @@ test("a command's Always remembers how each part starts, and lets through only c
     await run("node --check paths.js && cat paths.js");
     await expect(card(page).getByRole("button", { name: "Approve" })).toBeEnabled();
 
-    // Under Allowed always, each start is a row of its own, named in code.
-    await openAsking(page, "Bramble");
-    const list = askingOf(page, "Bramble").getByTestId("asking-always");
-    await expect(list.locator(".always-words > code:first-child")).toHaveText([
-      "node --check …",
-      "echo …",
-    ]);
+    // Under Chips answers, the starts one Always kept are one row (ADR 0299), named by them.
+    const list = (await openRules(page, "Bramble")).getByTestId("perms-rules");
+    await expect(list.locator(".always-words b")).toHaveText(["Run node --check and echo"]);
     await expect(list).toContainText(/In every space · by you, /);
   } finally {
     harness.close();

@@ -234,6 +234,57 @@ export const INSTALL_BUTTON = "Install";
 export const DOT_SWITCH = "Update dot";
 export const DOT_LABEL = "Update available. Opens About.";
 
+/**
+ * How the dot and About's update buttons move (ADR 0296, addendum of 17 November 2026), the same on
+ * the phone, the iPad, the Mac and the web. Tapped, the dot flies from where it stood to the first
+ * update button, x and y on different curves so its path bends, and that button grows out of it;
+ * each button under it grows a beat later; a light passes over each once; and from then on every
+ * update button glows on the dot's breath for as long as it shows. Curves are cubic Béziers.
+ */
+export const UPDATE_MOTION = {
+  /** One swell of the dot, and of a button's glow, and back. */
+  breatheMs: 3400,
+  /** The dot's flight to the first button. */
+  flyMs: 620,
+  flyX: [0.25, 0.75, 0.35, 1],
+  flyY: [0.6, 0, 0.35, 1],
+  /** How much the dot swells in flight, to meet the button it grows into. */
+  flyScale: 1.35,
+  /** How long the dot waits for the button to be laid out before it goes out where it stands. */
+  waitMs: 900,
+  /** A button growing out of the dot, from `seedScale`, a little past its size and back. */
+  growMs: 550,
+  grow: [0.34, 1.36, 0.64, 1],
+  seedScale: 0.18,
+  /** Between one button growing and the next. */
+  growBeatMs: 150,
+  /** From the dot landing to the first light, and between one button's light and the next's. */
+  sweepAtMs: 670,
+  sweepBeatMs: 170,
+  /** A light's pass over a button. */
+  sweepMs: 900,
+  /** From a button's light to its first glow. */
+  glowAfterMs: 450,
+  ease: [0.2, 0.8, 0.2, 1],
+} as const;
+
+/**
+ * When the button `order` places (0 for the first) grows, has its light pass and starts to glow,
+ * in milliseconds from the dot landing on the first.
+ */
+export function updateButtonTimes(order: number): {
+  readonly growAt: number;
+  readonly sweepAt: number;
+  readonly glowAt: number;
+} {
+  const sweepAt = UPDATE_MOTION.sweepAtMs + order * UPDATE_MOTION.sweepBeatMs;
+  return {
+    growAt: order * UPDATE_MOTION.growBeatMs,
+    sweepAt,
+    glowAt: sweepAt + UPDATE_MOTION.glowAfterMs,
+  };
+}
+
 /** The foot under the switch, with the dot on or off. `where` is "the top of the screen". */
 export function dotFoot(enabled: boolean, where: string): string {
   return enabled

@@ -8,7 +8,15 @@
  * that param was where it was kept, and land the same way as a row in the list.
  */
 
-import { listRuns, mayOpenSpace, myRole, type Store, serverHost, spaceList } from "@chipschat/core";
+import {
+  harnessOf,
+  listRuns,
+  mayOpenSpace,
+  myRole,
+  type Store,
+  serverHost,
+  spaceList,
+} from "@chipschat/core";
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useDeferredValue, useMemo } from "react";
 import { StyleSheet, View } from "react-native";
@@ -119,7 +127,14 @@ function Spaces({
               : back
           }
           onHistory={() => go({ space: shown, agent, history: "1" })}
-          onPermissions={() => go({ space: shown, agent, permissions: "card" })}
+          // Its harness's Permissions, since an agent has none of its own (ADR 0300).
+          onPermissions={() =>
+            router.push({
+              pathname: "/harnesses/[id]/[part]",
+              params: { id: harnessOf(snapshot.directory, agent), part: "asks" },
+            })
+          }
+          onWorking={() => go({ space: shown, agent, permissions: "card" })}
           onOpenRoom={(id) => (id === shown ? back() : open(id))}
           onOpenAgent={(other) => go({ space: shown, agent: other })}
           onOpenHarness={(harnessId) => router.push(`/harnesses/${harnessId}`)}

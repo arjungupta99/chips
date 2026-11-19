@@ -106,3 +106,4 @@ get approval cards. Send context usage and you get the context ring.
 | [`exchange.limits_set`](/reference/events/exchange-limits_set/) | An owner or an admin set when Chips tells the agents in any room to stop, when it holds their messages to each other, and whether agents going in circles are told to stop then (ADR 0187). Everyone's, in every room. |
 | [`workspace.renamed`](/reference/events/workspace-renamed/) | An owner named the workspace again. Every device connected changes its name at once; one that connects later is told by the hello. |
 | [`relay.set`](/reference/events/relay-set/) | An owner turned the server's relay off or on. Off, devices away from the server's own network cannot connect until they go direct; every device connected is told first. |
+| [`policy.workspace_updated`](/reference/events/policy-workspace_updated/) | An owner or an admin set the rules for every harness, or turned every harness's asks off for a while (ADR 0299). |

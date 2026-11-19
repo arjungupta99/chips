@@ -1,0 +1,28 @@
+{
+  "v": 1,
+  "type": "policy.workspace_updated",
+  "id": "evt_01K4ZQPX0000000000000000W1",
+  "ts": "2026-11-18T09:41:00.000Z",
+  "workspace_id": "ws_01K4ZQPX000000000000000001",
+  "actor": {
+    "kind": "person",
+    "id": "usr_01K4ZQPX000000000000000003"
+  },
+  "idempotency_key": "workspace-rules-1",
+  "rules": [
+    {
+      "match": "acp.bash",
+      "when": { "starts_with": ["rm"] },
+      "decision": "deny",
+      "made_by": "usr_01K4ZQPX000000000000000003",
+      "made_at": "2026-11-18T09:41:00.000Z"
+    }
+  ],
+  "hold": {
+    "until": "2026-11-18T10:41:00.000Z",
+    "by": "usr_01K4ZQPX000000000000000003",
+    "at": "2026-11-18T09:41:00.000Z"
+  },
+  "workspace_max_autonomy": 2,
+  "changed_by": "usr_01K4ZQPX000000000000000003"
+}

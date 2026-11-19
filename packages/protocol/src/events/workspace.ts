@@ -23,9 +23,12 @@ import { joinKind, joinStartedBy } from "../join.js";
 import {
   agentId,
   attachment,
+  autonomyLevel,
   id,
   isoTimestamp,
   PARTICIPANT_KINDS,
+  policyHold,
+  policyRule,
   workspaceRole,
 } from "../primitives.js";
 import { projectChangedPayload } from "../project.js";
@@ -1238,6 +1241,42 @@ export const exchangeLimitsSet = defineEvent({
 });
 
 /**
+ * The rules for every harness, and every harness's asks turned off for a while (ADR 0299). The
+ * policy engine reads the workspace's rules before any harness's own, so a Never here stops every
+ * harness; a hold here says yes for every harness after their own rules have spoken.
+ */
+export const policyWorkspaceUpdated = defineEvent({
+  type: "policy.workspace_updated",
+  direction: "workspace",
+  sender: "person",
+  summary:
+    "An owner or an admin set the rules for every harness, or turned every harness's asks off for a while (ADR 0299).",
+  requiresRun: false,
+  payload: z.object({
+    rules: z
+      .array(policyRule)
+      .max(200)
+      .describe(
+        "Read before any harness's own, in order. Each rule a person adds is kept with who made it and when.",
+      ),
+    hold: policyHold
+      .nullable()
+      .optional()
+      .describe(
+        "Every harness's asks turned off. `null` turns them back on; absent leaves it as it was.",
+      ),
+    workspace_max_autonomy: autonomyLevel.describe(
+      "The workspace cap as it stands, which this doesn't change. Filled in by Chips.",
+    ),
+    changed_by: z
+      .string()
+      .min(1)
+      .max(120)
+      .describe("Who changed them. Filled in by Chips from the credential that sent it."),
+  }),
+});
+
+/**
  * The workspace named again by an owner (ADR 0194). Its name is the registry's, as a person's is
  * (ADR 0018), so this is the change's line in the log: every device that is connected takes the
  * new name from it at once, as a device that connects later takes it from the hello (ADR 0193),
@@ -1324,4 +1363,5 @@ export const WORKSPACE_EVENTS = [
   exchangeLimitsSet,
   workspaceRenamed,
   relaySet,
+  policyWorkspaceUpdated,
 ] as const;

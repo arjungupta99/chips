@@ -16,6 +16,13 @@
  * column's top brings the rest down into sight. JavaScript hears which face is under the finger,
  * each time it changes, which is when the phone ticks (`haptics.ts`), and the pick.
  *
+ * A finger that lands anywhere else on the field and drags up out of it raises the same column
+ * (Arjun, 18 November 2026: "dragging up to outside on the text field bubble should also bring up
+ * the agent selector"). It waits for the finger to cross the bubble's top edge: inside it, a drag
+ * is the words' own, which scrolls a long draft, moves the caret or the ends of a selection, and a
+ * drag of theirs that has begun keeps the finger. Out past the edge it is the column's, and from
+ * there it goes as a slide up from the faces does. A finger that lands on the faces is theirs.
+ *
  * The column and the tag are the system's glass, so they grow out of the faces and shrink back
  * into them, and never fade: glass that comes into being under an opacity of nought is drawn
  * without its material (`LiftedMotion.tsx`). On the web target there is no column, but in the
@@ -34,7 +41,7 @@
 
 import type { Directory } from "@chipschat/core";
 import MaskedView from "@react-native-masked-view/masked-view";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector, type PanGesture } from "react-native-gesture-handler";
 import Animated, {
@@ -100,9 +107,17 @@ const DIM_OUT_MS = 200;
 /** Far enough past the field's row, every way, to cover the screen from it. */
 const EVERYWHERE = -4000;
 
-/** What drives the column: the pan on the faces, and where the finger is. */
+/** Which pan has the column up: neither, the one on the faces, or the one on the rest of the field. */
+const NONE = 0;
+const FACES = 1;
+const FIELD = 2;
+type Slider = typeof NONE | typeof FACES | typeof FIELD;
+
+/** What drives the column: the pans on the faces and on the field, and where the finger is. */
 export interface FaceSlide {
   readonly pan: PanGesture;
+  /** The drag up out of the rest of the field, which waits for the finger to leave it. */
+  readonly out: PanGesture;
   readonly anchor: AnimatedRef<View>;
   readonly shape: ColumnShape;
   /** The shape, for the UI thread. */
@@ -138,7 +153,7 @@ export function useFaceSlide({
   /** How tall the column may stand over the field (`listRoom`), once measured. */
   readonly room: number | undefined;
   readonly enabled: boolean;
-  /** A finger is down on the faces: the field may want to measure where it is. */
+  /** A finger is down on the faces or the field: the field may want to measure where it is. */
   readonly onTouch: () => void;
   /** The finger is over another choice, or none (-1). */
   readonly onLit: (index: number) => void;
@@ -157,7 +172,11 @@ export function useFaceSlide({
   const dimmed = useSharedValue(0);
   const foot = useSharedValue(0);
   const middle = useSharedValue(0);
-  const sliding = useSharedValue(false);
+  const sliding = useSharedValue<Slider>(NONE);
+  // A finger down on the faces is their pan's, so the field's lets it be.
+  const onFaces = useSharedValue(false);
+  // The field's top edge on the screen, measured as a finger lands on it: above it is out.
+  const edge = useSharedValue(Number.NEGATIVE_INFINITY);
   const atTop = useSharedValue(true);
   const [topped, setTopped] = useState(true);
   // The shape reaches the UI thread as a value, so a measure taken mid-slide does not make a new
@@ -178,7 +197,7 @@ export function useFaceSlide({
   };
   // Held at the column's top, the faces come down; the face under the finger changes as they do.
   const frame = useFrameCallback((info) => {
-    if (!sliding.value) return;
+    if (sliding.value === NONE) return;
     const now = form.value;
     const speed = scrollSpeed(up.value, across.value, now, lift.value);
     if (speed === 0) return;
@@ -190,10 +209,10 @@ export function useFaceSlide({
     }
     light(faceAt(up.value, across.value, now, lift.value));
   }, false);
-  // Made once for the faces: a new gesture would drop the one under the finger. `light` is made
+  // Made once for the field: a new gesture would drop the one under the finger. `light` is made
   // afresh each draw, but reads only the values here and the ref of what to tell.
   // biome-ignore lint/correctness/useExhaustiveDependencies: see above
-  const pan = useMemo(() => {
+  const [pan, out] = useMemo(() => {
     const touched = () => told.current.onTouch();
     const picked = (index: number) => told.current.onPick(index);
     const running = (on: boolean) => frame.setActive(on);
@@ -203,49 +222,89 @@ export function useFaceSlide({
       across.value = x - middle.value;
       light(faceAt(up.value, across.value, form.value, lift.value));
     };
-    return (
-      Gesture.Pan()
-        .enabled(enabled)
-        .activeOffsetY(-START)
-        .failOffsetY(START * 1.5)
-        .onBegin(() => {
-          scheduleOnRN(touched);
-        })
-        .onStart((event) => {
-          // Measured as it starts: the field may have grown, or the keys come, since the last slide.
-          const at = measured(anchor);
-          if (at === null) return;
-          foot.value = at.pageY + at.height;
-          middle.value = at.pageX + at.width / 2;
-          lift.value = 0;
-          const top = form.value.most <= 0;
-          atTop.value = top;
-          scheduleOnRN(setTopped, top);
-          sliding.value = true;
-          shown.value = still ? 1 : withSpring(1, UP);
-          // A dimming is a fade, which Reduce Motion keeps.
-          dimmed.value = withTiming(1, { duration: DIM_IN_MS, easing: Easing.out(Easing.cubic) });
-          scheduleOnRN(running, true);
-          follow(event.absoluteX, event.absoluteY);
-        })
-        .onUpdate((event) => {
-          if (sliding.value) follow(event.absoluteX, event.absoluteY);
-        })
-        .onEnd((_event, success) => {
-          if (success && sliding.value && lit.value >= 0) scheduleOnRN(picked, lit.value);
-        })
-        // A tap ends here too, never having slid: there is nothing of the column to put away.
-        .onFinalize(() => {
-          if (!sliding.value) return;
-          sliding.value = false;
-          shown.value = still
-            ? 0
-            : withTiming(0, { duration: DOWN_MS, easing: Easing.in(Easing.quad) });
-          dimmed.value = withTiming(0, { duration: DIM_OUT_MS, easing: Easing.out(Easing.cubic) });
-          scheduleOnRN(running, false);
-          light(-1);
-        })
-    );
+    // The column comes up for one pan, and only that pan moves it, picks from it and puts it away.
+    const rise = (by: Slider, x: number, y: number) => {
+      "worklet";
+      // Measured as it starts: the field may have grown, or the keys come, since the last slide.
+      const at = measured(anchor);
+      if (at === null) return;
+      foot.value = at.pageY + at.height;
+      middle.value = at.pageX + at.width / 2;
+      lift.value = 0;
+      const top = form.value.most <= 0;
+      atTop.value = top;
+      scheduleOnRN(setTopped, top);
+      sliding.value = by;
+      shown.value = still ? 1 : withSpring(1, UP);
+      // A dimming is a fade, which Reduce Motion keeps.
+      dimmed.value = withTiming(1, { duration: DIM_IN_MS, easing: Easing.out(Easing.cubic) });
+      scheduleOnRN(running, true);
+      follow(x, y);
+    };
+    const move = (by: Slider, x: number, y: number) => {
+      "worklet";
+      if (sliding.value === by) follow(x, y);
+    };
+    const letGo = (by: Slider, success: boolean) => {
+      "worklet";
+      if (success && sliding.value === by && lit.value >= 0) scheduleOnRN(picked, lit.value);
+    };
+    // A tap ends here too, never having slid: there is nothing of the column to put away.
+    const settle = (by: Slider) => {
+      "worklet";
+      if (sliding.value !== by) return;
+      sliding.value = NONE;
+      shown.value = still
+        ? 0
+        : withTiming(0, { duration: DOWN_MS, easing: Easing.in(Easing.quad) });
+      dimmed.value = withTiming(0, { duration: DIM_OUT_MS, easing: Easing.out(Easing.cubic) });
+      scheduleOnRN(running, false);
+      light(-1);
+    };
+    const faces = Gesture.Pan()
+      .enabled(enabled)
+      .activeOffsetY(-START)
+      .failOffsetY(START * 1.5)
+      .onBegin(() => {
+        onFaces.value = true;
+        scheduleOnRN(touched);
+      })
+      .onStart((event) => rise(FACES, event.absoluteX, event.absoluteY))
+      .onUpdate((event) => move(FACES, event.absoluteX, event.absoluteY))
+      .onEnd((_event, success) => letGo(FACES, success))
+      .onFinalize(() => {
+        onFaces.value = false;
+        settle(FACES);
+      });
+    // The rest of the field: the finger is the words' until it leaves the field's top, and only then
+    // the column's. Nothing of the column's is drawn before, and the words' own drags, which begin
+    // sooner, keep the finger. A finger that goes down first is not this, as on the faces.
+    const field = Gesture.Pan()
+      .enabled(enabled)
+      .manualActivation(true)
+      .failOffsetY(START * 1.5)
+      .onTouchesDown(() => {
+        // The column's foot stands its gap over the field's top, which is the glass's.
+        const at = measured(anchor);
+        edge.value = at === null ? Number.NEGATIVE_INFINITY : at.pageY + at.height + GAP;
+        scheduleOnRN(touched);
+      })
+      .onTouchesMove((event, manager) => {
+        if (onFaces.value) {
+          manager.fail();
+          return;
+        }
+        const finger = event.allTouches[0];
+        if (finger === undefined || finger.absoluteY >= edge.value) return;
+        // Asked once: the moves after it are the column's.
+        edge.value = Number.NEGATIVE_INFINITY;
+        manager.activate();
+      })
+      .onStart((event) => rise(FIELD, event.absoluteX, event.absoluteY))
+      .onUpdate((event) => move(FIELD, event.absoluteX, event.absoluteY))
+      .onEnd((_event, success) => letGo(FIELD, success))
+      .onFinalize(() => settle(FIELD));
+    return [faces, field] as const;
   }, [
     enabled,
     still,
@@ -259,11 +318,14 @@ export function useFaceSlide({
     foot,
     middle,
     sliding,
+    onFaces,
+    edge,
     atTop,
     frame,
   ]);
   return {
     pan,
+    out,
     anchor,
     shape,
     form,
@@ -301,8 +363,24 @@ export function FaceSlideOn({
 }
 
 /**
+ * The rest of the field, which a finger drags up out of to raise the column: its one child is the
+ * field's own view, which the pan goes on as it is. Not on the web target, film or not, where a drag
+ * in the words is the browser's and the faces are the way to the column.
+ */
+export function FieldSlideOn({
+  slide,
+  children,
+}: {
+  readonly slide: FaceSlide;
+  readonly children: ReactElement;
+}) {
+  if (Platform.OS === "web") return children;
+  return <GestureDetector gesture={slide.out}>{children}</GestureDetector>;
+}
+
+/**
  * The column, standing over the field with its middle over the first face, and the tag that names
- * the face under the finger. It takes no touches: the finger is the pan's, on the faces.
+ * the face under the finger. It takes no touches: the finger is a pan's, on the faces or the field.
  */
 export function FaceColumn({
   slide,

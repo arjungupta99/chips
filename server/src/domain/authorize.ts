@@ -427,6 +427,7 @@ function refuseByWorkspaceRole(
 const ADMINISTERED: Readonly<Record<string, string>> = {
   "role.changed": "only an owner or an admin changes a person's role",
   "policy.updated": "only an owner or an admin turns a harness's dial or lifts the workspace's cap",
+  "policy.workspace_updated": "only an owner or an admin sets the rules for every harness",
   "attachment.limits_set": "only an owner or an admin caps what may be attached",
   "exchange.limits_set":
     "only an owner or an admin sets when Chips tells the agents to stop and holds them",

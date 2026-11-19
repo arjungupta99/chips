@@ -48,6 +48,8 @@ Every event also carries the [envelope](/reference/envelope/).
 | `policy.rules[].off` | no | `boolean` | Turned off by a person (ADR 0195): kept in the list to turn back on, and skipped by the policy engine until then. |
 | `policy.rules[].made_by` | no | `string` | Who made it by answering an ask with Always (ADR 0195). Filled in by Chips. |
 | `policy.rules[].made_at` | no | `string` | When a person's answer made it (ADR 0195): Always, or This session. Filled in by Chips. A rule a person's answer made never allows an action that matters. |
+| `policy.hold` | no | object | Its asks turned off (ADR 0299), for every space: kept only with no `space_id`. `null` turns them back on; absent leaves it as it was. |
+| `policy.chips_rules` | no | `boolean` | Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one. |
 | `workspace_max_autonomy` | yes | `0 \| 1 \| 2 \| 3` | The workspace cap. It always wins. |
 | `budget_usd` | no | `number` | The harness's spending ceiling, in US dollars. Absent leaves it as it was; the harness's spend is what `usage` has added up. |
 | `changed_by` | yes | `string` | Who changed it, or `system` for an earned promotion. Filled in by Chips from the credential that sent it. |

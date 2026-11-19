@@ -29,6 +29,7 @@ import {
   usePushResponses,
   usePushSetup,
 } from "../src/push/usePush";
+import { loadDesktopSeen } from "../src/spaces/desktopSeen";
 import { loadPicks } from "../src/spaces/picks";
 import { loadUniverseSeen } from "../src/spaces/universeSeen";
 import { beginReadingHeld, ChipsProvider, useChips } from "../src/store/provider";
@@ -82,6 +83,7 @@ export default function RootLayout() {
       loadRemembered(),
       loadPicks(),
       loadUniverseSeen(),
+      loadDesktopSeen(),
     ]).finally(() => setDressed(true));
   }, []);
   // Laid out: the picture goes when the store is ready (`Curtain`), and at the latest this long

@@ -12,7 +12,7 @@ import { frozenProject } from "./project.js";
 import { askHeadline, mayAnswer } from "./readers.js";
 import { contextPercentOf, freezeRun } from "./runs.js";
 import { freezeSessions } from "./sessions.js";
-import { type Building, isGlimpse, type MutableRun, type MutableSpace } from "./state.js";
+import { type Building, isGlimpse, type MutableRun, type MutableSpace, TERMINAL } from "./state.js";
 import type {
   FleetHarness,
   HarnessConnection,
@@ -46,6 +46,7 @@ export function freeze(state: Building): WorkspaceModel {
     needsYou,
     lanes,
     harnesses: buildHarnesses(state),
+    workspaceRules: state.workspaceRules,
     connections: buildConnections(state),
     audit: state.frozenAudit,
     people: Object.fromEntries(state.people),
@@ -126,10 +127,17 @@ export function buildFleet(
   });
 }
 
+/**
+ * Each harness's latest run, the one touched last. A run that is over in an archived room is left
+ * out: its room is off the list, so the harness doesn't go on saying Failed for a room nobody can
+ * see (Arjun, 18 November 2026, of OpenCode's tile after the rooms its runs failed in were
+ * archived). A run still going in one is still work, and is still shown.
+ */
 export function latestRuns(state: Building): Map<string, MutableRun> {
   const latest = new Map<string, MutableRun>();
   for (const run of state.runs.values()) {
     if (run.harness === "") continue;
+    if (TERMINAL.includes(run.state) && state.spaces.get(run.spaceId)?.state === "closed") continue;
     const shown = latest.get(run.harness);
     if (shown === undefined || run.lastSeq > shown.lastSeq) latest.set(run.harness, run);
   }

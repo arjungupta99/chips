@@ -18,6 +18,31 @@ afterEach(async () => {
 });
 
 describe("POST /v1/dev/harnesses", () => {
+  it("starts a harness with its Chips's rules on when asked, for a test of them (ADR 0300)", async () => {
+    const add = async (asked: Record<string, unknown>) => {
+      const response = await ws.gateway.app.fetch(
+        new Request(`${BASE}/v1/dev/harnesses`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(asked),
+        }),
+      );
+      const body = (await response.json()) as { harnesses: Record<string, string>[] };
+      expect(response.status, JSON.stringify(body)).toBe(201);
+      return String(body.harnesses[0]?.["harness_id"]);
+    };
+    const on = await ws.gateway.deps.readModels.chipsRules(
+      ws.workspaceId,
+      await add({ chips_rules: true, owner_id: ws.arjun.participantId }),
+    );
+    expect(on.set).toBe(true);
+    const off = await ws.gateway.deps.readModels.chipsRules(
+      ws.workspaceId,
+      await add({ owner_id: ws.arjun.participantId }),
+    );
+    expect(off.set).toBeUndefined();
+  });
+
   it("adds the harnesses asked for, with tokens that speak and seats in the room", async () => {
     const response = await ws.gateway.app.fetch(
       new Request(`${BASE}/v1/dev/harnesses`, {

@@ -3,7 +3,7 @@
 Date: 23 October 2026
 Status: Accepted, 23 October 2026: Arjun's pick of the mock's way C ("Go with C"), then "proceed
 with the full implementation of all remaining phases sequentially and fine to push as well". The
-plan is [agents-share-a-project-plan.md](../proposals/agents-share-a-project-plan.md), Phase 5,
+plan is agents-share-a-project-plan.md, Phase 5,
 "What people see". The project is [ADR 0220](0220-a-rooms-project-is-a-git-repository-chips-holds.md),
 the agents' copies [ADR 0221](0221-an-agent-works-on-the-rooms-project-in-a-copy-of-its-own-and-its-bridge-does-the-git.md).
 

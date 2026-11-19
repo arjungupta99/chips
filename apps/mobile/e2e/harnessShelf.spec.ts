@@ -24,9 +24,10 @@ test("the harnesses stand on a shelf over the agents, and View all lists their c
   const id = await harnessId(scout);
   await scout.click();
   await expect(page.getByTestId("harness-asks-row")).toBeVisible();
-  // When it asks you is a page of its own (ADR 0254), with the dial for a harness that takes one.
+  // Its Permissions is a page of its own (ADR 0254, ADR 0300): where it's set, its own settings
+  // and Chips's rules.
   await page.getByTestId("harness-asks-row").click();
-  await expect(page.getByText("How far it is trusted")).toBeVisible();
+  await expect(page.getByTestId("perms-chips-row")).toBeVisible();
   await page.goBack();
   await page.goBack();
 

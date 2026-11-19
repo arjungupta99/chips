@@ -2,7 +2,7 @@
 
 Date: 23 October 2026
 Status: Accepted, 23 October 2026, on Arjun's word: "Push go live, start phase 2". The plan is
-[agents-share-a-project-plan.md](../proposals/agents-share-a-project-plan.md), Phase 2. The project
+agents-share-a-project-plan.md, Phase 2. The project
 itself is [ADR 0220](0220-a-rooms-project-is-a-git-repository-chips-holds.md).
 
 ## Context

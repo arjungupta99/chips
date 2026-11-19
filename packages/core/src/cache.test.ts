@@ -3,10 +3,10 @@ import { cacheKey, earlierCacheKeys } from "./cache.js";
 
 describe("what a device's cache is kept under (SEC-8)", () => {
   it("is the workspace and the server's host, so a server claiming the workspace id gets nothing", () => {
-    expect(cacheKey({ workspaceId: "ws_1", serverUrl: "http://192.168.1.20:4431" })).toBe(
+    expect(cacheKey({ workspaceId: "ws_1", serverUrl: "http://192.168.1.20:4431" }, 1)).toBe(
       "ws_1@192.168.1.20:4431",
     );
-    expect(cacheKey({ workspaceId: "ws_1", serverUrl: "https://Chips.Example/" })).toBe(
+    expect(cacheKey({ workspaceId: "ws_1", serverUrl: "https://Chips.Example/" }, 1)).toBe(
       "ws_1@chips.example",
     );
     expect(cacheKey({ workspaceId: "ws_1", serverUrl: "http://attacker:4431" })).not.toBe(
@@ -16,9 +16,12 @@ describe("what a device's cache is kept under (SEC-8)", () => {
 
   it("is kept apart by what the app understands past level 1, and the earlier ones named to forget", () => {
     const device = { workspaceId: "ws_1", serverUrl: "http://192.168.1.20:4431" };
-    // Level 1, this release's, keeps the key every cache already has.
-    expect(cacheKey(device)).toBe("ws_1@192.168.1.20:4431");
-    expect(earlierCacheKeys(device)).toEqual([]);
+    // Level 1 keeps the key every cache already had.
+    expect(cacheKey(device, 1)).toBe("ws_1@192.168.1.20:4431");
+    expect(earlierCacheKeys(device, 1)).toEqual([]);
+    // Level 2, this release's (ADR 0299's rules for every harness), reads every room again.
+    expect(cacheKey(device)).toBe("ws_1@192.168.1.20:4431~L2");
+    expect(earlierCacheKeys(device)).toEqual(["ws_1@192.168.1.20:4431"]);
     expect(cacheKey(device, 3)).toBe("ws_1@192.168.1.20:4431~L3");
     expect(earlierCacheKeys(device, 3)).toEqual([
       "ws_1@192.168.1.20:4431",
@@ -27,7 +30,7 @@ describe("what a device's cache is kept under (SEC-8)", () => {
   });
 
   it("is the workspace alone for a device with no server address, whose origin is the page's", () => {
-    expect(cacheKey({ workspaceId: "ws_1" })).toBe("ws_1");
-    expect(cacheKey({ workspaceId: "ws_1", serverUrl: "" })).toBe("ws_1");
+    expect(cacheKey({ workspaceId: "ws_1" }, 1)).toBe("ws_1");
+    expect(cacheKey({ workspaceId: "ws_1", serverUrl: "" }, 1)).toBe("ws_1");
   });
 });

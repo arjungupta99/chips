@@ -1097,6 +1097,19 @@ export interface Hello {
       /** When a person's answer made it (ADR 0195): Always, or This session. Filled in by Chips. A rule a person's answer made never allows an action that matters. */
       made_at?: string;
     }[];
+    /** Its asks turned off (ADR 0299), for every space: kept only with no `space_id`. `null` turns them back on; absent leaves it as it was. */
+    hold?: {
+      /** When its asks come back. Absent: when a person turns them back on. */
+      until?: string;
+      /** Whether the yes covers asks that matter too: money, a message outside the workspace, anything that can't be undone. Absent or false, those still wait for a person. */
+      matters?: boolean;
+      /** Who turned its asks off. Filled in by Chips from the credential that sent it. */
+      by?: string;
+      /** When they were turned off. Filled in by Chips. */
+      at?: string;
+    } | null;
+    /** Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one. */
+    chips_rules?: boolean;
   };
   /** The ceiling, and what has been spent. */
   budget?: {
@@ -1871,6 +1884,8 @@ export interface ApprovalResolved {
   decision: "approved" | "edited" | "denied" | "expired";
   /** How far the answer reaches. `always` becomes a policy rule. */
   scope?: "once" | "session" | "always";
+  /** With `always`: the harness keeps it as its own always, since its Chips's rules are off (ADR 0300), and Chips writes no rule. Filled in by Chips. */
+  keeps?: "harness";
   /** With `always`: the rule is the harness's in every space, not only this one (ADR 0239). An owner or an admin only. */
   everywhere?: boolean;
   /** With `once` and a yes: for this many minutes, everything the asking agent asks in this space goes ahead without a card (ADR 0239, addendum of 6 November 2026; ADR 0281), commands Chips can't read too. An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once. */
@@ -2146,6 +2161,19 @@ export interface PolicyUpdated {
       /** When a person's answer made it (ADR 0195): Always, or This session. Filled in by Chips. A rule a person's answer made never allows an action that matters. */
       made_at?: string;
     }[];
+    /** Its asks turned off (ADR 0299), for every space: kept only with no `space_id`. `null` turns them back on; absent leaves it as it was. */
+    hold?: {
+      /** When its asks come back. Absent: when a person turns them back on. */
+      until?: string;
+      /** Whether the yes covers asks that matter too: money, a message outside the workspace, anything that can't be undone. Absent or false, those still wait for a person. */
+      matters?: boolean;
+      /** Who turned its asks off. Filled in by Chips from the credential that sent it. */
+      by?: string;
+      /** When they were turned off. Filled in by Chips. */
+      at?: string;
+    } | null;
+    /** Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one. */
+    chips_rules?: boolean;
   };
   /** The workspace cap. It always wins. */
   workspace_max_autonomy: 0 | 1 | 2 | 3;
@@ -4298,6 +4326,77 @@ export interface RelaySet {
   };
   /** Whether the server dials its relay from now. */
   on: boolean;
+}
+
+/** `policy.workspace_updated` — An owner or an admin set the rules for every harness, or turned every harness's asks off for a while (ADR 0299). */
+export interface PolicyWorkspaceUpdated {
+  /** Protocol major version. */
+  v: 1;
+  type: "policy.workspace_updated";
+  /** The event's own id. Stable across a retry of the same event. */
+  id: string;
+  /** When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced. */
+  ts: string;
+  /** A workspace identifier: `ws_` followed by a ULID. */
+  workspace_id: string;
+  /** The space, when the event belongs to one. */
+  space_id?: string;
+  /** The run, when the event belongs to one. */
+  run_id?: string;
+  /** Assigned by the server on append, monotonic per workspace. Absent on the way in. */
+  seq?: number;
+  /** Required on every client-originated write. Sending the same key twice is a no-op. */
+  idempotency_key?: string;
+  /** The participant an event is attributed to. */
+  actor: {
+    /** Whether a person, a harness, one of a harness's agents or Chips itself acted. */
+    kind: "person" | "harness" | "agent" | "system";
+    /** The participant id, or `system` for Chips. */
+    id: string;
+    /** For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips. */
+    harness_id?: string;
+  };
+  /** Read before any harness's own, in order. Each rule a person adds is kept with who made it and when. */
+  rules: {
+    /** A glob over action kinds, for example `payment.*`. */
+    match: string;
+    /** Extra conditions on the action's flags, and for a command, how its parts start. */
+    when?: {
+      external?: boolean;
+      irreversible?: boolean;
+      money_usd_over?: number;
+      risk?: "external" | "external_communication" | "irreversible" | "destructive" | "financial" | "credential" | "privacy" | "legal"[];
+      /** For an action that carries a command (ADR 0239): the words a part of it starts with. A command goes ahead on such rules only when every part starts with one that allows it. */
+      starts_with?: string[];
+    };
+    /** What to do when the rule matches. */
+    decision: "allow" | "ask" | "deny";
+    /** Who may answer, when the decision is `ask`. */
+    approvers?: string[];
+    /** Shown to the harness, and recorded in the audit log. */
+    reason?: string;
+    /** Turned off by a person (ADR 0195): kept in the list to turn back on, and skipped by the policy engine until then. */
+    off?: boolean;
+    /** Who made it by answering an ask with Always (ADR 0195). Filled in by Chips. */
+    made_by?: string;
+    /** When a person's answer made it (ADR 0195): Always, or This session. Filled in by Chips. A rule a person's answer made never allows an action that matters. */
+    made_at?: string;
+  }[];
+  /** Every harness's asks turned off. `null` turns them back on; absent leaves it as it was. */
+  hold?: {
+    /** When its asks come back. Absent: when a person turns them back on. */
+    until?: string;
+    /** Whether the yes covers asks that matter too: money, a message outside the workspace, anything that can't be undone. Absent or false, those still wait for a person. */
+    matters?: boolean;
+    /** Who turned its asks off. Filled in by Chips from the credential that sent it. */
+    by?: string;
+    /** When they were turned off. Filled in by Chips. */
+    at?: string;
+  } | null;
+  /** The workspace cap as it stands, which this doesn't change. Filled in by Chips. */
+  workspace_max_autonomy: 0 | 1 | 2 | 3;
+  /** Who changed them. Filled in by Chips from the credential that sent it. */
+  changed_by: string;
 }
 
 /** Any event a harness sends to Chips. */

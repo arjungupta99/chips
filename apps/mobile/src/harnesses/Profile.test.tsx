@@ -22,6 +22,7 @@ import { fakeStore } from "../testing/fixtures";
 import { Split } from "../ui/Split";
 import { UpdatesProvider } from "../updates/updates";
 import { Profile } from "./Profile";
+import { Part } from "./parts/Part";
 import { WhenItAsks } from "./parts/WhenItAsks";
 import { harnessRuns } from "./words";
 
@@ -138,6 +139,7 @@ function asksView(over: Parameters<typeof state>[0] = {}) {
           harnessId="har_scout"
           selfId="per_arjun"
           onOpenAsks={openAsks}
+          onOpenPart={() => undefined}
         />
       </SafeAreaProvider>
     ),
@@ -182,60 +184,6 @@ describe("a harness's profile", () => {
     expect(screen.queryByText(/I need to check the images/)).toBeNull();
   });
 
-  it("turns the dial, keeping the rules it already had", async () => {
-    const { store, element } = asksView();
-    await render(element);
-    await userEvent.press(screen.getByRole("radio", { name: "L2, Ask when it matters" }));
-    expect(store.calls).toContainEqual({
-      name: "setAutonomy",
-      args: {
-        harnessId: "har_scout",
-        level: 2,
-        rules: [{ match: "email.send", decision: "ask", approvers: ["owner"] }],
-      },
-    });
-  });
-
-  it("shows the level to a member, who cannot turn it (SEC-1)", async () => {
-    // The server refuses a member's `policy.updated`: the dial says so by not moving.
-    const { store, element } = asksView({ role: "member" });
-    await render(element);
-    const level = screen.getByRole("radio", { name: "L2, Ask when it matters" });
-    expect(level.props["accessibilityState"]).toMatchObject({ checked: false, disabled: true });
-    fireEvent.press(level);
-    expect(store.calls.filter((each) => each.name === "setAutonomy")).toEqual([]);
-    // The level in force, and the rules, are still read; a rule's switch is drawn and still, and
-    // its row offers no Remove (ADR 0195).
-    expect(
-      screen.getByRole("radio", { name: "L1, Ask first" }).props["accessibilityState"],
-    ).toMatchObject({ checked: true });
-    expect(screen.getByText("email.send")).toBeTruthy();
-    expect(screen.getByTestId("always-switch-har_scout:*:0").props["disabled"]).toBe(true);
-    expect(screen.getByTestId("always-row-har_scout:*:0").props["accessibilityActions"]).toEqual(
-      [],
-    );
-  });
-
-  it("turns for an admin as for an owner (SEC-1)", async () => {
-    const { store, element } = asksView({ role: "admin" });
-    await render(element);
-    await userEvent.press(screen.getByRole("radio", { name: "L2, Ask when it matters" }));
-    expect(store.calls.filter((each) => each.name === "setAutonomy")).toHaveLength(1);
-  });
-
-  it("shows the workspace's ceiling and will not go past it", async () => {
-    const { store, element } = asksView();
-    await render(element);
-    await userEvent.press(screen.getByRole("radio", { name: "L3, Autonomous, report back" }));
-    expect(store.calls.filter((each) => each.name === "setAutonomy")).toEqual([]);
-  });
-
-  it("lists what its policy says under Allowed always, in words", async () => {
-    await render(asksView().element);
-    expect(screen.getByText("email.send")).toBeTruthy();
-    expect(screen.getByText("Asks always · In every space · from its policy")).toBeTruthy();
-  });
-
   it("shows the budget and what has gone of it", async () => {
     await render(view().element);
     expect(screen.getByLabelText("Budget: $4.10 of $20.00")).toBeTruthy();
@@ -252,12 +200,6 @@ describe("a harness's profile", () => {
     expect(screen.queryByText("What it may do")).toBeNull();
     expect(screen.getByLabelText("Budget: $4.10 of $20.00")).toBeTruthy();
     expect(screen.getByTestId("harness-runs-row")).toBeTruthy();
-  });
-
-  it("says there is no policy yet rather than showing an empty dial", async () => {
-    await render(asksView({ policy: null }).element);
-    expect(screen.getByText(/No policy yet/)).toBeTruthy();
-    expect(screen.queryByRole("radio", { name: "L1, Ask first" })).toBeNull();
   });
 
   it("pauses a run that is going, and resumes one that is held", async () => {
@@ -765,7 +707,7 @@ describe("its Model row (ADR 0154)", () => {
   });
 });
 
-describe("When it asks you (ADR 0195)", () => {
+describe("its Permissions (ADR 0299; When it asks you, ADR 0195)", () => {
   const IPHONE = {
     frame: { x: 0, y: 0, width: 393, height: 852 },
     insets: { top: 59, left: 0, right: 0, bottom: 34 },
@@ -856,7 +798,8 @@ describe("When it asks you (ADR 0195)", () => {
     } as unknown as Snapshot;
   }
 
-  async function open(snapshot: Snapshot) {
+  // The main page and its Chips's rules page, drawn together (ADR 0300).
+  async function open(snapshot: Snapshot, onOpenPart: (part: string) => void = () => undefined) {
     const store = fakeStore(snapshot);
     await render(
       <SafeAreaProvider initialMetrics={IPHONE}>
@@ -866,6 +809,16 @@ describe("When it asks you (ADR 0195)", () => {
           harnessId="har_scout"
           selfId="per_arjun"
           onOpenAsks={openAsks}
+          onOpenPart={onOpenPart}
+        />
+        <Part
+          part="chips"
+          store={store}
+          snapshot={snapshot}
+          harnessId="har_scout"
+          selfId="per_arjun"
+          focus={0}
+          onOpenPart={onOpenPart}
         />
       </SafeAreaProvider>,
     );
@@ -884,9 +837,9 @@ describe("When it asks you (ADR 0195)", () => {
         />
       </SafeAreaProvider>,
     );
-    expect(screen.queryByTestId("asking")).toBeNull();
+    expect(screen.queryByTestId("permissions")).toBeNull();
     const row = screen.getByTestId("harness-asks-row");
-    expect(row).toHaveProp("accessibilityLabel", "When it asks you, 1 allowed always");
+    expect(row).toHaveProp("accessibilityLabel", "Permissions, 1 on");
     await userEvent.press(row);
     expect(pushed).toContainEqual({
       pathname: "/harnesses/[id]/[part]",
@@ -929,39 +882,66 @@ describe("When it asks you (ADR 0195)", () => {
     expect(screen.queryByTestId("harness-banners-row")).toBeNull();
   });
 
-  it("says who decides when and who decides the answer, and the three promises", async () => {
-    await open(asking());
-    const section = screen.getByTestId("asking");
-    expect(within(section).getByTestId("asking-hero")).toBeTruthy();
-    expect(screen.getByTestId("asking-headline")).toHaveTextContent(
-      "Scout decides when to ask. You decide the answer.",
+  it("says who decides, one gate while its Chips's rules are off (ADR 0300)", async () => {
+    await open(asking({ rules: [] }));
+    const page = screen.getByTestId("permissions");
+    expect(within(page).getByTestId("asking-hero")).toBeTruthy();
+    expect(screen.getByTestId("perms-headline")).toHaveTextContent(
+      "Scout decides what to ask. Chips brings every ask to you.",
     );
-    expect(screen.getByTestId("asking-sub")).toHaveTextContent(/Its asks come to you/);
-    expect(
-      within(screen.getByTestId("asking-promise-big")).getByText("The big ones wait for you"),
-    ).toBeTruthy();
-    expect(screen.getByTestId("asking-promise-window")).toBeTruthy();
-    expect(screen.getByTestId("asking-promise-silence")).toBeTruthy();
+    expect(screen.getByTestId("perms-settings-row")).toHaveTextContent(
+      /Doesn't say yet what it runs on its own/,
+    );
+    expect(screen.queryByTestId("perms-open")).toBeNull();
   });
 
-  it("lists what was allowed always, newest first, with who, where and when", async () => {
+  it("switches Chips's rules off, and Stop asking says yes for a length with Ask again (ADR 0300)", async () => {
+    const store = await open(asking());
+    await userEvent.press(screen.getByTestId("perms-stop"));
+    await userEvent.press(screen.getByTestId("perms-stop-len-8h"));
+    const sent = store.calls.find((each) => each.name === "snoozeHarness");
+    expect(sent?.args).toMatchObject({ harnessId: "har_scout", snooze: { matters: false } });
+    await fireEvent(screen.getByTestId("perms-switch"), "valueChange", false);
+    expect(store.calls).toContainEqual({
+      name: "setChipsRules",
+      args: { harnessId: "har_scout", on: false },
+    });
+  });
+
+  it("opens New rule from Add a rule on Chips's rules (ADR 0299, 0300)", async () => {
+    const opened = jest.fn();
+    await open(asking(), opened);
+    await userEvent.press(screen.getByTestId("perms-add-rule"));
+    expect(opened).toHaveBeenCalledWith("rule");
+  });
+
+  it("opens its settings and Chips's rules from the main page's rows (ADR 0300)", async () => {
+    const opened = jest.fn();
+    await open(asking(), opened);
+    await userEvent.press(screen.getByTestId("perms-settings-row"));
+    await userEvent.press(screen.getByTestId("perms-chips-row"));
+    expect(opened.mock.calls).toEqual([["settings"], ["chips"]]);
+  });
+
+  it("lists what Chips answers, newest first, each with its answer, where, who and when", async () => {
     await open(asking({ room: [EMAIL] }));
-    const list = screen.getByTestId("asking-always");
-    const kinds = within(list)
-      .getAllByText(/^(shell\.exec|email\.draft)$/)
+    const list = screen.getByTestId("perms-rules");
+    const titles = within(list)
+      .getAllByText(/^(Any command|Draft email)$/)
       .map((each) => each.props["children"]);
-    expect(kinds).toEqual(["email.draft", "shell.exec"]);
+    expect(titles).toEqual(["Draft email", "Any command"]);
     expect(within(list).getByText(/^In Bakery · by you, 14 October/)).toBeTruthy();
     expect(within(list).getByText(/^In every space · by you, 12 October/)).toBeTruthy();
+    expect(screen.getByTestId("always-tag-har_scout:*:0")).toHaveTextContent("Allow");
     expect(screen.getByTestId("asking-count")).toHaveTextContent("2 on");
-    expect(screen.getByTestId("asking-always-foot")).toBeTruthy();
+    expect(screen.getByTestId("perms-rules-foot")).toHaveTextContent(/Swipe one to remove it/);
   });
 
-  it("says nothing is allowed always when nothing is", async () => {
+  it("says Chips's rules are off for a harness with none, and what turning them on does (ADR 0300)", async () => {
     await open(asking({ rules: [] }));
-    expect(screen.getByTestId("asking-always-empty")).toHaveTextContent(/Nothing yet/);
-    expect(screen.queryByTestId("asking-count")).toBeNull();
-    expect(screen.queryByTestId("asking-always-foot")).toBeNull();
+    expect(screen.queryByTestId("perms-rules")).toBeNull();
+    expect(screen.queryByTestId("perms-add-rule")).toBeNull();
+    expect(screen.getByTestId("perms-off-foot")).toHaveTextContent(/^Turn them on/);
   });
 
   it("switches a rule off, keeping it in the list, and the switch stays where the thumb put it", async () => {
@@ -984,7 +964,7 @@ describe("When it asks you (ADR 0195)", () => {
     expect(store.calls.filter((each) => each.name === "setRules")).toEqual([
       { name: "setRules", args: { harnessId: "har_scout", rules: [SHELL] } },
     ]);
-    expect(screen.queryByText("email.draft")).toBeNull();
+    expect(screen.queryByText("Draft email")).toBeNull();
     expect(screen.getByTestId("undo-pill")).toHaveTextContent(/Removed/);
 
     await userEvent.press(screen.getByTestId("undo-pill-undo"));
@@ -992,7 +972,7 @@ describe("When it asks you (ADR 0195)", () => {
       name: "setRules",
       args: { harnessId: "har_scout", rules: [SHELL, EMAIL] },
     });
-    expect(screen.getByText("email.draft")).toBeTruthy();
+    expect(screen.getByText("Draft email")).toBeTruthy();
     expect(screen.queryByTestId("undo-pill")).toBeNull();
   });
 

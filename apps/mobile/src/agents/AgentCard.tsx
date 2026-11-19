@@ -53,14 +53,19 @@ import {
   type AgentStay,
   agentCard,
   belongsTo,
+  chipsRulesOnFor,
+  harnessOf,
+  nameOf,
   PERMISSIONS_TITLE,
   permissionsRow,
+  permissionsRowWords,
   type Snapshot,
   type Store,
   stayFact,
+  WORKING_ROW_TITLE,
 } from "@chipschat/core";
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { ContextGroup, type ContextOpeners } from "../context/ContextGroup";
 import { faceWords } from "../spaces/faceWords";
 import type { RowAct } from "../spaces/SwipeRow";
@@ -72,7 +77,6 @@ import * as feel from "../ui/haptics";
 import { LockRow } from "../ui/LockRow";
 import { NameInPlace } from "../ui/NameInPlace";
 import { useColumn } from "../ui/Screen";
-import { usePalette } from "../ui/theme";
 import { AVATAR_HUES, SPACE, TEXT } from "../ui/tokens";
 import { NotFound } from "./Arriving";
 import { FaceSheet } from "./FaceSheet";
@@ -91,6 +95,7 @@ export function AgentCard({
   selfId,
   onHistory,
   onPermissions,
+  onWorking,
   onOpenRoom,
   onOpenAgent,
   onDeleted,
@@ -109,8 +114,10 @@ export function AgentCard({
    */
   readonly context?: (ContextOpeners & { readonly focus: number }) | undefined;
   readonly onHistory: () => void;
-  /** Opens its Permissions page (ADR 0286). */
+  /** Opens its harness's Permissions, since an agent has none of its own (ADR 0300). */
   readonly onPermissions: () => void;
+  /** Opens its own page while it works without asking: Stop and the banner (ADR 0286). */
+  readonly onWorking?: (() => void) | undefined;
   readonly onOpenRoom: (spaceId: string) => void;
   /** Opens another agent's card: the one a copy was forked from. */
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
@@ -208,7 +215,12 @@ export function AgentCard({
             onOpenRoom={onOpenRoom}
             onOpenAgent={onOpenAgent}
           />
-          <PermissionsGroup snapshot={snapshot} agentId={agentId} onPress={onPermissions} />
+          <PermissionsGroup
+            snapshot={snapshot}
+            agentId={agentId}
+            onPress={onPermissions}
+            onWorking={onWorking}
+          />
           <LockGroup
             card={card}
             glow={lockGlow}
@@ -303,36 +315,46 @@ function PermissionsGroup({
   snapshot,
   agentId,
   onPress,
+  onWorking,
 }: {
   readonly snapshot: Snapshot;
   readonly agentId: string;
   readonly onPress: () => void;
+  readonly onWorking: (() => void) | undefined;
 }) {
-  const palette = usePalette();
-  const row = permissionsRow(snapshot, agentId);
+  // Its harness's, since an agent has none of its own (ADR 0300).
+  const harnessId = harnessOf(snapshot.directory, agentId);
+  const name = nameOf(snapshot.directory, harnessId);
+  const sub = chipsRulesOnFor(snapshot.model, harnessId)
+    ? `${name}'s own, then Chips's rules`
+    : `${name}'s own, for all its agents`;
+  const row = permissionsRowWords(snapshot.model, snapshot.directory, harnessId, undefined);
+  // While a yes from an ask's card lets it work, its own page has Stop and the banner.
+  const working = permissionsRow(snapshot, agentId);
   return (
     <>
       <GroupHeading>{PERMISSIONS_TITLE}</GroupHeading>
       <Group inset={MARKED_INSET}>
         <GroupRow
           label={PERMISSIONS_TITLE}
-          sub={row.sub}
+          sub={sub}
           mark={<RowMark icon="unlock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
-          accessibilityLabel={`${PERMISSIONS_TITLE}, ${row.value}${row.sub === undefined ? "" : `, ${row.sub}`}`}
-          {...(row.working ? {} : { value: row.value })}
-          trailing={
-            row.working ? (
-              <View style={styles.notAsking}>
-                <View style={[styles.notAskingDot, { backgroundColor: palette.gold }]} />
-                <Text style={[styles.notAskingWords, { color: palette.goldDeep }]}>
-                  {row.value}
-                </Text>
-              </View>
-            ) : undefined
-          }
+          accessibilityLabel={`${PERMISSIONS_TITLE}, ${row.value}, ${sub}`}
+          value={row.value}
           onPress={onPress}
           testID="agent-permissions"
         />
+        {working.working && onWorking !== undefined && (
+          <GroupRow
+            label={WORKING_ROW_TITLE}
+            sub={working.sub}
+            mark={<RowMark icon="clock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
+            accessibilityLabel={`${WORKING_ROW_TITLE}, ${working.value}`}
+            value={working.value}
+            onPress={onWorking}
+            testID="agent-working"
+          />
+        )}
       </Group>
     </>
   );

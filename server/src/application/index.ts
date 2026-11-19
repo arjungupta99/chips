@@ -285,6 +285,13 @@ export type {
   OpenSpaceInput,
 } from "./use-cases/open-space.js";
 export { createOpenSpace } from "./use-cases/open-space.js";
+export type {
+  OwnRulesDeps,
+  OwnRulesRefusal,
+  PutOwnRules,
+  ReadOwnRules,
+} from "./use-cases/own-rules.js";
+export { createPutOwnRules, createReadOwnRules } from "./use-cases/own-rules.js";
 export type { PageTicket, PageTickets, PageTicketsDeps } from "./use-cases/page-tickets.js";
 export {
   createPageTickets,

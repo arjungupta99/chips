@@ -261,6 +261,7 @@ function fake(
       attachmentCaps: over.caps ?? { image: null, video: null, file: null },
       exchangeLimits: over.limits ?? { stop: 16, hold: 48, circles: true },
       takenOut: {},
+      workspaceRules: { rules: [] },
       ...(over.relay === undefined ? {} : { relay: over.relay }),
     },
   };
@@ -275,6 +276,11 @@ function fake(
     setExchangeLimits: (limits: unknown) => calls.push({ name: "setExchangeLimits", args: limits }),
     setRules: (input: unknown) => calls.push({ name: "setRules", args: input }),
     stopLetWork: (input: unknown) => calls.push({ name: "stopLetWork", args: input }),
+    snoozeHarness: (harnessId: string, snooze: unknown) =>
+      calls.push({ name: "snoozeHarness", args: { harnessId, snooze } }),
+    resumeHarness: (harnessId: string) => calls.push({ name: "resumeHarness", args: harnessId }),
+    setWorkspaceRules: (input: unknown) => calls.push({ name: "setWorkspaceRules", args: input }),
+    readOwnRules: async () => ({ own_rules: null, heard_at: null }),
     rename: async (name: string) => {
       calls.push({ name: "rename", args: name });
       if (over.refuse !== undefined) throw new Error(over.refuse);
@@ -841,88 +847,26 @@ describe("the workspace's own group", () => {
     expect(sheet.queryByTestId("exchange-how-body")).toBeNull();
   });
 
-  it("says once that nothing is allowed always, and how a rule comes to be there (ADR 0195)", async () => {
-    await render(<You device={DEVICE} store={fake()} />);
-    expect(
-      screen.getByRole("button", { name: "Allowed always, Asks every time" }),
-    ).toBeOnTheScreen();
-    await userEvent.press(screen.getByTestId("allowed-always-row"));
-    const sheet = within(screen.getByTestId("always-sheet-panel"));
-    expect(sheet.getByTestId("always-none")).toBeTruthy();
-    expect(sheet.getByText(/^Nothing is allowed always, so every ask comes to /)).toBeTruthy();
-    expect(sheet.getByText(/^When a harness asks to do something small, Always/)).toBeTruthy();
-    // The harnesses are one line, not a box each that says the same.
-    expect(sheet.getByTestId("always-sheet-asking")).toHaveTextContent("Scout asks every time.");
-    expect(sheet.queryByText("Nothing allowed always.")).toBeNull();
-  });
-
-  it("lists who works without asking, where and until when, with Stop (ADR 0281)", async () => {
-    const store = fake({ working: true });
-    await render(<You device={DEVICE} store={store} />);
-    await userEvent.press(screen.getByTestId("allowed-always-row"));
-    const sheet = within(screen.getByTestId("always-sheet-panel"));
-    const working = within(sheet.getByTestId("always-working"));
-    expect(working.getByText("Working without asking")).toBeTruthy();
-    expect(sheet.getByTestId("always-working-har_scout")).toHaveTextContent(
-      "ScoutIn Chips explain · Until you stop itStop",
-    );
-    await userEvent.press(working.getByRole("button", { name: "Stop" }));
-    expect(store.calls).toEqual([
-      { name: "stopLetWork", args: { spaceId: "spc_explain", asker: "har_scout" } },
-    ]);
-  });
-
-  it("opens every ask from the dots: the sheet goes down, then the list comes up (ADR 0255)", async () => {
+  it("has a Permissions row, in Allowed always's place, which pushes its page (ADR 0299)", async () => {
     mockPushed.length = 0;
-    await render(<You device={DEVICE} store={fake({ asks: true })} />);
-    await userEvent.press(screen.getByTestId("allowed-always-row"));
-    const sheet = within(screen.getByTestId("always-sheet-panel"));
-    const dots = sheet.getByRole("button", { name: /^Asks so far: 2 asks since/ });
-    expect(dots).toHaveProp("accessibilityHint", "Opens every ask");
-    await userEvent.press(dots);
-    await waitFor(() => expect(screen.queryByTestId("always-sheet-panel")).toBeNull());
-    expect(mockPushed).toEqual(["/asks"]);
+    await render(<You device={DEVICE} store={fake()} />);
+    expect(screen.getByRole("button", { name: "Permissions, Harnesses decide" })).toBeOnTheScreen();
+    expect(screen.queryByTestId("allowed-always-row")).toBeNull();
+    await userEvent.press(screen.getByTestId("permissions-row"));
+    expect(mockPushed).toEqual(["/permissions"]);
   });
 
-  it("counts what is allowed always, and switches it from the sheet as on the harness's page (ADR 0195)", async () => {
+  it("counts the harnesses with Chips's rules on in its row (ADR 0300)", async () => {
     const rule = {
       match: "shell.exec",
       decision: "allow",
       made_by: "per_arjun",
       made_at: "2026-10-12T09:00:00.000Z",
     };
-    const store = fake({ rules: [rule] });
-    await render(<You device={DEVICE} store={store} />);
-    expect(screen.getByRole("button", { name: "Allowed always, 1 on" })).toBeOnTheScreen();
-    await userEvent.press(screen.getByTestId("allowed-always-row"));
-    const sheet = within(screen.getByTestId("always-sheet-panel"));
-    // What it allows in words, the harness's own kind under it, and where it holds: a rule for
-    // every command, as only a policy written another way now makes (ADR 0239).
-    expect(sheet.getByText("Any command")).toBeTruthy();
-    expect(sheet.getByText("shell.exec")).toBeTruthy();
-    expect(sheet.getByText("In every space · by you, 12 October")).toBeTruthy();
-    expect(sheet.queryByTestId("always-none")).toBeNull();
-    expect(sheet.queryByTestId("always-sheet-asking")).toBeNull();
-    await fireEvent(sheet.getByTestId("always-switch-har_scout:*:0"), "valueChange", false);
-    expect(store.calls).toEqual([
-      { name: "setRules", args: { harnessId: "har_scout", rules: [{ ...rule, off: true }] } },
-    ]);
-  });
-
-  it("names a command's rule by its start, in code (ADR 0239)", async () => {
-    const rule = {
-      match: "shell.exec",
-      when: { starts_with: ["node", "--check"] },
-      decision: "allow",
-      made_by: "per_arjun",
-      made_at: "2026-10-27T09:00:00.000Z",
-    };
     await render(<You device={DEVICE} store={fake({ rules: [rule] })} />);
-    await userEvent.press(screen.getByTestId("allowed-always-row"));
-    const sheet = within(screen.getByTestId("always-sheet-panel"));
-    expect(sheet.getByText("node --check …")).toHaveStyle({ fontFamily: "Menlo" });
-    expect(sheet.getByText("shell.exec")).toBeTruthy();
-    expect(sheet.getByLabelText("Allow node --check … always")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Permissions, Chips's rules on for 1" }),
+    ).toBeOnTheScreen();
   });
 
   it("shows an owner People and Invite someone, which say how many and open their pages", async () => {
@@ -1296,30 +1240,32 @@ describe("beside the list on an iPad (ADR 0256, 3 November 2026)", () => {
     expect(screen.getByText(NOTHING_OPEN)).toBeTruthy();
   });
 
-  it("says on the page what is allowed always, as the sheet does", async () => {
-    await render(<IPad store={fake()} />);
-    await userEvent.press(await screen.findByTestId("allowed-always-row"));
-    const page = within(screen.getByTestId("always-page"));
-    expect(page.getByTestId("always-none")).toBeTruthy();
-    expect(page.getByTestId("always-sheet-asking")).toHaveTextContent("Scout asks every time.");
-    expect(screen.queryByTestId("always-sheet")).toBeNull();
+  it("opens Permissions beside the list: who works without asking, and each harness (ADR 0299)", async () => {
+    const store = fake({ working: true });
+    await render(<IPad store={store} />);
+    await userEvent.press(await screen.findByTestId("permissions-row"));
+    const page = within(screen.getByTestId("permissions-page"));
+    expect(screen.getByRole("header", { name: "Permissions" })).toBeTruthy();
+    expect(page.getByTestId("perms-working-har_scout")).toHaveTextContent(
+      "ScoutIn Chips explain · Until you stop itStop",
+    );
+    await userEvent.press(page.getByTestId("perms-working-stop-har_scout"));
+    expect(store.calls).toContainEqual({
+      name: "stopLetWork",
+      args: { spaceId: "spc_explain", asker: "har_scout" },
+    });
+    expect(page.getByTestId("perms-line-har_scout")).toHaveTextContent(
+      "Doesn't say yet what it runs on its own",
+    );
   });
 
-  it("opens every ask in a third column beside Allowed always, and shuts it (ADR 0276)", async () => {
-    mockPushed.length = 0;
-    await render(<IPad store={fake({ asks: true })} />);
-    await userEvent.press(await screen.findByTestId("allowed-always-row"));
-    const dots = within(screen.getByTestId("always-page")).getByTestId("always-none-history");
-    await userEvent.press(dots);
-    const list = within(screen.getByTestId("ask-list"));
-    expect(list.getByText("Push to main?")).toBeTruthy();
-    expect(list.getByText("Run npm test?")).toBeTruthy();
-    expect(dots).toBeSelected();
-    expect(mockPushed).toEqual([]);
-    // Its way back: an × in the split's third column, Back where it stands alone, as here.
-    await userEvent.press(screen.getByTestId("pane-back"));
-    expect(screen.queryByTestId("ask-list")).toBeNull();
-    expect(screen.getByTestId("always-page")).toBeTruthy();
+  it("lists each harness beside the list, marked where Chips's rules are on (ADR 0300)", async () => {
+    await render(<IPad store={fake({ rules: [] })} />);
+    await userEvent.press(await screen.findByTestId("permissions-row"));
+    const page = within(screen.getByTestId("permissions-page"));
+    expect(page.getByTestId("perms-harness-har_scout")).toBeTruthy();
+    expect(page.queryByTestId("perms-every-len-1h")).toBeNull();
+    expect(page.queryByTestId("perms-add-every")).toBeNull();
   });
 
   it("gives the pairing code on the page, under its name in the bar", async () => {
@@ -1412,7 +1358,6 @@ describe("on a phone", () => {
     for (const [row, sheet] of [
       ["caps-row", "caps-sheet"],
       ["exchange-limits-row", "exchange-limits-sheet"],
-      ["allowed-always-row", "always-sheet"],
     ] as const) {
       await userEvent.press(await screen.findByTestId(row));
       expect(await screen.findByTestId(sheet)).toBeOnTheScreen();

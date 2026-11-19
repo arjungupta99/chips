@@ -791,12 +791,36 @@ export interface NeedsYouItem {
   readonly outside?: true | undefined;
 }
 
+/**
+ * A harness's asks turned off (ADR 0299), or every harness's: Chips says yes for it until `until`,
+ * or until a person turns them back on when there is none.
+ */
+export interface Hold {
+  /** When its asks come back; absent until a person turns them back on. */
+  readonly until?: string | undefined;
+  /** Whether the yes covers asks that matter too. */
+  readonly matters: boolean;
+  /** Who turned them off, and when. */
+  readonly by?: string | undefined;
+  readonly at?: string | undefined;
+}
+
+/** The rules and hold for every harness (ADR 0299), read before any harness's own. */
+export interface WorkspaceRules {
+  readonly rules: readonly Rule[];
+  readonly hold?: Hold | undefined;
+}
+
 /** A harness's standing across the workspace: its level, rules, budget and what it has spent. */
 export interface HarnessPolicyModel {
   readonly harnessId: string;
   readonly autonomy: 0 | 1 | 2 | 3;
   readonly maxAutonomy: 0 | 1 | 2 | 3;
   readonly rules: readonly Rule[];
+  /** Its asks turned off (ADR 0299), as the last change left them; a past `until` has ended. */
+  readonly hold?: Hold | undefined;
+  /** Its Chips's rules switch as last set (ADR 0300); absent while never set. */
+  readonly chipsRules?: boolean | undefined;
   readonly budgetUsd?: number | undefined;
   readonly spentUsd: number;
   /** The dial as set in particular rooms, over the harness's level everywhere. */
@@ -855,6 +879,11 @@ export interface WorkspaceModel {
   /** Every lane the reader can see, from either of its two sides. */
   readonly lanes: readonly Lane[];
   readonly harnesses: Readonly<Record<string, HarnessPolicyModel>>;
+  /**
+   * The rules and hold for every harness (ADR 0299). A model folded by an older build has none, so
+   * readers say `?.`.
+   */
+  readonly workspaceRules: WorkspaceRules;
   /** By harness id: what each has sent, so a profile can say which rows have lit. */
   readonly connections: Readonly<Record<string, HarnessConnection>>;
   /** Newest first. A read of the log, never a separate record. */

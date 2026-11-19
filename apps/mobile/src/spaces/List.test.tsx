@@ -266,7 +266,7 @@ describe("the space list", () => {
     expect(screen.getByText("Chips paused the agents")).toBeTruthy();
   });
 
-  it("says a queued turn as work, with the gear and the light round the face (ADR 0090)", async () => {
+  it("says a queued turn as work, with Working and the light round the face (ADR 0090)", async () => {
     // Jacobian edits one message as a queued turn goes, in the markup it sends to Telegram and
     // Slack as well. Read out as it arrives, the row said `💭 Working… ▸ browser · https://…`
     // (Arjun, 1 October 2026): the harness's own marks, in a Chips list.
@@ -295,14 +295,14 @@ describe("the space list", () => {
       within(row).getByText("Reading the news · web search · Starship Flight 14 results"),
     ).toBeTruthy();
     expect(screen.queryByText(/💭/)).toBeNull();
-    expect(within(row).getByTestId("working-gear")).toBeTruthy();
+    expect(within(row).getByTestId("working")).toBe(within(row).getByText("Working ·"));
     expect(within(row).getByTestId("working-pins")).toBeTruthy();
   });
 
-  it("leaves a quiet room its own face and no gear", async () => {
+  it("leaves a quiet room its own face and no Working", async () => {
     const snapshot = state();
     await render(<List store={fakeStore(snapshot)} snapshot={snapshot} />);
-    expect(screen.queryByTestId("working-gear")).toBeNull();
+    expect(screen.queryByTestId("working")).toBeNull();
     expect(screen.queryByTestId("working-pins")).toBeNull();
   });
 

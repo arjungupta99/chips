@@ -63,7 +63,25 @@ export const HELD_START = "held_start";
 export const BANNERS = "banners";
 export const SPEND_NO_CAP = "spend_no_cap";
 export const SPEND_JOBS = "spend_jobs";
-export const SERVER_TAKES = [HELD_YES, HELD_START, BANNERS, SPEND_NO_CAP, SPEND_JOBS] as const;
+/**
+ * Rules a person writes, kept with who made them, the workspace's rules for every harness
+ * (`policy.workspace_updated`), and a harness's asks turned off (`policy.hold`) (ADR 0299).
+ */
+export const HARNESS_RULES = "harness_rules";
+/** What a harness runs on its own, at `/v1/harnesses/:id/own-rules` (ADR 0299). */
+export const OWN_RULES = "own_rules";
+/** A harness's Chips's rules switch, `policy.chips_rules`, and pauses that skip the never list (ADR 0300). */
+export const CHIPS_RULES = "chips_rules";
+export const SERVER_TAKES = [
+  HELD_YES,
+  HELD_START,
+  BANNERS,
+  SPEND_NO_CAP,
+  SPEND_JOBS,
+  HARNESS_RULES,
+  OWN_RULES,
+  CHIPS_RULES,
+] as const;
 export type ServerTake = (typeof SERVER_TAKES)[number];
 
 export const clientHelloFrame = z

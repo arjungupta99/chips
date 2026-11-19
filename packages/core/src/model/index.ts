@@ -99,6 +99,7 @@ export type {
   FleetHarness,
   HarnessConnection,
   HarnessPolicyModel,
+  Hold,
   Lane,
   LaneDelivery,
   LaneHop,
@@ -131,4 +132,5 @@ export type {
   Thought,
   Tier,
   WorkspaceModel,
+  WorkspaceRules,
 } from "./types.js";

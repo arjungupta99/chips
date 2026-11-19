@@ -63,31 +63,25 @@ export function registerDevRoutes(app: Hono<GatewayEnv>, deps: GatewayDeps): voi
    * a direct space, and a seat in `space_id` when one is named. The demo person adds them — or
    * the person `owner_id` names, so a second person can own one (M3.3) — so the person's key
    * stays in the browser where it belongs. `capabilities`, when given, is what each declares.
+   * `chips_rules: true` starts each with its Chips's rules on (ADR 0300), for a test of them.
    */
   app.post("/v1/dev/harnesses", async (c) => {
     const person = await deps.readModels.anyPerson();
     if (person === undefined) throw new HttpError("not_found", "No demo person to add harnesses.");
-    const { count, spaceId, name, ownerId, capabilities } = readLoadRequest(await c.req.text());
+    const { count, spaceId, name, ownerId, capabilities, chipsRules } = readLoadRequest(
+      await c.req.text(),
+    );
     const principal = await principalFor(deps, person, ownerId);
     const harnesses: Record<string, string>[] = [];
     for (let n = 1; n <= count; n += 1) {
-      // A dev harness is a specialist on the SDK's terms: it takes the dial (ADR 0046). A test of
-      // harnesses of other shapes names what each declares, nothing included (ADR 0077).
-      const added = await deps.addHarness({
-        principal,
-        displayName: nameFor(name, count, n),
-        capabilities: capabilities ?? [HARNESS_CAPABILITIES.autonomy],
-      });
-      if (!added.ok) throw new HttpError("invalid_event", added.error.message);
-      if (spaceId !== undefined) {
-        await seat(deps, principal, spaceId, added.value.harnessId);
-      }
-      harnesses.push({
-        harness_id: added.value.harnessId,
-        display_name: added.value.displayName,
-        token: added.value.token,
-        space_id: added.value.spaceId ?? "",
-      });
+      harnesses.push(
+        await addOne(deps, principal, {
+          name: nameFor(name, count, n),
+          capabilities,
+          spaceId,
+          chipsRules,
+        }),
+      );
     }
     return c.json({ harnesses }, 201);
   });
@@ -202,6 +196,7 @@ function readLoadRequest(raw: string): {
   name: string | undefined;
   ownerId: string | undefined;
   capabilities: readonly string[] | undefined;
+  chipsRules: boolean;
 } {
   let body: {
     count?: unknown;
@@ -209,6 +204,7 @@ function readLoadRequest(raw: string): {
     display_name?: unknown;
     owner_id?: unknown;
     capabilities?: unknown;
+    chips_rules?: unknown;
   } = {};
   try {
     body = JSON.parse(raw || "{}");
@@ -221,6 +217,7 @@ function readLoadRequest(raw: string): {
     name: typeof body.display_name === "string" ? body.display_name : undefined,
     ownerId: typeof body.owner_id === "string" ? body.owner_id : undefined,
     capabilities: stringsOf(body.capabilities),
+    chipsRules: body.chips_rules === true,
   };
 }
 
@@ -271,6 +268,57 @@ function readFillRequest(raw: string): {
     spaceId,
     harnessId,
   };
+}
+
+/** One dev harness: added, seated where asked, and its Chips's rules on when asked. */
+async function addOne(
+  deps: GatewayDeps,
+  principal: Principal,
+  asked: {
+    readonly name: string;
+    readonly capabilities: readonly string[] | undefined;
+    readonly spaceId: string | undefined;
+    readonly chipsRules: boolean;
+  },
+): Promise<Record<string, string>> {
+  // A dev harness is a specialist on the SDK's terms: it takes the dial (ADR 0046). A test of
+  // harnesses of other shapes names what each declares, nothing included (ADR 0077).
+  const added = await deps.addHarness({
+    principal,
+    displayName: asked.name,
+    capabilities: asked.capabilities ?? [HARNESS_CAPABILITIES.autonomy],
+  });
+  if (!added.ok) throw new HttpError("invalid_event", added.error.message);
+  if (asked.spaceId !== undefined) {
+    await seat(deps, principal, asked.spaceId, added.value.harnessId);
+  }
+  if (asked.chipsRules) await chipsRulesOn(deps, principal, added.value.harnessId);
+  return {
+    harness_id: added.value.harnessId,
+    display_name: added.value.displayName,
+    token: added.value.token,
+    space_id: added.value.spaceId ?? "",
+  };
+}
+
+/** A harness's Chips's rules turned on by the person who added it, at L1, as its page does. */
+async function chipsRulesOn(
+  deps: GatewayDeps,
+  principal: Principal,
+  harnessId: string,
+): Promise<void> {
+  // The dial is an owner's or an admin's to turn, so the principal carries its role.
+  const role = await deps.readModels.workspaceRole(principal.workspaceId, principal.participantId);
+  const result = await deps.submitEvent({
+    event: {
+      type: "policy.updated",
+      harness_id: harnessId,
+      policy: { autonomy: 1, rules: [], chips_rules: true },
+      idempotency_key: `${harnessId}-chips-rules`,
+    },
+    principal: role === undefined ? principal : { ...principal, role },
+  });
+  if (!result.ok) throw new HttpError("invalid_event", result.error.message);
 }
 
 /** A seat in the room: `membership.added`, by the person, like any other join. */

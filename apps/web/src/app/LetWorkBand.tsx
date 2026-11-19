@@ -13,6 +13,7 @@
  */
 
 import {
+  ASK_AGAIN_WORDS,
   BANNER_DISABLE_WORDS,
   BANNER_HIDDEN_MS,
   BANNER_HIDDEN_WORDS,
@@ -22,19 +23,23 @@ import {
   bannerOffWords,
   bannerWanted,
   type Directory,
+  EVERY_HARNESS,
   type LetWork,
   lettingWork,
   NO_BANNERS,
   nameOf,
+  roomHolds,
   type Space,
   STOP_WORDS,
   STOPPED_MS,
   stoppedWords,
+  type WorkspaceModel,
   workingWords,
 } from "@chipschat/core";
 import { Icon } from "@chipschat/ui";
 import { type ReactNode, useEffect, useState } from "react";
 import type { BannerService } from "./agent/bannerService.ts";
+import type { PermissionsService } from "./permissions/service.ts";
 
 type After =
   // `back`: Undo was pressed. It holds the band up until the store's word has caught up, so it
@@ -150,6 +155,59 @@ export function LetWorkBand(props: {
   );
 }
 
+/**
+ * The bands while a harness of an agent here isn't asking (ADR 0299): `Claude Code isn't asking
+ * until 10:41 AM`, or `No harness is asking` while every harness is snoozed, in the gold band Let it
+ * work wears. Its words open the harness's Permissions; Ask again, for an owner or admin, turns its
+ * asks back on. When it ends the band folds away, and the next ask comes to a person as usual.
+ */
+export function HoldBands(props: {
+  readonly model: WorkspaceModel | undefined;
+  readonly space: Space;
+  readonly directory: Directory;
+  readonly now: number;
+  readonly service: PermissionsService | undefined;
+  readonly mayChange: boolean;
+  readonly onOpenPermissions?: ((harnessId: string) => void) | undefined;
+}) {
+  const { model, service } = props;
+  if (model === undefined || props.space.state !== "open") return null;
+  const bands = roomHolds(model, props.directory, props.space.id, props.now);
+  if (bands.length === 0) return null;
+  return (
+    <div className="letwork-bands" data-testid="hold-bands">
+      {bands.map((band) => {
+        const every = band.harnessId === EVERY_HARNESS;
+        const open = props.onOpenPermissions;
+        return (
+          <Band
+            key={band.harnessId}
+            words={band.words}
+            tone="calm"
+            onOpen={every || open === undefined ? undefined : () => open(band.harnessId)}
+            openLabel={`${band.words}. Opens its permissions`}
+          >
+            {props.mayChange && service !== undefined && (
+              <button
+                type="button"
+                className="letwork-stop"
+                onClick={() =>
+                  every
+                    ? service.setWorkspaceRules({ hold: null })
+                    : service.resumeHarness(band.harnessId)
+                }
+                data-testid="hold-band-resume"
+              >
+                {ASK_AGAIN_WORDS}
+              </button>
+            )}
+          </Band>
+        );
+      })}
+    </div>
+  );
+}
+
 interface BandActs {
   readonly stop: (() => void) | undefined;
   readonly close: (() => void) | undefined;
@@ -247,6 +305,8 @@ function Band(props: {
   readonly state?: "hidden" | "off" | "stopped" | undefined;
   readonly onOpen?: (() => void) | undefined;
   readonly openLabel?: string | undefined;
+  /** A Chips pause is a plain line, not gold: yellow is for Bypass alone (ADR 0300). */
+  readonly tone?: "calm" | undefined;
   readonly children?: ReactNode;
 }) {
   // Its arrival only plays once: Undo must not fold it in again from nothing.
@@ -267,6 +327,7 @@ function Band(props: {
       className="letwork"
       role="status"
       data-settled={settled ? "true" : undefined}
+      data-tone={props.tone}
       data-state={props.state}
       data-stopped={props.state === "stopped" ? "true" : undefined}
       data-testid="let-work-band"

@@ -105,6 +105,7 @@ import type { RelayStatus, RelayTrouble } from "../../application/ports/relay-sw
 import type { ComputerUpdatesRegistry, SelfUpdate } from "../../application/ports/self-update.js";
 import type { SoftwareRegistry } from "../../application/ports/software.js";
 import type { SpaceIconRegistry } from "../../application/ports/space-icons.js";
+import type { PutOwnRules, ReadOwnRules } from "../../application/use-cases/own-rules.js";
 import type { ConnectorGallery } from "../../infrastructure/connectors/gallery.js";
 import type { ServerUpdates } from "../../infrastructure/updates/releases.js";
 
@@ -233,6 +234,11 @@ export interface GatewayDeps {
     readonly read: ReadHarnessJobs;
     readonly runs: ReadJobRuns;
     readonly ask: AskJobChange;
+  };
+  /** What a harness runs on its own (ADR 0299): its copy, read by the people who run it. */
+  readonly ownRules: {
+    readonly put: PutOwnRules;
+    readonly read: ReadOwnRules;
   };
   /**
    * An agent's context window (ADR 0146): its harness's copy, read by the people who run the

@@ -3,8 +3,8 @@
  * Settings opens its pages there (ADR 0256). A row asks for its page here, and on an iPad wears
  * the chosen ground while its page is the one open.
  *
- * Two kinds. People, Invite someone, Relay, Media, Connection and About Chips (ADR 0295) are
- * screens of their own on a phone, pushed over the tab (`usePage`). The shorter settings are sheets on a phone, and on an
+ * Two kinds. People, Invite someone, Relay, Media, Connection, About Chips (ADR 0295) and
+ * Permissions (ADR 0299) are screens of their own on a phone, pushed over the tab (`usePage`). The shorter settings are sheets on a phone, and on an
  * iPad pages beside the list too (`useSheetPage`, 3 November 2026): they came up as popovers and
  * cards over the split, and Arjun wanted them in the pane, as the Mac's and the web's went there
  * the same day. The sheet and the page hold the same body, and the part of You that holds the
@@ -20,7 +20,15 @@ import { Screen, UnderName, useColumn } from "../ui/Screen";
 import { SPACE } from "../ui/tokens";
 
 /** Screens of their own on a phone: pushed over the tab there, by the same name. */
-export const YOU_ROUTES = ["people", "invite", "relay", "media", "connection", "about"] as const;
+export const YOU_ROUTES = [
+  "people",
+  "invite",
+  "relay",
+  "media",
+  "connection",
+  "about",
+  "permissions",
+] as const;
 
 /**
  * Sheets on a phone: beside the list, they are pages too. Connect a harness's pages are its own
@@ -33,7 +41,6 @@ export const YOU_SHEETS = [
   "agents",
   "attachments",
   "exchange",
-  "always",
   "feedback",
   "pair",
   "delete",
@@ -58,11 +65,11 @@ export function isYouSheet(page: string | undefined): page is YouSheet {
 }
 
 /**
- * What a page beside the list opens in a third column beside itself (ADR 0276): every ask so far,
- * from Allowed always's dots, and About's What's new, Licence and Acknowledgements (ADR 0295). On
- * a phone each is a screen of its own, by the same name.
+ * What a page beside the list opens in a third column beside itself (ADR 0276): New rule for every
+ * harness, from Permissions (ADR 0299), and About's What's new, Licence and Acknowledgements (ADR
+ * 0295). On a phone each is a screen of its own, by the same name.
  */
-export const YOU_THIRDS = ["asks", "whats-new", "licence", "notices"] as const;
+export const YOU_THIRDS = ["rule", "whats-new", "licence", "notices"] as const;
 
 export type YouThird = (typeof YOU_THIRDS)[number];
 
@@ -147,7 +154,7 @@ export function useOpenPage(): YouPage | undefined {
  * A sheet's body as a page beside the list: under the pane's bar, which names it where the sheet's
  * head did and holds its Save, on the grouped ground, scrolled as the other pages are. The sheet's
  * X has no place here: another row is the way away, as in Settings. `over` stands over the
- * scroll rather than in it: Allowed always's Undo. A body that scrolls a part of itself, as the
+ * scroll rather than in it: Permissions's Undo. A body that scrolls a part of itself, as the
  * face picker scrolls its marks under the colours, is laid out in the page as it is in its sheet
  * (`scrolls`): in a scroll of the page's, its own list had no height to scroll in.
  */

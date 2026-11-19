@@ -1,9 +1,10 @@
 /**
- * Let it work (ADR 0281), end to end on the web: a harness at L1 asks to run a loop Chips can't
- * read, a person flips the switch over the card's choices and approves, and the harness is
- * answered once with `until_stopped`. Its next asks, a loop and an `rm` among them, are answered by
- * Chips on the spot; the room says so in a band under its name; Stop in the band ends it, and the
- * next ask comes to the person's card again.
+ * Let it work (ADR 0281), end to end on the web: with the harness's Chips's rules on (ADR 0300), a
+ * harness at L1 asks to run a loop Chips can't read, a person flips the switch over the card's
+ * choices and approves, and the harness is answered once with `until_stopped`. Its next loop is
+ * answered by Chips on the spot, but an `rm` still comes to the person: a pause never says yes to
+ * the never list. The room says so in a band under its name; Stop in the band ends it, and the next
+ * ask comes to the person's card again.
  *
  * Its own harness and room, so the demo room's policy is left as the other specs find it. With
  * `CHIPS_E2E_SHOTS` set to a folder, it leaves a picture of each step there.
@@ -14,6 +15,19 @@ import { Harness, newApprovalId, newRunId, pair, registerSpecialist } from "./su
 
 /** The newest approval card in the room. */
 const card = (page: Page) => page.getByRole("article", { name: /Approval/ }).last();
+
+/** Turns on the harness's Chips's rules on their page, beside its Permissions (ADR 0300). */
+const chipsRulesOn = async (page: Page, harness: string) => {
+  await page.getByRole("button", { name: /^Agents/ }).click();
+  await page
+    .getByTestId("harness-shelf")
+    .getByRole("button", { name: new RegExp(`^${harness}\\b`) })
+    .click();
+  await page.getByRole("main", { name: harness }).getByTestId("harness-asks-row").click();
+  await page.getByTestId("perms-chips-row").click();
+  await page.getByTestId("perms-chips").getByTestId("perms-switch").click();
+  await page.getByRole("button", { name: /Spaces/ }).click();
+};
 
 const SHOTS = process.env["CHIPS_E2E_SHOTS"];
 const shot = async (page: Page, name: string) => {
@@ -49,6 +63,8 @@ test("a yes until stopped lets the agent work without asking, and Stop brings it
 
   try {
     await harness.send("run.started", { goal: "Read the bridge notes.", plan: [] });
+    await chipsRulesOn(page, "Juniper");
+    expect((await harness.next("policy.updated"))["policy"]).toMatchObject({ chips_rules: true });
     await page.getByTestId("space-list").locator(`[data-space="${juniper.space}"]`).click();
     // At L1, where a new harness starts, a smaller ask waits for an answer. The dial that showed
     // it beside the room went with the Run panel (ADR 0293); the room open is what is waited for.
@@ -76,13 +92,16 @@ test("a yes until stopped lets the agent work without asking, and Stop brings it
       until_stopped: true,
     });
 
-    // Every ask after it goes ahead on the spot, read or not, rm too; the room says so.
-    for (const command of ["for f in *.md; do wc -l $f; done", "rm -rf build && ls"]) {
-      expect(await answer(await run(command), "policy")).toMatchObject({
-        decision: "approved",
-        resolved_by: "system",
-      });
-    }
+    // The next goes ahead on the spot, read or not; rm still comes to the person.
+    expect(await answer(await run("for f in *.md; do wc -l $f; done"), "policy")).toMatchObject({
+      decision: "approved",
+      resolved_by: "system",
+    });
+    const rm = await run("rm -rf build && ls");
+    await expect(card(page).getByRole("button", { name: "Deny" })).toBeEnabled();
+    await card(page).getByRole("button", { name: "Deny" }).click();
+    await page.getByTestId("deny-form").getByRole("button", { name: "Deny" }).click();
+    expect(await answer(rm, "the person's no")).toMatchObject({ decision: "denied" });
     const band = page.getByTestId("let-work-band");
     await expect(band).toHaveText(/^Juniper is working without asking\s*Stop$/);
     await shot(page, "3-band");

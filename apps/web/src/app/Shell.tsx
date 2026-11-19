@@ -84,6 +84,7 @@ import type { DecisionInput } from "./Decide.tsx";
 import type { OnFeedback } from "./Feedback.tsx";
 import { useFirstRun } from "./FirstRun.tsx";
 import { createFileService, type FileService } from "./files.ts";
+import { DotFlightLayer } from "./flight.tsx";
 import { createFolders, type Folders } from "./folders.ts";
 import { Harnesses } from "./Harnesses.tsx";
 import { JoinRequestDialog, type JoinService, nextAsk } from "./Join.tsx";
@@ -91,6 +92,7 @@ import type { LineHandlers, Standing } from "./LineActions.tsx";
 import { useMenuCommands } from "./menuCommands.ts";
 import { useNewSpaceDialog } from "./NewSpace.tsx";
 import { NoRooms } from "./NoRooms.tsx";
+import { type PermissionsService, permissionsServiceOf } from "./permissions/service.ts";
 import type { RowActs } from "./RowMenu.tsx";
 import type { SpaceActions } from "./room/actions.ts";
 import { lookOnMac, openTailscaleOnMac, tunnelsOnMac } from "./room/linkReach.ts";
@@ -662,6 +664,7 @@ export function Shell({
       onOpenHarness={openHarness}
       onOpenPermissions={openPermissions}
       banners={bannerServiceOf(store, snapshot)}
+      permissions={permissionsServiceOf(store, snapshot)}
       onOpenAgent={openAgent}
       connecting={connecting}
       onConnectHarness={connectHarness}
@@ -762,6 +765,7 @@ export function Shell({
         <OpenRelay.Provider value={openRelay}>
           <ColumnsShellFrame room={roomShown(tab, selected, searchBeside)} menu={menu}>
             {inDesktop() && <UpdateDot place="bar" onOpen={openAbout} />}
+            <DotFlightLayer />
             {updatedUnder.asking && <UpdatedLine onReload={updatedUnder.reloadNow} />}
             <NarrowBar
               workspace={workspace}
@@ -1082,6 +1086,8 @@ interface MiddlePaneProps {
   readonly onOpenHarness: (harnessId: string) => void;
   readonly onOpenPermissions: (asker: string) => void;
   readonly banners: BannerService;
+  /** A harness's permissions, its snooze and the rules for every harness (ADR 0299). */
+  readonly permissions: PermissionsService;
   readonly onOpenAgent: (agentId: string) => void;
   /** The Agents page opens with Connect a harness up: You's card asked for it. */
   readonly connecting: boolean;
@@ -1363,8 +1369,9 @@ function MiddlePane(p: MiddlePaneProps) {
         onConnectHarness={p.onConnectHarness}
         workspaces={p.workspaces}
         onSwitch={p.onSwitch}
-        onSetRules={(input) => p.store.setRules(input)}
+        permissions={p.permissions}
         onStopLetWork={(input) => p.store.stopLetWork(input)}
+        onOpenHarnessPermissions={p.onOpenPermissions}
         spaceIcons={p.spaceIcons}
         onOpenSpace={(spaceId) => p.open(spaceId)}
       />
@@ -1412,6 +1419,7 @@ function MiddlePane(p: MiddlePaneProps) {
           resume: (run) => p.store.resumeRun(run),
         }}
         onSetRules={(input) => p.store.setRules(input)}
+        permissions={p.permissions}
         onSetAutonomy={(input) => p.store.setAutonomy(input)}
         onNewAgent={(harnessId, name) => p.store.askIntoNewRoom(harnessId, name)}
         onDeclare={(harnessId, capabilities) =>
@@ -1493,7 +1501,8 @@ function besidePane(p: MiddlePaneProps, agents: AgentsService): ReactNode {
         faces={p.spaceIcons}
         agents={agents}
         banners={p.banners}
-        onSetRules={(input) => p.store.setRules(input)}
+        onOpenHarness={p.onOpenPermissions}
+        onOpenWorking={() => p.onOpenPermissions(opened.agentId)}
         onBack={p.onAgentsList}
         onOpenRoom={(spaceId) =>
           p.onSearchBeside({ kind: "space", key: `space:${spaceId}`, spaceId })
@@ -1577,6 +1586,7 @@ function roomView(p: MiddlePaneProps, selected: Space, headEnd?: ReactNode) {
       onStopLetWork={(asker) => p.store.stopLetWork({ spaceId: selected.id, asker })}
       banners={p.banners}
       onOpenPermissions={p.onOpenPermissions}
+      permissions={p.permissions}
       onDiscard={(key) => p.store.discard(key)}
       onRead={(seq) => p.store.markRead(selected.id, seq)}
       onLine={p.onLine}

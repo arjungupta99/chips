@@ -252,6 +252,9 @@
     },
     {
       "$ref": "#/$defs/RelaySet"
+    },
+    {
+      "$ref": "#/$defs/PolicyWorkspaceUpdated"
     }
   ],
   "$defs": {
@@ -3861,6 +3864,46 @@
                 "description": "A rule the policy engine evaluates."
               },
               "description": "Evaluated in order; the workspace cap always wins."
+            },
+            "hold": {
+              "description": "Its asks turned off (ADR 0299), for every space: kept only with no `space_id`. `null` turns them back on; absent leaves it as it was.",
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "until": {
+                      "description": "When its asks come back. Absent: when a person turns them back on.",
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "matters": {
+                      "description": "Whether the yes covers asks that matter too: money, a message outside the workspace, anything that can't be undone. Absent or false, those still wait for a person.",
+                      "type": "boolean"
+                    },
+                    "by": {
+                      "description": "Who turned its asks off. Filled in by Chips from the credential that sent it.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "at": {
+                      "description": "When they were turned off. Filled in by Chips.",
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    }
+                  },
+                  "description": "A harness's asks turned off: Chips says yes for it until `until`."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "chips_rules": {
+              "description": "Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one.",
+              "type": "boolean"
             }
           },
           "required": [
@@ -6591,6 +6634,11 @@
             "always"
           ]
         },
+        "keeps": {
+          "description": "With `always`: the harness keeps it as its own always, since its Chips's rules are off (ADR 0300), and Chips writes no rule. Filled in by Chips.",
+          "type": "string",
+          "const": "harness"
+        },
         "everywhere": {
           "description": "With `always`: the rule is the harness's in every space, not only this one (ADR 0239). An owner or an admin only.",
           "type": "boolean"
@@ -7508,6 +7556,46 @@
                 "description": "A rule the policy engine evaluates."
               },
               "description": "Evaluated in order; the workspace cap always wins."
+            },
+            "hold": {
+              "description": "Its asks turned off (ADR 0299), for every space: kept only with no `space_id`. `null` turns them back on; absent leaves it as it was.",
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "until": {
+                      "description": "When its asks come back. Absent: when a person turns them back on.",
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "matters": {
+                      "description": "Whether the yes covers asks that matter too: money, a message outside the workspace, anything that can't be undone. Absent or false, those still wait for a person.",
+                      "type": "boolean"
+                    },
+                    "by": {
+                      "description": "Who turned its asks off. Filled in by Chips from the credential that sent it.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "at": {
+                      "description": "When they were turned off. Filled in by Chips.",
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    }
+                  },
+                  "description": "A harness's asks turned off: Chips says yes for it until `until`."
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "chips_rules": {
+              "description": "Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one.",
+              "type": "boolean"
             }
           },
           "required": [
@@ -14526,6 +14614,272 @@
       "description": "An owner turned the server's relay off or on. Off, devices away from the server's own network cannot connect until they go direct; every device connected is told first.",
       "$id": "https://chipschat.ai/schema/v1/relay.set.json",
       "title": "RelaySet"
+    },
+    "PolicyWorkspaceUpdated": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "v": {
+          "type": "number",
+          "const": 1,
+          "description": "Protocol major version."
+        },
+        "type": {
+          "type": "string",
+          "const": "policy.workspace_updated"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^evt_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "description": "The event's own id. Stable across a retry of the same event."
+        },
+        "ts": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When it happened, by Chips' clock. Stamped on the way in; a value the sender writes is replaced."
+        },
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^ws_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "description": "A workspace identifier: `ws_` followed by a ULID."
+        },
+        "space_id": {
+          "description": "The space, when the event belongs to one.",
+          "type": "string",
+          "pattern": "^spc_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "run_id": {
+          "description": "The run, when the event belongs to one.",
+          "type": "string",
+          "pattern": "^run_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "seq": {
+          "description": "Assigned by the server on append, monotonic per workspace. Absent on the way in.",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "idempotency_key": {
+          "description": "Required on every client-originated write. Sending the same key twice is a no-op.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "actor": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "person",
+                "harness",
+                "agent",
+                "system"
+              ],
+              "description": "Whether a person, a harness, one of a harness's agents or Chips itself acted."
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The participant id, or `system` for Chips."
+            },
+            "harness_id": {
+              "description": "For an agent: the harness it speaks through, whose budget and runs are the agent's (ADR 0087). Filled in by Chips.",
+              "type": "string",
+              "pattern": "^hrn_[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "description": "The participant an event is attributed to."
+        },
+        "rules": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "match": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "description": "A glob over action kinds, for example `payment.*`."
+              },
+              "when": {
+                "description": "Extra conditions on the action's flags, and for a command, how its parts start.",
+                "type": "object",
+                "properties": {
+                  "external": {
+                    "type": "boolean"
+                  },
+                  "irreversible": {
+                    "type": "boolean"
+                  },
+                  "money_usd_over": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "risk": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "external",
+                        "external_communication",
+                        "irreversible",
+                        "destructive",
+                        "financial",
+                        "credential",
+                        "privacy",
+                        "legal"
+                      ],
+                      "description": "A risk class the policy engine can match a rule against."
+                    }
+                  },
+                  "starts_with": {
+                    "description": "For an action that carries a command (ADR 0239): the words a part of it starts with. A command goes ahead on such rules only when every part starts with one that allows it.",
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    }
+                  }
+                }
+              },
+              "decision": {
+                "type": "string",
+                "enum": [
+                  "allow",
+                  "ask",
+                  "deny"
+                ],
+                "description": "What to do when the rule matches."
+              },
+              "approvers": {
+                "description": "Who may answer, when the decision is `ask`.",
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^(owner|any|lead|role:[a-z][a-z0-9_]*|usr_[0-9A-HJKMNP-TV-Z]{26}|hrn_[0-9A-HJKMNP-TV-Z]{26})$",
+                  "description": "`owner`, `any`, `lead`, `role:<name>`, or a specific person id; a lead harness's id once resolved."
+                }
+              },
+              "reason": {
+                "description": "Shown to the harness, and recorded in the audit log.",
+                "type": "string",
+                "maxLength": 400
+              },
+              "off": {
+                "description": "Turned off by a person (ADR 0195): kept in the list to turn back on, and skipped by the policy engine until then.",
+                "type": "boolean"
+              },
+              "made_by": {
+                "description": "Who made it by answering an ask with Always (ADR 0195). Filled in by Chips.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "made_at": {
+                "description": "When a person's answer made it (ADR 0195): Always, or This session. Filled in by Chips. A rule a person's answer made never allows an action that matters.",
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              }
+            },
+            "required": [
+              "match",
+              "decision"
+            ],
+            "description": "A rule the policy engine evaluates."
+          },
+          "description": "Read before any harness's own, in order. Each rule a person adds is kept with who made it and when."
+        },
+        "hold": {
+          "description": "Every harness's asks turned off. `null` turns them back on; absent leaves it as it was.",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "until": {
+                  "description": "When its asks come back. Absent: when a person turns them back on.",
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                },
+                "matters": {
+                  "description": "Whether the yes covers asks that matter too: money, a message outside the workspace, anything that can't be undone. Absent or false, those still wait for a person.",
+                  "type": "boolean"
+                },
+                "by": {
+                  "description": "Who turned its asks off. Filled in by Chips from the credential that sent it.",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "at": {
+                  "description": "When they were turned off. Filled in by Chips.",
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                }
+              },
+              "description": "A harness's asks turned off: Chips says yes for it until `until`."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workspace_max_autonomy": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 0
+            },
+            {
+              "type": "number",
+              "const": 1
+            },
+            {
+              "type": "number",
+              "const": 2
+            },
+            {
+              "type": "number",
+              "const": 3
+            }
+          ],
+          "description": "The workspace cap as it stands, which this doesn't change. Filled in by Chips."
+        },
+        "changed_by": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Who changed them. Filled in by Chips from the credential that sent it."
+        }
+      },
+      "required": [
+        "v",
+        "type",
+        "id",
+        "ts",
+        "workspace_id",
+        "actor",
+        "rules",
+        "workspace_max_autonomy",
+        "changed_by"
+      ],
+      "description": "An owner or an admin set the rules for every harness, or turned every harness's asks off for a while (ADR 0299).",
+      "$id": "https://chipschat.ai/schema/v1/policy.workspace_updated.json",
+      "title": "PolicyWorkspaceUpdated"
     }
   }
 }

@@ -493,6 +493,11 @@ describe("the ask card's words (ADR 0195)", () => {
       false,
       false,
     ]);
+    // Chips's rules off (ADR 0300): the harness's choices, a don't-ask-again where it keeps one.
+    expect(askLastings(standing({ kind: "file.edit" }), true, false)).toEqual(["once", "always"]);
+    expect(askLastings(command, true, false)).toEqual([]);
+    expect(askLastings(unread, true, false)).toEqual([]);
+    expect(offersLetWork(command, true, false)).toBe(false);
     expect(letWorkWords("Jiro", "Chips explain")).toEqual({
       title: "Let Jiro work without asking",
       sub: "In Chips explain, until you stop it",

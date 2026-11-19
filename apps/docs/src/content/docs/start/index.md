@@ -45,8 +45,11 @@ From a release, two lines, and `chips up` opens a browser that is already paired
 
 ```sh
 curl -fsSL https://chipschat.ai/install | sh
-chips up
+~/.local/bin/chips up
 ```
+
+The second line names where the release put `chips`, because the terminal you installed from
+doesn't know it yet. In a new terminal, `chips up` is enough.
 
 From a checkout, with Node 22 or newer and pnpm:
 

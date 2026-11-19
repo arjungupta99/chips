@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_PRICE_TABLE, type WorkspaceRole } from "../../domain/index.js";
 import type {
   ApprovalView,
+  ChipsRulesView,
   EventStore,
   HarnessPolicyView,
   IncomingEvent,
@@ -205,6 +206,8 @@ interface HarnessOptions {
   readonly question?: QuestionView;
   /** Scout's policy. Absent, Scout has none: a new harness, L1. */
   readonly policy?: Partial<HarnessPolicyView>;
+  /** The harness's Chips's rules switch as read (ADR 0300); on unless a test says. */
+  readonly chipsRules?: ChipsRulesView;
   /** The workspace's cap and rules. Absent, none: the default cap. */
   readonly workspace?: WorkspacePolicyView;
   /** Rules decided for the fixtures' run this session. */
@@ -374,6 +377,9 @@ function harness(options: HarnessOptions = {}) {
     },
     async workspacePolicy() {
       return options.workspace;
+    },
+    async chipsRules(): Promise<ChipsRulesView> {
+      return options.chipsRules ?? { set: true, rules: false, level: false, hold: false };
     },
     async sessionInSpace(_workspaceId: string, _spaceId: string, sessionRef: string) {
       return options.sessions === undefined || options.sessions.includes(sessionRef);
@@ -2428,12 +2434,285 @@ describe("a policy change from the dial (M1.4)", () => {
     expect(inRoom.ok).toBe(false);
     if (!inRoom.ok) expect(inRoom.error.kind).toBe("wrong_role");
 
+    // An admin may: an Allow of a kind that runs no command (letting everything through is the
+    // switch's job since ADR 0299, below).
     const admin = { ...DANA, role: "admin" as const };
+    const allowed = {
+      ...open,
+      policy: { autonomy: 3, rules: [{ match: "email.send", decision: "allow" }] },
+    };
     const byAdmin = await harness({
       workspaceRoles: { [ARJUN.participantId]: "owner", [DANA.participantId]: "admin" },
-    }).submit({ event: open, principal: admin, idempotencyKey: "a1" });
+    }).submit({ event: allowed, principal: admin, idempotencyKey: "a1" });
     expect(byAdmin.ok, JSON.stringify(byAdmin)).toBe(true);
     if (byAdmin.ok) expect(byAdmin.value.event.payload["changed_by"]).toBe(DANA.participantId);
+  });
+});
+
+describe("rules a person writes, and a harness's asks turned off (ADR 0299)", () => {
+  const appendedPolicy = (h: ReturnType<typeof harness>) =>
+    (h.store.appended[0] as Record<string, unknown> | undefined)?.["policy"] as {
+      rules: PolicyRule[];
+      hold?: unknown;
+    };
+  const { space_id: _none, ...everywhere } = fixture("policy.updated");
+  const send = (
+    h: ReturnType<typeof harness>,
+    policy: Record<string, unknown>,
+    key: string,
+    extra = {},
+  ) =>
+    h.submit({
+      event: {
+        ...everywhere,
+        actor: { kind: "person", id: ARJUN.participantId },
+        policy,
+        ...extra,
+      },
+      principal: ARJUN,
+      idempotencyKey: key,
+    });
+  const ask = (h: ReturnType<typeof harness>, key: string, action?: Record<string, unknown>) =>
+    h.submit({
+      event: {
+        ...fixture("approval.request"),
+        ...(action === undefined ? {} : { action, risk: [] }),
+      },
+      principal: SCOUT,
+      idempotencyKey: key,
+    });
+  const run = { kind: "acp.bash", input: { command: "ls -la && git log" } };
+  const NOW = "2025-09-02T08:00:00.000Z";
+
+  it("keeps who made each new rule and when, whatever the client sent", async () => {
+    const h = harness({ policy: { rules: [] } });
+    const rule = {
+      match: "acp.bash",
+      when: { starts_with: ["ls"] },
+      decision: "allow",
+      made_by: "usr_someone_else",
+      made_at: "2020-01-01T00:00:00.000Z",
+    };
+    const result = await send(h, { autonomy: 1, rules: [rule] }, "w1");
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    const kept = appendedPolicy(h).rules[0];
+    expect(kept).toMatchObject({ match: "acp.bash", made_by: ARJUN.participantId, made_at: NOW });
+  });
+
+  it("lets a rule already there keep its maker when it is switched off", async () => {
+    const before: PolicyRule = {
+      match: "acp.bash",
+      when: { starts_with: ["ls"] },
+      decision: "allow",
+      made_by: "usr_dana",
+      made_at: "2025-08-01T00:00:00.000Z",
+    };
+    const h = harness({ policy: { rules: [before] } });
+    const result = await send(
+      h,
+      { autonomy: 1, rules: [{ ...before, off: true, made_by: ARJUN.participantId }] },
+      "w2",
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    const kept = appendedPolicy(h).rules[0];
+    expect(kept).toMatchObject({
+      off: true,
+      made_by: "usr_dana",
+      made_at: "2025-08-01T00:00:00.000Z",
+    });
+  });
+
+  it("refuses a new Allow on a never-list start, on commands with no start, or of everything", async () => {
+    for (const [key, rule] of [
+      ["n1", { match: "acp.bash", when: { starts_with: ["git", "push"] }, decision: "allow" }],
+      ["n2", { match: "acp.bash", decision: "allow" }],
+      ["n3", { match: "*", decision: "allow" }],
+    ] as const) {
+      const result = await send(
+        harness({ policy: { rules: [] } }),
+        { autonomy: 1, rules: [rule] },
+        key,
+      );
+      expect(result.ok, key).toBe(false);
+      if (!result.ok) expect(result.error.kind, key).toBe("invalid");
+    }
+    const never = await send(
+      harness(),
+      {
+        autonomy: 1,
+        rules: [{ match: "acp.bash", when: { starts_with: ["rm"] }, decision: "deny" }],
+      },
+      "n4",
+    );
+    expect(never.ok, JSON.stringify(never)).toBe(true);
+  });
+
+  it("stamps a hold, and keeps one only for every space", async () => {
+    const h = harness();
+    const result = await send(
+      h,
+      {
+        autonomy: 1,
+        rules: [],
+        hold: { until: "2025-09-02T09:00:00.000Z", by: "usr_x", at: "2020-01-01T00:00:00.000Z" },
+      },
+      "h1",
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(appendedPolicy(h).hold).toEqual({
+      until: "2025-09-02T09:00:00.000Z",
+      by: ARJUN.participantId,
+      at: NOW,
+    });
+
+    const inRoom = await harness().submit({
+      event: {
+        ...fixture("policy.updated"),
+        actor: { kind: "person", id: ARJUN.participantId },
+        policy: { autonomy: 1, rules: [], hold: {} },
+      },
+      principal: ARJUN,
+      idempotencyKey: "h2",
+    });
+    expect(inRoom.ok).toBe(false);
+    if (!inRoom.ok) expect(inRoom.error.kind).toBe("invalid");
+  });
+
+  it("says yes while a hold holds, never past what matters unless it says so, and never past a no", async () => {
+    const hold = { until: "2025-09-02T09:00:00.000Z", by: ARJUN.participantId, at: NOW };
+    const small = await ask(harness({ policy: { autonomy: 1, hold } }), "a1", run);
+    expect(small.ok, JSON.stringify(small)).toBe(true);
+    if (small.ok) {
+      expect(small.value.resolution?.payload["decision"]).toBe("approved");
+      expect(String(small.value.resolution?.payload["reason"])).toContain("its asks are off");
+    }
+
+    // The fixture's email matters: it waits for a person, unless the hold covers what matters.
+    const matters = await ask(harness({ policy: { autonomy: 1, hold } }), "a2");
+    if (matters.ok) expect(matters.value.resolution).toBeUndefined();
+    const all = await ask(
+      harness({ policy: { autonomy: 1, hold: { ...hold, matters: true } } }),
+      "a3",
+    );
+    if (all.ok) expect(all.value.resolution?.payload["decision"]).toBe("approved");
+
+    const no: PolicyRule = {
+      match: "acp.bash",
+      when: { starts_with: ["git"] },
+      decision: "deny",
+      reason: "Not git.",
+    };
+    const denied = await ask(harness({ policy: { autonomy: 1, hold, rules: [no] } }), "a4", run);
+    if (denied.ok) expect(denied.value.resolution?.payload["decision"]).toBe("denied");
+
+    const over = await ask(
+      harness({ policy: { autonomy: 1, hold: { ...hold, until: "2025-09-02T07:00:00.000Z" } } }),
+      "a5",
+      run,
+    );
+    if (over.ok) expect(over.value.resolution).toBeUndefined();
+  });
+
+  it("says yes for every harness while the workspace's hold holds", async () => {
+    const h = harness({
+      workspace: { max_autonomy: 2, rules: [], hold: { by: ARJUN.participantId, at: NOW } },
+    });
+    const result = await ask(h, "w1", run);
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (result.ok) expect(result.value.resolution?.payload["decision"]).toBe("approved");
+  });
+
+  it("asks a person for everything while a harness's Chips's rules are off (ADR 0300)", async () => {
+    const hold = { by: ARJUN.participantId, at: NOW };
+    const allow: PolicyRule = { match: "*", decision: "allow" };
+    const off = { set: false, rules: true, level: false, hold: true };
+    const result = await ask(
+      harness({ policy: { autonomy: 3, hold, rules: [allow] }, chipsRules: off }),
+      "o1",
+      run,
+    );
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (result.ok) expect(result.value.resolution).toBeUndefined();
+
+    // Never set: on for a harness with a hold, off for one with nothing of Chips's.
+    const held = await ask(
+      harness({
+        policy: { autonomy: 1, hold },
+        chipsRules: { rules: false, level: false, hold: true },
+      }),
+      "o2",
+      run,
+    );
+    if (held.ok) expect(held.value.resolution?.payload["decision"]).toBe("approved");
+    const fresh = await ask(
+      harness({
+        policy: { autonomy: 1, rules: [allow] },
+        chipsRules: { rules: false, level: false, hold: false },
+      }),
+      "o3",
+      run,
+    );
+    if (fresh.ok) expect(fresh.value.resolution).toBeUndefined();
+  });
+
+  it("leaves a never-list command to a person while asks are off (ADR 0300)", async () => {
+    const hold = { by: ARJUN.participantId, at: NOW };
+    const h = harness({ policy: { autonomy: 1, hold } });
+    const result = await ask(h, "r1", { kind: "acp.bash", input: { command: "rm -rf build" } });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (result.ok) expect(result.value.resolution).toBeUndefined();
+  });
+
+  it("gives a person's Always to the harness while its Chips's rules are off (ADR 0300)", async () => {
+    const off = harness({
+      policy: { autonomy: 2, rules: [] },
+      chipsRules: { set: false, rules: false, level: false, hold: false },
+    });
+    const result = await off.submit({
+      event: { ...fixture("approval.resolved"), scope: "always", keeps: undefined },
+      principal: ARJUN,
+      idempotencyKey: "always-off",
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(off.store.appended.map((event) => event.type)).toEqual(["approval.resolved"]);
+    expect(off.store.appended[0]).toMatchObject({ scope: "always", keeps: "harness" });
+
+    // On, Chips keeps it as a rule, and a `keeps` sent says nothing.
+    const on = harness({ policy: { autonomy: 2, rules: [] } });
+    await on.submit({
+      event: { ...fixture("approval.resolved"), scope: "always", keeps: "harness" },
+      principal: ARJUN,
+      idempotencyKey: "always-on",
+    });
+    expect(on.store.appended.map((event) => event.type)).toEqual([
+      "approval.resolved",
+      "policy.updated",
+    ]);
+    expect(on.store.appended[0]?.["keeps"]).toBeUndefined();
+  });
+
+  it("keeps the rules for every harness as an owner's or admin's, with the cap as it stands", async () => {
+    const event = {
+      ...fixture("policy.workspace_updated"),
+      actor: { kind: "person", id: ARJUN.participantId },
+      workspace_max_autonomy: 3,
+    };
+    const h = harness({ workspace: { max_autonomy: 1, rules: [] } });
+    const result = await h.submit({ event, principal: ARJUN, idempotencyKey: "r1" });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(h.store.appended[0]).toMatchObject({
+      workspace_max_autonomy: 1,
+      changed_by: ARJUN.participantId,
+      hold: { by: ARJUN.participantId, at: NOW },
+    });
+
+    const byMember = await harness().submit({
+      event: { ...event, actor: { kind: "person", id: DANA.participantId } },
+      principal: DANA,
+      idempotencyKey: "r2",
+    });
+    expect(byMember.ok).toBe(false);
+    if (!byMember.ok) expect(byMember.error.kind).toBe("wrong_role");
   });
 });
 

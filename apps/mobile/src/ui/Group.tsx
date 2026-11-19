@@ -141,6 +141,8 @@ interface RowProps {
   readonly subLines?: number;
   /** What the setting is at, in a word or two, before the chevron. */
   readonly value?: string | undefined;
+  /** The value in gold: a harness that isn't asking just now (ADR 0299). */
+  readonly goldValue?: boolean | undefined;
   readonly mark?: ReactNode;
   /** A control in the value's place — a switch, a tag, a button. */
   readonly trailing?: ReactNode;
@@ -199,6 +201,7 @@ function RowBody({
   sub,
   subLines = 2,
   value,
+  goldValue = false,
   mark,
   trailing,
   onPress,
@@ -249,16 +252,28 @@ function RowBody({
           </Text>
         )}
       </View>
-      {value === undefined ? null : (
-        <Text style={[styles.value, { color: palette.ink3 }]} numberOfLines={1}>
-          {value}
-        </Text>
-      )}
+      {value === undefined ? null : <RowValue value={value} gold={goldValue} />}
       {trailing}
       {onPress === undefined || tone !== "plain" ? null : (
         <Icon name="next" size={16} color={palette.ink4} />
       )}
     </View>
+  );
+}
+
+/** What the setting is at, before the chevron: grey, or gold for a harness not asking. */
+function RowValue({ value, gold }: { readonly value: string; readonly gold: boolean }) {
+  const palette = usePalette();
+  return (
+    <Text
+      style={[
+        styles.value,
+        gold ? { color: palette.goldDeep, fontWeight: "600" } : { color: palette.ink3 },
+      ]}
+      numberOfLines={1}
+    >
+      {value}
+    </Text>
   );
 }
 

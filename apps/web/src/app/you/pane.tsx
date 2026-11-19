@@ -24,7 +24,15 @@ import {
 } from "react";
 
 /** What a row of You's opens beside the list. */
-export type YouPage = "about" | "face" | "people" | "invite" | "relay" | "connection" | "log";
+export type YouPage =
+  | "about"
+  | "face"
+  | "people"
+  | "invite"
+  | "relay"
+  | "connection"
+  | "log"
+  | "permissions";
 
 /** Where a form's page stands, and what it tells the place as it opens and goes. */
 export interface FormHost {

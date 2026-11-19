@@ -12,6 +12,7 @@ import type {
   AgentLeft,
   Approval,
   AuditEntry,
+  Hold,
   LaneDelivery,
   LaneHop,
   LaneState,
@@ -31,6 +32,7 @@ import type {
   Step,
   TakenOut,
   Thought,
+  WorkspaceRules,
 } from "./types.js";
 
 /** A field the schema marks required. The server validated the event before appending it. */
@@ -101,6 +103,10 @@ export interface MutableSession {
 
 export interface MutablePolicy {
   everywhere?: { autonomy: 0 | 1 | 2 | 3; rules: Rule[]; budgetUsd?: number | undefined };
+  /** Its asks turned off (ADR 0299), kept apart so a change of the rules alone leaves it. */
+  hold?: Hold | undefined;
+  /** Its Chips's rules switch as last set (ADR 0300); absent while never set. */
+  chipsRules?: boolean | undefined;
   rooms: Map<string, { autonomy: 0 | 1 | 2 | 3; rules: Rule[] }>;
 }
 
@@ -210,6 +216,8 @@ export interface Building {
   questions: Map<string, { runId: string; index: number }>;
   policies: Map<string, MutablePolicy>;
   workspaceMax: 0 | 1 | 2 | 3 | undefined;
+  /** The rules and hold for every harness (ADR 0299). */
+  workspaceRules: WorkspaceRules;
   /** What may be attached here (ADR 0047): the workspace's caps, none until an owner sets them. */
   caps: AttachmentCaps;
   /** When Chips steps in on agents talking to each other (ADR 0187): the defaults until set. */

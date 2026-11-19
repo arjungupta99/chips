@@ -17,7 +17,14 @@
  */
 
 import type { Approval, FoundAsk, NeedsYouItem, Snapshot, Store } from "@chipschat/core";
-import { findAsk, mayTurnDial, roomName, runIsLane } from "@chipschat/core";
+import {
+  chipsRulesOnFor,
+  findAsk,
+  harnessOf,
+  mayTurnDial,
+  roomName,
+  runIsLane,
+} from "@chipschat/core";
 import { Redirect, Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
@@ -269,6 +276,7 @@ function Deciding({
         // The way to the space is a row beside Hand to…; with no space to go to, a line says so.
         onOpenSpace={item.outside === true ? undefined : onOpenSpace}
         under={item.outside === true ? under : undefined}
+        chipsOn={chipsRulesOnFor(snapshot.model, harnessOf(snapshot.directory, item.harnessId))}
       />
     </Screen>
   );

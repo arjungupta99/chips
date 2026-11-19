@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import { joinCheckCode, joinCheckText, joinCommitText } from "@chipschat/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { allowWaiting, waitForAllow } from "./allowWait.js";
-import { cacheKey } from "./cache.js";
+import { cacheKey, earlierCacheKeys } from "./cache.js";
 import type { Device } from "./device.js";
 import {
   askToJoin,
@@ -519,7 +519,8 @@ describe("a storage that keeps the key its own way (ADR 0042 … M4.2)", () => {
     });
     expect(next?.deviceId).toBe("dev_home");
     expect(storage.data.has("dev_old")).toBe(false);
-    expect(deleted).toHaveLength(1);
+    // Its cache at this level and at each before it.
+    expect(deleted).toHaveLength(2);
   });
 
   it("changes nothing for a storage that holds a key itself", async () => {
@@ -778,7 +779,7 @@ describe("several workspaces on one device (M5.3)", () => {
     const deleted: string[] = [];
     const cache = { delete: async (key: string) => void deleted.push(key) };
     expect((await forgetDevice("dev_2", storage, cache))?.deviceId).toBe("dev_1");
-    expect(deleted).toEqual([cacheKey(work)]);
+    expect(deleted).toEqual([cacheKey(work), ...earlierCacheKeys(work)]);
     // A cache that will not go does not keep the key: the device is forgotten either way.
     const stubborn = { delete: async () => Promise.reject(new Error("blocked")) };
     expect(await forgetDevice("dev_1", storage, stubborn)).toBeUndefined();

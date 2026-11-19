@@ -127,8 +127,9 @@ test("approve a smaller ask with a scope beyond this once, which is a policy rul
   page,
 }) => {
   // A harness of its own, which starts at L1, so a smaller ask waits for an answer: in the demo
-  // room, at L2, policy would answer it before the card came.
-  const juniper = await registerSpecialist("Juniper");
+  // room, at L2, policy would answer it before the card came. Its Chips's rules are on (ADR 0300),
+  // which offer For an hour.
+  const juniper = await registerSpecialist("Juniper", undefined, undefined, true);
   await pair(page);
   const harness = await Harness.connect(newRunId(), { token: juniper.token, space: juniper.space });
   try {

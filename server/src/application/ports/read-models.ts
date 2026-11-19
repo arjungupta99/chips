@@ -12,6 +12,7 @@ import type {
   ContextEvent,
   ExchangeStretch,
   NO_SPEND_CEILING,
+  PolicyHold,
   PolicyRule,
   PostedFile,
   RoomSpend,
@@ -194,14 +195,30 @@ export interface HarnessPolicyView {
    * the space's (ADR 0239), so a rule kept for every space reaches a space with a row of its own.
    */
   readonly everywhere_rules?: readonly PolicyRule[] | undefined;
+  /** Its asks turned off (ADR 0299), from its everywhere row, whichever row this is. */
+  readonly hold?: PolicyHold | null | undefined;
   readonly budget_usd: number | null;
   readonly spent_usd: number;
   readonly updated_seq: number;
 }
 
+/** What decides a harness's Chips's rules switch (ADR 0300), the workspace's aside. */
+export interface ChipsRulesView {
+  /** As a person set it on the everywhere row; nothing while never set. */
+  readonly set?: boolean | undefined;
+  /** A rule in any of the harness's rows. */
+  readonly rules: boolean;
+  /** Its level above L1 in any of its rows. */
+  readonly level: boolean;
+  /** A hold on its everywhere row, past or present. */
+  readonly hold: boolean;
+}
+
 export interface WorkspacePolicyView {
   readonly max_autonomy: number;
   readonly rules: readonly PolicyRule[];
+  /** Every harness's asks turned off (ADR 0299). */
+  readonly hold?: PolicyHold | null | undefined;
 }
 
 export interface QuestionView {
@@ -988,6 +1005,8 @@ export interface ReadModels {
   ) => Promise<HarnessPolicyView | undefined>;
   /** The workspace cap, as the last `policy.updated` reported it. */
   readonly workspacePolicy: (workspaceId: string) => Promise<WorkspacePolicyView | undefined>;
+  /** What decides a harness's Chips's rules switch (ADR 0300), across all its rows. */
+  readonly chipsRules: (workspaceId: string, harnessId: string) => Promise<ChipsRulesView>;
   /** The decisions made "for this session" in a run, as rules the engine can read. */
   readonly sessionRules: (workspaceId: string, runId: string) => Promise<PolicyRule[]>;
   /**

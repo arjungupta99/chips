@@ -6,17 +6,20 @@
  * (ADR 0298).
  */
 
-import type {
-  HarnessSoftware,
-  MacUpdate,
-  SelfUpdateFacts,
-  ServerFacts,
-  Software,
-  UpdateDevice,
+import {
+  type HarnessSoftware,
+  type MacUpdate,
+  type SelfUpdateFacts,
+  type ServerFacts,
+  type Software,
+  UPDATE_MOTION,
+  type UpdateDevice,
+  updateButtonTimes,
 } from "@chipschat/core";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DotFlightLayer, flights } from "./flight.tsx";
 import {
   DOT_KEY,
   type MacUpdater,
@@ -97,6 +100,9 @@ beforeEach(() => {
 });
 afterEach(() => {
   localStorage.clear();
+  // A click on the dot took off: the next test starts with no flight up.
+  const left = flights.now();
+  if (left.stage === "up") flights.miss(left.id);
 });
 
 describe("the update dot (ADR 0296)", () => {
@@ -181,29 +187,154 @@ describe("the update dot (ADR 0296)", () => {
   });
 });
 
-describe("About's Update button (ADR 0296)", () => {
-  it("rings a beat later for each button below the first, and does what it says", () => {
+describe("About's update buttons and the dot's flight (ADR 0296, 17 November 2026)", () => {
+  const ring = (testId: string) => screen.getByTestId(testId).parentElement as HTMLElement;
+  const pair = (clicked: string[] = []) => (
+    <>
+      <UpdateButton label="Install" onClick={() => clicked.push("install")} testId="first" />
+      <UpdateButton
+        label="Update"
+        soft
+        order={1}
+        onClick={() => clicked.push("update")}
+        testId="second"
+      />
+    </>
+  );
+  const tick = (ms: number) => act(() => vi.advanceTimersByTime(ms));
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // jsdom lays nothing out: the first button stands here, its middle at (340, 415).
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
+      left: 300,
+      top: 400,
+      width: 80,
+      height: 30,
+    } as DOMRect);
+  });
+  afterEach(() => {
+    const left = flights.now();
+    if (left.stage === "up") flights.miss(left.id);
+    if (vi.isFakeTimers()) act(() => vi.advanceTimersByTime(10_000));
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("show glowing and do what they say, when About was opened without the dot", () => {
     const clicked: string[] = [];
-    render(
-      <>
-        <UpdateButton label="Install" onClick={() => clicked.push("install")} testId="first" />
-        <UpdateButton
-          label="Update"
-          soft
-          order={1}
-          onClick={() => clicked.push("update")}
-          testId="second"
-        />
-      </>,
-    );
-    const first = screen.getByTestId("first");
-    const second = screen.getByTestId("second");
-    expect(first.className).toBe("update-btn");
-    expect(second.className).toBe("update-btn is-soft");
-    expect(first.parentElement?.style.getPropertyValue("--ring-at")).toBe("280ms");
-    expect(second.parentElement?.style.getPropertyValue("--ring-at")).toBe("440ms");
-    fireEvent.click(second);
+    render(pair(clicked));
+    expect(screen.getByTestId("first").className).toBe("update-btn");
+    expect(screen.getByTestId("second").className).toBe("update-btn is-soft");
+    for (const id of ["first", "second"]) {
+      expect(ring(id).dataset["grown"]).toBe("shown");
+      expect(ring(id).dataset["glow"]).toBe("true");
+    }
+    expect(ring("second").dataset["soft"]).toBe("true");
+    fireEvent.click(screen.getByTestId("second"));
     expect(clicked).toEqual(["update"]);
+  });
+
+  it("wait unseen while the dot flies, the first saying where it stands", async () => {
+    const id = flights.takeOff();
+    render(pair());
+    expect(ring("first").dataset["grown"]).toBe("seed");
+    expect(ring("second").dataset["grown"]).toBe("seed");
+    expect(ring("first").dataset["glow"]).toBeUndefined();
+    await act(async () => undefined);
+    expect(flights.now()).toEqual({ stage: "up", id, to: { x: 340, y: 415 } });
+  });
+
+  it("grow out of the dot as it lands, the second a beat later, a light over each, then glow", async () => {
+    const id = flights.takeOff();
+    render(pair());
+    act(() => flights.land(id));
+    await tick(0);
+    expect(ring("first").dataset["grown"]).toBe("grow");
+    expect(ring("second").dataset["grown"]).toBe("seed");
+    await tick(UPDATE_MOTION.growBeatMs);
+    expect(ring("second").dataset["grown"]).toBe("grow");
+    await tick(updateButtonTimes(0).sweepAt - UPDATE_MOTION.growBeatMs);
+    expect(ring("first").dataset["sweep"]).toBe("true");
+    expect(ring("first").dataset["grown"]).toBe("shown");
+    expect(ring("second").dataset["sweep"]).toBeUndefined();
+    await tick(UPDATE_MOTION.sweepBeatMs);
+    expect(ring("second").dataset["sweep"]).toBe("true");
+    expect(ring("first").dataset["glow"]).toBeUndefined();
+    await tick(UPDATE_MOTION.glowAfterMs);
+    expect(ring("first").dataset["glow"]).toBe("true");
+    await tick(UPDATE_MOTION.sweepBeatMs);
+    expect(ring("second").dataset["glow"]).toBe("true");
+    // Once the light has passed it goes, so it never passes again.
+    const passed = createEvent.animationEnd(ring("first"));
+    Object.defineProperty(passed, "animationName", { value: "update-btn-sweep" });
+    fireEvent(ring("first"), passed);
+    expect(ring("first").dataset["sweep"]).toBeUndefined();
+  });
+
+  it("grow at once, with no light, when the dot had nowhere to land", async () => {
+    const id = flights.takeOff();
+    render(pair());
+    act(() => flights.miss(id));
+    await tick(0);
+    expect(ring("first").dataset["grown"]).toBe("grow");
+    expect(ring("second").dataset["grown"]).toBe("grow");
+    await tick(UPDATE_MOTION.growMs);
+    expect(ring("first").dataset["glow"]).toBe("true");
+    await tick(5000);
+    expect(ring("first").dataset["sweep"]).toBeUndefined();
+  });
+
+  it("takes off when the dot is clicked, from where it stands, and steps out of sight", async () => {
+    vi.useRealTimers();
+    const opened: string[] = [];
+    shell(<UpdateDot place="rail" onOpen={() => opened.push("about")} />);
+    const dot = await screen.findByTestId("update-dot");
+    fireEvent.click(dot);
+    expect(opened).toEqual(["about"]);
+    const flight = flights.now();
+    expect(flight).toMatchObject({ stage: "up", from: { x: 340, y: 415 } });
+    expect(dot.dataset["away"]).toBe("true");
+    act(() => flights.miss(flight.id));
+    vi.useFakeTimers();
+  });
+
+  it("stays where it is with reduced motion", async () => {
+    vi.useRealTimers();
+    const was = window.matchMedia;
+    window.matchMedia = (query: string) =>
+      ({ matches: query.includes("reduce"), media: query }) as MediaQueryList;
+    try {
+      const before = flights.now();
+      shell(<UpdateDot place="rail" onOpen={() => undefined} />);
+      fireEvent.click(await screen.findByTestId("update-dot"));
+      expect(flights.now()).toBe(before);
+    } finally {
+      window.matchMedia = was;
+    }
+    vi.useFakeTimers();
+  });
+
+  it("draws the dot on its way over the page and lands it on the button", () => {
+    render(<DotFlightLayer />);
+    const id = flights.takeOff();
+    act(() => flights.from(id, { x: 1180, y: 14 }));
+    const flying = screen.getByTestId("update-dot-flying");
+    expect(flying.parentElement).toBe(document.body);
+    expect(flying.style.left).toBe("1180px");
+    // jsdom has no Web Animations: the dot lands at once.
+    act(() => flights.aim(id, { x: 340, y: 415 }));
+    expect(flights.now()).toEqual({ stage: "landed", id });
+    expect(screen.queryByTestId("update-dot-flying")).toBeNull();
+  });
+
+  it("goes out where it stands when no button answers", () => {
+    render(<DotFlightLayer />);
+    const id = flights.takeOff();
+    act(() => flights.from(id, { x: 1180, y: 14 }));
+    act(() => vi.advanceTimersByTime(UPDATE_MOTION.waitMs));
+    expect(flights.now()).toEqual({ stage: "missed", id });
+    expect(screen.queryByTestId("update-dot-flying")).toBeNull();
   });
 });
 

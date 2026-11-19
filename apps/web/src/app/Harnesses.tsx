@@ -41,6 +41,7 @@ import {
   harnessGroups,
   harnessModelAgent,
   harnessNamed,
+  harnessOf,
   heldNamesFor,
   type JoinRequest,
   joinCardOf,
@@ -89,7 +90,7 @@ import { useHarnessBanners } from "./harness/HarnessBanners.tsx";
 import { HarnessCards } from "./harness/HarnessCards.tsx";
 import { HarnessPage } from "./harness/HarnessPage.tsx";
 import { Part } from "./harness/Parts.tsx";
-import { PART_TITLE } from "./harness/parts.ts";
+import { partTitle } from "./harness/parts.ts";
 import {
   type Choice,
   ConnectPage,
@@ -102,6 +103,7 @@ import {
 import { JobPage } from "./jobs/JobPage.tsx";
 import { JobsGroup, type JobsReads } from "./jobs/JobsGroup.tsx";
 import { useModelRow } from "./model/ModelGroup.tsx";
+import type { PermissionsService } from "./permissions/service.ts";
 import { Swap } from "./Swap.tsx";
 import { useAgentPicking } from "./select/agents.tsx";
 import { PickBar, PickHint, SelectButton } from "./select/PickParts.tsx";
@@ -142,6 +144,8 @@ export interface HarnessesProps {
    * put back. Absent, When it asks you reads its list and changes nothing.
    */
   readonly onSetRules?: ((input: SetRulesInput) => void) | undefined;
+  /** A harness's permissions, its snooze and the rules for every harness (ADR 0299). */
+  readonly permissions?: PermissionsService | undefined;
   /**
    * A new agent of a harness in a space of its own (ADR 0190, point 4): the store's
    * `askIntoNewRoom`, answering with the space. Rejects with the server's reason.
@@ -432,6 +436,9 @@ export function Harnesses(props: HarnessesProps) {
           push({ kind: "file", owner: { kind: "harness", id: top.harnessId }, name, own: false })
         }
         onSetRules={props.onSetRules}
+        permissions={props.permissions}
+        onOpenPart={(part) => push({ kind: "harness_part", harnessId: top.harnessId, part })}
+        onBack={pop}
         onSetAutonomy={props.onSetAutonomy}
         onTransfer={mayOn(props, top.harnessId).transfer}
         onDeclare={mayOn(props, top.harnessId).declare}
@@ -655,7 +662,15 @@ function AgentOf(
       onOpenRoom={props.onOpen}
       onOpenAgent={props.onOpenAgent}
       onOpenHistory={() => props.onPush({ kind: "agent_history", agentId: props.agentId })}
-      onOpenPermissions={
+      onOpenPermissions={() =>
+        // An agent has no permissions of its own: its harness decides (ADR 0300).
+        props.onPush({
+          kind: "harness_part",
+          harnessId: harnessOf(props.directory, props.agentId),
+          part: "asks",
+        })
+      }
+      onOpenWorking={
         props.banners === undefined
           ? undefined
           : () => props.onPush({ kind: "agent_permissions", agentId: props.agentId })
@@ -1153,10 +1168,10 @@ function overPage(
   if (top.kind === "harness_part") {
     return (
       <OverPage
-        title={PART_TITLE[top.part]}
+        title={partTitle(top.part, nameOf(on.directory, top.harnessId))}
         backLabel={backLabel}
         onBack={on.onBack}
-        label={`${nameOf(on.directory, top.harnessId)}: ${PART_TITLE[top.part]}`}
+        label={`${nameOf(on.directory, top.harnessId)}: ${partTitle(top.part, nameOf(on.directory, top.harnessId))}`}
       >
         {on.part(top)}
       </OverPage>
@@ -1235,7 +1250,7 @@ function backLabelOf(under: ContextPage | undefined, directory: Directory): stri
     case "job":
       return nameOf(directory, under.harnessId);
     case "harness_part":
-      return PART_TITLE[under.part];
+      return partTitle(under.part, nameOf(directory, under.harnessId));
     case "harnesses":
       return "Harnesses";
     case "file":

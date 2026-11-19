@@ -25,9 +25,9 @@
  * When Chips steps in on agents talking to each other (ADR 0187) is the other: the row says the
  * stop and the hold, and its sheet (`ExchangeLimitsSheet.tsx`) sets them and the circles switch.
  *
- * Allowed always (ADR 0195) is the shortcut to what a person's Always let each harness go ahead
- * with: the row says how many are on, and its sheet (`AlwaysSheet.tsx`) switches and removes them
- * as each harness's page does.
+ * Permissions (ADR 0299), in the place Allowed always (ADR 0195) had, is every harness's asks at
+ * once: the row says whether any isn't asking or how many rules are on, and opens its page
+ * (`YouPermissions.tsx`), pushed on a phone.
  *
  * Relay (ADR 0211, Phase 4), an owner's alone and only where the server has one, opens the page
  * that turns it off and on (`RelayPage.tsx`); the row says which it is.
@@ -36,13 +36,12 @@
  * Spaces' name opens too; a Name row here said it a second time.
  *
  * The sheets stand beside You's scroll, not in it (`You.tsx`). Beside the list on an iPad, the
- * attachment limits, the messages between agents and what is allowed always are pages there
+ * attachment limits and the messages between agents are pages there, Permissions is beside it
  * instead (`pages.tsx`), and so is Connect a harness, whose pages and the link they make are held
  * by one provider for You and the Agents shelf alike (ADR 0284's addendum).
  */
 
 import {
-  alwaysSummary,
   capsDraft,
   capsFromDraft,
   capsSentence,
@@ -51,6 +50,7 @@ import {
   liveInvites,
   openLinksWords,
   peopleOf,
+  permissionsSummary,
   roleCountWords,
   type Snapshot,
   type Store,
@@ -71,7 +71,6 @@ import { Group, GroupFoot, GroupHeading, GroupRow, MARKED_INSET, RowMark } from 
 import { Sheet } from "../ui/Sheet";
 import { usePalette } from "../ui/theme";
 import { AVATAR_HUES, TEXT } from "../ui/tokens";
-import { AlwaysPage, AlwaysSheet } from "./AlwaysSheet";
 import { ExchangeLimitsPage, ExchangeLimitsSheet } from "./ExchangeLimitsSheet";
 import { SheetPage, usePage, useSheetPage } from "./pages";
 import { SheetHead } from "./SheetHead";
@@ -88,7 +87,6 @@ export function useWorkspaceGroup({
   invites,
   people,
   snapshot,
-  selfId,
   relay,
 }: {
   readonly store: Store;
@@ -117,10 +115,9 @@ export function useWorkspaceGroup({
   const [ceiling, setCeiling] = useState<number | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [talk, setTalk] = useState(false);
-  const [allowed, setAllowed] = useState(false);
   const capsPage = useSheetPage("attachments", () => setOpen(true));
   const talkPage = useSheetPage("exchange", () => setTalk(true));
-  const allowedPage = useSheetPage("always", () => setAllowed(true));
+  const permissionsPage = usePage("permissions");
   const [links, setLinks] = useState<readonly Invite[] | undefined>(undefined);
   const connecting = useConnect();
   const connectPage = useSheetPage("connect", connecting.open);
@@ -237,12 +234,12 @@ export function useWorkspaceGroup({
           testID="exchange-limits-row"
         />
         <GroupRow
-          label="Allowed always"
-          value={alwaysSummary(snapshot.model, snapshot.directory)}
-          mark={<RowMark icon="unlock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
-          onPress={allowedPage.onPress}
-          selected={allowedPage.selected}
-          testID="allowed-always-row"
+          label="Permissions"
+          value={permissionsSummary(snapshot.model, snapshot.directory)}
+          mark={<RowMark icon="lock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
+          onPress={permissionsPage.onPress}
+          selected={permissionsPage.selected}
+          testID="permissions-row"
         />
       </Group>
     </>
@@ -262,13 +259,6 @@ export function useWorkspaceGroup({
         limits={limits}
         onSave={(next) => store.setExchangeLimits(next)}
       />
-      <AlwaysSheet
-        open={allowed}
-        onClose={() => setAllowed(false)}
-        store={store}
-        snapshot={snapshot}
-        selfId={selfId}
-      />
     </>
   );
   const pages = {
@@ -287,7 +277,6 @@ export function useWorkspaceGroup({
         onDone={talkPage.done}
       />
     ),
-    always: <AlwaysPage store={store} snapshot={snapshot} selfId={selfId} />,
   };
   return { group, overlays, pages };
 }

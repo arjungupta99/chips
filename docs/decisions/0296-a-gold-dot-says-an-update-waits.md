@@ -69,3 +69,29 @@ three ways; he picked the dot that breathes and the buttons that send out a ring
   day, so a missing feed costs a handful of requests and log lines on the first day.
 - An older computer has no `updates` in `GET /v1/server`; the apps read its absence as nothing known.
 - What the words promise: that an update is out and where to get it, nothing about what it does.
+
+## Addendum, 17 November 2026: the dot becomes the button, and the buttons glow
+
+Arjun, going back to the mocks' first way for the buttons: "I want to go back to the design you
+shared, where the dot dropped on the update button", and "I want the update buttons always animate
+glowing after once they appear". This replaces decision 2's last sentence, the buttons' ring.
+
+1. **The dot becomes the button.** Tapped or clicked, the dot flies to About's first update button,
+   x and y on different curves so its path bends, swelling a little to meet it, and the button grows
+   out of it as it lands; a button under it grows a beat later, and a light passes over each once.
+   On a phone the flight is drawn on a layer over the whole window, since About is pushed over the
+   tabs the dot stood on; on an iPad, over the list's column into the pane beside it; on the Mac and
+   the web, from the bar's right end into You's About page. Opened any other way, About shows its
+   buttons as they are.
+2. **The buttons glow.** Every update button (Update, Install, Restart now) glows on the dot's own
+   breath, about every 3.4 seconds, for as long as it shows: from the start when About is opened
+   another way, after its light when the dot flew in. The computer's softer button glows less. With
+   Reduce Motion nothing flies or grows, and the glow holds still.
+3. **One flight, one set of numbers.** The flight is a small store in core, `dotFlights`, that each
+   app keeps one of, and the motion's numbers are core's `UPDATE_MOTION` and `updateButtonTimes`, so
+   the phone, the iPad, the Mac and the web move alike. A flight no button answers is missed, and
+   the buttons grow at once: About says so when it shows no button (a dot lit only for what needs
+   the owner, ADR 0297), and otherwise after 900 ms. Each later wait counts from the step before it,
+   the dot setting off once the button has answered and landing once it has set off, because opening
+   About can hold a page's thread for most of a second and the flight must start late rather than be
+   cut short.

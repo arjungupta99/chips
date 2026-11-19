@@ -54,6 +54,8 @@ export async function registerSpecialist(
   name = "Ledger",
   ownerId?: string,
   capabilities?: readonly string[],
+  /** Starts it with its Chips's rules on (ADR 0300), for a test of them; off, as a new one is. */
+  chipsRules = false,
 ): Promise<Specialist> {
   const response = await fetch(`${SERVER}/v1/dev/harnesses`, {
     method: "POST",
@@ -63,6 +65,7 @@ export async function registerSpecialist(
       display_name: name,
       ...(ownerId === undefined ? {} : { owner_id: ownerId }),
       ...(capabilities === undefined ? {} : { capabilities }),
+      ...(chipsRules ? { chips_rules: true } : {}),
     }),
   });
   if (!response.ok) throw new Error(`dev/harnesses answered ${response.status}`);

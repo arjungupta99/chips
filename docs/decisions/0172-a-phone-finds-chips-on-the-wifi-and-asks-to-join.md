@@ -1,8 +1,8 @@
 # 0172. A phone finds Chips on the Wi-Fi and asks to join
 
 Date: 15 October 2026
-Status: Accepted, 15 October 2026. Phase 3 of the [install plan](../proposals/install-onboarding-plan.md)
-(§3.2, "the phone, from the Wi-Fi"), built to the [first-run build plan](../proposals/first-run-build.md).
+Status: Accepted, 15 October 2026. Phase 3 of the install plan (`docs/proposals/install-onboarding-plan.md`)
+(§3.2, "the phone, from the Wi-Fi"), built to the first-run build plan (`docs/proposals/first-run-build.md`).
 Uses [ADR 0122](0122-a-harness-or-a-device-asks-to-join-and-a-person-allows-it.md)'s device request,
 which the server and the computer's request dialog already took.
 

@@ -118,6 +118,7 @@ describe("the catalogue", () => {
       "exchange.limits_set",
       "workspace.renamed",
       "relay.set",
+      "policy.workspace_updated",
     ]);
   });
 
@@ -174,6 +175,7 @@ describe("the catalogue", () => {
       "approval.held_started",
       "attachment.limits_set",
       "exchange.limits_set",
+      "policy.workspace_updated",
     ]);
     expect(by("either")).toEqual([
       "message.post",

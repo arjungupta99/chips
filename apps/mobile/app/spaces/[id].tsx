@@ -21,20 +21,22 @@
 import { ownsWorkspace, type Store, serverHost } from "@chipschat/core";
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RoomDrop } from "../../src/spaces/RoomDrop";
-import { RoomName, UniverseButton, useRoom } from "../../src/spaces/RoomHead";
+import { RoomName, UNIVERSE_ACROSS, UniverseButton, useRoom } from "../../src/spaces/RoomHead";
 import { RoomSheet } from "../../src/spaces/RoomSheet";
 import { type GoTo, SpaceView } from "../../src/spaces/SpaceView";
 import { UniverseSheet } from "../../src/spaces/Universe";
 import { useUniverseCall } from "../../src/spaces/universeSeen";
 import { useChips } from "../../src/store/provider";
 import { BackToTabs } from "../../src/ui/backToTabs";
-import { ConnectionMark, useMarking } from "../../src/ui/Connection";
+import { BESIDE_A_MARK, ConnectionMark, MARK_WIDTH, useMarking } from "../../src/ui/Connection";
 import { useGlassy } from "../../src/ui/Glass";
 import { useLayout } from "../../src/ui/layout";
 import { MarkBeside } from "../../src/ui/MarkBeside";
 import { Screen } from "../../src/ui/Screen";
+import { titleRoom } from "../../src/ui/titleRoom";
 
 export default function SpaceScreen() {
   const { paired } = useChips();
@@ -105,6 +107,12 @@ function Open({
   // whether or not what goes in it draws anything (`useMarking`).
   const beside = space?.project !== undefined;
   const { marking, room: markRoom, markedBy } = useMarking(snapshot.connection, beside);
+  // As wide as the name may be: what the bar leaves it between the way back and what stands at its
+  // right (`ui/titleRoom.ts`). With the mark's room as it is when open, for as long as the mark is
+  // there at all, so the name is never under the room as it opens or closes.
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const widest = titleRoom(width - insets.left - insets.right, slotAcross(marking, beside));
   // Whether the bar floats over the room or stands above it, and how tall it is when it floats.
   // Nought until the bar has laid itself out, which is one frame with the room's first line
   // under the bar and then right ever after; a guess here would be wrong on a phone whose text
@@ -132,7 +140,7 @@ function Open({
           title,
           // A room asked of a harness is "New space" until the harness names it, and the name
           // arrives with a sweep of gold across the capsule (`newSpace/Naming.tsx`).
-          headerTitle: () => <RoomName room={room} glassy={glassy} />,
+          headerTitle: () => <RoomName room={room} glassy={glassy} widest={widest} />,
           // Transparent, with nothing but a measuring tape in the background slot: the blur
           // behind the bar is the room's to draw, because it has to reach past the bar's own
           // bounds and into the conversation, and a view inside the bar cannot.
@@ -332,11 +340,28 @@ function useArrival(edge: "transitionStart" | "transitionEnd", wanted = true): b
   return arrived;
 }
 
+/** Inside the bar's right-hand slot's glass, either side of what stands in it (`styles.trailing`). */
+const TRAILING_PAD = 5;
+
+/**
+ * What stands in the bar's right-hand slot, across, as `styles.trailing` lays it out: Universe's
+ * rings in a room with a project, with the mark's room open beside them while the mark is there
+ * (`MarkBeside`, `BESIDE_A_MARK`), or the mark alone where there is no project. Nothing where the
+ * slot is given nothing.
+ */
+function slotAcross(marking: boolean, beside: boolean): number | undefined {
+  if (!marking && !beside) return undefined;
+  const { lead, gap, trail } = BESIDE_A_MARK;
+  const markRoom = lead[1] + MARK_WIDTH + gap + trail;
+  const held = beside ? UNIVERSE_ACROSS + (marking ? markRoom : 0) : MARK_WIDTH;
+  return 2 * TRAILING_PAD + held;
+}
+
 const styles = StyleSheet.create({
   // Universe and the connection's mark, side by side in the bar's one capsule (`MarkBeside`).
   // The bar's glass gives its slot about five points either side; five more here, and twenty
   // between the two marks, so each sits in the middle of its own half of the glass, as grouped bar
   // buttons do: not pressed to its ends (his iPhone, 24 October 2026), and not crowded together
   // either ("Need more space between the chips loading icon and the universe icon").
-  trailing: { flexDirection: "row", alignItems: "center", paddingHorizontal: 5 },
+  trailing: { flexDirection: "row", alignItems: "center", paddingHorizontal: TRAILING_PAD },
 });

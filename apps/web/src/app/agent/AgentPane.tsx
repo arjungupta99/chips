@@ -5,13 +5,12 @@
  * each way back, named for the agent, returns to the card.
  */
 
-import { PERMISSIONS_TITLE, type SetRulesInput } from "@chipschat/core";
+import { harnessOf } from "@chipschat/core";
 import { type ComponentProps, type ReactNode, useState } from "react";
 import { AgentPage } from "../Agents.tsx";
 import type { FileService } from "../files.ts";
 import { AgentFace } from "./AgentFace.tsx";
 import { AgentHistory } from "./AgentHistory.tsx";
-import { AgentPermissions } from "./AgentPermissions.tsx";
 
 export function AgentPane(
   props: Omit<
@@ -19,33 +18,17 @@ export function AgentPane(
     "onOpenHistory" | "onOpenFace" | "onOpenPermissions"
   > & {
     readonly files: FileService;
-    readonly onSetRules?: ((input: SetRulesInput) => void) | undefined;
+    /** Its harness's Permissions, since an agent has none of its own (ADR 0300). */
     readonly onOpenHarness?: ((harnessId: string) => void) | undefined;
   },
 ) {
-  const { files, onSetRules, onOpenHarness, ...card } = props;
-  const [shown, setShown] = useState<"card" | "history" | "face" | "permissions">("card");
+  const { files, onOpenHarness, ...card } = props;
+  const [shown, setShown] = useState<"card" | "history" | "face">("card");
   const name = card.directory[card.agentId]?.displayName ?? "Agent";
   if (shown === "face") {
     return (
       <FacePage name={name} title="Icon" onBack={() => setShown("card")}>
         <AgentFace agentId={card.agentId} directory={card.directory} agents={card.agents} />
-      </FacePage>
-    );
-  }
-  if (shown === "permissions" && card.banners !== undefined) {
-    return (
-      <FacePage name={name} title={PERMISSIONS_TITLE} onBack={() => setShown("card")}>
-        <AgentPermissions
-          agentId={card.agentId}
-          model={card.model}
-          directory={card.directory}
-          selfId={card.selfId}
-          service={card.banners}
-          onSetRules={onSetRules}
-          onOpenSpace={card.onOpenRoom}
-          onOpenHarness={onOpenHarness ?? (() => setShown("card"))}
-        />
       </FacePage>
     );
   }
@@ -70,7 +53,11 @@ export function AgentPane(
     <AgentPage
       {...card}
       onOpenHistory={() => setShown("history")}
-      onOpenPermissions={card.banners === undefined ? undefined : () => setShown("permissions")}
+      onOpenPermissions={
+        onOpenHarness === undefined
+          ? undefined
+          : () => onOpenHarness(harnessOf(card.directory, card.agentId))
+      }
       onOpenFace={() => setShown("face")}
     />
   );

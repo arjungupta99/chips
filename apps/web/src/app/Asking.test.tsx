@@ -1,8 +1,9 @@
 /**
- * When it asks you on the desktop (ADR 0195): the harness card's section, You's Allowed always card,
- * and the ask card's lines. Each rendered on its own against a hand-made model; what a browser
- * paints, the dust and the motion, and the real round trip through the server are the Playwright
- * suite's (`e2e/when-it-asks.spec.ts`).
+ * When it asks you on the desktop (ADR 0195), as a harness's Permissions holds it now (ADR 0299):
+ * what Chips answers, switched and removed, the asks so far and every ask out of them; who works
+ * without asking on You → Permissions; and the ask card's lines. Each rendered on its own against a
+ * hand-made model; what a browser paints, the dust and the motion, and the real round trip through
+ * the server are the Playwright suite's (`e2e/when-it-asks.spec.ts`, `e2e/permissions.spec.ts`).
  */
 
 import type {
@@ -15,9 +16,10 @@ import type {
 } from "@chipschat/core";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Asking } from "./Asking.tsx";
 import { Decide, type DecisionInput } from "./Decide.tsx";
-import { AllowedAlwaysForm } from "./you/AllowedAlways.tsx";
+import { ChipsRules, HarnessPermissions } from "./permissions/HarnessPermissions.tsx";
+import type { PermissionsService } from "./permissions/service.ts";
+import { YouPermissions } from "./permissions/YouPermissions.tsx";
 
 const ARJUN = "per_arjun";
 const DANA = "per_dana";
@@ -114,71 +116,93 @@ function model(
   } as unknown as WorkspaceModel;
 }
 
+/** The store's side of the page, every change sent recorded; nothing said yet of its own rules. */
+function service(sent: SetRulesInput[]): PermissionsService {
+  return {
+    setRules: (input) => sent.push(input),
+    snoozeHarness: () => undefined,
+    resumeHarness: () => undefined,
+    setChipsRules: () => undefined,
+    setWorkspaceRules: () => undefined,
+    readOwnRules: async () => ({ own_rules: null, heard_at: null }),
+  };
+}
+
 function section(over: Parameters<typeof model>[0] = {}, read = false) {
   const sent: SetRulesInput[] = [];
   const opened: string[] = [];
+  // The main page and its Chips's rules page, drawn together (ADR 0300).
+  const said = read ? undefined : service(sent);
   const shown = render(
-    <Asking
-      model={model(over)}
-      directory={directory}
-      harnessId={KIT}
-      selfId={ARJUN}
-      onOpenSpace={(spaceId) => opened.push(spaceId)}
-      {...(read ? {} : { onSetRules: (input: SetRulesInput) => sent.push(input) })}
-    />,
+    <>
+      <HarnessPermissions
+        model={model(over)}
+        directory={directory}
+        harnessId={KIT}
+        selfId={ARJUN}
+        service={said}
+        onOpenSpace={(spaceId) => opened.push(spaceId)}
+        onOpenPart={() => undefined}
+      />
+      <ChipsRules
+        model={model(over)}
+        directory={directory}
+        harnessId={KIT}
+        selfId={ARJUN}
+        service={said}
+        onNewRule={() => undefined}
+      />
+    </>,
   );
   return { sent, shown, opened };
 }
 
-describe("When it asks you, on the harness card", () => {
-  it("says who decides when and who decides the answer, and the three promises", () => {
+describe("When it asks you, on a harness's Permissions (ADR 0195, ADR 0299)", () => {
+  it("says what reaches Chips, and what always comes to a person", () => {
     section();
     expect(screen.getByTestId("asking-hero")).toBeTruthy();
-    expect(screen.getByTestId("asking-headline").textContent).toBe(
-      "Kit decides when to ask. You decide the answer.",
+    // It has rules, so its Chips's rules read as on (ADR 0300).
+    expect(screen.getByTestId("perms-headline").textContent).toBe(
+      "Kit decides what to ask. Chips answers the ones your rules cover and brings you the rest.",
     );
-    expect(screen.getByTestId("asking-sub").textContent).toMatch(/^Its asks come to you/);
-    expect(screen.getByTestId("asking-promise-big").textContent).toContain(
-      "The big ones wait for you",
+    expect(screen.getByTestId("perms-settings-row").textContent).toContain(
+      "Doesn't say yet what it runs on its own",
     );
-    expect(screen.getByTestId("asking-promise-window")).toBeTruthy();
-    expect(screen.getByTestId("asking-promise-silence")).toBeTruthy();
   });
 
-  it("lists what was allowed always, newest first, with who, where and when", () => {
+  it("lists what Chips answers, newest first, each with its answer, where, who and when", () => {
     section({ room: [DRAFT] });
-    const list = screen.getByTestId("asking-always");
-    expect([...list.querySelectorAll("code")].map((each) => each.textContent)).toEqual([
-      "email.draft",
-      "shell.exec",
-    ]);
-    // What each allows in words first, and where it holds before who made it.
+    const list = screen.getByTestId("perms-rules");
+    // What each allows in words, its answer as a tag, and where it holds before who made it.
     expect([...list.querySelectorAll("b")].map((each) => each.textContent)).toEqual([
       "Draft email",
       // A rule that lets every command through, which only a policy written another way makes.
       "Any command",
     ]);
+    expect([...list.querySelectorAll(".always-tag")].map((each) => each.textContent)).toEqual([
+      "Allow",
+      "Allow",
+    ]);
     expect(within(list).getByText(/^In Bakery · by you, 14 October/)).toBeTruthy();
     expect(within(list).getByText(/^In every space · by you, 12 October/)).toBeTruthy();
     expect(screen.getByTestId("asking-count").textContent).toBe("2 on");
-    expect(screen.getByTestId("asking-always-foot")).toBeTruthy();
+    expect(screen.getByTestId("perms-rules-foot").textContent).toMatch(/Its × removes it/);
   });
 
-  it("names a command's rule by its start, in code (ADR 0239)", () => {
+  it("names a command's rule by what it runs (ADR 0239, ADR 0299)", () => {
     section({ rules: [{ ...SHELL, when: { starts_with: ["node", "--check"] } }] });
-    const list = screen.getByTestId("asking-always");
-    expect([...list.querySelectorAll("code")].map((each) => each.textContent)).toEqual([
-      "node --check …",
-      "shell.exec",
-    ]);
+    const list = screen.getByTestId("perms-rules");
+    expect(list.querySelector("b")?.textContent).toMatch(/^Run node --check/);
     expect(within(list).getByText(/^In every space · by you, 12 October/)).toBeTruthy();
     expect(screen.getByRole("switch", { name: "Allow node --check … always" })).toBeTruthy();
   });
 
-  it("says nothing is allowed always when nothing is", () => {
+  it("says Chips's rules are off for a harness with none, and what turning them on does (ADR 0300)", () => {
     section({ rules: [] });
-    expect(screen.getByTestId("asking-always-empty").textContent).toMatch(/^Nothing yet/);
-    expect(screen.queryByTestId("asking-count")).toBeNull();
+    expect(screen.queryByTestId("perms-rules")).toBeNull();
+    expect(screen.queryByTestId("perms-add-rule")).toBeNull();
+    expect(screen.getByTestId("perms-chips-value").textContent).toBe("Off");
+    expect(screen.getByTestId("perms-off-foot").textContent).toMatch(/^Turn them on/);
   });
 
   it("switches a rule off, keeping it, and the switch stays off before the server echoes", () => {
@@ -198,12 +222,12 @@ describe("When it asks you, on the harness card", () => {
       fireEvent.click(screen.getByRole("button", { name: "Remove email.draft" }));
     });
     expect(sent).toEqual([{ harnessId: KIT, rules: [SHELL] }]);
-    expect(screen.queryByText("email.draft")).toBeNull();
+    expect(screen.queryByText("Draft email")).toBeNull();
     expect(screen.getByTestId("undo-pill").textContent).toContain("Removed");
 
     fireEvent.click(screen.getByTestId("undo-pill-undo"));
     expect(sent.at(-1)).toEqual({ harnessId: KIT, rules: [SHELL, DRAFT] });
-    expect(screen.getByText("email.draft")).toBeTruthy();
+    expect(screen.getByText("Draft email")).toBeTruthy();
   });
 
   it("shows a member the list with still switches and no ×, and sends nothing (SEC-1)", () => {
@@ -303,43 +327,16 @@ describe("When it asks you, on the harness card", () => {
   });
 });
 
-describe("Allowed always, on You", () => {
-  /** The row the form grows out of. */
-  const row = () => document.body.appendChild(document.createElement("button"));
-
-  it("counts every harness's rules and switches them as the harness card does", async () => {
-    const sent: SetRulesInput[] = [];
-    render(
-      <AllowedAlwaysForm
-        from={row()}
-        model={model()}
-        directory={directory}
-        selfId={ARJUN}
-        onSetRules={(input) => sent.push(input)}
-        onGone={() => undefined}
-      />,
-    );
-    const card = await screen.findByTestId("allowed-always");
-    expect(within(card).getByTestId("allowed-always-count").textContent).toMatch(/^1 on\. /);
-    expect(within(card).getByText("Kit")).toBeTruthy();
-    expect(within(card).getByText("Any command")).toBeTruthy();
-    expect(within(card).queryByTestId("allowed-always-none")).toBeNull();
-    expect(within(card).queryByTestId("allowed-always-asking")).toBeNull();
-    fireEvent.click(within(card).getByRole("switch", { name: "Allow shell.exec always" }));
-    expect(sent).toEqual([{ harnessId: KIT, rules: [{ ...SHELL, off: true }] }]);
-  });
-
-  it("lists who works without asking, where and until when, with Stop (ADR 0281)", async () => {
+describe("who works without asking, on You → Permissions (ADR 0281, ADR 0299)", () => {
+  it("lists them, where and until when, with Stop", async () => {
     const stopped: StopLetWorkInput[] = [];
     render(
-      <AllowedAlwaysForm
-        from={row()}
+      <YouPermissions
         model={model({ letWork: [{ asker: KIT, by: ARJUN, since: "2026-11-06T09:50:00.000Z" }] })}
         directory={directory}
         selfId={ARJUN}
-        onSetRules={() => undefined}
+        service={service([])}
         onStopLetWork={(input) => stopped.push(input)}
-        onGone={() => undefined}
       />,
     );
     const working = await screen.findByTestId("allowed-always-working");
@@ -348,63 +345,6 @@ describe("Allowed always, on You", () => {
       within(working).getByRole("button", { name: "Stop Kit working without asking" }),
     );
     expect(stopped).toEqual([{ spaceId: "sp_1", asker: KIT }]);
-  });
-
-  it("says once that nothing is allowed, how a rule comes to be there, and every ask so far", async () => {
-    render(
-      <AllowedAlwaysForm
-        from={row()}
-        model={model({ rules: [] })}
-        directory={directory}
-        selfId={ARJUN}
-        onSetRules={() => undefined}
-        onGone={() => undefined}
-      />,
-    );
-    await screen.findByTestId("allowed-always");
-    // Nothing to count: the line under it says so once.
-    expect(screen.queryByTestId("allowed-always-count")).toBeNull();
-    const none = screen.getByTestId("allowed-always-none");
-    expect(
-      within(none).getByText("Nothing is allowed always, so every ask comes to you."),
-    ).toBeTruthy();
-    expect(within(none).getByText(/^When a harness asks to do something small/)).toBeTruthy();
-    expect(screen.getByTestId("allowed-always-asking").textContent).toBe("Kit asks every time.");
-    expect(screen.queryByText("Nothing allowed always.")).toBeNull();
-  });
-
-  it("grows every ask in the workspace out of the dots, as a harness's own do (ADR 0255)", async () => {
-    const opened: string[] = [];
-    render(
-      <AllowedAlwaysForm
-        from={row()}
-        model={model({ rules: [] })}
-        directory={directory}
-        selfId={ARJUN}
-        onSetRules={() => undefined}
-        onOpenSpace={(spaceId) => opened.push(spaceId)}
-        onGone={() => undefined}
-      />,
-    );
-    const dots = await screen.findByTestId("allowed-always-history");
-    expect(dots.textContent).toMatch(/^Asks so farSee all/);
-    fireEvent.click(dots);
-    const dialog = await screen.findByTestId("asks-dialog");
-    expect(within(dialog).getByRole("heading", { name: "Asks" })).toBeTruthy();
-    const rows = within(dialog)
-      .getAllByRole("button")
-      .filter((each) => each.dataset["testid"]?.startsWith("ask-row-"));
-    expect(rows.map((each) => each.dataset["testid"])).toEqual([
-      "ask-row-a3",
-      "ask-row-a2",
-      "ask-row-a1",
-    ]);
-    fireEvent.click(within(dialog).getByTestId("ask-row-a3"));
-    fireEvent.click(within(dialog).getByTestId("asks-open"));
-    await act(async () => {
-      await new Promise((done) => setTimeout(done, 450));
-    });
-    expect(opened).toEqual(["sp_1"]);
   });
 });
 

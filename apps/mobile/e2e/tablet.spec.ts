@@ -52,10 +52,11 @@ test("a harness opens beside the Agents list", async ({ page }) => {
   await expect(page.getByTestId("harness-asks-row")).toBeVisible();
   await expect(tile).toHaveAttribute("aria-selected", "true");
   await page.screenshot({ path: test.info().outputPath("harnesses-split.png") });
-  // When it asks you opens in the same pane (ADR 0254), and goes back to the harness's page.
+  // Its Permissions opens in the same pane (ADR 0254, ADR 0300), and goes back to the harness's
+  // page.
   await page.getByTestId("harness-asks-row").click();
-  await expect(page.getByRole("heading", { name: "When it asks you" })).toBeVisible();
-  await expect(page.getByText("How far it is trusted")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Permissions" })).toBeVisible();
+  await expect(page.getByTestId("perms-chips-row")).toBeVisible();
   await page.getByTestId("pane-back").click();
   await expect(page.getByRole("heading", { name: "Scout" })).toBeVisible();
 });

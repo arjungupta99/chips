@@ -3,7 +3,7 @@
 Date: 20 October 2026
 Status: Accepted, 20 October 2026, on Arjun's "Accept ADR 0213 and start building DM1", after his
 "C Stage, but also add those cool green progress bars" on the mock. Built to the
-[demo mode build plan](../proposals/demo-mode-build.md). Changes the top of the first
+demo mode build plan (`docs/proposals/demo-mode-build.md`). Changes the top of the first
 screen a phone with no workspace shows (`app/pair.tsx`) and the web's and the Mac's unpaired page;
 the ways in below it (ADRs 0164, 0172, 0207) are unchanged. First-time notes and Learn Chips, also
 on the mock, are not part of it.

@@ -8,7 +8,6 @@ import type { FleetHarness, HarnessPolicyModel } from "@chipschat/core";
 import { describe, expect, it } from "vitest";
 import { HARNESS_STATUSES } from "../ui/vocabulary";
 import {
-  asksValue,
   budgetWords,
   contextValue,
   rollup,
@@ -154,12 +153,5 @@ describe("the rows of a harness's page (ADR 0254)", () => {
     expect(contextValue(groups([row, row], [row]))).toBe("2 shared");
     expect(contextValue(groups([], [row]))).toBe("1 for new agents");
     expect(contextValue(groups([], []))).toBe("None shared");
-  });
-
-  it("say how much is allowed always, or who decides when nothing is", () => {
-    expect(asksValue([{ on: true }, { on: true }], { kind: "you" })).toBe("2 allowed always");
-    expect(asksValue([{ on: true }, { on: false }], { kind: "you" })).toBe("1 of 2 allowed always");
-    expect(asksValue([], { kind: "you" })).toBe("You decide");
-    expect(asksValue([], { kind: "owner", name: "Dana" })).toBe("Dana decides");
   });
 });

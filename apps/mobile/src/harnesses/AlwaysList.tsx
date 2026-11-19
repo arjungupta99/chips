@@ -16,7 +16,7 @@
  * action, which is also how a screen reader reaches it.
  */
 
-import { ALWAYS_EMPTY, type AlwaysRule } from "@chipschat/core";
+import { ALWAYS_EMPTY, type AlwaysRule, ruleTag } from "@chipschat/core";
 import { useRef } from "react";
 import { StyleSheet, Switch, Text, View } from "react-native";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -53,6 +53,7 @@ export function AlwaysList({
   may,
   paint,
   edge = false,
+  titled = false,
   testID,
 }: {
   readonly rules: readonly AlwaysRule[];
@@ -64,6 +65,11 @@ export function AlwaysList({
   readonly paint: string;
   /** The rows run to the card's edges, as a list in a card does. */
   readonly edge?: boolean;
+  /**
+   * Each row named in words with its answer as a tag (ADR 0299), as a harness's Permissions draws
+   * them: `Run ls and cat`, Allow. Absent, a command's rule is named by its start in code.
+   */
+  readonly titled?: boolean;
   readonly testID?: string | undefined;
 }) {
   const palette = usePalette();
@@ -105,6 +111,7 @@ export function AlwaysList({
             dust={dust}
             may={may}
             paint={paint}
+            titled={titled}
           />
         </SwipeRow>
       ))}
@@ -119,6 +126,7 @@ function RuleRow({
   dust,
   may,
   paint,
+  titled,
 }: {
   readonly rule: AlwaysRule;
   readonly first: boolean;
@@ -126,6 +134,7 @@ function RuleRow({
   readonly dust: Asker;
   readonly may: boolean;
   readonly paint: string;
+  readonly titled: boolean;
 }) {
   const palette = usePalette();
   const dim = rule.on ? null : styles.off;
@@ -145,26 +154,18 @@ function RuleRow({
       <View
         style={[styles.words, dim]}
         accessible
-        accessibilityLabel={`${rule.start ?? rule.words ?? rule.kind}, ${rule.line}`}
+        accessibilityLabel={
+          titled
+            ? `${rule.title}, ${ruleTag(rule.decision)}, ${rule.place}`
+            : `${rule.start ?? rule.words ?? rule.kind}, ${rule.line}`
+        }
         accessibilityActions={may ? [{ name: "remove", label: "Remove" }] : []}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === "remove") always.remove(rule);
         }}
         testID={`always-row-${rule.key}`}
       >
-        {rule.start !== undefined || rule.words === undefined ? (
-          <Text style={[styles.kind, { color: palette.ink }]}>{rule.start ?? rule.kind}</Text>
-        ) : (
-          <Text style={[styles.title, { color: palette.ink }]}>{rule.words}</Text>
-        )}
-        <Text style={[styles.line, { color: rule.on ? palette.ink3 : palette.ink2 }]}>
-          {rule.line}
-        </Text>
-        {rule.start === undefined && rule.words === undefined ? null : (
-          <Text style={[styles.under, { color: palette.ink3 }]} numberOfLines={1}>
-            {rule.kind}
-          </Text>
-        )}
+        {titled ? <TitledWords rule={rule} /> : <RuleWords rule={rule} />}
       </View>
       <Switch
         value={rule.on}
@@ -186,7 +187,64 @@ function RuleRow({
   );
 }
 
+/** A rule as Allowed always names it: its start or kind in code, who made it, where and when. */
+function RuleWords({ rule }: { readonly rule: AlwaysRule }) {
+  const palette = usePalette();
+  return (
+    <>
+      {rule.start !== undefined || rule.words === undefined ? (
+        <Text style={[styles.kind, { color: palette.ink }]}>{rule.start ?? rule.kind}</Text>
+      ) : (
+        <Text style={[styles.title, { color: palette.ink }]}>{rule.words}</Text>
+      )}
+      <Text style={[styles.line, { color: rule.on ? palette.ink3 : palette.ink2 }]}>
+        {rule.line}
+      </Text>
+      {rule.start === undefined && rule.words === undefined ? null : (
+        <Text style={[styles.under, { color: palette.ink3 }]} numberOfLines={1}>
+          {rule.kind}
+        </Text>
+      )}
+    </>
+  );
+}
+
+/** A rule as a harness's Permissions names it (ADR 0299): in words, its answer a tag, then where. */
+function TitledWords({ rule }: { readonly rule: AlwaysRule }) {
+  const palette = usePalette();
+  const tone = {
+    allow: { backgroundColor: palette.greenSoft, color: palette.greenInk },
+    ask: { backgroundColor: palette.amberSoft, color: palette.amberInk },
+    deny: { backgroundColor: palette.redSoft, color: palette.redInk },
+  }[rule.decision];
+  return (
+    <>
+      <Text style={[styles.title, { color: palette.ink }]} numberOfLines={2}>
+        {rule.title}
+      </Text>
+      <View style={styles.tagLine}>
+        <Text style={[styles.tag, tone]} testID={`always-tag-${rule.key}`}>
+          {ruleTag(rule.decision)}
+        </Text>
+        <Text style={[styles.line, styles.place, { color: palette.ink3 }]} numberOfLines={1}>
+          {rule.place}
+        </Text>
+      </View>
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
+  tagLine: { flexDirection: "row", alignItems: "center", gap: SPACE.xs },
+  tag: {
+    fontSize: TEXT.xs,
+    fontWeight: "700",
+    borderRadius: 999,
+    overflow: "hidden",
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+  },
+  place: { flexShrink: 1 },
   edge: { marginHorizontal: -SPACE.lg },
   row: {
     flexDirection: "row",

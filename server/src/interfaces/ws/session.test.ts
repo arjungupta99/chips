@@ -131,7 +131,16 @@ describe("the handshake", () => {
       server: {
         name: "chipsd",
         version: "0.0.0-test",
-        takes: ["held_yes", "held_start", "banners", "spend_no_cap", "spend_jobs"],
+        takes: [
+          "held_yes",
+          "held_start",
+          "banners",
+          "spend_no_cap",
+          "spend_jobs",
+          "harness_rules",
+          "own_rules",
+          "chips_rules",
+        ],
       },
       autonomy: 2,
       policy: { autonomy: 2, rules: [] },

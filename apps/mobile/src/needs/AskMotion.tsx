@@ -60,6 +60,11 @@ const RISE = 18;
 const TICK_LENGTH = 24;
 const TICK_MS = 450;
 const TICK_AFTER_MS = 150;
+/**
+ * How small Approve's word may get before it is cut: only Deny, Edit and "Approve and let it
+ * work" together on a narrow phone need it.
+ */
+const SHRINK_TO = 0.85;
 
 /**
  * A run of the words a standing yes remembers (`cd`, `git log`): bold in ink, and under Always
@@ -238,7 +243,12 @@ export function AnswerFace({
   return (
     <Animated.View style={[style, face]}>
       <Animated.View style={[styles.layer, leaving]}>
-        <Animated.Text style={[wordStyle, { color: ink }]} numberOfLines={1}>
+        <Animated.Text
+          style={[wordStyle, { color: ink }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={SHRINK_TO}
+        >
           {word}
         </Animated.Text>
       </Animated.View>
@@ -255,7 +265,12 @@ export function AnswerFace({
             animatedProps={tick}
           />
         </Svg>
-        <Animated.Text style={[wordStyle, { color: answeredInk }]} numberOfLines={1}>
+        <Animated.Text
+          style={[wordStyle, { color: answeredInk }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={SHRINK_TO}
+        >
           {done}
         </Animated.Text>
       </Animated.View>
@@ -267,6 +282,12 @@ const styles = StyleSheet.create({
   lit: { borderRadius: 5, borderWidth: 1, paddingHorizontal: 2, marginHorizontal: -3 },
   band: { position: "absolute", left: 0, right: 0, top: 0 },
   fromLeft: { transformOrigin: "left" },
-  layer: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  layer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+  },
   over: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 },
 });

@@ -13,8 +13,10 @@ import {
   readMacUpdate,
   readUpdateFeed,
   releaseTime,
+  UPDATE_MOTION,
   type UpdateFacts,
   type UpdateFeed,
+  updateButtonTimes,
   updateDot,
   updatesAsking,
   updatesWaiting,
@@ -411,5 +413,30 @@ describe("Chips for Mac updating itself (ADR 0298)", () => {
     expect(macUpdateLine({ state: "current" }, undefined, "1.2.5")).toBeUndefined();
     // An app that doesn't update itself says what it always said.
     expect(macUpdateLine(undefined, waiting, "1.2.5")).toBe("1.2.5 · 1.2.6 is ready");
+  });
+});
+
+describe("updateButtonTimes (ADR 0296, 17 November 2026)", () => {
+  it("grows the first button as the dot lands and each under it a beat later", () => {
+    expect(updateButtonTimes(0).growAt).toBe(0);
+    expect(updateButtonTimes(1).growAt).toBe(UPDATE_MOTION.growBeatMs);
+  });
+
+  it("passes the light over both once they have grown, the first first", () => {
+    const first = updateButtonTimes(0);
+    const second = updateButtonTimes(1);
+    expect(first.sweepAt).toBeGreaterThan(second.growAt + UPDATE_MOTION.growMs / 2);
+    expect(second.sweepAt - first.sweepAt).toBe(UPDATE_MOTION.sweepBeatMs);
+  });
+
+  it("starts each glow after its light, so a button never glows and sweeps at once", () => {
+    for (const order of [0, 1]) {
+      const at = updateButtonTimes(order);
+      expect(at.glowAt).toBe(at.sweepAt + UPDATE_MOTION.glowAfterMs);
+    }
+  });
+
+  it("lands the dot before it would have gone out waiting", () => {
+    expect(UPDATE_MOTION.flyMs).toBeLessThan(UPDATE_MOTION.waitMs);
   });
 });

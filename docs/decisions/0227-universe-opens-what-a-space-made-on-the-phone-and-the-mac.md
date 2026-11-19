@@ -473,3 +473,38 @@ tab, Health on Pages and TV control on Files.
 The room's details stopped repeating these shelves the same day (ADR 0202's and ADR 0222's
 addenda): what was sent in the chat is under *Sent in chat*, and Project is Changes, its Files
 being Universe's.
+
+## Addendum, 17 November 2026: a gold dot on Desktop
+
+Arjun, 17 November 2026: "I want to show a yellow dot in the universe-->Desktop tap button, when
+there is new content available there for the first time." Universe opens on Phone, so a program an
+agent had just made sat on Desktop with nothing pointing at it. He picked R1 + B + H1 from the mock
+(`chips-notes/mocks/desktop-dot/`, https://claude.ai/artifact/Y3E5ixoBJoURbu6nA6c8tF): "Build R1 + B
++ H1".
+
+- **What lights it (R1):** a row of Desktop turning up for the first time: the program, once there is
+  one to run, or the page, once there is one to open (core's `desktopRowsOf`). The folder is always
+  there, a list of documents with no start page has nothing to open, and a broken run file nothing
+  to run, so none of them counts. Each row lights it once per space per device; a change to a row
+  already there never does, since the Universe button and Media's dots say what changed. The rule is
+  core's `desktopNews`: a row this device hasn't seen on Desktop, whose file was brought by somebody
+  else (the oldest change naming it that still stands, so not an Undo nor what one took back) at or
+  after the moment the device began keeping (`since`). A row whose file no change names, or past the
+  files a change lists, stays plain.
+- **What it keeps:** `spaces/desktopSeen.ts`, beside Universe's own record, in `prefs`
+  (`desktop.seen`): `since` and, per space, the rows shown on Desktop. The first launch with it sets
+  `since` to that moment, so whatever each space's Desktop already had counts as seen. The iPad keeps
+  its own, as it does Universe's.
+- **How it looks (B):** 8 pt of gold on the word's shoulder, in a 2 pt rim of the track (or the tile)
+  under it (`NewDot`, an optional `dot` on a `Segmented` option). It comes in 350 ms after it is drawn,
+  so the sheet's rise doesn't swallow it, with one gold ring going out; then it holds still. A screen
+  reader hears "Desktop, new". It stays lit at every opening until Desktop is opened, and rings once
+  each time.
+- **When Desktop opens (H1):** by its tab or by Pages' Go to Desktop, the rows it has are kept as seen
+  and the dot goes out for good. The rows it was lit for wear the gold corner dot Media's and Files'
+  new files wear (`RowMark`'s `fresh`), and their Run or Open rings twice (`RowButton`'s `rings`), as
+  About's Update does (ADR 0296). The corner dots stay until the sheet has gone. A row that turns up
+  while Desktop is open is seen there at once, and marked.
+- Owners only, as Desktop is (ADR 0231). Phone and iPad; the web and the Mac have no Desktop tab, their
+  rows standing at the top of Universe. With Reduce Motion the dots are simply there or not, and
+  nothing rings. The Universe button is unchanged: it already calls for the change that brought the row.

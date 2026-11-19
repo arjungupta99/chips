@@ -3,8 +3,8 @@
 Date: 23 October 2026
 Status: Accepted, 23 October 2026, on Arjun's word: "Rewrite the plan around git, with Chips
 holding each room's repository" (22 October), then "Start the full plan: Phase 1, chipsd holds the
-project (ADR 0220)". The plan is [agents-share-a-project-plan.md](../proposals/agents-share-a-project-plan.md),
-after the spike in [git-rooms-spike.md](../proposals/git-rooms-spike.md).
+project (ADR 0220)". The plan is agents-share-a-project-plan.md,
+after the spike in git-rooms-spike.md.
 
 ## Context
 

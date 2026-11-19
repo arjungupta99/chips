@@ -22,6 +22,7 @@ import {
   answeredWords,
   approveWords,
   askLastings,
+  harnessKeepsWords,
   hourEnds,
   letWorkWords,
   reachWords,
@@ -75,6 +76,8 @@ export interface TrayProps {
   /** Whether the agent is let work without asking (ADR 0281); absent where it isn't offered. */
   readonly letWork: boolean | undefined;
   readonly setLetWork: (on: boolean) => void;
+  /** The asking harness's Chips's rules are on (ADR 0300); off, it offers its own choices. */
+  readonly chipsOn?: boolean | undefined;
   /** Whether the server keeps For an hour and Let it work; the hour isn't offered if not. */
   readonly keeps: boolean;
   /** Where an Always is kept, when this person may pick (an owner or admin); else this space. */
@@ -199,7 +202,7 @@ function OnceWhy({ standing, plate }: Pick<TrayProps, "standing" | "plate">) {
 function Reaches(props: TrayProps) {
   const palette = usePalette();
   const { standing, lasting } = props;
-  const lastings = askLastings(standing, props.keeps);
+  const lastings = askLastings(standing, props.keeps, props.chipsOn !== false);
   if (lastings.length === 0) return <OnceWhy standing={standing} plate={props.plate} />;
   const commands = standing.kind === "starts";
   return (
@@ -231,8 +234,13 @@ function Reaches(props: TrayProps) {
               testID="where"
             />
           )}
-          <Text style={[styles.line, { color: palette.ink3 }]} testID="reach">
-            {reachWords(props.reach, props.spaceName, commands)}
+          <Text
+            style={[styles.line, { color: palette.ink3 }]}
+            testID={props.chipsOn === false ? "harness-keeps" : "reach"}
+          >
+            {props.chipsOn === false
+              ? harnessKeepsWords(props.harnessName)
+              : reachWords(props.reach, props.spaceName, commands)}
           </Text>
         </Fold>
       ) : null}
@@ -267,12 +275,13 @@ function Answer(props: TrayProps) {
     answered === undefined
       ? word
       : answeredWords(answered, props.now, props.reach, props.spaceName);
+  // Deny and Edit take the width their word needs and Approve the rest, as the web's card does:
+  // halves cut "Approve and let it work" short on a phone.
   return (
     <View style={styles.buttons}>
       <Button
         label="Deny"
         variant="danger"
-        grow
         disabled={busy || gone}
         style={styles.tall}
         onPress={() => props.setMode("denying")}
@@ -280,7 +289,6 @@ function Answer(props: TrayProps) {
       {approval.editable ? (
         <Button
           label="Edit"
-          grow
           disabled={busy || gone}
           style={styles.tall}
           onPress={() => props.setMode("editing")}

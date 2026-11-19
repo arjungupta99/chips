@@ -37,6 +37,7 @@ const MODEL: WorkspaceModel = {
   attachmentCaps: { image: null, video: null, file: null },
   exchangeLimits: { stop: 16, hold: 48, circles: true },
   takenOut: {},
+  workspaceRules: { rules: [] },
   people: {},
 };
 

@@ -19,7 +19,7 @@ On a Mac or Linux:
 
 ```bash
 curl -fsSL https://chipschat.ai/install | sh
-chips up
+~/.local/bin/chips up
 ```
 
 The installer downloads the newest release from this repository's releases and checks its
@@ -63,7 +63,7 @@ Advanced, a token and the curl lines that connect anything. The docs'
 | `apps/docs` | The documentation site |
 | `packaging` | The installer script, the launchd templates and a Homebrew formula that isn't ready yet |
 | `tools` | Repository checks and generators that are not shipped |
-| `docs` | The plan, the blueprint, decisions and phase reviews |
+| `docs` | The technical plan, the architecture, releasing, and the decisions (ADRs) |
 
 The full target layout is in [`docs/technical-plan.md`](docs/technical-plan.md), section 2.
 
@@ -108,8 +108,6 @@ The architecture and its enforced layer rules are described in
 
 ## Documents
 
-- [`docs/chips-blueprint.html`](docs/chips-blueprint.html) — the product blueprint.
-- [`docs/chips-distribution.html`](docs/chips-distribution.html) — how Chips reaches people: the pieces, the channels, the relay and what it costs.
 - [`docs/technical-plan.md`](docs/technical-plan.md) — phases, milestones, engineering standards.
 - [`docs/decisions/`](docs/decisions/) — architecture decision records.
 - [`docs/releasing.md`](docs/releasing.md) — how a version becomes something a person can install.

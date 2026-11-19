@@ -606,6 +606,25 @@ describe("the store", () => {
     expect(h.snapshots.at(-1)?.keepsSpendJobs).toBe(true);
   });
 
+  it("hears from each hello whether the server keeps a harness's rules and own rules (ADR 0299)", async () => {
+    const h = harness();
+    await started();
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsHarnessRules).toBeUndefined();
+    h.wire().onEvent({
+      type: "hello",
+      spaces: [],
+      server: { takes: ["harness_rules", "own_rules"] },
+    } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsHarnessRules).toBe(true);
+    expect(h.snapshots.at(-1)?.keepsOwnRules).toBe(true);
+    h.wire().onEvent({ type: "hello", spaces: [], server: { takes: ["spend_jobs"] } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsHarnessRules).toBe(false);
+    expect(h.snapshots.at(-1)?.keepsOwnRules).toBe(false);
+  });
+
   it("hears the computer's version in each hello, so a tab can tell it was updated under it (everything in step)", async () => {
     const h = harness();
     await started();
@@ -1601,6 +1620,66 @@ describe("deciding, answering and turning the dial (M1.4)", () => {
     h.store.setRules({ harnessId: "hrn_1", rules: [] });
     expect(h.sent.at(-1)).toMatchObject({ policy: { autonomy: 1, rules: [] } });
     expect(h.sent.at(-1)).not.toHaveProperty("space_id");
+  });
+
+  it("turns a harness's asks off and back on with its level and rules as they are (ADR 0299)", async () => {
+    const rules = [{ match: "shell.exec", decision: "allow" }];
+    const h = harness({
+      cached: [
+        OPENED,
+        event(2, {
+          type: "policy.updated",
+          actor: { kind: "person", id: "usr_1" },
+          harness_id: "hrn_1",
+          space_id: undefined,
+          workspace_max_autonomy: 3,
+          changed_by: "usr_1",
+          policy: { autonomy: 2, rules },
+        }),
+      ],
+    });
+    await started();
+    h.store.snoozeHarness("hrn_1", { until: "2026-11-18T18:41:00.000Z", matters: true });
+    expect(h.sent.at(-1)).toMatchObject({
+      type: "policy.updated",
+      harness_id: "hrn_1",
+      policy: { autonomy: 2, rules, hold: { until: "2026-11-18T18:41:00.000Z", matters: true } },
+    });
+    expect(h.sent.at(-1)).not.toHaveProperty("space_id");
+    h.store.snoozeHarness("hrn_1", {});
+    expect(h.sent.at(-1)).toMatchObject({ policy: { hold: {} } });
+    h.store.resumeHarness("hrn_1");
+    expect(h.sent.at(-1)).toMatchObject({ policy: { autonomy: 2, rules, hold: null } });
+    h.flush();
+    expect(h.store.getSnapshot().busy.has("hrn_1")).toBe(true);
+  });
+
+  it("sends the rules for every harness whole, the hold only when it changes (ADR 0299)", async () => {
+    const h = harness({
+      cached: [
+        OPENED,
+        event(2, {
+          type: "policy.workspace_updated",
+          actor: { kind: "person", id: "usr_1" },
+          space_id: undefined,
+          rules: [{ match: "*", when: { starts_with: ["rm"] }, decision: "deny" }],
+          workspace_max_autonomy: 3,
+          changed_by: "usr_1",
+        }),
+      ],
+    });
+    await started();
+    h.store.setWorkspaceRules({ hold: { until: "2026-11-18T18:41:00.000Z" } });
+    expect(h.sent.at(-1)).toMatchObject({
+      type: "policy.workspace_updated",
+      rules: [{ match: "*", when: { starts_with: ["rm"] }, decision: "deny" }],
+      hold: { until: "2026-11-18T18:41:00.000Z" },
+    });
+    h.store.setWorkspaceRules({ rules: [] });
+    expect(h.sent.at(-1)).toMatchObject({ rules: [] });
+    expect(h.sent.at(-1)).not.toHaveProperty("hold");
+    h.store.setWorkspaceRules({ hold: null });
+    expect(h.sent.at(-1)).toMatchObject({ hold: null });
   });
 });
 
@@ -5299,6 +5378,7 @@ describe("the cache the store opens (SEC-8)", () => {
   it("is the one for this workspace on the server the device was paired with", () => {
     const opened: string[] = [];
     harness({
+      level: 1,
       device: { ...DEVICE, serverUrl: "http://192.168.1.20:4431" },
       cacheOpened: (key) => opened.push(key),
     });
@@ -5494,7 +5574,7 @@ describe("a cache kept at a level before this app's (everything in step)", () =>
     expect(deleted).toEqual(["ws_1@192.168.1.20:4431", "ws_1@192.168.1.20:4431~L2"]);
 
     deleted.length = 0;
-    harness({ deleteCache: forget });
+    harness({ level: 1, deleteCache: forget });
     await started();
     expect(deleted).toEqual([]);
   });

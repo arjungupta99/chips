@@ -30,6 +30,7 @@ import {
   type AutonomyLevel,
   actionMatters,
   commandParts,
+  neverForAWhile,
   neverStanding,
   type PolicyRule,
   type RiskClass,
@@ -279,7 +280,19 @@ export function matters(action: PolicyAction): boolean {
  */
 function speaks(rule: PolicyRule, action: PolicyAction): boolean {
   if (rule.off === true || forParts(rule) || !ruleMatches(rule, action)) return false;
+  if (pausedOnNever(rule, action)) return false;
   return !(rule.made_at !== undefined && rule.decision === "allow" && matters(action));
+}
+
+/**
+ * A pause, a `*` yes (Stop asking, Let it work, an hour), never says yes to a command that uses
+ * one on the never list, or that names one where the reader can't follow it (ADR 0300): that ask
+ * goes to a person. Before, a pause let `rm -rf` and `git push` through, since a command is never
+ * one that "matters".
+ */
+function pausedOnNever(rule: PolicyRule, action: PolicyAction): boolean {
+  if (rule.match !== "*" || rule.decision !== "allow" || action.command === undefined) return false;
+  return neverForAWhile(action.command);
 }
 
 function isRead(kind: string): boolean {

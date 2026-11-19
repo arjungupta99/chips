@@ -17,7 +17,7 @@ import { DEMO_DEVICE_ID, DEMO_PERSON_ID, demoDevice } from "./device.js";
 import { INVITE_CARD, inviteCardBytes } from "./picture.js";
 import { APPROVALS, type DemoFilm, filmOf, RUNS } from "./script.js";
 import { NOT_IN_DEMO, serveDemo } from "./serve.js";
-import { AGENTS, BIRTHDAY, CARD, GARDEN, roomFaces } from "./workspace.js";
+import { AGENTS, BIRTHDAY, CARD, GARDEN, roomFaces, STUDIO } from "./workspace.js";
 
 const WHOLE = filmOf().chapters.length;
 
@@ -268,6 +268,52 @@ describe("the demo's socket", () => {
     transport.send({ ...message, idempotency_key: "k-5" });
     await settle();
     expect(socket.heard.acks).toHaveLength(2);
+  });
+
+  it("takes a harness's asks turned off and a rule written, stamped as a server stamps them (ADR 0299)", async () => {
+    const { storeOptions } = serveDemo({ from: 8 });
+    const socket = wire();
+    const transport = storeOptions.connect(socket.options);
+    await settle();
+    const until = "2026-11-18T18:00:00.000Z";
+    transport.send({
+      type: "policy.updated",
+      harness_id: STUDIO,
+      policy: { autonomy: 1, rules: [], hold: { until, by: "someone else", at: "then" } },
+      idempotency_key: "p-1",
+    });
+    transport.send({
+      type: "policy.workspace_updated",
+      rules: [{ match: "*", when: { starts_with: ["rm"] }, decision: "deny" }],
+      idempotency_key: "p-2",
+    });
+    // Not one of the demo's harnesses, and a hold kept to one room: both turned away.
+    transport.send({
+      type: "policy.updated",
+      harness_id: "hrn_x",
+      policy: { autonomy: 1, rules: [] },
+      idempotency_key: "p-3",
+    });
+    transport.send({
+      type: "policy.updated",
+      harness_id: STUDIO,
+      space_id: BIRTHDAY,
+      policy: { autonomy: 1, rules: [], hold: {} },
+      idempotency_key: "p-4",
+    });
+    await settle();
+    expect(socket.heard.acks.map((ack) => ack.key)).toEqual(["p-1", "p-2"]);
+    expect(socket.heard.errors).toHaveLength(2);
+    const [held, every] = socket.heard.events.filter((event) => event.type.startsWith("policy."));
+    expect(held).toMatchObject({
+      actor: { kind: "person", id: DEMO_PERSON_ID },
+      policy: { hold: { until, by: DEMO_PERSON_ID } },
+      changed_by: DEMO_PERSON_ID,
+    });
+    expect(every).toMatchObject({
+      rules: [{ decision: "deny", made_by: DEMO_PERSON_ID }],
+      changed_by: DEMO_PERSON_ID,
+    });
   });
 });
 

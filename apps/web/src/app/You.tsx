@@ -34,7 +34,7 @@ import {
   myRole,
   NOTICES_TITLE,
   nameOf,
-  type SetRulesInput,
+  PERMISSIONS_TITLE,
   type StopLetWorkInput,
   standingWords,
   WAY_VALUE,
@@ -48,6 +48,8 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Log } from "./Audit.tsx";
 import { Columns, ListButton } from "./Columns.tsx";
 import { YourFace } from "./face/YourFace.tsx";
+import type { PermissionsService } from "./permissions/service.ts";
+import { YouPermissions } from "./permissions/YouPermissions.tsx";
 import { Turns, type Way } from "./Turns.tsx";
 import { useNarrow } from "./useNarrow.ts";
 import {
@@ -129,10 +131,12 @@ export interface YouProps {
   readonly limits?: LimitsService | undefined;
   /** Open the Agents page with Connect a harness up (ADR 0185's addendum). Absent, no row. */
   readonly onConnectHarness?: (() => void) | undefined;
-  /** Send a harness's rules changed, from Allowed always (ADR 0195). Absent, no row. */
-  readonly onSetRules?: ((input: SetRulesInput) => void) | undefined;
-  /** Stop an agent working without asking, from Allowed always (ADR 0281). */
+  /** Every harness's permissions, snooze and rules (ADR 0299). Absent, no row. */
+  readonly permissions?: PermissionsService | undefined;
+  /** Stop an agent working without asking, from Permissions (ADR 0281). */
   readonly onStopLetWork?: ((input: StopLetWorkInput) => void) | undefined;
+  /** Opens a harness's own Permissions on the Agents page, from its row on Permissions. */
+  readonly onOpenHarnessPermissions?: ((harnessId: string) => void) | undefined;
   /** The faces this person chose for rooms, which a person's spaces wear (ADR 0209's addendum). */
   readonly spaceIcons?: ReadonlyMap<string, SpaceIcon> | undefined;
   /** Open a room from a person's spaces, or from the log. Absent, the rooms are only listed. */
@@ -243,9 +247,7 @@ export function You(props: YouProps) {
           relay={relay}
           onConnectHarness={props.onConnectHarness}
           log
-          onSetRules={props.onSetRules}
-          onStopLetWork={props.onStopLetWork}
-          onOpenSpace={props.onOpenSpace}
+          permissions={props.permissions !== undefined}
         />
         <ThisDevice
           desktop={props.desktop}
@@ -561,6 +563,17 @@ function pagesOf(
     log: (
       <Log model={model} directory={directory} onOpen={(spaceId) => props.onOpenSpace?.(spaceId)} />
     ),
+    permissions:
+      props.permissions === undefined ? undefined : (
+        <YouPermissions
+          model={model}
+          directory={directory}
+          selfId={selfId}
+          service={props.permissions}
+          onStopLetWork={props.onStopLetWork}
+          onOpenHarness={props.onOpenHarnessPermissions}
+        />
+      ),
   };
 }
 
@@ -572,6 +585,7 @@ const TITLES: Readonly<Record<YouPage, string>> = {
   relay: "Relay",
   connection: "Connection",
   log: "Workspace log",
+  permissions: PERMISSIONS_TITLE,
 };
 
 /**
@@ -595,6 +609,7 @@ function pageOf(
     readonly relay: ReactNode | undefined;
     readonly connection: ReactNode | undefined;
     readonly log: ReactNode;
+    readonly permissions: ReactNode | undefined;
   },
 ): ReactNode {
   const { page, person } = opened;

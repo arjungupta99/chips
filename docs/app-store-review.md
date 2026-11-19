@@ -9,7 +9,7 @@ are the maintainer's to type.
 
 There is no workspace for a reviewer to join. The one these notes used to name, at
 `relay.chipschat.ai/try` (built as
-[`proposals/testflight-external-plan.md`](proposals/testflight-external-plan.md) describes), was
+`proposals/testflight-external-plan.md` describes), was
 retired on 4 November 2026:
 
 - ADR 0232 makes every invite lapse 30 minutes after it is made, so no link lasts a review. The

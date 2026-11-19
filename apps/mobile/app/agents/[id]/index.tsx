@@ -4,8 +4,7 @@
  * `lock=1` is a locked agent's Locked (ADR 0199): the card's lock row glows once as it comes in.
  */
 
-import type { Store } from "@chipschat/core";
-import { nameOf } from "@chipschat/core";
+import { harnessOf, nameOf, type Store } from "@chipschat/core";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { AgentCard } from "../../../src/agents/AgentCard";
 import { fileHref } from "../../../src/context/owner";
@@ -74,7 +73,14 @@ function Card({
             ),
         }}
         onHistory={() => router.push(`/agents/${agentId}/history`)}
-        onPermissions={() => router.push(`/agents/${agentId}/permissions`)}
+        // Its harness's Permissions, since an agent has none of its own (ADR 0300).
+        onPermissions={() =>
+          router.push({
+            pathname: "/harnesses/[id]/[part]",
+            params: { id: harnessOf(snapshot.directory, agentId), part: "asks" },
+          })
+        }
+        onWorking={() => router.push(`/agents/${agentId}/permissions`)}
         onOpenRoom={(spaceId) => router.push(`/spaces/${spaceId}`)}
         onOpenAgent={(other) => router.push(`/agents/${other}`)}
         // Deleted from its own card: there is nothing left here to show.

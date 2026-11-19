@@ -279,11 +279,17 @@ describe("rules", () => {
     const held: PolicyRule = { match: "*", decision: "allow", made_at: "2026-11-06T07:08:00.000Z" };
     const run = (action: PolicyAction, rules: PolicyRule[] = []) =>
       evaluate(action, { autonomy: 1, rules: [...rules, held] }, open).decision;
-    // Read or not, rm and git push too, and asks that are not commands.
+    // Read or not, and asks that are not commands.
     expect(run({ kind: "shell.exec", command: "cd /x; cat a | wc -l" })).toBe("allow");
     expect(run({ kind: "shell.exec", command: "for r in a b; do head -3 $r; done" })).toBe("allow");
-    expect(run({ kind: "shell.exec", command: "rm -rf build && git push" })).toBe("allow");
+    expect(run({ kind: "shell.exec", command: "pnpm test 2>&1 | tail -5" })).toBe("allow");
     expect(run({ kind: "file.write" })).toBe("allow");
+    // Never the never list (ADR 0300): rm and git push go to a person, read or not.
+    expect(run({ kind: "shell.exec", command: "rm -rf build && git push" })).toBe("ask");
+    expect(run({ kind: "acp.bash", command: "git push origin main" })).toBe("ask");
+    expect(run({ kind: "shell.exec", command: "for f in *.log; do rm $f; done" })).toBe("ask");
+    expect(run({ kind: "shell.exec", command: "echo $(sudo cat /etc/hosts)" })).toBe("ask");
+    expect(run({ kind: "shell.exec", command: ["bash", "-c", "ls"] })).toBe("ask");
     // What matters still waits for a person.
     expect(run({ kind: "shell.exec", command: "ls", irreversible: true })).toBe("ask");
     expect(run({ kind: "email.send", external: true })).toBe("ask");

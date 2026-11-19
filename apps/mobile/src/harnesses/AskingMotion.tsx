@@ -120,6 +120,7 @@ export function Hero({
   face,
   own,
   working = false,
+  gates,
 }: {
   readonly harness: string;
   /** More harnesses behind the first, drawn smaller and overlapped. */
@@ -135,6 +136,11 @@ export function Hero({
   readonly own?: ReactNode;
   /** It is working without asking: no ask flies, the path runs gold, and the person steps back. */
   readonly working?: boolean;
+  /**
+   * The two gates on the path (ADR 0299): its own settings, then Chips, each with what it says
+   * under its name: `23 run`, `2 rules`.
+   */
+  readonly gates?: Gates | undefined;
 }) {
   const palette = usePalette();
   const still = useReduceMotion();
@@ -225,6 +231,7 @@ export function Hero({
           <Animated.View style={[styles.bar, bars]} />
           <Animated.View style={[styles.bar, styles.short, bars]} />
         </Animated.View>
+        {gates === undefined ? null : <GatePair gates={gates} working={working} />}
       </View>
       <Animated.View style={[styles.end, stepsBack]}>
         <View>
@@ -255,6 +262,55 @@ export function Hero({
           {person}
         </Text>
       </Animated.View>
+    </View>
+  );
+}
+
+/** What the two gates on the path say (ADR 0299). */
+export interface Gates {
+  readonly own: string;
+  readonly ownLabel: string;
+  /** Absent while its Chips's rules are off (ADR 0300): one gate. */
+  readonly chips?: string | undefined;
+  readonly chipsLabel: string;
+}
+
+/**
+ * Its own settings in amber, then Chips in blue, gold while its asks are off: each a small tile on
+ * the path, its name over what it says, so the ask passes the one and then the other.
+ */
+function GatePair({ gates, working }: { readonly gates: Gates; readonly working: boolean }) {
+  const palette = usePalette();
+  const own = { backgroundColor: palette.amberSoft, borderColor: palette.amber };
+  const chips = working
+    ? { backgroundColor: palette.goldSoft, borderColor: palette.gold }
+    : { backgroundColor: palette.blueSoft, borderColor: palette.blue };
+  return (
+    <View style={styles.gates} pointerEvents="none" testID="asking-gates">
+      <View style={[styles.gate, own]}>
+        <Text style={[styles.gateName, { color: palette.ink }]} numberOfLines={1}>
+          {gates.ownLabel}
+        </Text>
+        <Text style={[styles.gateSays, { color: palette.ink3 }]} numberOfLines={1}>
+          {gates.own}
+        </Text>
+      </View>
+      {gates.chips === undefined ? null : (
+        <View style={[styles.gate, chips]}>
+          <Text style={[styles.gateName, { color: palette.ink }]} numberOfLines={1}>
+            {gates.chipsLabel}
+          </Text>
+          <Text
+            style={[
+              styles.gateSays,
+              working ? { color: palette.goldDeep, fontWeight: "600" } : { color: palette.ink3 },
+            ]}
+            numberOfLines={1}
+          >
+            {gates.chips}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -374,6 +430,7 @@ function Dot({
     no: { backgroundColor: palette.red },
     open: { borderWidth: 2.5, borderColor: palette.amber },
     lapsed: { backgroundColor: palette.ink4 },
+    snoozed: { backgroundColor: palette.gold },
   }[dot];
   return <Animated.View style={[styles.dot, fill, style]} testID={`asking-dot-${dot}`} />;
 }
@@ -392,6 +449,26 @@ const styles = StyleSheet.create({
   endName: { fontSize: TEXT.xs, fontWeight: "600" },
   path: { flex: 1, height: 48, justifyContent: "center" },
   streamPlace: { justifyContent: "center" },
+  gates: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+  },
+  gate: {
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderRadius: 9,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    maxWidth: "48%",
+  },
+  gateName: { fontSize: TEXT.xs - 1, fontWeight: "700" },
+  gateSays: { fontSize: TEXT.xs - 1 },
   stream: { height: 3, overflow: "hidden" },
   streamRun: { position: "absolute", top: 0, bottom: 0, left: -STREAM_STEP, right: 0 },
   ask: {

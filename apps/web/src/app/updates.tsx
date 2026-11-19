@@ -35,14 +35,15 @@ import {
   type ServerFacts,
   type Software,
   sameNeeds,
+  UPDATE_MOTION,
   type UpdateDevice,
   type UpdatesWaiting,
+  updateButtonTimes,
   updateDot,
   updatesAsking,
   updatesWaiting,
 } from "@chipschat/core";
 import {
-  type CSSProperties,
   createContext,
   type ReactNode,
   useCallback,
@@ -53,6 +54,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { takeOff, useAim, useDotFlight } from "./flight.tsx";
 
 /** The computer as About says it: being read, read, or not reached. */
 export type Computer = ComputerRead;
@@ -448,11 +450,14 @@ export type DotPlace = "bar" | "rail" | "narrow";
 
 /**
  * The dot: lands with one ring, then swells about every three seconds while it is lit, and opens
- * About when clicked. Still with reduced motion (styles.css). The Mac's strip is the page's, over
- * everything, so its dot is drawn at the page's end, out of any column's layer.
+ * About when clicked, flying into its first update button as it opens (`flight.tsx`; ADR 0296,
+ * addendum of 17 November 2026), so it steps out of sight while its copy is on the way. Still with
+ * reduced motion (styles.css). The Mac's strip is the page's, over everything, so its dot is drawn
+ * at the page's end, out of any column's layer.
  */
 export function UpdateDot(props: { readonly place: DotPlace; readonly onOpen: () => void }) {
   const { dot, ownerLit } = useUpdates();
+  const flight = useDotFlight();
   if (dot === undefined && !ownerLit) return null;
   const button = (
     <button
@@ -461,8 +466,12 @@ export function UpdateDot(props: { readonly place: DotPlace; readonly onOpen: ()
       className="update-dot"
       aria-label={DOT_LABEL}
       title={dot === undefined ? "Something needs an update" : `Chips ${dot.version} is out`}
-      onClick={props.onOpen}
+      onClick={(event) => {
+        takeOff(event.currentTarget);
+        props.onOpen();
+      }}
       data-place={props.place}
+      data-away={flight.stage === "rest" ? undefined : "true"}
       data-testid="update-dot"
     >
       <span className="update-dot-core" aria-hidden="true" />
@@ -471,14 +480,17 @@ export function UpdateDot(props: { readonly place: DotPlace; readonly onOpen: ()
   return props.place === "bar" ? createPortal(button, document.body) : button;
 }
 
-/** The wait before an Update button's first ring as About opens, and the beat between two. */
-export const RING_WAIT_MS = 280;
-export const RING_BEAT_MS = 160;
+/** How a button stands: at the dot's size and unseen, growing out of it, or shown. */
+type Grown = "seed" | "grow" | "shown";
 
 /**
- * About's Update button: a gold capsule, solid for this app and soft for the computer. As About
- * opens it sends out the dot's ring twice, a glow that widens from behind it and fades; `order`
- * starts each a beat after the one above it. Still with reduced motion (styles.css).
+ * About's update button: a gold capsule, solid for this app and soft for the computer, that glows
+ * on the update dot's breath for as long as it shows (ADR 0296, addendum of 17 November 2026).
+ * When the dot was clicked it is drawn at the dot's size and unseen while the dot flies to it,
+ * says where it stands if it is the first (`order` 0), and grows out of the dot as it lands; one
+ * under it grows a beat later, a light passes over each once, and then they glow
+ * (`updateButtonTimes`). Opened any other way, About shows it glowing. Still with reduced motion,
+ * with a still glow (styles.css).
  */
 export function UpdateButton(props: {
   readonly label: string;
@@ -487,16 +499,55 @@ export function UpdateButton(props: {
   readonly order?: number;
   readonly testId?: string;
 }) {
-  const at = RING_WAIT_MS + (props.order ?? 0) * RING_BEAT_MS;
+  const order = props.order ?? 0;
+  const flight = useDotFlight();
+  const at = useRef<HTMLSpanElement>(null);
+  const [grown, setGrown] = useState<Grown>(() => (flight.stage === "up" ? "seed" : "shown"));
+  const [sweep, setSweep] = useState(false);
+  const [glow, setGlow] = useState(grown === "shown");
+  useAim(at, order === 0);
+  // Once, as the flight ends: grow out of the dot (at once if it had nowhere to land), the light,
+  // then the glow. Kept going whatever the flight does next; stopped only with the button.
+  const seeded = useRef(grown === "seed");
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const ended = flight.stage !== "up";
+  const landed = flight.stage === "landed";
+  useEffect(() => {
+    if (!seeded.current || !ended) return;
+    seeded.current = false;
+    const times = landed
+      ? updateButtonTimes(order)
+      : { growAt: 0, sweepAt: undefined, glowAt: UPDATE_MOTION.growMs };
+    timers.current.push(
+      setTimeout(() => setGrown("grow"), times.growAt),
+      // Grown: a press presses on the usual quick curve again, not the grow's.
+      setTimeout(() => setGrown("shown"), times.growAt + UPDATE_MOTION.growMs),
+      setTimeout(() => setGlow(true), times.glowAt),
+    );
+    if (times.sweepAt !== undefined) {
+      timers.current.push(setTimeout(() => setSweep(true), times.sweepAt));
+    }
+  }, [ended, landed, order]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
   return (
-    <span className="update-ring" style={{ "--ring-at": `${at}ms` } as CSSProperties}>
+    <span
+      ref={at}
+      className="update-ring"
+      data-grown={grown}
+      data-sweep={sweep ? "true" : undefined}
+      data-glow={glow ? "true" : undefined}
+      data-soft={props.soft === true ? "true" : undefined}
+      onAnimationEnd={(event) => {
+        if (event.animationName === "update-btn-sweep") setSweep(false);
+      }}
+    >
       <button
         type="button"
         className={props.soft === true ? "update-btn is-soft" : "update-btn"}
         onClick={props.onClick}
         data-testid={props.testId}
       >
-        {props.label}
+        <span className="update-btn-label">{props.label}</span>
       </button>
     </span>
   );

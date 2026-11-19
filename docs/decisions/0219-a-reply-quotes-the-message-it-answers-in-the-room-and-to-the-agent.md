@@ -3,9 +3,9 @@
 Date: 22 October 2026
 Status: Accepted, 22 October 2026, on Arjun's word: "Go with your picks: A quote card, Jump, H3 for
 the harness. Quote messages from before the agent joined." The mocks are
-[reply-mocks.html](../proposals/reply-mocks.html) (animated:
+reply-mocks.html (animated:
 <https://claude.ai/artifact/QXzC1bDpDvULtE27MhP3vV>); the build is
-[reply-plan.md](../proposals/reply-plan.md).
+reply-plan.md.
 
 ## Context
 

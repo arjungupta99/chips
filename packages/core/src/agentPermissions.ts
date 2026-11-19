@@ -42,7 +42,8 @@ export const BANNER_FOOT =
 export const NOTHING_IN_SPACE_WORDS = "Nothing shows in the space.";
 export const SHOW_AGAIN_WORDS = "Show again";
 export const STOP_WORDS = "Stop";
-export const LET_IT_WORK_WORDS = "Let it work…";
+/** The agent card's row, under its harness's Permissions, while it works without asking (ADR 0300). */
+export const WORKING_ROW_TITLE = "Working without asking";
 export const HARNESS_BANNERS_ROW = "Show banners";
 export const HARNESS_BANNERS_FOOT =
   "The gold banner shows in a space while one of these agents works without asking. Turning this on or off applies to every agent, and to any made later.";
@@ -61,13 +62,8 @@ export interface AgentPermissions {
   readonly sub: string;
   /** Who the art shows the asks going to. */
   readonly to: string;
-  /** Let it work is offered: the person whose agent it is, or an owner or an admin. */
-  readonly mayLetWork: boolean;
   /** Stop is offered: anybody in the space may bring the asks back to a person. */
   readonly mayStop: boolean;
-  /** What Let it work says it will do, before anything changes. */
-  readonly confirmWords: string;
-  readonly confirmButton: string;
   readonly banner: AgentBannerRow & {
     /** The banner it shows when it shows, as the little picture draws it. */
     readonly preview: string;
@@ -124,17 +120,6 @@ function pageWords(
   };
 }
 
-/** Let it work is offered while no yes holds, to the agent's person or an owner or an admin. */
-function mayLetItWork(
-  input: PermissionsInput,
-  harnessId: string,
-  selfId: string | undefined,
-  inSpace: boolean,
-): boolean {
-  if (!inSpace || input.keepsHeldStart === false || selfId === undefined) return false;
-  return input.directory[harnessId]?.ownerId === selfId || mayTurnDial(input.model, selfId);
-}
-
 /** The page for one agent, from where the reader stands. */
 export function agentPermissions(
   input: PermissionsInput,
@@ -168,10 +153,7 @@ export function agentPermissions(
     headline: words.headline,
     sub: words.sub,
     to: to.kind === "you" ? "You" : to.kind === "owner" ? to.name : "A person",
-    mayLetWork: held === undefined && mayLetItWork(input, harnessId, selfId, space !== undefined),
     mayStop: held !== undefined,
-    confirmWords: `Everything ${name} asks in ${space?.name ?? "its space"} will go ahead without a card until you stop it, commands Chips can't read too. ${STILL_ASKS}`,
-    confirmButton: `Let ${name} work`,
     banner: {
       ...row,
       preview: `${name} is working without asking`,

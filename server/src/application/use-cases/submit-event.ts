@@ -30,6 +30,9 @@ import {
   type Address,
   type AddressInput,
   askedCommand,
+  CHIPS_RULES_OFF,
+  type ChipsRulesHas,
+  chipsRulesOn,
   DEFAULT_EXCHANGE_LIMITS,
   type ExchangeLimits,
   eventDefinition,
@@ -38,6 +41,8 @@ import {
   isId,
   mayHoldName,
   mentionsEveryone,
+  type Policy,
+  type PolicyHold,
   type PolicyRule,
   parseEvent,
   passIfNothingSaid,
@@ -89,11 +94,13 @@ import {
   type SpaceFacts,
   settlesItsOwn,
 } from "../../domain/index.js";
+import { holdRules, keepHold, keepWritten } from "../../domain/written-rules.js";
 import { type AgentDeps, defaultAgentOf, takenNames } from "../agents.js";
 import type { UploadsRegistry } from "../ports/attachments.js";
 import type { Principal } from "../ports/identity.js";
 import {
   AppendRefused,
+  type ChipsRulesView,
   type Clock,
   type EventStore,
   type IdGenerator,
@@ -104,6 +111,7 @@ import {
   type RunView,
   type SpaceView,
   type StoredEvent,
+  type WorkspacePolicyView,
 } from "../ports/index.js";
 import { fillMadeFrom } from "../room-files.js";
 import { attachmentOf } from "./uploads.js";
@@ -173,6 +181,7 @@ export interface SubmitEventDeps {
     | "question"
     | "harnessPolicy"
     | "workspacePolicy"
+    | "chipsRules"
     | "sessionRules"
     | "rulesForAWhile"
     | "participant"
@@ -310,6 +319,7 @@ export function createSubmitEvent(deps: SubmitEventDeps) {
     await keepChange(event, principal, deps);
 
     fillSpeakerRole(event, context);
+    await fillKeeps(event, principal, context, deps);
     await priceUsage(event, principal, deps);
     await fillMentions(event, principal, deps);
     const talked = await fillAddress(event, principal, deps);
@@ -443,6 +453,8 @@ async function validate(input: SubmitEventInput, deps: SubmitEventDeps): Promise
   if (named !== undefined) return { ok: false, error: named };
   const parsed = parseEvent(draft);
   if (parsed.ok) {
+    const refused = await keepTheRules(parsed.value, input.principal, deps);
+    if (refused !== undefined) return { ok: false, error: refused };
     if (parsed.dropped.length > 0) {
       deps.dropped?.({
         principal: input.principal,
@@ -499,10 +511,84 @@ const ATTRIBUTION: Readonly<
   "run.resume": { who: ["by"], when: [] },
   "run.cancel": { who: ["by"], when: [] },
   "policy.updated": { who: ["changed_by"], when: [] },
+  "policy.workspace_updated": { who: ["changed_by"], when: [] },
   "approval.routed": { who: ["routed_by"], when: ["routed_at"] },
   "approval.held_stopped": { who: ["stopped_by"], when: [] },
   "approval.held_started": { who: ["started_by"], when: [] },
 };
+
+/**
+ * A person's rules as Chips keeps them (ADR 0299): each rule already in the scope keeps its maker,
+ * each new one is stamped with the sender and the time, and a new one no person may write is
+ * refused. A hold is stamped the same way, and is kept for every space only.
+ */
+async function keepTheRules(
+  event: Record<string, unknown>,
+  principal: Principal,
+  deps: SubmitEventDeps,
+): Promise<SubmitFailure | undefined> {
+  // Only an owner or an admin sends these (SEC-1): anybody else is refused by role, further on.
+  if (principal.kind !== "person" || (principal.role !== "owner" && principal.role !== "admin")) {
+    return undefined;
+  }
+  if (event["type"] === "policy.updated") return keepHarnessRules(event, principal, deps);
+  if (event["type"] === "policy.workspace_updated") {
+    return keepWorkspaceRules(event, principal, deps);
+  }
+  return undefined;
+}
+
+/** A hold kept as Chips keeps one, or nothing for none (absent, or asks back on). */
+function heldBy(hold: PolicyHold | null | undefined, by: string, at: string) {
+  return hold === undefined || hold === null ? undefined : keepHold(hold, by, at);
+}
+
+async function keepHarnessRules(
+  event: Record<string, unknown>,
+  principal: Principal,
+  deps: SubmitEventDeps,
+): Promise<SubmitFailure | undefined> {
+  const at = deps.clock.nowIso();
+  const by = principal.participantId;
+  const policy = event["policy"] as Policy;
+  const space = typeof event["space_id"] === "string" ? event["space_id"] : undefined;
+  const hold = heldBy(policy.hold, by, at);
+  if (space !== undefined && hold !== undefined) {
+    return { kind: "invalid", message: "A harness's asks are turned off in every space at once." };
+  }
+  if (space !== undefined && policy.chips_rules !== undefined) {
+    return {
+      kind: "invalid",
+      message: "A harness's Chips's rules are switched for every space at once.",
+    };
+  }
+  const view = await deps.readModels.harnessPolicy(
+    principal.workspaceId,
+    String(event["harness_id"]),
+    space,
+  );
+  const previous = view?.space_id === (space ?? "*") ? view.rules : [];
+  const kept = keepWritten(previous, policy.rules, by, at);
+  if (!kept.ok) return { kind: "invalid", message: kept.why };
+  event["policy"] = { ...policy, rules: kept.rules, ...(hold === undefined ? {} : { hold }) };
+  return undefined;
+}
+
+async function keepWorkspaceRules(
+  event: Record<string, unknown>,
+  principal: Principal,
+  deps: SubmitEventDeps,
+): Promise<SubmitFailure | undefined> {
+  const at = deps.clock.nowIso();
+  const by = principal.participantId;
+  const workspace = await deps.readModels.workspacePolicy(principal.workspaceId);
+  const kept = keepWritten(workspace?.rules ?? [], event["rules"] as PolicyRule[], by, at);
+  if (!kept.ok) return { kind: "invalid", message: kept.why };
+  event["rules"] = kept.rules;
+  const hold = heldBy(event["hold"] as PolicyHold | null | undefined, by, at);
+  if (hold !== undefined) event["hold"] = hold;
+  return undefined;
+}
 
 /** The events whose `from` is a participant ref for the sender: a steer, and feedback (M3.4). */
 const SPEAKS_FOR_SENDER: readonly string[] = ["run.steer", "feedback"];
@@ -868,12 +954,20 @@ function speakAs(
  * message naming another room's attachment would have moved it into this room, bytes and all;
  * the schema has always said Chips fills `attachments`, and now nothing else does.
  */
+/** Whether Chips fills in the workspace cap on this draft. */
+function needsTheCap(draft: Record<string, unknown>): boolean {
+  if (draft["type"] === "policy.workspace_updated") return true;
+  return draft["type"] === "policy.updated" && draft["workspace_max_autonomy"] === undefined;
+}
+
 async function fillBeforeValidation(
   draft: Record<string, unknown>,
   principal: Principal,
   deps: SubmitEventDeps,
 ): Promise<void> {
-  if (draft["type"] === "policy.updated" && draft["workspace_max_autonomy"] === undefined) {
+  // The cap a dial names only its level for, and always for the rules for every harness, which
+  // leave it as it is (ADR 0299): Chips says what it is.
+  if (needsTheCap(draft)) {
     const workspace = await deps.readModels.workspacePolicy(principal.workspaceId);
     draft["workspace_max_autonomy"] = workspace?.max_autonomy ?? DEFAULT_WORKSPACE_MAX;
   }
@@ -1666,7 +1760,12 @@ async function decide(
   if (event.type === "approval.request" && verdict !== undefined) {
     return decideApproval(event, principal, verdict, deps);
   }
-  if (event.type === "approval.resolved" && event.payload["scope"] === "always") {
+  // The harness keeps an Always as its own while its Chips's rules are off (ADR 0300).
+  if (
+    event.type === "approval.resolved" &&
+    event.payload["scope"] === "always" &&
+    event.payload["keeps"] !== "harness"
+  ) {
     await ruleFromAlways(event, principal, context, deps);
   }
   return undefined;
@@ -1780,14 +1879,21 @@ async function evaluateAsk(
 ): Promise<Decision> {
   const { workspaceId } = principal;
   const space = typeof event["space_id"] === "string" ? event["space_id"] : undefined;
-  const [harnessPolicy, workspace, session, held] = await Promise.all([
+  const [harnessPolicy, workspace, session, held, switched] = await Promise.all([
     deps.readModels.harnessPolicy(workspaceId, principal.participantId, space),
     deps.readModels.workspacePolicy(workspaceId),
     context.run === null
       ? Promise.resolve([])
       : deps.readModels.sessionRules(workspaceId, context.run.run_id),
     heldInSpace(workspaceId, space, context, deps),
+    deps.readModels.chipsRules(workspaceId, principal.participantId),
   ]);
+  // Chips's rules off for this harness (ADR 0300): nothing of Chips's answers, a person does.
+  if (!chipsRulesOn(switched.set, hasOfChips(switched, workspace))) {
+    const cap = workspace?.max_autonomy ?? DEFAULT_WORKSPACE_MAX;
+    const level = Math.min(harnessPolicy?.autonomy ?? DEFAULT_AUTONOMY, cap) as 0 | 1 | 2 | 3;
+    return { decision: "ask", reason: CHIPS_RULES_OFF, level };
+  }
   const action = event["action"] as ActionShape;
   const asked: PolicyAction = {
     kind: action.kind,
@@ -1809,6 +1915,8 @@ async function evaluateAsk(
         ...(harnessPolicy?.rules ?? []),
         ...(harnessPolicy?.everywhere_rules ?? []),
         ...held,
+        // Asks turned off, the harness's or every harness's (ADR 0299): last, so a no still wins.
+        ...holdRules([harnessPolicy?.hold, workspace?.hold], deps.clock.nowIso()),
       ],
     },
     {
@@ -1816,6 +1924,41 @@ async function evaluateAsk(
       rules: workspace?.rules ?? [],
     },
   );
+}
+
+/** What a harness and its workspace have of Chips's own, for a switch never set (ADR 0300). */
+function hasOfChips(
+  switched: ChipsRulesView,
+  workspace: WorkspacePolicyView | undefined,
+): ChipsRulesHas {
+  return {
+    harnessRules: switched.rules,
+    harnessLevel: switched.level,
+    harnessHold: switched.hold,
+    workspaceRules: (workspace?.rules.length ?? 0) > 0,
+    workspaceHold: workspace?.hold !== null && workspace?.hold !== undefined,
+  };
+}
+
+/**
+ * Who keeps a person's Always (ADR 0300): the harness, as its own always, when its Chips's rules
+ * are off, and then Chips writes no rule; Chips otherwise. Chips says which, whatever was sent.
+ */
+async function fillKeeps(
+  event: Record<string, unknown>,
+  principal: Principal,
+  context: AuthorizeContext,
+  deps: SubmitEventDeps,
+): Promise<void> {
+  if (event["type"] !== "approval.resolved") return;
+  delete event["keeps"];
+  if (event["scope"] !== "always" || context.run === null) return;
+  const { workspaceId } = principal;
+  const [switched, workspace] = await Promise.all([
+    deps.readModels.chipsRules(workspaceId, context.run.harness_id),
+    deps.readModels.workspacePolicy(workspaceId),
+  ]);
+  if (!chipsRulesOn(switched.set, hasOfChips(switched, workspace))) event["keeps"] = "harness";
 }
 
 /**

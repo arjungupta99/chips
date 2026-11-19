@@ -460,18 +460,36 @@ export interface HarnessPolicyTable {
   rules: string;
   budget_usd: number | null;
   spent_usd: number;
+  /** Its asks turned off (ADR 0299), as JSON: `PolicyHold`; only on the `*` row. Null while it asks. */
+  hold: string | null;
+  /** Its Chips's rules switch (ADR 0300): 1 on, 0 off, null never set; only on the `*` row. */
+  chips_rules: number | null;
   updated_at: string;
   updated_seq: number;
 }
 
-/** The workspace cap, as the last `policy.updated` reported it. Rebuilt by `rebuild`. */
+/**
+ * The workspace cap, as the last `policy.updated` reported it, and the rules and hold for every
+ * harness from `policy.workspace_updated` (ADR 0299). Rebuilt by `rebuild`.
+ */
 export interface WorkspacePolicyTable {
   workspace_id: string;
   max_autonomy: number;
-  /** Reserved: workspace-wide rules arrive with the admin console. Always `[]` for now. */
+  /** The rules for every harness, as JSON: `PolicyRule[]`, read before any harness's own. */
   rules: string;
+  /** Every harness's asks turned off, as JSON: `PolicyHold`. Null while they ask. */
+  hold: string | null;
   updated_at: string;
   updated_seq: number;
+}
+
+/** What a harness last said it runs on its own (ADR 0299): its copy, whole. Not a projection. */
+export interface HarnessOwnRulesTable {
+  harness_id: string;
+  workspace_id: string;
+  /** As JSON: `OwnRules` from the protocol. */
+  own_rules: string;
+  heard_at: string;
 }
 
 /**
@@ -1037,6 +1055,7 @@ export interface Database {
   agent_models: AgentModelsTable;
   agent_heartbeats: AgentHeartbeatsTable;
   harness_jobs: HarnessJobsTable;
+  harness_own_rules: HarnessOwnRulesTable;
   harness_job_runs: HarnessJobRunsTable;
   agent_context_windows: AgentContextWindowsTable;
   _chips_migrations: MigrationsTable;

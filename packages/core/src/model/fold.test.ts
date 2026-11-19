@@ -76,6 +76,7 @@ const EVERY_EVENT = [
   "person.removed",
   "person.renamed",
   "policy.updated",
+  "policy.workspace_updated",
   "project.changed",
   "question.answered",
   "question.ask",

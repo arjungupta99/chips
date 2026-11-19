@@ -1084,6 +1084,7 @@ jest.mock("./src/spaces/FaceColumn", () => ({
     return {};
   },
   FaceSlideOn: ({ children }) => children,
+  FieldSlideOn: ({ children }) => children,
   FaceColumn: () => null,
 }));
 

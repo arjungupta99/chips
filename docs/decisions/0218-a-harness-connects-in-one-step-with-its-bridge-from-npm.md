@@ -3,7 +3,7 @@
 Date: 22 October 2026
 Status: Accepted, 22 October 2026, on Arjun's word, with the newest release in the card's major
 for each bridge. The plan is
-[connect-a-harness-in-one-step.md](../proposals/connect-a-harness-in-one-step.md). Fixes HS-1,
+connect-a-harness-in-one-step.md. Fixes HS-1,
 HS-2 and HS-3. Builds on ADRs 0119–0122 (the release, its places, `chips up`, join links), 0171
 (the gallery) and 0190 (Connect a harness). Phase 5, Connect on this Mac, is the first addendum;
 phase 6, the bridges on npm, the last.

@@ -6,6 +6,7 @@
  *   workspace already holds, and then each event the player plays, and that does for what the
  *   store sends what a server does: logs it with what a server writes into it, echoes it, acks it,
  *   says a message sent mid-run was steered, and says when a harness goes offline (`presence`);
+ *   a harness's rules and its asks turned off (ADR 0299) are taken too, so its Permissions works;
  * - reads (`get`) answered from the made-up workspace: Search, a room's spend and files, and an
  *   agent's model, context files, context window and the rooms it has been in;
  * - writes (`post`) for what the films do: an agent's model, a file saved, a Compact now, a move

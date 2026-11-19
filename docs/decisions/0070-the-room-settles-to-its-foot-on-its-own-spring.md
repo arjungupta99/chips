@@ -13,7 +13,7 @@ the room down to the foot with an animation of its own, a quarter of a second an
 ends.
 
 Since 24 September the words of a send fly from the field to their bubble on a spring
-([send animation A](../proposals/send-animation-mocks.html)), and the room was made to rise
+(send animation A (`docs/proposals/send-animation-mocks.html`)), and the room was made to rise
 with them on the same spring while they were in the air (25 September, small hours), because
 on the platform's ease it set off later and slower than the words and they passed through the
 bubble above. That left every other landing on the platform's ease. Arjun, on his phone the

@@ -71,6 +71,78 @@ export function universeSeenAt(project: RoomProject | undefined): string | undef
   return project?.changes[0]?.commit;
 }
 
+/**
+ * A row of the phone's Desktop tab that can be new (ADR 0227's addendum of 17 November 2026): the
+ * program, once there is one to run, and the page, once there is one to open. The folder is always
+ * there, so it never is.
+ */
+export type DesktopRow = "program" | "page";
+
+/** What a device keeps of a space's Desktop tab: since when it has kept it, and what it saw there. */
+export interface DesktopSeen {
+  /** When this device began keeping what Desktop has. A row brought before then counts as seen. */
+  readonly since: string;
+  /** The rows this device has seen on the space's Desktop, once the tab was opened. */
+  readonly rows: readonly DesktopRow[];
+}
+
+/** The Desktop rows a space has now, each with the files it can come from. */
+export function desktopRowsOf(
+  universe: Universe,
+): readonly { readonly row: DesktopRow; readonly paths: readonly string[] }[] {
+  const rows: { readonly row: DesktopRow; readonly paths: readonly string[] }[] = [];
+  if (universe.program !== undefined)
+    rows.push({ row: "program", paths: [RUN_FILE, RUN_FILE_BEFORE] });
+  const documents = universe.documents;
+  if (documents !== undefined && "start" in documents) {
+    rows.push({ row: "page", paths: [documents.start] });
+  }
+  return rows;
+}
+
+/**
+ * The Desktop rows the tab's gold dot is for (ADR 0227's addendum of 17 November 2026): those the
+ * space has now that this device hasn't seen on Desktop, brought by somebody else since it began
+ * keeping (`seen.since`), so what Desktop had on the day the dot came counts as seen. A change to a
+ * row already there never lights it. Arjun, 17 November 2026: "I want to show a yellow dot in the
+ * universe-->Desktop tap button, when there is new content available there for the first time".
+ */
+export function desktopNews(
+  universe: Universe | undefined,
+  changes: readonly ProjectChange[] | undefined,
+  selfId: string,
+  seen: DesktopSeen | undefined,
+): readonly DesktopRow[] {
+  if (universe === undefined || seen === undefined) return [];
+  const since = Date.parse(seen.since);
+  if (Number.isNaN(since)) return [];
+  return desktopRowsOf(universe).flatMap(({ row, paths }) => {
+    if (seen.rows.includes(row)) return [];
+    const brought = broughtBy(paths, changes ?? []);
+    if (brought === undefined || brought.by === selfId) return [];
+    return Date.parse(brought.at) >= since ? [row] : [];
+  });
+}
+
+/**
+ * The change that brought one of these files: the oldest that touched it and still stands, so an
+ * edit since is not a bringing, and neither is an Undo or what one took back. Nothing when no change
+ * names it (it came before the project's changes were kept, or past the files a change lists).
+ */
+function broughtBy(
+  paths: readonly string[],
+  changes: readonly ProjectChange[],
+): ProjectChange | undefined {
+  // Newest first, so the oldest is read first from the end.
+  for (let at = changes.length - 1; at >= 0; at -= 1) {
+    const change = changes[at];
+    if (change === undefined || change.undoneBy !== undefined || change.undoes !== undefined)
+      continue;
+    if (change.files.some((file) => paths.includes(file.path))) return change;
+  }
+  return undefined;
+}
+
 /** What a space made, to read and to run. */
 export interface Universe {
   /**

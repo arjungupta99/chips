@@ -9,7 +9,7 @@ then B" ([ADR 0152](../decisions/0152-a-large-file-through-the-relay-holds-neith
 Not built: R2, R3, R5, R6's timeouts, C1, C4 and §5.** He
 asked, while ruling on the install plan: "I will do the hosted relay as well, provide me
 recommendations in a separate plan file for it." It sits beside
-[`install-onboarding-plan.md`](install-onboarding-plan.md), whose §3.7 puts the relay after
+`install-onboarding-plan.md`, whose §3.7 puts the relay after
 Tailscale in the order a phone reaches Chips away from home. Facts below are as read from `b1cfec1a`.
 
 In one line each:

@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest";
 import type { ProjectChange, RoomProject } from "./model/types.js";
 import type { WorkspaceModel } from "./model.js";
 import {
+  desktopNews,
+  desktopRowsOf,
   documentKind,
   fileOpensIn,
   filesInOrder,
@@ -181,6 +183,92 @@ describe("Universe calling the reader (ADR 0227's addendum)", () => {
     ).toBeUndefined();
     expect(universeCalling(undefined, "per_arjun", undefined)).toBeUndefined();
     expect(universeSeenAt(undefined)).toBeUndefined();
+  });
+});
+
+describe("the Desktop tab's dot (ADR 0227's addendum of 17 November 2026)", () => {
+  const SINCE = "2026-11-17T12:00:00.000Z";
+  const change = (
+    commit: string,
+    at: string,
+    paths: readonly string[],
+    more: Partial<ProjectChange> = {},
+  ): ProjectChange => ({
+    commit: commit.repeat(40),
+    before: null,
+    by: "agt_pavel",
+    byKind: "agent",
+    at,
+    seq: 1,
+    message: "Game of life",
+    files: paths.map((path) => ({ path, added: 1, removed: 0 })),
+    moreFiles: 0,
+    ...more,
+  });
+  const program = universeOf([".chips/run.json", "life.js"], { run: "npm run dev" });
+  const seen = (rows: readonly ("program" | "page")[] = []) => ({ since: SINCE, rows });
+
+  it("names a program and a start page as Desktop's rows, and nothing for a list or a broken run file", () => {
+    expect(desktopRowsOf(program).map((each) => each.row)).toEqual(["program"]);
+    expect(desktopRowsOf(universeOf(terraFab, undefined)).map((each) => each.row)).toEqual([
+      "page",
+    ]);
+    expect(desktopRowsOf(universeOf(["a.md", "b.md"], undefined))).toEqual([]);
+    expect(desktopRowsOf(universeOf([".chips/run.json"], { why: "It has no run." }))).toEqual([]);
+  });
+
+  it("lights for a program somebody else brought since this device began keeping", () => {
+    const changes = [
+      change("b", "2026-11-17T13:00:00.000Z", [".chips/run.json", "life.js"]),
+      change("a", "2026-11-17T09:00:00.000Z", ["shots/one.png"]),
+    ];
+    expect(desktopNews(program, changes, "per_arjun", seen())).toEqual(["program"]);
+  });
+
+  it("is quiet once the row was seen on Desktop, and for an edit of a row already there", () => {
+    const changes = [
+      change("c", "2026-11-17T14:00:00.000Z", [".chips/run.json"]),
+      change("b", "2026-11-16T13:00:00.000Z", [".chips/run.json", "life.js"]),
+    ];
+    expect(desktopNews(program, changes, "per_arjun", seen())).toEqual([]);
+    expect(desktopNews(program, changes.slice(0, 1), "per_arjun", seen(["program"]))).toEqual([]);
+  });
+
+  it("is quiet for the person's own row, and for a row no change names", () => {
+    const own = [
+      change("b", "2026-11-17T13:00:00.000Z", [".chips/run.json"], {
+        by: "per_arjun",
+        byKind: "person",
+      }),
+    ];
+    expect(desktopNews(program, own, "per_arjun", seen())).toEqual([]);
+    expect(desktopNews(program, [], "per_arjun", seen())).toEqual([]);
+  });
+
+  it("takes the change that brought it back again: what an Undo took back brought nothing", () => {
+    const changes = [
+      change("d", "2026-11-17T15:00:00.000Z", [".chips/run.json"]),
+      change("c", "2026-11-17T14:00:00.000Z", [".chips/run.json"], { undoes: "b".repeat(40) }),
+      change("b", "2026-11-16T13:00:00.000Z", [".chips/run.json"], { undoneBy: "c".repeat(40) }),
+    ];
+    expect(desktopNews(program, changes, "per_arjun", seen())).toEqual(["program"]);
+  });
+
+  it("lights for the page once, beside a program seen already", () => {
+    const both = universeOf([".chips/run.json", ".chips/index.html"], { run: "npm run dev" });
+    const changes = [
+      change("c", "2026-11-17T15:00:00.000Z", [".chips/index.html"]),
+      change("b", "2026-11-17T13:00:00.000Z", [".chips/run.json"]),
+    ];
+    expect(desktopNews(both, changes, "per_arjun", seen(["program"]))).toEqual(["page"]);
+    expect(desktopNews(both, changes, "per_arjun", seen(["program", "page"]))).toEqual([]);
+  });
+
+  it("says nothing before the space is read or while nothing is kept", () => {
+    const changes = [change("b", "2026-11-17T13:00:00.000Z", [".chips/run.json"])];
+    expect(desktopNews(undefined, changes, "per_arjun", seen())).toEqual([]);
+    expect(desktopNews(program, changes, "per_arjun", undefined)).toEqual([]);
+    expect(desktopNews(program, changes, "per_arjun", { since: "soon", rows: [] })).toEqual([]);
   });
 });
 

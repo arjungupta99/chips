@@ -2,7 +2,7 @@
 
 Date: 18 October 2026
 Status: Accepted, 18 October 2026. Built as Phase 5 of
-[the invited-people plan](../proposals/invited-people-plan.md), which Arjun asked to be built and
+the invited-people plan (`docs/proposals/invited-people-plan.md`), which Arjun asked to be built and
 executed ("please build the detailed technical plan with phases and then execute").
 
 ## Context

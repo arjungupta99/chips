@@ -40,6 +40,7 @@ import {
   type AgentState,
   type AttachmentCaps,
   BANNERS,
+  CHIPS_RULES,
   type CompactionView,
   type Connector,
   type ContextEditView,
@@ -49,6 +50,7 @@ import {
   type ExchangeLimits,
   eventIdOfMessage,
   HARNESS_CAPABILITIES,
+  HARNESS_RULES,
   type HarnessContextView,
   type HarnessJobsView,
   HELD_START,
@@ -66,6 +68,9 @@ import {
   NO_CAPS,
   type NotificationSettings,
   newId,
+  OWN_RULES,
+  type OwnRulesRead,
+  type PolicyHold,
   type ProjectChangeAnswer,
   type ProjectFilesAnswer,
   type ProjectFolderOpenAnswer,
@@ -327,6 +332,19 @@ export interface Snapshot {
    */
   readonly keepsSpendJobs?: boolean | undefined;
   /**
+   * Whether the server keeps a harness's asks turned off and the rules for every harness, and
+   * stamps the rules a person writes (ADR 0299), as its last hello said. False from an older one,
+   * which would read a snooze as nothing and drop the rules for every harness.
+   */
+  readonly keepsHarnessRules?: boolean | undefined;
+  /** Whether the server keeps what a harness runs on its own (ADR 0299), as its last hello said. */
+  readonly keepsOwnRules?: boolean | undefined;
+  /**
+   * Whether the server keeps a harness's Chips's rules switch and keeps a pause off the never list
+   * (ADR 0300), as its last hello said. False from an older one, which would drop the switch.
+   */
+  readonly keepsChipsRules?: boolean | undefined;
+  /**
    * The computer's version, as its last hello said (everything in step): a browser tab that sees
    * it change has the old code of a computer that was updated under it. Absent until a hello.
    */
@@ -404,6 +422,15 @@ export interface SetRulesInput {
   readonly harnessId: string;
   readonly spaceId?: string | undefined;
   readonly rules: readonly Rule[];
+}
+
+/**
+ * Turn a harness's asks off (ADR 0299), or every harness's: until a time, or until a person turns
+ * them back on when `until` is absent. `matters` covers asks that matter too.
+ */
+export interface SnoozeInput {
+  readonly until?: string | undefined;
+  readonly matters?: boolean | undefined;
 }
 
 /** Hand an approval on (M5.5): to a teammate, a role, or the lane's lead, with a word why. */
@@ -515,6 +542,23 @@ export interface Store {
    * its swipe and its Undo. A `policy.updated` at the scope's level as the model has it.
    */
   readonly setRules: (input: SetRulesInput) => void;
+  /** Turn a harness's asks off in every space (ADR 0299): its level and rules as they are. */
+  readonly snoozeHarness: (harnessId: string, snooze: SnoozeInput) => void;
+  /** Turn a harness's asks back on. */
+  readonly resumeHarness: (harnessId: string) => void;
+  /**
+   * Switch a harness's Chips's rules on or off (ADR 0300), its level and rules as they are. Off
+   * also ends a Stop asking, which nothing would read.
+   */
+  readonly setChipsRules: (harnessId: string, on: boolean) => void;
+  /**
+   * The rules for every harness (ADR 0299), sent whole; an owner's or an admin's. The hold stays as
+   * it is unless `hold` says: a snooze, or `null` for asks back on.
+   */
+  readonly setWorkspaceRules: (input: {
+    readonly rules?: readonly Rule[] | undefined;
+    readonly hold?: SnoozeInput | null | undefined;
+  }) => void;
   /** Hold a run where it is; carry on; end it as cancelled; redirect it (M1.3). */
   readonly pauseRun: (input: RunInput) => void;
   readonly resumeRun: (input: RunInput) => void;
@@ -931,6 +975,11 @@ export interface Store {
    * its last change (ADR 0252): its owner's, or an owner's or admin's.
    */
   readonly readHarnessJobs: (harnessId: string) => Promise<HarnessJobsView>;
+  /**
+   * What a harness last said it runs on its own (ADR 0299), for its Permissions page: its owner's,
+   * or an owner's or admin's. Nothing before it sent a copy.
+   */
+  readonly readOwnRules: (harnessId: string) => Promise<OwnRulesRead>;
   /** One job's runs, newest first: since and before a time, `limit` at most (ADR 0252). */
   readonly readJobRuns: (
     harnessId: string,
@@ -1752,6 +1801,9 @@ export function createStore(options: StoreOptions): Store {
   let keepsHeldStart: boolean | undefined;
   let keepsNoCap: boolean | undefined;
   let keepsSpendJobs: boolean | undefined;
+  let keepsHarnessRules: boolean | undefined;
+  let keepsOwnRules: boolean | undefined;
+  let keepsChipsRules: boolean | undefined;
   let serverVersion: string | undefined;
   /** The snapshot's `banners`: the cache's or the server's, with the changes on their way. */
   let banners: Banners = NO_BANNERS;
@@ -1850,6 +1902,9 @@ export function createStore(options: StoreOptions): Store {
       keepsHeldStart,
       keepsNoCap,
       keepsSpendJobs,
+      keepsHarnessRules,
+      keepsOwnRules,
+      keepsChipsRules,
       serverVersion,
       ...gone(),
       ...onItsWay(),
@@ -2253,15 +2308,24 @@ export function createStore(options: StoreOptions): Store {
     const keepsStart = said.includes(HELD_START);
     const noCap = said.includes(SPEND_NO_CAP);
     const jobs = said.includes(SPEND_JOBS);
+    const rules = said.includes(HARNESS_RULES);
+    const own = said.includes(OWN_RULES);
+    const switches = said.includes(CHIPS_RULES);
     if (
       keeps === keepsHeldYes &&
       keepsChoices === keepsBanners &&
       keepsStart === keepsHeldStart &&
       noCap === keepsNoCap &&
-      jobs === keepsSpendJobs
+      jobs === keepsSpendJobs &&
+      rules === keepsHarnessRules &&
+      own === keepsOwnRules &&
+      switches === keepsChipsRules
     ) {
       return;
     }
+    keepsHarnessRules = rules;
+    keepsOwnRules = own;
+    keepsChipsRules = switches;
     keepsHeldYes = keeps;
     keepsBanners = keepsChoices;
     keepsHeldStart = keepsStart;
@@ -2361,6 +2425,23 @@ export function createStore(options: StoreOptions): Store {
   const dispatch = (event: OutboxEvent): void => {
     if (transport === undefined) early.push(event);
     else transport.send(event);
+  };
+
+  /**
+   * A harness's asks turned off or back on (ADR 0299): its level and rules everywhere as the model
+   * has them, so the change is the hold's alone.
+   */
+  const sendHold = (harnessId: string, hold: PolicyHold | null): void => {
+    const policy = fold.model().harnesses[harnessId];
+    const key = `policy-${harnessId}-${randomKey()}`;
+    track(key, harnessId);
+    dispatch({
+      type: "policy.updated",
+      harness_id: harnessId,
+      policy: { autonomy: policy?.autonomy ?? 1, rules: [...(policy?.rules ?? [])], hold },
+      idempotency_key: key,
+    });
+    notify();
   };
 
   /**
@@ -3375,6 +3456,47 @@ export function createStore(options: StoreOptions): Store {
       notify();
     },
 
+    snoozeHarness(harnessId, snooze) {
+      sendHold(harnessId, holdWire(snooze));
+    },
+
+    resumeHarness(harnessId) {
+      sendHold(harnessId, null);
+    },
+
+    setChipsRules(harnessId, on) {
+      const policy = fold.model().harnesses[harnessId];
+      const key = `policy-${harnessId}-${randomKey()}`;
+      track(key, harnessId);
+      dispatch({
+        type: "policy.updated",
+        harness_id: harnessId,
+        policy: {
+          autonomy: policy?.autonomy ?? 1,
+          rules: [...(policy?.rules ?? [])],
+          chips_rules: on,
+          ...(!on && policy?.hold !== undefined ? { hold: null } : {}),
+        },
+        idempotency_key: key,
+      });
+      notify();
+    },
+
+    setWorkspaceRules(input) {
+      const now = fold.model().workspaceRules;
+      const key = `policy-workspace-${randomKey()}`;
+      track(key, "workspace");
+      dispatch({
+        type: "policy.workspace_updated",
+        rules: [...(input.rules ?? now.rules)],
+        ...(input.hold === undefined
+          ? {}
+          : { hold: input.hold === null ? null : holdWire(input.hold) }),
+        idempotency_key: key,
+      });
+      notify();
+    },
+
     leaveSpace(input) {
       dispatch({
         type: "membership.removed",
@@ -3770,6 +3892,9 @@ export function createStore(options: StoreOptions): Store {
 
     readHarnessJobs: (harnessId) =>
       read<HarnessJobsView>(device, `/v1/harnesses/${encodeURIComponent(harnessId)}/jobs`),
+
+    readOwnRules: (harnessId) =>
+      read<OwnRulesRead>(device, `/v1/harnesses/${encodeURIComponent(harnessId)}/own-rules`),
 
     readJobRuns: (harnessId, jobId, window = {}) => {
       const query = new URLSearchParams();
@@ -4874,6 +4999,14 @@ export function decisionKey(approvalId: string, decision: string): string {
   return `${approvalId}-${decision}`;
 }
 
+/** A snooze as the wire says it; who and when are Chips's to fill in. */
+function holdWire(snooze: SnoozeInput): PolicyHold {
+  return {
+    ...(snooze.until === undefined ? {} : { until: snooze.until }),
+    ...(snooze.matters === true ? { matters: true } : {}),
+  };
+}
+
 function emptyModel(): WorkspaceModel {
   return {
     spaces: [],
@@ -4887,6 +5020,7 @@ function emptyModel(): WorkspaceModel {
     attachmentCaps: NO_CAPS,
     exchangeLimits: DEFAULT_EXCHANGE_LIMITS,
     takenOut: {},
+    workspaceRules: { rules: [] },
   };
 }
 

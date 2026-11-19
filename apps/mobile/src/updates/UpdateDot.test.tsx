@@ -7,7 +7,9 @@
 import type { Store } from "@chipschat/core";
 import { render, screen, userEvent } from "@testing-library/react-native";
 import type { ReactNode } from "react";
+import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { flights } from "./flight";
 import { UpdateDot } from "./UpdateDot";
 import { UpdatesProvider } from "./updates";
 
@@ -76,6 +78,23 @@ describe("the update dot", () => {
     expect(dot).toHaveProp("accessibilityLabel", "Update available. Opens About.");
     await userEvent.press(dot);
     expect(mockPushed).toEqual(["/about"]);
+  });
+
+  it("takes off for About's Update button when tapped, from where it stands (17 November 2026)", async () => {
+    const measured = jest
+      .spyOn(View.prototype as unknown as { measureInWindow: () => void }, "measureInWindow")
+      .mockImplementation(((answer: (x: number, y: number, w: number, h: number) => void) =>
+        answer(174.5, 43, 44, 44)) as never);
+    try {
+      await tabs(storeWith("1.3.0"));
+      await userEvent.press(await screen.findByTestId("update-dot"));
+      const flight = flights.now();
+      expect(flight).toMatchObject({ stage: "up", from: { x: 196.5, y: 65 } });
+      expect(mockPushed).toEqual(["/about"]);
+      flights.miss(flight.id);
+    } finally {
+      measured.mockRestore();
+    }
   });
 
   it("stays out while nothing waits", async () => {

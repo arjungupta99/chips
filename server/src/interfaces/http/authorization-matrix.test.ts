@@ -482,6 +482,21 @@ const ROWS: readonly Row[] = [
     body: { on: false },
     expect: runsTheWorkspace,
   },
+  // What a harness runs on its own (ADR 0299): its copy is the harness's to send; its owner, or an
+  // owner or admin of the workspace, reads it.
+  {
+    method: "PUT",
+    route: "/v1/harnesses/:id/own-rules",
+    path: "/v1/harnesses/SCOUT/own-rules",
+    body: { read_from: ["~/.harness/settings.json"], runs: [] },
+    expect: harnessOnly,
+  },
+  {
+    method: "GET",
+    route: "/v1/harnesses/:id/own-rules",
+    path: "/v1/harnesses/SCOUT/own-rules",
+    expect: runsTheWorkspace,
+  },
   // An agent's context window (ADR 0146): as its heartbeat.
   {
     method: "PUT",

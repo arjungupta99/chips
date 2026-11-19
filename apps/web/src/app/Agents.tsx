@@ -22,19 +22,23 @@ import {
   belongsTo,
   type ConnectionState,
   type ContextReads,
+  chipsRulesOnFor,
   type Directory,
   faceWords,
   guestAgentsWords,
   type HeartbeatReads,
+  harnessOf,
   historyRoomsWords,
   keepLeaving,
   type ModelReads,
   mayOpenSpace,
   myRole,
   NOT_ASKING_WORDS,
+  nameOf,
   PERMISSIONS_TITLE,
   patientLook,
   permissionsRow,
+  permissionsRowWords,
   ROOM_PICK_ROW,
   type RoomPick,
   type ShownAgents,
@@ -42,6 +46,7 @@ import {
   stayFact,
   troubled,
   type WindowReads,
+  WORKING_ROW_TITLE,
   type WorkspaceModel,
   waitingWords,
 } from "@chipschat/core";
@@ -538,6 +543,7 @@ export function AgentPage({
   onOpenAgent,
   onOpenHistory,
   onOpenPermissions,
+  onOpenWorking,
   onOpenFace,
   context,
   heartbeats,
@@ -559,8 +565,10 @@ export function AgentPage({
   readonly onOpenAgent?: ((agentId: string) => void) | undefined;
   /** Opens its message history on a page of its own. */
   readonly onOpenHistory: () => void;
-  /** Opens its Permissions (ADR 0286), with what the person chose for its banner. */
+  /** Opens its harness's Permissions, since an agent has none of its own (ADR 0300). */
   readonly onOpenPermissions?: (() => void) | undefined;
+  /** Opens its own page while it works without asking: Stop and the banner (ADR 0286). */
+  readonly onOpenWorking?: (() => void) | undefined;
   readonly banners?: BannerService | undefined;
   /** Opens its face on a page of its own (ADR 0272), for whoever may change it. */
   readonly onOpenFace?: (() => void) | undefined;
@@ -616,6 +624,7 @@ export function AgentPage({
                   agentId={agentId}
                   banners={banners}
                   onOpen={onOpenPermissions}
+                  onOpenWorking={onOpenWorking}
                 />
               )}
               <LockGroup agentId={agentId} card={card} agents={agents} />
@@ -945,8 +954,17 @@ function PermissionsGroup(props: {
   readonly agentId: string;
   readonly banners: BannerService | undefined;
   readonly onOpen: () => void;
+  readonly onOpenWorking: (() => void) | undefined;
 }) {
-  const row = permissionsRow(
+  // Its harness's, since an agent has none of its own (ADR 0300).
+  const harnessId = harnessOf(props.directory, props.agentId);
+  const name = nameOf(props.directory, harnessId);
+  const sub = chipsRulesOnFor(props.model, harnessId)
+    ? `${name}'s own, then Chips's rules`
+    : `${name}'s own, for all its agents`;
+  const row = permissionsRowWords(props.model, props.directory, harnessId, undefined);
+  // While a yes from an ask's card lets it work, its own page has Stop and the banner.
+  const working = permissionsRow(
     { model: props.model, directory: props.directory, banners: props.banners?.banners },
     props.agentId,
   );
@@ -958,13 +976,22 @@ function PermissionsGroup(props: {
       <ul className="ctx-group">
         <GroupRow
           label={PERMISSIONS_TITLE}
-          sub={row.sub}
+          sub={sub}
           value={row.value}
-          goldValue={row.working}
           mark={{ icon: "unlock", ground: 3 }}
           onClick={props.onOpen}
           testId="agent-permissions"
         />
+        {working.working && props.onOpenWorking !== undefined && (
+          <GroupRow
+            label={WORKING_ROW_TITLE}
+            sub={working.sub}
+            value={working.value}
+            mark={{ icon: "clock", ground: 3 }}
+            onClick={props.onOpenWorking}
+            testId="agent-working"
+          />
+        )}
       </ul>
     </section>
   );

@@ -285,6 +285,11 @@ function jsonOrNull(value: unknown): string | null {
 }
 
 /** Every event lands in its space's activity, so the list sorts without a join. */
+/** A hold as its row keeps it: JSON, or null for asks back on (ADR 0299). */
+function holdOf(hold: unknown): string | null {
+  return hold === null ? null : JSON.stringify(hold);
+}
+
 /**
  * How long a yes holds on past its ask (ADR 0281): until a time for a yes for a while, `null` for
  * one until stopped, nothing for a yes given once.
@@ -1282,7 +1287,12 @@ const PROJECTORS: Readonly<Record<string, Projector>> = {
   // A harness's policy is a projection (ADR 0019): the event is the truth, this row is the view.
   // The budget is written only when the event carries one; the spend is `usage`'s to grow.
   "policy.updated": (event) => {
-    const policy = required<{ autonomy: number; rules: unknown[] }>(event, "policy");
+    const policy = required<{
+      autonomy: number;
+      rules: unknown[];
+      hold?: unknown;
+      chips_rules?: boolean;
+    }>(event, "policy");
     const budget = field<number>(event, "budget_usd");
     return [
       {
@@ -1295,6 +1305,14 @@ const PROJECTORS: Readonly<Record<string, Projector>> = {
           autonomy: policy.autonomy,
           rules: JSON.stringify(policy.rules),
           ...(budget === undefined ? {} : { budget_usd: budget }),
+          // A hold is kept on the everywhere row (ADR 0299); absent leaves it as it was.
+          ...(event.space_id !== undefined || policy.hold === undefined
+            ? {}
+            : { hold: holdOf(policy.hold) }),
+          // So is the Chips's rules switch (ADR 0300); absent leaves it as it was.
+          ...(event.space_id !== undefined || policy.chips_rules === undefined
+            ? {}
+            : { chips_rules: policy.chips_rules ? 1 : 0 }),
           updated_at: event.ts,
           updated_seq: event.seq,
         },
@@ -1313,6 +1331,26 @@ const PROJECTORS: Readonly<Record<string, Projector>> = {
       ...(event.space_id === undefined
         ? []
         : [message(event, "system", { text: null }), ...touchSpace(event)]),
+    ];
+  },
+
+  // The rules and hold for every harness (ADR 0299). The cap rides along, as Chips filled it in,
+  // so a workspace with no row yet gets one; a hold absent is left as it was.
+  "policy.workspace_updated": (event) => {
+    const hold = field<unknown>(event, "hold");
+    return [
+      {
+        kind: "upsert",
+        table: "workspace_policy",
+        row: {
+          workspace_id: event.workspace_id,
+          max_autonomy: required<number>(event, "workspace_max_autonomy"),
+          rules: JSON.stringify(required<unknown[]>(event, "rules")),
+          ...(hold === undefined ? {} : { hold: holdOf(hold) }),
+          updated_at: event.ts,
+          updated_seq: event.seq,
+        },
+      },
     ];
   },
 

@@ -1,6 +1,6 @@
 /**
  * Asks so far (ADR 0255), end to end on the phone: Scout asks in the demo room and is answered on
- * its card; on Scout's page When it asks you keys its dots, a tap on them pushes every ask, the ask
+ * its card; on Scout's Permissions (ADR 0299) it keys its dots, a tap on them pushes every ask, the ask
  * opens whole with the answer and when it came, and Open in its space goes back to the room.
  *
  * The demo workspace is shared by every spec, so Scout's other asks are on the page too: the test

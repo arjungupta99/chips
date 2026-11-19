@@ -63,6 +63,7 @@ import { inBar, TAB_ORDER, TABS, type TabName, tabsShown } from "../../src/ui/ta
 import { usePalette } from "../../src/ui/theme";
 import type { Palette } from "../../src/ui/tokens";
 import { useReduceMotion } from "../../src/ui/useReduceMotion";
+import { DotFlight } from "../../src/updates/DotFlight";
 import { UpdateDot } from "../../src/updates/UpdateDot";
 
 export default function TabsLayout() {
@@ -184,6 +185,8 @@ function Tabs({ store, selfId }: { readonly store: Store; readonly selfId: strin
           />
           {/* An update waits (ADR 0296): over the four tabs, under whatever is pushed over them. */}
           <UpdateDot />
+          {/* Tapped, it flies over everything into About's first update button. */}
+          <DotFlight />
         </View>
         {pad ? (
           <PadBar

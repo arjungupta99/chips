@@ -153,6 +153,28 @@ describe("Universe, at the bar's right (ADR 0227)", () => {
     expect(screen.getByTestId("room-sheet")).toHaveTextContent("down");
   });
 
+  // 17 November 2026: "Test lead and builder, bigger j…" ran its capsule under the rings, held
+  // only to 300 points where a phone 393 across leaves it 249 beside Universe (`ui/titleRoom.ts`).
+  it("gives the room's name the bar from the way back to its end, with nothing at the right", async () => {
+    Object.assign(mockParams, { id: "sp_1" });
+    await render(<SpaceScreen />);
+    expect(screen.getByTestId("room-capsule")).toHaveStyle({ maxWidth: 305 });
+  });
+
+  it("keeps the room's name clear of Universe", async () => {
+    Object.assign(mockParams, { id: "sp_1" });
+    const current = mockPaired.current as { store: unknown; snapshot: Snapshot };
+    const [room] = current.snapshot.model.spaces;
+    const withProject = { ...room, project: { files: 3, changes: [] } } as unknown as Space;
+    const whole = {
+      ...current.snapshot,
+      model: { ...current.snapshot.model, spaces: [withProject] },
+    } as Snapshot;
+    mockPaired.current = { store: fakeStore(whole), snapshot: whole };
+    await render(<SpaceScreen />);
+    expect(screen.getByTestId("room-capsule")).toHaveStyle({ maxWidth: 249 });
+  });
+
   // 11 November 2026: with the keys up, Universe took them down in a frame and they jumped back
   // up as it went. They go first, at once on the main thread (`ui/keysAway.ts`), and stay down.
   it("puts the keys away as it brings Universe up, so they don't jump back as it goes", async () => {

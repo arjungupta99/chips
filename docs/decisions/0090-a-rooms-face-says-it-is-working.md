@@ -4,6 +4,7 @@ Date: 1 October 2026
 Status: Accepted. Extends "the ring is state" (blueprint, Look) past harness-named rooms, and
 ends the reading-out of a harness's own task-bubble markup in a list row.
 Decisions 2 and 3 replaced by ADR 0285: a room at work now wears the pins, 8 November 2026.
+Decision 5 replaced by this ADR's addendum of 17 November 2026: the row says "Working", not a gear.
 
 ## Context
 
@@ -67,3 +68,18 @@ room's own face with a quiet gear naming it in the line. He took the fourth.
   Every face either client draws is.
 - The desktop's sweep wants `@property` for the animated angle (Safari 16.4, and every browser
   that has shipped since). Without it the ring is a still arc rather than a travelling one.
+
+## Addendum, 17 November 2026: the row says "Working", as an agent's does
+
+Arjun: "The agent item in the agent tab shows a green "working" label next to a working agent. I
+want to see the same label on the space item as well in the spaces tab. instead of the Gear".
+
+1. **A room at work says "Working ·" where the gear stood**, in the green, weight and size an
+   agent's row on Agents says it in (`AgentRow.tsx` on the phone, `.agent-working` on the web),
+   just before the row's last words. The two lists now say work in the same word.
+2. **On the web it moves after Paused**, as the phone's has always stood, so the word leads into
+   the words it is about. It keeps its width and the words give way.
+3. **The face's pins are unchanged** (ADR 0285). The word names the state in the line; the pins
+   carry it down a long list.
+
+The `cog` mark stays in the design system's set, though no row draws it now.

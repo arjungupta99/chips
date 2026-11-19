@@ -325,6 +325,12 @@ export const approvalResolved = defineEvent({
       .enum(["once", "session", "always"])
       .default("once")
       .describe("How far the answer reaches. `always` becomes a policy rule."),
+    keeps: z
+      .literal("harness")
+      .optional()
+      .describe(
+        "With `always`: the harness keeps it as its own always, since its Chips's rules are off (ADR 0300), and Chips writes no rule. Filled in by Chips.",
+      ),
     everywhere: z
       .boolean()
       .optional()

@@ -132,3 +132,24 @@ seconds of the film. The slide now glides more slowly between faces and stays on
 Theo's the longest: the column is up for about three and a half seconds, and the part runs about
 eleven and a half.
 
+
+## Addendum, 18 November 2026: a drag up out of the field raises it too
+
+Arjun: "in a space dragging up to outside on the text field bubble should also bring up the agent
+selector. Right now it only comes up when we drag up on the agent selector button".
+
+- **On the phone, a finger that lands anywhere else on the field and drags up out of its top edge
+  raises the same column.** From there it goes as a slide up from the faces does: height alone
+  decides, letting go on a face picks it alone, letting go anywhere else changes nothing.
+- **Inside the field the finger stays the words'.** The column waits for the finger to cross the
+  glass's top edge, not for a move of 8 points, so a drag that scrolls a long draft, moves the caret
+  or the ends of a selection is the field's as before, and once one of those has begun it keeps the
+  finger. Nothing of the column is drawn until the finger is out. A finger that goes down first is
+  not this, as on the faces, and a tap on the field still puts the caret in.
+- **A finger that lands on the faces is theirs**: their slide starts at 8 points, as before, and
+  the field's drag lets it be.
+- It is a second pan on the field's row, waiting by manual activation until the finger is above the
+  edge, beside the one on the faces; one column, and whichever pan raised it moves it, picks from it
+  and puts it away (`FaceColumn.tsx`, `FieldSlideOn`).
+- The Mac and the web are unchanged: a press and a drag in the words there selects them, and the
+  faces take the movement from the mouse.

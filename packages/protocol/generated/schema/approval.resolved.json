@@ -104,6 +104,11 @@
         "always"
       ]
     },
+    "keeps": {
+      "description": "With `always`: the harness keeps it as its own always, since its Chips's rules are off (ADR 0300), and Chips writes no rule. Filled in by Chips.",
+      "type": "string",
+      "const": "harness"
+    },
     "everywhere": {
       "description": "With `always`: the rule is the harness's in every space, not only this one (ADR 0239). An owner or an admin only.",
       "type": "boolean"

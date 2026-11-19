@@ -26,9 +26,6 @@ import {
   AGENTS_SHOWN,
   agentStateWords,
   agentsTab,
-  alwaysRules,
-  asksGoTo,
-  asksValue,
   type Banners,
   BRIDGE_HEADING,
   backFromRestart,
@@ -46,6 +43,7 @@ import {
   myRole,
   nameOf,
   permissionsRow,
+  permissionsRowWords,
   REMOVED_HARNESS_NOTE,
   type RestartOffer,
   type RunState,
@@ -355,15 +353,12 @@ function ItsAgents(props: HarnessPageProps) {
 
 /**
  * How it is set up, a row each: its Main agent's Model row, which opens the model's dialog; its
- * context files, for its owner; and When it asks you, for everybody who reads the page. The last two
+ * context files, for its owner; and Permissions (ADR 0299), for everybody who reads the page. The last two
  * open their sections whole on pages of their own. The Model row's foot stands under the group.
  */
 function SetUp(props: HarnessPageProps) {
   const { model, directory, harnessId, selfId } = props;
-  const asks = asksValue(
-    alwaysRules(model, directory, harnessId, selfId),
-    asksGoTo(directory, harnessId, selfId),
-  );
+  const asks = permissionsRowWords(model, directory, harnessId, selfId);
   return (
     <section className="ctx hp-set-up" aria-label="Set up" data-testid="harness-set-up">
       <div className="ctx-h">
@@ -381,8 +376,9 @@ function SetUp(props: HarnessPageProps) {
           />
         )}
         <GroupRow
-          label="When it asks you"
-          value={asks}
+          label="Permissions"
+          value={asks.value}
+          goldValue={asks.off}
           mark={{ icon: "lock", ground: 3 }}
           onClick={() => props.onOpenPart("asks")}
           testId="harness-asks-row"

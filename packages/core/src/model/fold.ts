@@ -147,6 +147,7 @@ export function createFold(options: FoldOptions = {}): Fold {
     questions: new Map(),
     policies: new Map(),
     workspaceMax: undefined,
+    workspaceRules: { rules: [] },
     caps: NO_CAPS,
     exchangeLimits: DEFAULT_EXCHANGE_LIMITS,
     erased: new Set(),

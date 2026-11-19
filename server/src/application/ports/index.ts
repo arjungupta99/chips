@@ -63,6 +63,7 @@ export type {
   ApprovalView,
   AskedSpaceView,
   AwaitingApproval,
+  ChipsRulesView,
   ExchangeView,
   ExpiredApproval,
   ForkAsk,

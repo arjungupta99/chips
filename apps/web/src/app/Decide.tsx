@@ -45,6 +45,7 @@ import {
   askMatters,
   askStanding,
   commandPlate,
+  harnessKeepsWords,
   hourEnds,
   isAgent,
   letWorkWords,
@@ -139,6 +140,11 @@ export interface DecideProps {
   readonly harnessId?: string | undefined;
   /** The space's name, for an Always kept to it: "go ahead without a card in Bakery". */
   readonly spaceName?: string | undefined;
+  /**
+   * Whether the asking harness's Chips's rules are on (ADR 0300). Off, the card offers the harness's
+   * own choices: Yes, and a don't-ask-again the harness keeps where it can.
+   */
+  readonly chipsOn?: boolean | undefined;
 }
 
 type Mode = "idle" | "editing" | "denying";
@@ -417,9 +423,12 @@ function useStanding(
   const everywhere = scope === "always" && mayEverywhere && where === "everywhere";
   const mine = mayAnswer(props.approval, props.selfId);
   const keeps = props.keepsHeldYes !== false;
-  const letWork = mine && offersLetWork(offer, keeps) ? working : undefined;
+  const chipsOn = props.chipsOn !== false;
+  const letWork = mine && offersLetWork(offer, keeps, chipsOn) ? working : undefined;
   const lasting = lastingOf(scope, letWork, keeps);
-  const scopes = askLastings(offer, keeps).filter((each): each is ApprovalScope => each !== "work");
+  const scopes = askLastings(offer, keeps, chipsOn).filter(
+    (each): each is ApprovalScope => each !== "work",
+  );
   const standing = underTheChoices(props, offer, lasting, {
     reach: everywhere ? "everywhere" : "space",
     where: mayEverywhere ? where : undefined,
@@ -497,6 +506,14 @@ function underTheChoices(
           {whileWords(props.harnessName)}
         </p>
       </div>
+    );
+  }
+  // The harness keeps it as its own while its Chips's rules are off (ADR 0300).
+  if (props.chipsOn === false) {
+    return (
+      <p className="decide-reach" data-testid="harness-keeps">
+        {harnessKeepsWords(props.harnessName)}
+      </p>
     );
   }
   return <Standing standing={offer} spaceName={props.spaceName ?? "this space"} {...always} />;

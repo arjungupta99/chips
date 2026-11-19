@@ -12,7 +12,7 @@
  * In core so the phone, the web and the Mac say the same thing.
  */
 
-import { type AskDot, actionWords, dayMonth, harnessAsks } from "./asking.js";
+import { type AskDot, actionWords, dayMonth, harnessAsks, snoozedYes } from "./asking.js";
 import { type Directory, harnessOf, nameOf } from "./events.js";
 import { mayAnswer } from "./model/readers.js";
 import type { Approval, Run, WorkspaceModel } from "./model/types.js";
@@ -307,6 +307,7 @@ export interface AskKey {
 /** The key under the dots, counting every ask: `8 yes`, `4 no`, `1 unanswered`, `1 waiting`. */
 export function askKey(asks: readonly Approval[]): readonly AskKey[] {
   let yes = 0;
+  let snoozed = 0;
   let no = 0;
   let lapsed = 0;
   let open = 0;
@@ -315,10 +316,12 @@ export function askKey(asks: readonly Approval[]): readonly AskKey[] {
     if (decision === undefined) open += 1;
     else if (decision === "expired") lapsed += 1;
     else if (decision === "denied") no += 1;
+    else if (snoozedYes(ask)) snoozed += 1;
     else yes += 1;
   }
   return [
     { dot: "yes" as const, count: yes, words: `${yes} yes` },
+    { dot: "snoozed" as const, count: snoozed, words: `${snoozed} while not asking` },
     { dot: "no" as const, count: no, words: `${no} no` },
     { dot: "lapsed" as const, count: lapsed, words: `${lapsed} unanswered` },
     { dot: "open" as const, count: open, words: `${open} waiting` },

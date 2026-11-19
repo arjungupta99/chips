@@ -1,8 +1,8 @@
 # 0170. A newcomer is walked through setup, and the setup card says what's left
 
 Date: 15 October 2026
-Status: Accepted, 15 October 2026. Phase 3 of the [install plan](../proposals/install-onboarding-plan.md),
-built to the [first-run build plan](../proposals/first-run-build.md). Adds `GET /v1/server`, names a
+Status: Accepted, 15 October 2026. Phase 3 of the install plan (`docs/proposals/install-onboarding-plan.md`),
+built to the first-run build plan (`docs/proposals/first-run-build.md`). Adds `GET /v1/server`, names a
 new workspace's first person from the account that started Chips, and adds the welcome and the
 setup card to every client.
 

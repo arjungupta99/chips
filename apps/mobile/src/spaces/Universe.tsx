@@ -16,7 +16,10 @@
  *   Pages for a program, else on Files.
  * - **Desktop** is what happens on the person's Mac, as one list (the ADR's second addendum): the
  *   program, which runs on the Mac and never in Chips (ADR 0226's bar), the page, which Chips for
- *   Mac opens in its own window, and the folder, in Finder (ADR 0225).
+ *   Mac opens in its own window, and the folder, in Finder (ADR 0225). When somebody else brings a
+ *   program or a page there for the first time, the Desktop tab wears a gold dot until it is opened
+ *   (the addendum of 17 November 2026, `desktopSeen.ts`); then the new row wears the corner dot and
+ *   its button rings twice, for as long as the sheet stays open.
  *
  * What the space has is core's `readUniverse`, read again as the project moves on.
  *
@@ -29,6 +32,7 @@
 
 import {
   commandOf,
+  type DesktopRow,
   type Directory,
   documentKind,
   fileNameOf,
@@ -71,6 +75,7 @@ import {
   type ReactNode,
   type RefObject,
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -96,6 +101,7 @@ import { usePalette, useScheme } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { UniverseMark, UniverseReading } from "../ui/UniverseMark";
 import { useReduceMotion } from "../ui/useReduceMotion";
+import { useDesktopNews } from "./desktopSeen";
 import { previewBytes } from "./local";
 import { Moves, Opening } from "./MacMotion";
 import { MacRow, RowButton, RowMark } from "./MacRow";
@@ -254,12 +260,14 @@ function UniverseOf({
   const seen = useMemo(() => seenBefore(space.id), [space.id, open]);
   const glass = useRef<View>(null);
   const phone = tab === "phone";
+  const desk = useNewOnDesktop(space, read.value, selfId, { open, tab });
   return (
     <Sheet
       open={open}
       onClose={onClose}
       onGone={() => {
         setTab("phone");
+        desk.reset();
         where.reset();
         setPaged(undefined);
         setFailed(undefined);
@@ -275,6 +283,7 @@ function UniverseOf({
             title={title}
             tab={tab}
             onTab={toDesktop === undefined ? undefined : setTab}
+            dot={desk.lit}
             whole={phone ? where.whole : undefined}
             onFile={openFile}
           />
@@ -309,7 +318,12 @@ function UniverseOf({
                   />
                 </Shelved>
               ) : (
-                <DesktopTab universe={read.value} project={project} held={ran.held} />
+                <DesktopTab
+                  universe={read.value}
+                  project={project}
+                  held={ran.held}
+                  fresh={desk.shown}
+                />
               )}
             </Arrival>
           )}
@@ -543,12 +557,15 @@ function Top({
   title,
   tab,
   onTab,
+  dot,
   whole,
   onFile,
 }: {
   readonly title: string;
   readonly tab: Tab;
   readonly onTab: ((tab: Tab) => void) | undefined;
+  /** The Desktop tab's gold dot: something new there. */
+  readonly dot: boolean;
   /** The page Pages draws, which opens full screen. */
   readonly whole: string | undefined;
   readonly onFile: (path: string) => void;
@@ -557,7 +574,7 @@ function Top({
   // In a column of its own beside the room (ADR 0276) the tabs stand under the name, as on a phone:
   // on its line they ran over the name and the X.
   const column = useSplitSide() === "third";
-  const tabs = <WhereTabs tab={tab} onTab={onTab} />;
+  const tabs = <WhereTabs tab={tab} onTab={onTab} dot={dot} />;
   const inLine = roomy && !column && onTab !== undefined;
   return (
     <>
@@ -632,6 +649,32 @@ function Said({ words, failed = false }: { readonly words: string; readonly fail
 }
 
 /**
+ * What is new on Desktop (ADR 0227's addendum of 17 November 2026): whether the tab wears its gold
+ * dot, and the rows marked new on Desktop itself. Opening Desktop, by its tab or Go to Desktop, keeps
+ * what it has as seen, so the dot goes out for good; the rows it was for stay marked until the sheet
+ * has gone. A row that turns up while Desktop is open is seen there at once, and marked.
+ */
+function useNewOnDesktop(
+  space: Space,
+  universe: Universe | undefined,
+  selfId: string,
+  sheet: { readonly open: boolean; readonly tab: Tab },
+) {
+  const onDesktop = sheet.open && sheet.tab === "desktop";
+  const { news, opened } = useDesktopNews(space.id, universe, space.project?.changes, selfId);
+  const [shown, setShown] = useState<readonly DesktopRow[]>([]);
+  const key = news.join(" ");
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `key` is `news`, by value.
+  useEffect(() => {
+    if (!onDesktop || news.length === 0) return;
+    setShown((was) => [...was, ...news.filter((row) => !was.includes(row))]);
+    opened();
+  }, [onDesktop, key, opened]);
+  const reset = useCallback(() => setShown([]), []);
+  return { lit: news.length > 0, shown, reset };
+}
+
+/**
  * Phone or Desktop, and Desktop only for an owner (ADR 0231): Run and Open on the Mac are theirs,
  * so nobody else is shown it at all.
  */
@@ -651,9 +694,11 @@ function useWhere(store: Store, selfId: string) {
 function WhereTabs({
   tab,
   onTab,
+  dot,
 }: {
   readonly tab: Tab;
   readonly onTab: ((tab: Tab) => void) | undefined;
+  readonly dot: boolean;
 }) {
   if (onTab === undefined) return null;
   return (
@@ -662,7 +707,7 @@ function WhereTabs({
         label="Where it opens"
         options={[
           { value: "phone", label: HERE },
-          { value: "desktop", label: "Desktop" },
+          { value: "desktop", label: "Desktop", dot },
         ]}
         chosen={tab}
         onChoose={(value) => onTab(value === "desktop" ? "desktop" : "phone")}
@@ -1757,11 +1802,14 @@ function DesktopTab({
   universe,
   project,
   held,
+  fresh,
 }: {
   readonly universe: Universe;
   readonly project: ProjectActions;
   /** The run as Universe holds it for the banner, so the bar says the same. */
   readonly held: RunHeld | undefined;
+  /** The rows new here since Desktop was last opened, marked while the sheet stays open. */
+  readonly fresh: readonly DesktopRow[];
 }) {
   const palette = usePalette();
   const on = useGround();
@@ -1775,10 +1823,20 @@ function DesktopTab({
       <Opens>
         <Moves style={[styles.card, { backgroundColor: on.fill }]}>
           {runs ? (
-            <PhoneRun runs={project.runs} recipe={program ?? { why: why ?? "" }} held={held} />
+            <PhoneRun
+              runs={project.runs}
+              recipe={program ?? { why: why ?? "" }}
+              held={held}
+              fresh={fresh.includes("program")}
+            />
           ) : null}
           {documents === undefined ? null : (
-            <PageRow documents={documents} project={project} parted={runs} />
+            <PageRow
+              documents={documents}
+              project={project}
+              parted={runs}
+              fresh={fresh.includes("page")}
+            />
           )}
           <AskMac
             icon="folder"
@@ -1805,10 +1863,12 @@ function PageRow({
   documents,
   project,
   parted,
+  fresh,
 }: {
   readonly documents: NonNullable<Universe["documents"]>;
   readonly project: ProjectActions;
   readonly parted: boolean;
+  readonly fresh: boolean;
 }) {
   if (!("start" in documents)) {
     return (
@@ -1833,6 +1893,7 @@ function PageRow({
       ask={project.openPageOnMac}
       say={pageOnMacWords}
       parted={parted}
+      fresh={fresh}
       testID="universe-open-page"
     />
   );
@@ -1848,6 +1909,7 @@ function AskMac({
   ask,
   say,
   parted,
+  fresh = false,
   testID,
 }: {
   readonly icon: "folder" | "doc";
@@ -1863,6 +1925,8 @@ function AskMac({
   /** The words for what it came to: "Sent to your Mac…" when a Mac heard it. */
   readonly say: (heard: MacsHeard) => string;
   readonly parted: boolean;
+  /** New on Desktop: the corner dot, and Open rings twice. */
+  readonly fresh?: boolean;
   readonly testID: string;
 }) {
   const [busy, setBusy] = useState(false);
@@ -1880,7 +1944,7 @@ function AskMac({
   };
   return (
     <MacRow
-      mark={<RowMark kind="plain" icon={icon} />}
+      mark={<RowMark kind="plain" icon={icon} fresh={fresh} testID={`${testID}-new`} />}
       title={title}
       body={said?.words ?? body}
       bodyKey={said?.words ?? body}
@@ -1893,6 +1957,7 @@ function AskMac({
           onPress={() => void press()}
           tone={tone}
           accessibilityLabel={label}
+          rings={fresh ? 2 : 0}
           testID={testID}
         />
       }

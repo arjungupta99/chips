@@ -5,8 +5,9 @@
  * each row says what it is set to and opens what sets it: People, Invite someone (an owner's) and
  * Relay (an owner's, where the server has one) open their pages beside the list, as does the
  * workspace's log (ADR 0261); Connect a harness opens the Agents page with its dialog up; the
- * attachment limits, when Chips steps in on agents talking to each other (ADR 0187) and what each
- * harness is allowed always (ADR 0195) open as forms, on pages beside it too (ADR 0265's addendum).
+ * attachment limits and when Chips steps in on agents talking to each other (ADR 0187) open as
+ * forms, on pages beside it too (ADR 0265's addendum); Permissions (ADR 0299), every harness's at
+ * once, opens its page beside the list.
  *
  * A person opens from People as their own page, as on the phone: what they can do, their role in
  * the workspace and the link they came by, the spaces the reader shares with them, their devices,
@@ -15,7 +16,6 @@
 
 import {
   administers,
-  alwaysSummary,
   cameBy,
   cameByWords,
   canDo,
@@ -54,16 +54,15 @@ import {
   type PersonModel,
   peopleFilters,
   peopleOf,
+  permissionsSummary,
   ROLE_WORDS,
   removePersonAsking,
   roleChangeAsking,
   roleChangeSees,
   roleCountWords,
   rolesOffered,
-  type SetRulesInput,
   SPACE_INVITE_ROLES,
   type Space,
-  type StopLetWorkInput,
   selfLabel,
   sharedSpaces,
   sortDevices,
@@ -89,7 +88,6 @@ import { ConfirmDialog } from "../ConfirmDialog.tsx";
 import { NotInDemo, useNotInDemo } from "../demo/NotInDemo.tsx";
 import { spaceAvatar } from "../Sidebar.tsx";
 import { dayWords, shortDayWords, untilWords } from "../time.ts";
-import { AllowedAlwaysForm } from "./AllowedAlways.tsx";
 import { Choice, Problem } from "./controls.tsx";
 import { IssuedCodeView, KindMark, seenWords, usePairing } from "./Devices.tsx";
 import { ExchangeLimitsForm } from "./ExchangeLimits.tsx";
@@ -113,7 +111,7 @@ import { useList } from "./useList.ts";
 export type Links = ReturnType<typeof useLinks>;
 
 /** Which form of the group's is up, and the row it grew out of. */
-type Open = { readonly form: "caps" | "talk" | "always"; readonly from: HTMLElement } | undefined;
+type Open = { readonly form: "caps" | "talk"; readonly from: HTMLElement } | undefined;
 
 /**
  * The workspace's heading and its rows, or nothing for a member or a guest. The heading is the
@@ -138,12 +136,8 @@ export function WorkspaceGroup(props: {
   readonly onConnectHarness?: (() => void) | undefined;
   /** Whether the workspace's log has a row (ADR 0261). */
   readonly log: boolean;
-  /** Send a harness's rules changed (ADR 0195): Allowed always's form. Absent, no row. */
-  readonly onSetRules?: ((input: SetRulesInput) => void) | undefined;
-  /** Stop an agent working without asking, from Allowed always (ADR 0281). */
-  readonly onStopLetWork?: ((input: StopLetWorkInput) => void) | undefined;
-  /** Opens an ask's space, from every ask so far on Allowed always (ADR 0255). */
-  readonly onOpenSpace?: ((spaceId: string) => void) | undefined;
+  /** Whether Permissions has a row (ADR 0299): its page is beside the list. */
+  readonly permissions: boolean;
 }) {
   const { model, directory, onConnectHarness } = props;
   // In the demo, connecting a harness needs a server of your own (ADR 0213, point 7).
@@ -207,15 +201,20 @@ export function WorkspaceGroup(props: {
           testId="connect-harness"
         />
       )}
+      {props.permissions && (
+        <ListRow
+          label="Permissions"
+          value={permissionsSummary(model, directory)}
+          mark={<RowMark icon="unlock" tint={HUES.green} />}
+          {...page("permissions")}
+          testId="permissions-row"
+        />
+      )}
       <WorkspaceSettings
         model={model}
         directory={directory}
-        selfId={props.selfId}
         limits={props.limits}
         connected={props.connected}
-        onSetRules={props.onSetRules}
-        onStopLetWork={props.onStopLetWork}
-        onOpenSpace={props.onOpenSpace}
       />
       {props.log && (
         <ListRow
@@ -229,23 +228,17 @@ export function WorkspaceGroup(props: {
   );
 }
 
-/** The server's ceiling on an attachment, read each time the connection opens. */
 /**
- * The workspace's settings that are a short form each, on a page beside the list:
- * what may be attached, when Chips steps in on agents talking (ADR 0187), and Allowed always
- * (ADR 0195).
+ * The workspace's settings that are a short form each, on a page beside the list: what may be
+ * attached, and when Chips steps in on agents talking (ADR 0187).
  */
 function WorkspaceSettings(props: {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
-  readonly selfId: string;
   readonly limits: LimitsService | undefined;
   readonly connected: boolean;
-  readonly onSetRules: ((input: SetRulesInput) => void) | undefined;
-  readonly onStopLetWork: ((input: StopLetWorkInput) => void) | undefined;
-  readonly onOpenSpace: ((spaceId: string) => void) | undefined;
 }) {
-  const { model, directory, limits, onSetRules } = props;
+  const { model, limits } = props;
   const [open, setOpen] = useState<Open>(undefined);
   const ceiling = useCeiling(limits, props.connected);
   const gone = () => setOpen(undefined);
@@ -269,15 +262,6 @@ function WorkspaceSettings(props: {
           />
         </>
       )}
-      {onSetRules !== undefined && (
-        <ListRow
-          label="Allowed always"
-          value={alwaysSummary(model, directory)}
-          mark={<RowMark icon="unlock" tint={HUES.green} />}
-          onOpen={(from) => setOpen({ form: "always", from })}
-          testId="allowed-always-row"
-        />
-      )}
       {open?.form === "caps" && limits !== undefined && (
         <CapsForm
           from={open.from}
@@ -295,22 +279,14 @@ function WorkspaceSettings(props: {
           onGone={gone}
         />
       )}
-      {open?.form === "always" && onSetRules !== undefined && (
-        <AllowedAlwaysForm
-          from={open.from}
-          model={model}
-          directory={directory}
-          selfId={props.selfId}
-          onSetRules={onSetRules}
-          onStopLetWork={props.onStopLetWork}
-          onOpenSpace={props.onOpenSpace}
-          onGone={gone}
-        />
-      )}
     </>
   );
 }
 
+/**
+ * What the Permissions row says (ADR 0299): every harness not asking, how many aren't, or how many
+ * rules are on.
+ */
 function useCeiling(limits: LimitsService | undefined, connected: boolean): number | undefined {
   const [ceiling, setCeiling] = useState<number | undefined>(undefined);
   useEffect(() => {

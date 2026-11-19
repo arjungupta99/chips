@@ -206,6 +206,24 @@ describe("a harness's own jobs (ADR 0252)", () => {
     editable: true,
   };
 
+  it("sends what its own settings let through, once for the same copy (ADR 0299)", async () => {
+    server = await startTestServer({ capabilities: ["agents"] });
+    const chips = await connect({ url: server.url, token: server.token });
+    clients.push(chips);
+    const copy = {
+      read_from: ["~/.claude/settings.json"],
+      mode: "Default",
+      runs: [{ kind: "command" as const, name: "git", words: ["git"], raw: "Bash(git:*)" }],
+    };
+    await chips.settings.ownRules(copy);
+    await chips.settings.ownRules(copy);
+    const read = await server.gateway.deps.ownRules.read({
+      principal: server.person,
+      harnessId: server.harnessId,
+    });
+    expect(read.ok && read.value?.ownRules).toEqual(copy);
+  });
+
   it("sends its jobs and their runs, and makes a person's switch", async () => {
     const switched: boolean[] = [];
     server = await startTestServer({ capabilities: ["agents", "jobs"] });

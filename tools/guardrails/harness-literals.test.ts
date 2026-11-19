@@ -106,7 +106,11 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
   },
   "apps/web/src/app/Asking.tsx": {
     count: 2,
-    why: `the harness's own face on When it asks you, on its page, and the workspace's harnesses' faces on You's Allowed always (ADR 0195 and its addendum of 26 October 2026); ${SHAPE}`,
+    why: `the harness's own face on the path at the top of its Permissions, and every harness's faces there when a rule is for every harness (ADR 0299); ${SHAPE}`,
+  },
+  "apps/web/src/app/permissions/YouPermissions.tsx": {
+    count: 1,
+    why: `each harness's row on You → Permissions, beside its switch (ADR 0299); ${SHAPE}`,
   },
   "apps/web/src/app/NewSpace.tsx": { count: 1, why: SHAPE },
   "apps/web/src/app/room/actions.ts": { count: 1, why: "the kinds a person adds to a room" },
@@ -133,7 +137,11 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
   },
   "apps/mobile/src/harnesses/AskingMotion.tsx": {
     count: 2,
-    why: `the harness's own face on When it asks you, on its page, and the workspace's harnesses' faces on You's Allowed always (ADR 0195 and its addendum of 26 October 2026); ${SHAPE}`,
+    why: `the harness's own face on the path at the top of its Permissions, and every harness's faces there when a rule is for every harness (ADR 0299); ${SHAPE}`,
+  },
+  "apps/mobile/src/you/YouPermissions.tsx": {
+    count: 1,
+    why: `each harness's row on You → Permissions, beside its switch (ADR 0299); ${SHAPE}`,
   },
   "apps/mobile/src/harnesses/HarnessCard.tsx": { count: 1, why: `a harness's card; ${SHAPE}` },
   "apps/mobile/src/harnesses/Shelf.tsx": {

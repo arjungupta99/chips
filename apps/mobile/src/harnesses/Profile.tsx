@@ -2,7 +2,7 @@
  * One harness: what it is now, its agents, its own jobs, how it is set up, and what it has run
  * (ADR 0254, Arjun's B of the mock "Harness page layouts"). The page is kept short: its agents stop
  * at the first five of the Agents tab's own order, with a row that opens every one of them; Context
- * files, When it asks you and Recent runs are a row each, opening their sections whole on pages of
+ * files, Permissions (ADR 0299) and Recent runs are a row each, opening their sections whole on pages of
  * their own (`parts/`). Model is a row there too, the same row and sheet as an agent's page (ADR
  * 0154), since every agent of the harness with no model of its own follows it.
  *
@@ -32,8 +32,6 @@ import type { FleetHarness, RestartOffer, RunState, Snapshot, Store } from "@chi
 import {
   agentStateWords,
   agentsTab,
-  alwaysRules,
-  asksGoTo,
   BRIDGE_HEADING,
   backFromRestart,
   backWords,
@@ -49,6 +47,7 @@ import {
   myRole,
   nameOf,
   permissionsRow,
+  permissionsRowWords,
   removeAsking,
   restartAsking,
   restartOffer,
@@ -86,7 +85,6 @@ import { JobsGroup } from "./jobs/JobsGroup";
 import type { HarnessPart } from "./parts";
 import {
   AGENTS_SHOWN,
-  asksValue,
   budgetWords,
   contextValue,
   harnessRuns,
@@ -714,7 +712,7 @@ function ItsAgents({
 
 /**
  * How it is set up, a row each (ADR 0254): its Main agent's Model row, which opens the model sheet;
- * its context files, for its owner; and When it asks you, for everybody who reads the page. The
+ * its context files, for its owner; and Permissions (ADR 0299), for everybody who reads the page. The
  * last two open their sections whole on pages of their own. The Model row's foot stands under it.
  */
 function SetUp({
@@ -736,10 +734,7 @@ function SetUp({
   readonly onOpen: (part: HarnessPart) => void;
 }) {
   const { directory } = snapshot;
-  const asks = asksValue(
-    alwaysRules(snapshot.model, directory, harnessId, selfId),
-    asksGoTo(directory, harnessId, selfId),
-  );
+  const asks = permissionsRowWords(snapshot.model, directory, harnessId, selfId);
   return (
     <View testID="harness-set-up">
       <GroupHeading>Set up</GroupHeading>
@@ -756,11 +751,12 @@ function SetUp({
           />
         )}
         <GroupRow
-          label="When it asks you"
-          value={asks}
-          mark={<RowMark icon="unlock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
+          label="Permissions"
+          value={asks.value}
+          goldValue={asks.off}
+          mark={<RowMark icon="lock" tint={AVATAR_HUES[3]} ink="#ffffff" />}
           onPress={() => onOpen("asks")}
-          accessibilityHint="Shows who decides its asks and what is allowed always"
+          accessibilityHint="Shows what it runs on its own, what Chips answers, and its snooze"
           testID="harness-asks-row"
         />
         {banners.row}

@@ -1075,8 +1075,8 @@ function SpaceRow(props: {
   // The phone's rule, from core: "Needs a yes", or the last line as plain words, not Markdown.
   const snippet = lastWords(space, directory);
   // Work going in the room, whether a run of its own or a turn out of the harness's queue
-  // (ADR 0090, ADR 0285): the face wears the pins, and the gear stands where the harness's own
-  // thought-bubble emoji used to be read out.
+  // (ADR 0090, ADR 0285): the face wears the pins, and the words say "Working", in green, as an
+  // agent's row on Agents does (ADR 0090's addendum).
   const working = spaceWorking(space);
   // Chips holds the agents' messages to each other here until a person acts (ADR 0097).
   const paused = pausedIn(space);
@@ -1128,12 +1128,12 @@ function SpaceRow(props: {
             )}
             {shared && <SharedTag />}
             {waiting && <Dot tone="amber" />}
-            {working && <Icon name="cog" size={13} className="cv-gear" />}
             {paused && (
               <Pill tone="red" dot="solid">
                 <span data-testid="paused">Paused</span>
               </Pill>
             )}
+            {working && <span className="cv-working">Working ·</span>}
             <span>{paused ? "Chips paused the agents" : snippet}</span>
           </div>
         </div>

@@ -221,7 +221,10 @@ export {
   changeScope,
   changesStill,
   dayMonth,
+  EVERY_HARNESS,
+  HARNESS_KEEPS_COMMANDS,
   harnessAsks,
+  harnessKeepsWords,
   holdsWords,
   hourEnds,
   type Lasting,
@@ -234,9 +237,12 @@ export {
   RULES_CHANGE_MS,
   type RulesChange,
   reachWords,
+  rulesAt,
   rulesOf,
+  ruleTag,
   STILL_ASKS,
   STOPPED_MS,
+  snoozedYes,
   startWords,
   stoppedWords,
   switchedRule,
@@ -610,6 +616,13 @@ export {
 } from "./directAsks.js";
 export type { StepParts, ToolKind } from "./doingWords.js";
 export { stepParts, stepWords, THINKING, verbWords } from "./doingWords.js";
+export type { DotFlight, DotFlights, DotPoint } from "./dotFlight.js";
+export {
+  DOT_FLIGHT_DEPART_MS,
+  DOT_FLIGHT_MISS_MS,
+  DOT_FLIGHT_SETTLE_MS,
+  dotFlights,
+} from "./dotFlight.js";
 export {
   DUST_MS,
   makeSpecks,
@@ -915,6 +928,7 @@ export type {
   FoldOptions,
   HarnessConnection,
   HarnessPolicyModel,
+  Hold,
   Lane,
   LaneDelivery,
   LaneHop,
@@ -951,6 +965,7 @@ export type {
   Tier,
   WorkspaceModel,
   WorkspaceRole,
+  WorkspaceRules,
 } from "./model.js";
 export {
   addedTo,
@@ -1129,6 +1144,7 @@ export {
   standingWords,
   takeOutAsking,
 } from "./people.js";
+export * from "./permissions.js";
 export {
   type ActedAll,
   actAll,
@@ -1531,6 +1547,7 @@ export type {
   SetAutonomyInput,
   SetRulesInput,
   Snapshot,
+  SnoozeInput,
   SteerRunInput,
   StopLetWorkInput,
   Store,
@@ -1600,6 +1617,8 @@ export {
   turnsOf,
 } from "./turns.js";
 export type {
+  DesktopRow,
+  DesktopSeen,
   DocumentKind,
   FileOpens,
   MediaItem,
@@ -1608,6 +1627,8 @@ export type {
   Universe,
 } from "./universe.js";
 export {
+  desktopNews,
+  desktopRowsOf,
   documentKind,
   fileOpensIn,
   filesInOrder,
@@ -1673,7 +1694,9 @@ export {
   readUpdateFeed,
   releaseTime,
   UPDATE_BUTTON,
+  UPDATE_MOTION,
   UPDATES_HEADING,
+  updateButtonTimes,
   updateDot,
   updatesAsking,
   updatesWaiting,

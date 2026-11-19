@@ -16,6 +16,7 @@ import type { ReactElement } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fakeStore, snapshot } from "../testing/fixtures";
 import { SheetDock } from "../ui/Sheet";
+import { forgetDesktopSeen, loadDesktopSeen } from "./desktopSeen";
 import { UniverseSheet } from "./Universe";
 
 const IPHONE = {
@@ -347,6 +348,102 @@ describe("Universe on the phone (ADR 0227)", () => {
       expect(screen.getByText("Nothing here opens on your Mac yet.")).toBeOnTheScreen(),
     );
     expect(screen.getByTestId("universe-open-folder")).toBeOnTheScreen();
+  });
+});
+
+describe("the Desktop tab's dot (ADR 0227's addendum of 17 November 2026)", () => {
+  const SINCE = "2026-11-17T12:00:00.000Z";
+  const RUN = '{"run": "npm run dev", "opens": "http://localhost:4173"}';
+  const brought = (by: string, at: string) => ({
+    commit: "b".repeat(40),
+    before: null,
+    by,
+    byKind: by.startsWith("per_") ? "person" : "agent",
+    at,
+    seq: 2,
+    message: "Game of life runs",
+    files: [{ path: ".chips/run.json", added: 3, removed: 0 }],
+    moreFiles: 0,
+  });
+  const life = (by = "agt_pavel", at = "2026-11-17T13:00:00.000Z") =>
+    ({ ...space, project: { files: 2, changes: [brought(by, at)] } }) as unknown as Space;
+  const sheet = (store: Store, made: Space, up = true) => (
+    <UniverseSheet
+      store={store}
+      space={made}
+      selfId="per_arjun"
+      title="Game of life"
+      open={up}
+      onClose={() => undefined}
+    />
+  );
+  /** Drawn again as `render` draws it, in the phone's safe area. */
+  const again = (element: ReactElement) => (
+    <SafeAreaProvider initialMetrics={IPHONE}>{element}</SafeAreaProvider>
+  );
+
+  beforeEach(async () => {
+    forgetDesktopSeen();
+    await loadDesktopSeen(() => new Date(SINCE));
+  });
+  afterEach(() => act(() => forgetDesktopSeen()));
+
+  it("wears the dot for a program somebody else brought, and puts it out for good when Desktop opens", async () => {
+    const store = storeWith({ ".chips/run.json": RUN, "life.js": "tick()" });
+    const { rerender } = await render(sheet(store, life()));
+    const tab = await screen.findByRole("radio", { name: "Desktop, new" });
+    expect(screen.getByTestId("universe-tabs-desktop-dot")).toBeOnTheScreen();
+    await userEvent.press(tab);
+    expect(await screen.findByText("Program")).toBeOnTheScreen();
+    // The row says it's the new one while the sheet stays open; the tab is plain again.
+    expect(screen.getByTestId("run-bar-new")).toBeOnTheScreen();
+    expect(screen.getByRole("radio", { name: "Desktop" })).toBeOnTheScreen();
+    // Opened again, nothing is new.
+    await act(async () => rerender(again(sheet(store, life(), false))));
+    await act(async () => rerender(again(sheet(store, life()))));
+    expect(await screen.findByRole("radio", { name: "Desktop" })).toBeOnTheScreen();
+    expect(screen.queryByRole("radio", { name: "Desktop, new" })).toBeNull();
+  });
+
+  it("counts Go to Desktop as opening it", async () => {
+    const store = storeWith({ ".chips/run.json": RUN });
+    await render(sheet(store, life()));
+    await screen.findByRole("radio", { name: "Desktop, new" });
+    await userEvent.press(screen.getByTestId("universe-to-desktop"));
+    expect(await screen.findByTestId("run-bar-new")).toBeOnTheScreen();
+    expect(screen.queryByRole("radio", { name: "Desktop, new" })).toBeNull();
+  });
+
+  it("marks a new page's row too", async () => {
+    const store = storeWith({ ".chips/index.html": "<h1>Life</h1>" });
+    const page = {
+      ...space,
+      project: {
+        files: 1,
+        changes: [
+          {
+            ...brought("agt_pavel", "2026-11-17T13:00:00.000Z"),
+            files: [{ path: ".chips/index.html", added: 1, removed: 0 }],
+          },
+        ],
+      },
+    } as unknown as Space;
+    await render(sheet(store, page));
+    await userEvent.press(await screen.findByRole("radio", { name: "Desktop, new" }));
+    expect(await screen.findByTestId("universe-open-page-new")).toBeOnTheScreen();
+    expect(screen.queryByTestId("universe-open-folder-new")).toBeNull();
+  });
+
+  it("is plain for the person's own program, and for one there before the dot came", async () => {
+    const store = storeWith({ ".chips/run.json": RUN });
+    const { rerender } = await render(sheet(store, life("per_arjun")));
+    expect(await screen.findByTestId("universe-programs-here")).toBeOnTheScreen();
+    expect(screen.getByRole("radio", { name: "Desktop" })).toBeOnTheScreen();
+    await act(async () =>
+      rerender(again(sheet(store, life("agt_pavel", "2026-11-16T09:00:00.000Z")))),
+    );
+    expect(screen.getByRole("radio", { name: "Desktop" })).toBeOnTheScreen();
+    expect(screen.queryByRole("radio", { name: "Desktop, new" })).toBeNull();
   });
 });
 

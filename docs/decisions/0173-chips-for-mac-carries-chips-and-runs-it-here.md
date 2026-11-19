@@ -2,8 +2,8 @@
 
 Date: 15 October 2026
 Status: Accepted, 15 October 2026. The install plan's option A for the Mac
-([install plan](../proposals/install-onboarding-plan.md), §3.3 and Phase 6), built as step 1 of the
-[first-run build plan](../proposals/first-run-build.md) (FR6), on Arjun's "build all seven steps,
+(install plan (`docs/proposals/install-onboarding-plan.md`), §3.3 and Phase 6), built as step 1 of the
+first-run build plan (`docs/proposals/first-run-build.md`) (FR6), on Arjun's "build all seven steps,
 Phase 3 first" after the running mock (<https://claude.ai/artifact/SEHZZ4tPRMEqngbj14jnD3>).
 
 ## Context

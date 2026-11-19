@@ -2,7 +2,7 @@
 
 Date: 21 October 2026
 Status: Accepted, 21 October 2026, on Arjun's "Proceed", after his "Put the film in the app in place
-of the live film. Write the plan and ADR first." Built to the [film as video plan](../proposals/film-as-video.md).
+of the live film. Write the plan and ADR first." Built to the film as video plan (`docs/proposals/film-as-video.md`).
 Changes ADR 0213's film (points 2, 3, 5 and 8); its demo workspace, its words rule, Look around and
 the first screen stand.
 
@@ -120,7 +120,7 @@ seconds, 1080×1920, 60 fps, made in a scratch folder:
 Status: Accepted, 24 October 2026, on Arjun's "Accept the addendum and build RA1 to RA3 as planned,
 RA1's long press and scroll first." Proposed 21 October, on his "After FV5 lands, write an ADR 0217
 addendum and a plan for the render driving the app by clicks, so the director and the screens'
-hooks can go. Show me before building." Plan: [the film as video, RA1 to RA3](../proposals/film-as-video.md#the-render-acts-as-a-person-does-ra1-to-ra3).
+hooks can go. Show me before building." Plan: the film as video, RA1 to RA3 (`docs/proposals/film-as-video.md`).
 Built 24 October 2026, all three phases, with the three films rendered again.
 
 ### Context

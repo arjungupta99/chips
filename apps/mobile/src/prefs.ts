@@ -63,6 +63,8 @@ export const SETTINGS = {
   recentSearches: "search.recent",
   /** The change each space's Universe was last opened at here (`spaces/universeSeen.ts`). */
   universeSeen: "universe.seen",
+  /** What this device has seen on each space's Desktop tab, and since when (`spaces/desktopSeen.ts`). */
+  desktopSeen: "desktop.seen",
   /** The setup card put away, per paired device: `setup.hidden.<deviceId>` (ADR 0170). */
   setupHidden: "setup.hidden",
   /** Whether this phone has asked, once, to turn notifications on at an agent's ask (ADR 0170). */

@@ -2,7 +2,8 @@
  * The demo server's log (ADR 0213), and what it knows from it: who is in each room, where each
  * agent is, which runs are going, which asks wait, what each room allows a job. It stamps what the
  * script's harnesses say and what You sends the way a server does, writing in what a server
- * writes: who a message is for and whom it mentions, who may answer an ask, who gave a correction.
+ * writes: who a message is for and whom it mentions, who may answer an ask, who gave a correction,
+ * and who wrote a rule or turned a harness's asks off, and when (ADR 0299).
  *
  * Its events are numbered in the order they are logged and their ids follow their numbers, so the
  * same film logs the same events under the same ids every time it plays.
@@ -284,6 +285,9 @@ function personsOwn(
   known: Known,
   events: readonly ClientEvent[],
 ): Record<string, unknown> | undefined {
+  if (sent["type"] === "policy.updated" || sent["type"] === "policy.workspace_updated") {
+    return policyOf(sent, ts, known);
+  }
   const space = sent["space_id"];
   if (typeof space !== "string") return undefined;
   if (sent["type"] === "space.created") return roomOpened(sent, known);
@@ -304,6 +308,67 @@ function personsOwn(
 }
 
 const BY_YOU = { kind: "person", id: DEMO_PERSON_ID } as const;
+
+/** The demo workspace's cap on a harness's level, as a server fills it in. */
+const DEMO_MAX_AUTONOMY = 2;
+
+type Stamped = Record<string, unknown>;
+
+/** Each rule as Chips keeps it (ADR 0299): one already made keeps its maker, a new one is You's. */
+function stampRules(rules: unknown, ts: string): readonly Stamped[] {
+  if (!Array.isArray(rules)) return [];
+  return rules.map((rule: Stamped) =>
+    rule["made_by"] === undefined ? { ...rule, made_by: DEMO_PERSON_ID, made_at: ts } : rule,
+  );
+}
+
+/** A hold as Chips keeps it: You turned the asks off, now; nothing, or asks back on, as sent. */
+function stampHold(hold: unknown, ts: string): Stamped | null | undefined {
+  if (hold === undefined || hold === null) return hold as null | undefined;
+  const { until, matters } = hold as { until?: string; matters?: boolean };
+  return {
+    ...(until === undefined ? {} : { until }),
+    ...(matters === true ? { matters: true } : {}),
+    by: DEMO_PERSON_ID,
+    at: ts,
+  };
+}
+
+/**
+ * A harness's rules or its asks turned off, or the rules for every harness (ADR 0299), stamped as
+ * the server stamps them, for one of the demo's harnesses or for all of them. A hold is kept for
+ * every space only.
+ */
+function policyOf(sent: OutboxEvent, ts: string, known: Known): Stamped | undefined {
+  if (sent["type"] === "policy.workspace_updated") {
+    const hold = stampHold(sent["hold"], ts);
+    return {
+      ...sent,
+      rules: stampRules(sent["rules"], ts),
+      ...(hold === undefined ? {} : { hold }),
+      changed_by: DEMO_PERSON_ID,
+      actor: BY_YOU,
+    };
+  }
+  const harness = String(sent["harness_id"]);
+  if (!HARNESSES.some((each) => each.id === harness)) return undefined;
+  const space = sent["space_id"];
+  if (space !== undefined && !known.members.has(String(space))) return undefined;
+  const policy = (sent["policy"] ?? {}) as Stamped;
+  const hold = stampHold(policy["hold"], ts);
+  if (space !== undefined && hold !== undefined && hold !== null) return undefined;
+  return {
+    ...sent,
+    policy: {
+      ...policy,
+      rules: stampRules(policy["rules"], ts),
+      ...(hold === undefined ? {} : { hold }),
+    },
+    workspace_max_autonomy: DEMO_MAX_AUTONOMY,
+    changed_by: DEMO_PERSON_ID,
+    actor: BY_YOU,
+  };
+}
 
 /** A room You opens, with a title and asked of nobody: a new room only, never one again. */
 function roomOpened(sent: OutboxEvent, known: Known): Record<string, unknown> | undefined {

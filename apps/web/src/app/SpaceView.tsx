@@ -22,6 +22,7 @@ import {
   cantAnswerWords,
   carryOnWords,
   changeOf,
+  chipsRulesOnFor,
   type Directory,
   type Doing,
   deleteForEveryoneAsking,
@@ -35,6 +36,7 @@ import {
   formatDuration,
   handChoices,
   harnessesIn,
+  harnessOf,
   harnessUnder,
   heardWords,
   isAgent,
@@ -46,6 +48,7 @@ import {
   marginWords,
   mayReply,
   maySetSpend,
+  mayTurnDial,
   nameOf,
   namesAuthors,
   opensTurn,
@@ -139,7 +142,7 @@ import {
 import { FeedbackGiven, NoteForm, type OnFeedback, saidName } from "./Feedback.tsx";
 import { ForkLine, NewAgentLine } from "./ForkLine.tsx";
 import type { FileService } from "./files.ts";
-import { LetWorkBand } from "./LetWorkBand.tsx";
+import { HoldBands, LetWorkBand } from "./LetWorkBand.tsx";
 import {
   EditForm,
   type LineHandlers,
@@ -151,6 +154,7 @@ import {
 import { hasMenu, LineMenu, More, type Point } from "./LineMenu.tsx";
 import { Markdown } from "./Markdown.tsx";
 import { type Focus, MessageList } from "./MessageList.tsx";
+import type { PermissionsService } from "./permissions/service.ts";
 import { RoomAsks } from "./RoomAsks.tsx";
 import { type RouteMark, RouteOver } from "./RouteOver.tsx";
 import { RunMenu, useRunAsked, useRunMenu } from "./RunMenu.tsx";
@@ -244,6 +248,8 @@ export interface SpaceViewProps {
   /** The person's say over the band, and where its words lead (ADR 0286). */
   readonly banners?: BannerService | undefined;
   readonly onOpenPermissions?: ((asker: string) => void) | undefined;
+  /** Its harnesses' asks turned off (ADR 0299): the band's words and Ask again, the ask's snooze row. */
+  readonly permissions?: PermissionsService | undefined;
   /** Take back a message still held because the socket is shut, by its idempotency key. */
   readonly onDiscard?: ((key: string) => void) | undefined;
   /**
@@ -516,6 +522,15 @@ export function SpaceView(props: SpaceViewProps) {
           headEnd={props.headEnd}
           onGoTo={goToLine}
         />
+        <HoldBands
+          model={props.model}
+          space={space}
+          directory={directory}
+          now={now}
+          service={props.permissions}
+          mayChange={mayTurnDialIn(props.model, selfId)}
+          onOpenPermissions={props.onOpenPermissions}
+        />
         <LetWorkBand
           space={space}
           directory={directory}
@@ -607,6 +622,10 @@ export function SpaceView(props: SpaceViewProps) {
                   })}
                   workspaceRole={props.standing?.inWorkspace}
                   keepsHeldYes={props.keepsHeldYes}
+                  chipsOn={
+                    props.model === undefined ||
+                    chipsRulesOnFor(props.model, harnessOf(directory, ask.harnessId))
+                  }
                   spaceName={
                     props.model === undefined
                       ? undefined
@@ -3502,4 +3521,9 @@ function fieldName(
   return aim === undefined || aim.ids.length === 0
     ? spaceTitle(space, directory, selfId)
     : aimWordsOf(aim, space, directory);
+}
+
+/** Whether this person runs the workspace, so a harness's asks are theirs to turn on and off. */
+function mayTurnDialIn(model: WorkspaceModel | undefined, selfId: string): boolean {
+  return model !== undefined && mayTurnDial(model, selfId);
 }

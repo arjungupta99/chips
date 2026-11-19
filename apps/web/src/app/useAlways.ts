@@ -21,6 +21,7 @@ import {
   RULES_CHANGE_MS,
   type Rule,
   type RulesChange,
+  rulesAt,
   rulesOf,
   type SetRulesInput,
   switchedRule,
@@ -31,12 +32,13 @@ import {
 } from "@chipschat/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-/** A rule just removed, for Undo to put back where it was. */
+/** A row just removed, for Undo to put its rules back where they were. */
 export interface Removed {
   readonly harnessId: string;
   readonly spaceId?: string | undefined;
-  readonly index: number;
-  readonly rule: Rule;
+  /** Its places in the scope's list: one, or several written together (ADR 0299). */
+  readonly indexes: readonly number[];
+  readonly rules: readonly Rule[];
   readonly key: string;
   readonly at: number;
 }
@@ -102,7 +104,7 @@ export function useAlways(
       send(
         rule.harnessId,
         rule.spaceId,
-        switchedRule(current(rule.harnessId, rule.spaceId), rule.index, on),
+        switchedRule(current(rule.harnessId, rule.spaceId), rule.indexes, on),
       ),
     [current, send],
   );
@@ -112,15 +114,15 @@ export function useAlways(
   const wiped = useCallback(
     (rule: AlwaysRule) => {
       const rules = current(rule.harnessId, rule.spaceId);
-      const gone = rules[rule.index];
+      const gone = rulesAt(rules, rule.indexes);
       setGoing(undefined);
-      if (gone === undefined) return;
-      send(rule.harnessId, rule.spaceId, withoutRule(rules, rule.index));
+      if (gone.length === 0) return;
+      send(rule.harnessId, rule.spaceId, withoutRule(rules, rule.indexes));
       setRemoved({
         harnessId: rule.harnessId,
         spaceId: rule.spaceId,
-        index: rule.index,
-        rule: gone,
+        indexes: rule.indexes,
+        rules: gone,
         key: rule.key,
         at: Date.now(),
       });
@@ -133,7 +135,7 @@ export function useAlways(
     if (was === undefined) return;
     setRemoved(undefined);
     const rules = current(was.harnessId, was.spaceId);
-    send(was.harnessId, was.spaceId, withRuleBack(rules, was.index, was.rule));
+    send(was.harnessId, was.spaceId, withRuleBack(rules, was.indexes, was.rules));
   }, [current, send]);
 
   const settled = useCallback(() => setRemoved(undefined), []);

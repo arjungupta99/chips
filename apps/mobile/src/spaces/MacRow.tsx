@@ -11,8 +11,10 @@ import type { ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { ON_GOLD, TOUCH_TARGET } from "../ui/Button";
 import { alpha } from "../ui/glassDial";
+import { useGround } from "../ui/ground";
 import { Icon } from "../ui/Icon";
 import type { IconName } from "../ui/icons";
+import { CornerDot, Rings } from "../ui/NewDot";
 import { Swap } from "../ui/Swap";
 import { usePalette, useScheme } from "../ui/theme";
 import { RADIUS, SPACE, TEXT } from "../ui/tokens";
@@ -22,8 +24,37 @@ import { Moves, Squeeze } from "./MacMotion";
 /** `off`: a program that isn't running, a grey dot where a lit one goes (the banner over a page). */
 export type MarkKind = "ready" | "plain" | "quiet" | "off" | "starting" | "running" | "failed";
 
-/** The row's mark: a tile with an icon, or with a lit dot while a program starts or runs. */
-export function RowMark({ kind, icon }: { readonly kind: MarkKind; readonly icon: IconName }) {
+/**
+ * The row's mark: a tile with an icon, or with a lit dot while a program starts or runs. A row new
+ * on Desktop wears the gold corner dot Media's and Files' new files wear (`fresh`, ADR 0227's
+ * addendum of 17 November 2026), for as long as Universe stays open.
+ */
+export function RowMark({
+  kind,
+  icon,
+  fresh = false,
+  testID,
+}: {
+  readonly kind: MarkKind;
+  readonly icon: IconName;
+  readonly fresh?: boolean;
+  readonly testID?: string | undefined;
+}) {
+  const on = useGround();
+  return (
+    <View style={styles.marked}>
+      <MarkTile kind={kind} icon={icon} />
+      <CornerDot lit={fresh} rim={on.fill} waitMs={FRESH_WAITS_MS} testID={testID} />
+    </View>
+  );
+}
+
+/** The corner dot comes in once Desktop's list has: the tile has slid and the dot on the tab gone. */
+const FRESH_WAITS_MS = 300;
+/** Run or Open rings after it, twice, as About's Update does when About opens (ADR 0296). */
+export const RING_WAITS_MS = 420;
+
+function MarkTile({ kind, icon }: { readonly kind: MarkKind; readonly icon: IconName }) {
   const palette = usePalette();
   const lit = litOf(kind, palette);
   if (lit !== undefined) {
@@ -153,11 +184,14 @@ export function RowButton({
   disabled = false,
   onPress,
   accessibilityLabel,
+  rings = 0,
   testID,
 }: {
   readonly label: string;
   readonly icon?: IconName | undefined;
   readonly tone: "gold" | "blue" | "stop";
+  /** How many gold rings go out from it as it shows: twice on a row new on Desktop. */
+  readonly rings?: number;
   /** Asking the Mac: it says so, and takes no more presses until it has heard. */
   readonly busy?: boolean;
   readonly disabled?: boolean;
@@ -187,6 +221,7 @@ export function RowButton({
       style={[styles.button, { backgroundColor: ground }, disabled ? styles.off : null]}
       testID={testID}
     >
+      {rings > 0 ? <Rings times={rings} waitMs={RING_WAITS_MS} radius={BUTTON / 2} /> : null}
       {busy ? (
         <ActivityIndicator size="small" color={ink} />
       ) : icon === undefined ? null : (
@@ -221,6 +256,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACE.md - 2,
     minHeight: 62,
   },
+  marked: { position: "relative" },
   mark: {
     width: 32,
     height: 32,

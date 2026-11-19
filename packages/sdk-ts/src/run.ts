@@ -99,6 +99,12 @@ export interface Decision {
   /** Approved or edited: the action may go ahead. */
   readonly allowed: boolean;
   readonly scope: "once" | "session" | "always";
+  /**
+   * With `always`: `harness` when the harness keeps it as its own always, since its Chips's rules
+   * are off and Chips writes no rule (ADR 0300). A command's Always is then the harness's always,
+   * not its once.
+   */
+  readonly keeps?: "harness" | undefined;
   /** The edited input, when the decision is `edited`; otherwise the input as asked. */
   readonly input: unknown;
   readonly reason?: string | undefined;
@@ -383,6 +389,7 @@ export class Run {
       decision: event.decision,
       allowed: event.decision === "approved" || event.decision === "edited",
       scope: event.scope ?? "once",
+      ...(event.keeps === "harness" ? { keeps: "harness" as const } : {}),
       input: event.decision === "edited" ? event.updated_input : input.action.input,
       reason: event.reason,
       by: event.resolved_by,

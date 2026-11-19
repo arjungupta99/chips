@@ -184,7 +184,7 @@ import { useHeldReplies } from "./heldReplies";
 import { type Edge, type RoomSpan, type Told, useHeldWidth } from "./heldWidth";
 import { KeyboardRoom } from "./KeyboardRoom";
 import { Arrow, Faces, stepOf } from "./LaneChain";
-import { LetWorkBand } from "./LetWorkBand";
+import { HoldBands, LetWorkBand } from "./LetWorkBand";
 import { RoomSeen } from "./LiftedMotion";
 import { type Deleting, Line, stampWords } from "./Line";
 import type { LineChange } from "./LinePages";
@@ -1473,6 +1473,7 @@ export function SpaceView({
                   store={store}
                   space={space}
                   directory={snapshot.directory}
+                  selfId={selfId}
                   onOpenPermissions={onOpenPermissions}
                   headHeight={headHeight}
                   reach={bandReach}
@@ -1549,6 +1550,7 @@ function Head({
   store,
   space,
   directory,
+  selfId,
   onOpenPermissions,
   headHeight,
   reach,
@@ -1557,6 +1559,7 @@ function Head({
   readonly store: Store;
   readonly space: Parameters<typeof visibleLines>[0];
   readonly directory: Directory;
+  readonly selfId: string;
   readonly onOpenPermissions: ((agentId: string) => void) | undefined;
   readonly headHeight: number;
   readonly reach: number;
@@ -1579,6 +1582,7 @@ function Head({
         style={[styles.pinned, { top: headHeight }]}
         onLayout={(event) => onHeight(heightOf(event))}
       >
+        <HoldBands store={store} space={space} directory={directory} selfId={selfId} />
         <LetWorkBand
           store={store}
           space={space}

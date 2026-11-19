@@ -183,6 +183,9 @@ interface FakeStore extends Store {
   readonly answered: Parameters<Store["answerQuestion"]>[0][];
   readonly dialed: Parameters<Store["setAutonomy"]>[0][];
   readonly ruled: Parameters<Store["setRules"]>[0][];
+  readonly snoozed: { harnessId: string; snooze: Parameters<Store["snoozeHarness"]>[1] | null }[];
+  readonly switched: { harnessId: string; on: boolean }[];
+  readonly everyRuled: Parameters<Store["setWorkspaceRules"]>[0][];
   readonly read: [string, number][];
   readonly readMany: (readonly string[])[];
   /** Spaces this device has left. */
@@ -334,6 +337,9 @@ function fakeStore(initial: Snapshot): FakeStore {
     answered: [],
     dialed: [],
     ruled: [],
+    snoozed: [],
+    switched: [],
+    everyRuled: [],
     read: [],
     readMany: [],
     left: [],
@@ -933,6 +939,21 @@ function fakeStore(initial: Snapshot): FakeStore {
     },
     setRules(input) {
       store.ruled.push(input);
+    },
+    snoozeHarness(harnessId, snooze) {
+      store.snoozed.push({ harnessId, snooze });
+    },
+    resumeHarness(harnessId) {
+      store.snoozed.push({ harnessId, snooze: null });
+    },
+    setChipsRules(harnessId: string, on: boolean) {
+      store.switched.push({ harnessId, on });
+    },
+    setWorkspaceRules(input) {
+      store.everyRuled.push(input);
+    },
+    async readOwnRules() {
+      return { own_rules: null, heard_at: null };
     },
     setAutonomy(input) {
       store.dialed.push(input);
@@ -1581,8 +1602,13 @@ describe("the approval card", () => {
   it("sends For an hour and Let it work as a yes that holds on (ADR 0281)", () => {
     const store = renderShell([
       ...opened(),
-      fixture("run.started", 4),
-      fixture("approval.request", 5, {
+      // Its Chips's rules on, which offer the hour and the switch (ADR 0300).
+      fixture("policy.updated", 4, {
+        space_id: undefined,
+        policy: { autonomy: 1, rules: [], chips_rules: true },
+      }),
+      fixture("run.started", 5),
+      fixture("approval.request", 6, {
         action: { kind: "tracker.write", input: { row: 4471 } },
         risk: [],
       }),
@@ -1613,8 +1639,13 @@ describe("the approval card", () => {
   it("sends Let it work as a yes until stopped (ADR 0281)", () => {
     const store = renderShell([
       ...opened(),
-      fixture("run.started", 4),
-      fixture("approval.request", 5, {
+      // Its Chips's rules on, which offer the hour and the switch (ADR 0300).
+      fixture("policy.updated", 4, {
+        space_id: undefined,
+        policy: { autonomy: 1, rules: [], chips_rules: true },
+      }),
+      fixture("run.started", 5),
+      fixture("approval.request", 6, {
         action: { kind: "tracker.write", input: { row: 4471 } },
         risk: [],
       }),
@@ -2002,7 +2033,7 @@ describe("the sidebar", () => {
     );
   });
 
-  it("says a queued turn as work, with the gear and the light round the face (ADR 0090)", () => {
+  it("says a queued turn as work, with Working and the light round the face (ADR 0090)", () => {
     // Jacobian edits one message as a queued turn goes, in the markup it sends to Telegram and
     // Slack as well. Read out as it arrives, the row said `💭 Working… ▸ browser · https://…`.
     renderShell([
@@ -2017,7 +2048,7 @@ describe("the sidebar", () => {
     expect(row.querySelector(".cv-s > span:last-child")?.textContent).toBe(
       "Reading the news · web search · Starship Flight 14 results",
     );
-    expect(row.querySelector(".cv-gear")).toBeTruthy();
+    expect(row.querySelector(".cv-working")?.textContent).toBe("Working ·");
     expect(
       within(row)
         .getByRole("img", { name: /PO-4471/ })
@@ -2025,10 +2056,10 @@ describe("the sidebar", () => {
     ).toBe("true");
   });
 
-  it("leaves a quiet room its own face and no gear", () => {
+  it("leaves a quiet room its own face and no Working", () => {
     renderShell(opened());
     const row = within(sidebar()).getByRole("button", { name: /PO-4471/ });
-    expect(row.querySelector(".cv-gear")).toBeNull();
+    expect(row.querySelector(".cv-working")).toBeNull();
     expect(
       within(row)
         .getByRole("img", { name: /PO-4471/ })
@@ -4078,18 +4109,21 @@ describe("the harnesses on the Agents tab (M1.6, ADR 0087)", () => {
     expect(await screen.findByTestId("messages")).toBeTruthy();
   });
 
-  it("says who decides its asks at When it asks you's right, and opens it whole (ADR 0254)", () => {
+  it("says how its asks stand at Permissions's right, and opens its Permissions (ADR 0254, ADR 0299)", () => {
     renderShell(asking());
     openHarnesses();
     const row = within(screen.getByRole("region", { name: "Scout" })).getByTestId(
       "harness-asks-row",
     );
-    expect(row.textContent).toBe("When it asks youYou decide›");
+    expect(row.textContent).toBe("PermissionsAsks you›");
     fireEvent.click(row);
-    expect(screen.getByRole("main", { name: "Scout: When it asks you" })).toBeTruthy();
-    expect(screen.getByTestId("asking-headline").textContent).toContain(
-      "Scout decides when to ask",
+    expect(screen.getByRole("main", { name: "Scout: Permissions" })).toBeTruthy();
+    // A server that keeps no copy of what it runs on its own: the page says it doesn't say yet.
+    // Nothing of Chips's set for it: the harness decides, and every ask comes to you (ADR 0300).
+    expect(screen.getByTestId("perms-headline").textContent).toBe(
+      "Scout decides what to ask. Chips brings every ask to you.",
     );
+    expect(screen.getByTestId("perms-chips-value").textContent).toBe("Off");
   });
 });
 

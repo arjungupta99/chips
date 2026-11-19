@@ -23,6 +23,8 @@ export type {
   ContextBudget,
   ContextLine,
   LineReading,
+  OwnEntry,
+  OwnRules,
   RoomContext,
   RoomFile,
   RoomMember,

@@ -13,7 +13,7 @@
  * and there is no ×.
  */
 
-import { ALWAYS_EMPTY, type AlwaysRule } from "@chipschat/core";
+import { ALWAYS_EMPTY, type AlwaysRule, ruleTag } from "@chipschat/core";
 import { useMemo, useRef } from "react";
 import { DustProvider, useCrumble } from "./room/Dust.tsx";
 import type { Always } from "./useAlways.ts";
@@ -35,6 +35,11 @@ export function AlwaysList(props: {
   /** An owner or an admin: the switches turn and the × is there. */
   readonly may: boolean;
   readonly testId: string;
+  /**
+   * Each row named in words with its answer as a tag (ADR 0299), as a harness's Permissions draws
+   * them: `Run ls and cat`, Allow. Absent, a command's rule is named by its start in code.
+   */
+  readonly titled?: boolean | undefined;
 }) {
   const list = useRef<HTMLUListElement>(null);
   // Around the empty list too, so the last row's dust is still in the air once the list is empty.
@@ -50,7 +55,13 @@ export function AlwaysList(props: {
       ) : (
         <ul className="always-list" ref={list} data-testid={props.testId}>
           {props.rules.map((rule) => (
-            <RuleRow key={rule.key} rule={rule} always={props.always} may={props.may} />
+            <RuleRow
+              key={rule.key}
+              rule={rule}
+              always={props.always}
+              may={props.may}
+              titled={props.titled === true}
+            />
           ))}
         </ul>
       )}
@@ -62,6 +73,7 @@ function RuleRow(props: {
   readonly rule: AlwaysRule;
   readonly always: Always;
   readonly may: boolean;
+  readonly titled: boolean;
 }) {
   const { rule, always } = props;
   const row = useRef<HTMLLIElement>(null);
@@ -86,19 +98,7 @@ function RuleRow(props: {
         <span className="always-mark">
           <KeyMark />
         </span>
-        <span className="always-words">
-          {rule.start !== undefined ? (
-            <code>{rule.start}</code>
-          ) : rule.words === undefined ? (
-            <code>{rule.kind}</code>
-          ) : (
-            <b>{rule.words}</b>
-          )}
-          <small>{rule.line}</small>
-          {(rule.start !== undefined || rule.words !== undefined) && (
-            <code className="always-kind">{rule.kind}</code>
-          )}
-        </span>
+        <RuleWords rule={rule} titled={props.titled} />
         <Switch
           label={`Allow ${rule.start ?? rule.kind} always`}
           checked={rule.on}
@@ -122,5 +122,41 @@ function RuleRow(props: {
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * A rule's name and the line under it: in words with its answer as a tag on a harness's
+ * Permissions (ADR 0299), else its start or kind in code, with who made it, where and when.
+ */
+function RuleWords(props: { readonly rule: AlwaysRule; readonly titled: boolean }) {
+  const { rule } = props;
+  if (props.titled) {
+    return (
+      <span className="always-words">
+        <b>{rule.title}</b>
+        <small>
+          <span className="always-tag" data-decision={rule.decision}>
+            {ruleTag(rule.decision)}
+          </span>
+          {rule.place}
+        </small>
+      </span>
+    );
+  }
+  return (
+    <span className="always-words">
+      {rule.start !== undefined ? (
+        <code>{rule.start}</code>
+      ) : rule.words === undefined ? (
+        <code>{rule.kind}</code>
+      ) : (
+        <b>{rule.words}</b>
+      )}
+      <small>{rule.line}</small>
+      {(rule.start !== undefined || rule.words !== undefined) && (
+        <code className="always-kind">{rule.kind}</code>
+      )}
+    </span>
   );
 }

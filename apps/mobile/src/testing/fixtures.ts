@@ -52,6 +52,13 @@ export function fakeStore(snapshot: Snapshot): Store & {
     answerQuestion: record("answerQuestion"),
     setAutonomy: record("setAutonomy"),
     setRules: record("setRules"),
+    snoozeHarness: (harnessId: string, snooze: unknown) =>
+      calls.push({ name: "snoozeHarness", args: { harnessId, snooze } }),
+    resumeHarness: record("resumeHarness"),
+    setChipsRules: (harnessId: string, on: boolean) =>
+      calls.push({ name: "setChipsRules", args: { harnessId, on } }),
+    setWorkspaceRules: record("setWorkspaceRules"),
+    readOwnRules: async () => ({ own_rules: null, heard_at: null }),
     send: record("send"),
     sendFeedback: record("sendFeedback"),
     deleteMessage: record("deleteMessage"),

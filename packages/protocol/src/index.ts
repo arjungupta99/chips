@@ -120,9 +120,12 @@ export { CONNECTION_CHECKLIST } from "./checklist.js";
 export type { AskedAction, CommandParts, StandingOffer } from "./commands.js";
 export {
   askedCommand,
+  commandKind,
   commandParts,
   commandStarts,
   NEVER_STANDING,
+  neverCovered,
+  neverForAWhile,
   neverStanding,
   standingOffer,
   startOf,
@@ -277,6 +280,7 @@ export {
   ackFrame,
   agentState,
   BANNERS,
+  CHIPS_RULES,
   clientFrame,
   clientHelloFrame,
   errorCode,
@@ -287,10 +291,12 @@ export {
   folderOpenFrame,
   folderRunFrame,
   folderRunStateFrame,
+  HARNESS_RULES,
   HELD_START,
   HELD_YES,
   joinFrame,
   negotiateProtocol,
+  OWN_RULES,
   pingFrame,
   pongFrame,
   presenceFrame,
@@ -468,6 +474,16 @@ export {
   spaceNotifications,
   timeOfDay,
 } from "./notifications.js";
+export type { OwnEntry, OwnKind, OwnRules, OwnRulesRead } from "./own-rules.js";
+export {
+  askLineFor,
+  OWN_KINDS,
+  OWN_RULES_MAX,
+  ownEntry,
+  ownKind,
+  ownRules,
+  ownRulesRead,
+} from "./own-rules.js";
 export { HTML_POLICY, PAGE_HEADER_POLICY, PAGE_SANDBOX } from "./pages.js";
 export type { PairingOffer, PairingPayload } from "./pairing.js";
 export {
@@ -498,6 +514,7 @@ export type {
   ParticipantKind,
   ParticipantRef,
   Policy,
+  PolicyHold,
   PolicyRule,
   Preview,
   RiskClass,
@@ -522,6 +539,7 @@ export {
   PARTICIPANT_KINDS,
   participantRef,
   policy,
+  policyHold,
   policyRule,
   preview,
   riskClass,
@@ -719,3 +737,11 @@ export {
   SELF_EVENTS,
   WHEREABOUTS_EVENTS,
 } from "./visibility.js";
+export type { ChipsRulesHas } from "./written-rules.js";
+export {
+  CHIPS_RULES_OFF,
+  chipsRulesOn,
+  HOLD_REASON,
+  ruleShape,
+  writtenRuleRefusal,
+} from "./written-rules.js";

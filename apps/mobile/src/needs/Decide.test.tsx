@@ -609,3 +609,11 @@ describe("the answer, in the hand", () => {
     expect(notify).not.toHaveBeenCalledWith(Haptics.NotificationFeedbackType.Error);
   });
 });
+
+describe("an ask while its harness's Chips's rules are off (ADR 0300)", () => {
+  it("offers the harness's own choices: no hour and no Let it work", async () => {
+    await render(view({}, { chipsOn: false }).element);
+    expect(screen.queryByText("For an hour")).toBeNull();
+    expect(screen.queryByTestId("let-work")).toBeNull();
+  });
+});

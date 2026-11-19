@@ -4,7 +4,8 @@
  * comes in and again when it is tapped; under it the name, the build in a capsule that copies a
  * line for a bug report, and one sentence on what Chips is. Then the computer and the version it
  * runs, with what waits for it when it is behind this device, and an Update button where a newer
- * version waits for either, which sends out the update dot's ring as the page comes in (ADR 0296);
+ * version waits for either, which the update dot flies into when it was tapped and which glows
+ * while it shows (ADR 0296);
  * the Update dot switch; what the release changed; the links;
  * the licence and the open-source code Chips is built on; and who made it.
  *
@@ -61,6 +62,7 @@ import { shareText } from "../ui/share";
 import { usePalette } from "../ui/theme";
 import { AVATAR_HUES, ICON_GROUNDS, ON_GOLD, SPACE, TEXT } from "../ui/tokens";
 import { roundMs } from "../ui/turns";
+import { useMissWithoutButton } from "../updates/flight";
 import { UpdateButton } from "../updates/UpdateButton";
 import { NeedsDot } from "../updates/UpdateDot";
 import { useUpdates } from "../updates/updates";
@@ -88,9 +90,6 @@ export function AboutPage(_props: { readonly store?: Store }) {
   const router = useRouter();
   const build = appBuild();
   const computer = useComputer();
-  // Counts up each time the page comes into view: the Update buttons ring for each.
-  const [ring, setRing] = useState(0);
-  useFocusEffect(useCallback(() => setRing((was) => was + 1), []));
   const whatsNew = useThirdPage("whats-new", () => router.push("/about/whats-new"));
   const licence = useThirdPage("licence", () => router.push("/about/licence"));
   const notices = useThirdPage("notices", () => router.push("/about/notices"));
@@ -100,7 +99,7 @@ export function AboutPage(_props: { readonly store?: Store }) {
   return (
     <UnderName contentContainerStyle={[styles.page, column]} testID="about-page">
       <Top build={build} computer={computer} />
-      <Updates computer={computer} version={build.version} ring={ring} />
+      <Updates computer={computer} version={build.version} />
       <NeedsUpdate />
       <DotSwitch />
       {release !== undefined && (
@@ -295,16 +294,10 @@ function Top({
  * only its owner is offered. The foot says what waits for the computer when it is behind this
  * device (ADR 0295).
  */
-function Updates({
-  computer,
-  version,
-  ring,
-}: {
-  readonly computer: Computer;
-  readonly version: string;
-  readonly ring: number;
-}) {
+function Updates({ computer, version }: { readonly computer: Computer; readonly version: string }) {
   const { waiting, asking, selfUpdate, setNightly } = useUpdates();
+  // The dot flies into the first button; with none to show, it goes out where it is.
+  useMissWithoutButton(waiting.app !== undefined || asking.computer !== undefined);
   const [showNow, setShowNow] = useState(false);
   const facts = computer.kind === "read" ? computer.facts : undefined;
   const behind = facts === undefined ? undefined : computerBehind(version, facts, thisDevice(true));
@@ -316,12 +309,11 @@ function Updates({
     <View>
       <GroupHeading>{UPDATES_HEADING}</GroupHeading>
       <Group inset={MARKED_INSET} testID="about-updates">
-        <AppRow version={version} waiting={waiting.app} ring={ring} />
+        <AppRow version={version} waiting={waiting.app} />
         <ComputerRow
           computer={computer}
           line={computerLine(target, selfUpdate)}
           updates={asking.computer !== undefined}
-          ring={ring}
           order={waiting.app === undefined ? 0 : 1}
           onUpdate={
             nightly === undefined
@@ -446,11 +438,9 @@ function NeedsRow(props: {
 function AppRow({
   version,
   waiting,
-  ring,
 }: {
   readonly version: string;
   readonly waiting: UpdateWaiting | undefined;
-  readonly ring: number;
 }) {
   return (
     <GroupRow
@@ -463,7 +453,6 @@ function AppRow({
           <UpdateButton
             label={UPDATE_BUTTON}
             onPress={() => open(ABOUT_LINKS.appStore)}
-            ring={ring}
             testID="about-update-app"
           />
         )
@@ -488,7 +477,6 @@ function ComputerRow({
   computer,
   line,
   updates,
-  ring,
   order,
   onUpdate,
 }: {
@@ -497,7 +485,6 @@ function ComputerRow({
   readonly line: string | undefined;
   /** Whether its owner has an update to make. */
   readonly updates: boolean;
-  readonly ring: number;
   readonly order: number;
   /** The steps for a computer, or the line to run on one from the install line. */
   readonly onUpdate: () => void;
@@ -516,7 +503,6 @@ function ComputerRow({
             label={UPDATE_BUTTON}
             soft
             onPress={onUpdate}
-            ring={ring}
             order={order}
             testID="about-update"
           />

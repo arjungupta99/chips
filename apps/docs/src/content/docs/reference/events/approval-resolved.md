@@ -34,6 +34,7 @@ Every event also carries the [envelope](/reference/envelope/).
 | `approval_id` | yes | `string` | A approval identifier: `apr_` followed by a ULID. |
 | `decision` | yes | `"approved" \| "edited" \| "denied" \| "expired"` | `expired` means nobody answered and the fallback applied. |
 | `scope` | no | `"once" \| "session" \| "always"` | How far the answer reaches. `always` becomes a policy rule. |
+| `keeps` | no | `"harness"` | With `always`: the harness keeps it as its own always, since its Chips's rules are off (ADR 0300), and Chips writes no rule. Filled in by Chips. |
 | `everywhere` | no | `boolean` | With `always`: the rule is the harness's in every space, not only this one (ADR 0239). An owner or an admin only. |
 | `for_minutes` | no | `number` | With `once` and a yes: for this many minutes, everything the asking agent asks in this space goes ahead without a card (ADR 0239, addendum of 6 November 2026; ADR 0281), commands Chips can't read too. An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once. |
 | `until_stopped` | no | `true` | With `once` and a yes, instead of `for_minutes`: everything the asking agent asks in this space goes ahead without a card until a person stops it (`approval.held_stopped`, ADR 0281). An ask that matters still waits for a person. Chips keeps the rule, so the harness is answered once. |

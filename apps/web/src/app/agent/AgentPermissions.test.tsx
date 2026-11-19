@@ -74,20 +74,13 @@ function mount(
 }
 
 describe("an agent's Permissions (ADR 0286)", () => {
-  it("opens Let it work in place, and only Let Jiro work gives the yes", () => {
-    const { service } = mount();
+  it("says it asks, and offers nothing to let it work: an ask's card does that (ADR 0300)", () => {
+    mount();
     expect(screen.getByTestId("permissions-headline").textContent).toBe(
       "Jiro decides when to ask. You decide the answer.",
     );
-    fireEvent.click(screen.getByTestId("permissions-let-work"));
-    expect(service.letAgentWork).not.toHaveBeenCalled();
-    expect(screen.getByTestId("permissions-confirm").textContent).toMatch(/until you stop it/);
-    fireEvent.click(screen.getByTestId("permissions-cancel"));
-    expect(screen.queryByTestId("permissions-confirm")).toBeNull();
-    fireEvent.click(screen.getByTestId("permissions-let-work"));
-    fireEvent.click(screen.getByRole("button", { name: "Let Jiro work" }));
-    expect(service.letAgentWork).toHaveBeenCalledWith({ spaceId: SPACE, asker: AGENT });
-    expect((screen.getByTestId("permissions-let-work") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId("permissions-let-work")).toBeNull();
+    expect(screen.queryByTestId("permissions-stop")).toBeNull();
   });
 
   it("offers Stop while it isn't asking, and runs the art gold", () => {
@@ -98,11 +91,6 @@ describe("an agent's Permissions (ADR 0286)", () => {
     expect(screen.getByTestId("asking-hero").dataset["working"]).toBe("true");
     fireEvent.click(screen.getByTestId("permissions-stop"));
     expect(service.stopLetWork).toHaveBeenCalledWith({ spaceId: SPACE, asker: AGENT });
-  });
-
-  it("doesn't offer Let it work to somebody who may not give that yes", () => {
-    mount({ selfId: "usr_dana" });
-    expect(screen.queryByTestId("permissions-let-work")).toBeNull();
   });
 
   it("switches the banner and says what the switch is at", () => {

@@ -300,6 +300,33 @@ export const policyRule = z
   .describe("A rule the policy engine evaluates.");
 export type PolicyRule = z.infer<typeof policyRule>;
 
+/**
+ * A harness's asks turned off for a while, or until a person turns them back on (ADR 0299): Chips
+ * says yes for it in every space, after any rule that says no, and each yes is still an answer in
+ * the log.
+ */
+export const policyHold = z
+  .object({
+    until: isoTimestamp
+      .optional()
+      .describe("When its asks come back. Absent: when a person turns them back on."),
+    matters: z
+      .boolean()
+      .optional()
+      .describe(
+        "Whether the yes covers asks that matter too: money, a message outside the workspace, anything that can't be undone. Absent or false, those still wait for a person.",
+      ),
+    by: z
+      .string()
+      .min(1)
+      .max(120)
+      .optional()
+      .describe("Who turned its asks off. Filled in by Chips from the credential that sent it."),
+    at: isoTimestamp.optional().describe("When they were turned off. Filled in by Chips."),
+  })
+  .describe("A harness's asks turned off: Chips says yes for it until `until`.");
+export type PolicyHold = z.infer<typeof policyHold>;
+
 export const policy = z
   .object({
     autonomy: autonomyLevel,
@@ -307,6 +334,18 @@ export const policy = z
       .array(policyRule)
       .max(200)
       .describe("Evaluated in order; the workspace cap always wins."),
+    hold: policyHold
+      .nullable()
+      .optional()
+      .describe(
+        "Its asks turned off (ADR 0299), for every space: kept only with no `space_id`. `null` turns them back on; absent leaves it as it was.",
+      ),
+    chips_rules: z
+      .boolean()
+      .optional()
+      .describe(
+        "Whether Chips's rules answer any of its asks (ADR 0300): off, every ask it sends goes to a person and a don't-ask-again is the harness's own. Kept only with no `space_id`; absent leaves it as it was, and never set it reads as on for a harness with a rule or a hold, or whose workspace has one.",
+      ),
   })
   .describe("A harness's autonomy level and the rules that fill in the details.");
 export type Policy = z.infer<typeof policy>;

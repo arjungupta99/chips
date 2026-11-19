@@ -2,7 +2,9 @@
  * The repository is what goes public, so nothing private is in a tracked file (28 October 2026):
  * not the name of a person Chips was tried with, the maintainer's tailnet, machines, home folder or
  * other projects, and not the notes kept beside the checkout instead (`~/Work/Chips/chips-notes`:
- * STATUS, and the testing guides and scenarios with their dated runs).
+ * STATUS, and the testing guides and scenarios with their dated runs). Since 17 November 2026 the
+ * plans, mocks and reviews live there too (`proposals/`, `reviews/`), under the same file names, all
+ * but the six plans the code still reads as its spec.
  *
  * The words are checked by their SHA-256, so this file doesn't publish what it guards. Every word,
  * hyphenated name, dotted address and `/Users/` folder in every tracked text file is lowercased,
@@ -31,8 +33,30 @@ const PRIVATE = new Set([
   "12d1859bbbf44803fa8965ed72a1aa02c986e88442f2730a16b4648285815886",
 ]);
 
-/** The notes that live outside the repository now, and must not come back with a rebase. */
-const KEPT_OUTSIDE = /^docs\/STATUS\.md$|^docs\/history-rewrite-|^testing\/(?!join-and-remove\/)/;
+/** The plans that stay, because code, a guardrail or the docs site reads them as the rules. */
+const SPEC_PLANS = [
+  "bridges-keep-current",
+  "everything-in-step",
+  "feedback-prompts",
+  "hosted-relay-plan",
+  "join-and-remove-plan",
+  "search-plan",
+];
+
+/**
+ * The notes that live outside the repository now, and must not come back with a rebase. A new plan,
+ * mock or review goes in chips-notes (`proposals/`, `reviews/`); what it decided goes in an ADR.
+ */
+const KEPT_OUTSIDE = new RegExp(
+  [
+    /^docs\/STATUS\.md$/.source,
+    /^docs\/history-rewrite-/.source,
+    /^testing\/(?!join-and-remove\/)/.source,
+    /^docs\/reviews\//.source,
+    /^docs\/chips-(?:blueprint|distribution)\.html$/.source,
+    `^docs/proposals/(?!(?:${SPEC_PLANS.join("|")})\\.md$)`,
+  ].join("|"),
+);
 
 const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
 
@@ -90,5 +114,15 @@ describe("a private word", () => {
 
   it("stays in the notes outside the repository", () => {
     expect(trackedFiles().filter((path) => KEPT_OUTSIDE.test(path))).toEqual([]);
+  });
+
+  it("knows a plan that stays from one that goes", () => {
+    expect(KEPT_OUTSIDE.test("docs/proposals/search-plan.md")).toBe(false);
+    expect(KEPT_OUTSIDE.test("docs/proposals/new-space-mocks.html")).toBe(true);
+    expect(KEPT_OUTSIDE.test("docs/proposals/search-plan.md.bak")).toBe(true);
+    expect(KEPT_OUTSIDE.test("docs/reviews/security-review.md")).toBe(true);
+    expect(KEPT_OUTSIDE.test("docs/chips-blueprint.html")).toBe(true);
+    expect(KEPT_OUTSIDE.test("docs/decisions/0296-a-gold-dot-says-an-update-waits.md")).toBe(false);
+    expect(KEPT_OUTSIDE.test("docs/technical-plan.md")).toBe(false);
   });
 });

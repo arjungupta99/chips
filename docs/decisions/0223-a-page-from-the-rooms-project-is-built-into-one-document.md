@@ -3,7 +3,7 @@
 Date: 23 October 2026
 Status: Accepted, 23 October 2026: the plan's call 6 (esbuild in the server), on Arjun's word
 "proceed with the full implementation of all remaining phases sequentially and fine to push as
-well". The plan is [agents-share-a-project-plan.md](../proposals/agents-share-a-project-plan.md),
+well". The plan is agents-share-a-project-plan.md,
 Phase 6, "A page from the project runs on the phone". The project is
 [ADR 0220](0220-a-rooms-project-is-a-git-repository-chips-holds.md), how a person reads it
 [ADR 0222](0222-a-change-goes-with-the-reply-that-made-it.md), and a page's policy

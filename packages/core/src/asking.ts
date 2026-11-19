@@ -11,7 +11,7 @@
  * for good, by sending the harness's rules without it (`setRules`).
  */
 
-import { standingOffer } from "@chipschat/protocol";
+import { HOLD_REASON, standingOffer } from "@chipschat/protocol";
 import { commandPlate, writesWords } from "./commandPlate.js";
 import { type Directory, harnessOf, nameOf, workspaceHarnesses } from "./events.js";
 import { lettingWork } from "./model/readers.js";
@@ -87,15 +87,32 @@ export function askingPromises(name: string, to: AsksGoTo): readonly AskingPromi
   ];
 }
 
-/** One entry under Allowed always: a rule in the harness's policy, everywhere or in one room. */
+/**
+ * The harness id the rules for every harness go by (ADR 0299): `rulesOf`, `withRules` and the
+ * list read and draw the workspace's rules through it, and a screen sends them with
+ * `setWorkspaceRules` where it would send a harness's with `setRules`.
+ */
+export const EVERY_HARNESS = "*every";
+
+/**
+ * One entry under Allowed always: a rule in the harness's policy, everywhere or in one room; or
+ * the rules saved together (ADR 0299), one per command start, as one row.
+ */
 export interface AlwaysRule {
   /** Stable while the list stands: the harness, the room or `*`, and the rule's place. */
   readonly key: string;
+  /** The harness, or `EVERY_HARNESS` for the rules for every harness. */
   readonly harnessId: string;
   /** The room whose policy holds it; absent for the harness's rules everywhere. */
   readonly spaceId?: string | undefined;
   /** Its place in that policy's list, which is what `setRules` sends back changed. */
   readonly index: number;
+  /** Every place the row's rules have in that list, `index` first. */
+  readonly indexes: readonly number[];
+  /** What it says: Allow, Ask me or Never. */
+  readonly decision: "allow" | "ask" | "deny";
+  /** The row's name in words: `Run cd, ls, cat and 9 more`, `Run rm`, `Edit files`. */
+  readonly title: string;
   /** The action kind it is for, as the harness names it. */
   readonly kind: string;
   /** What it allows in plain words (`actionWords`); absent, the kind is the row's name. */
@@ -108,6 +125,8 @@ export interface AlwaysRule {
   readonly on: boolean;
   /** Who made it, where and when; or that it is off and the harness asks again. */
   readonly line: string;
+  /** The same without what it decides, for a row that wears its answer as a tag (ADR 0299). */
+  readonly place: string;
   /** When a person's answer made it, for the order; absent for a rule nobody's answer made. */
   readonly madeAt?: string | undefined;
 }
@@ -229,52 +248,131 @@ function decisionWords(rule: Rule): string {
   return "";
 }
 
+/** A decision as the rule says it, a yes when it says nothing Chips knows. */
+function decisionOf(rule: Rule): AlwaysRule["decision"] {
+  return rule["decision"] === "deny" || rule["decision"] === "ask" ? rule["decision"] : "allow";
+}
+
+/** The start a rule names, as words; nothing for one that answers its kind whole. */
+function startOfRule(rule: Rule): readonly string[] | undefined {
+  const starts = (rule["when"] as { starts_with?: unknown } | undefined)?.starts_with;
+  return Array.isArray(starts) ? starts.map(String) : undefined;
+}
+
+/** `cd, ls, cat, grep and 9 more`: up to four named. */
+function namedStarts(starts: readonly (readonly string[])[]): string {
+  const named = starts.slice(0, 4).map((words) => words.join(" "));
+  const more = starts.length - named.length;
+  if (more > 0) return `${named.join(", ")} and ${more} more`;
+  return named.length < 2
+    ? (named[0] ?? "")
+    : `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`;
+}
+
+/**
+ * Which row a rule shares (ADR 0299): the rules one New rule or one Always saved, each with the
+ * same maker, time, kind, answer and switch. A rule nobody's answer made stands alone.
+ */
+function groupOf(rule: Rule, index: number): string {
+  const madeAt = text(rule["made_at"]);
+  if (madeAt === undefined) return `#${index}`;
+  return JSON.stringify([
+    madeAt,
+    text(rule["made_by"]) ?? "",
+    text(rule["match"]) ?? "",
+    decisionOf(rule),
+    rule["off"] === true,
+  ]);
+}
+
 interface RuleContext {
   readonly model: WorkspaceModel;
   readonly directory: Directory;
   readonly selfId: string | undefined;
   readonly name: string;
   readonly now: number;
+  /** The rules for every harness, read before each harness's own (ADR 0299). */
+  readonly every?: boolean | undefined;
 }
 
 /**
  * The line under a rule, where it holds first: `In Bakery · by you, 12 October`, `In every space ·
  * from its policy`, or `Off · Jacobian asks again`.
  */
-export function alwaysLine(rule: Rule, spaceId: string | undefined, context: RuleContext): string {
+export function alwaysLine(
+  rule: Rule,
+  spaceId: string | undefined,
+  context: RuleContext,
+  decided = true,
+): string {
   if (rule["off"] === true) return `Off · ${context.name} asks again`;
   const where =
-    spaceId === undefined
-      ? "In every space"
-      : `In ${roomName(context.model, spaceId, context.directory)}`;
+    context.every === true
+      ? "Before each harness's own"
+      : spaceId === undefined
+        ? "In every space"
+        : `In ${roomName(context.model, spaceId, context.directory)}`;
   const by = madeByWords(rule, context.directory, context.selfId);
   const madeAt = text(rule["made_at"]);
   const when = madeAt === undefined ? "" : `, ${dayMonth(madeAt, context.now)}`;
-  return `${decisionWords(rule)}${where} · ${by}${when}`;
+  return `${decided ? decisionWords(rule) : ""}${where} · ${by}${when}`;
 }
 
 function entry(
   harnessId: string,
   spaceId: string | undefined,
-  rule: Rule,
-  index: number,
+  group: readonly (readonly [Rule, number])[],
   context: RuleContext,
 ): AlwaysRule {
+  const [rule, index] = group[0] as readonly [Rule, number];
   const kind = text(rule["match"]) ?? "Anything";
-  const starts = (rule["when"] as { starts_with?: unknown } | undefined)?.starts_with;
-  const start = Array.isArray(starts) ? startWords(starts.map(String)) : undefined;
+  const starts = group
+    .map(([each]) => startOfRule(each))
+    .filter((words): words is readonly string[] => words !== undefined);
+  const start = starts.length === 0 ? undefined : starts.map(startWords).join(", ");
+  const words = kind === "*" ? undefined : kindWideWords(kind);
   return {
     key: `${harnessId}:${spaceId ?? "*"}:${index}`,
     harnessId,
     ...(spaceId === undefined ? {} : { spaceId }),
     index,
+    indexes: group.map(([, at]) => at),
+    decision: decisionOf(rule),
+    title:
+      starts.length > 0
+        ? `Run ${namedStarts(starts)}`
+        : (words ?? (kind === "*" ? "Everything" : kind)),
     kind,
     ...(start === undefined ? {} : { start }),
-    words: kindWideWords(kind),
+    words,
     on: rule["off"] !== true,
     line: alwaysLine(rule, spaceId, context),
+    place: alwaysLine(rule, spaceId, context, false),
     madeAt: text(rule["made_at"]),
   };
+}
+
+/** What a rule decides, as its tag says it (ADR 0299): Allow, Ask me or Never. */
+export function ruleTag(decision: AlwaysRule["decision"]): string {
+  if (decision === "deny") return "Never";
+  return decision === "ask" ? "Ask me" : "Allow";
+}
+
+/** A scope's rules as rows: those saved together share one, in the place of the first. */
+function entries(
+  harnessId: string,
+  spaceId: string | undefined,
+  rules: readonly Rule[],
+  context: RuleContext,
+): AlwaysRule[] {
+  const groups = new Map<string, (readonly [Rule, number])[]>();
+  rules.forEach((rule, index) => {
+    const key = groupOf(rule, index);
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, [[rule, index]]);
+    else group.push([rule, index]);
+  });
+  return [...groups.values()].map((group) => entry(harnessId, spaceId, group, context));
 }
 
 /** Newest first; a rule nobody's answer made, which has no date, after them in its own order. */
@@ -297,6 +395,12 @@ export function alwaysRules(
   selfId: string | undefined,
   now: number = Date.now(),
 ): readonly AlwaysRule[] {
+  if (harnessId === EVERY_HARNESS) {
+    const context = { model, directory, selfId, name: "Each harness", now, every: true };
+    return entries(EVERY_HARNESS, undefined, model.workspaceRules?.rules ?? [], context).sort(
+      newestFirst,
+    );
+  }
   const policy = model.harnesses[harnessId];
   if (policy === undefined) return [];
   const context: RuleContext = {
@@ -306,11 +410,9 @@ export function alwaysRules(
     name: nameOf(directory, harnessId),
     now,
   };
-  const everywhere = policy.rules.map((rule, index) =>
-    entry(harnessId, undefined, rule, index, context),
-  );
+  const everywhere = entries(harnessId, undefined, policy.rules, context);
   const rooms = Object.entries(policy.bySpace).flatMap(([spaceId, set]) =>
-    set.rules.map((rule, index) => entry(harnessId, spaceId, rule, index, context)),
+    entries(harnessId, spaceId, set.rules, context),
   );
   return [...everywhere, ...rooms].sort(newestFirst);
 }
@@ -321,6 +423,7 @@ export function rulesOf(
   harnessId: string,
   spaceId: string | undefined,
 ): readonly Rule[] {
+  if (harnessId === EVERY_HARNESS) return model.workspaceRules?.rules ?? [];
   const policy = model.harnesses[harnessId];
   if (policy === undefined) return [];
   return spaceId === undefined ? policy.rules : (policy.bySpace[spaceId]?.rules ?? []);
@@ -337,6 +440,9 @@ export function withRules(
   spaceId: string | undefined,
   rules: readonly Rule[],
 ): WorkspaceModel {
+  if (harnessId === EVERY_HARNESS) {
+    return { ...model, workspaceRules: { ...model.workspaceRules, rules } };
+  }
   const policy = model.harnesses[harnessId];
   if (policy === undefined) return model;
   const changed =
@@ -402,31 +508,69 @@ export function withChanges(
   return drawn;
 }
 
-/** The list with one rule switched on or off; turned on, the rule carries no `off` at all. */
-export function switchedRule(rules: readonly Rule[], index: number, on: boolean): Rule[] {
+/** One place, or a row's every place (`AlwaysRule.indexes`), as a list. */
+const placesOf = (index: number | readonly number[]): readonly number[] =>
+  typeof index === "number" ? [index] : index;
+
+/** The list with a row's rules switched on or off; turned on, a rule carries no `off` at all. */
+export function switchedRule(
+  rules: readonly Rule[],
+  index: number | readonly number[],
+  on: boolean,
+): Rule[] {
+  const places = placesOf(index);
   return rules.map((rule, at) => {
-    if (at !== index) return rule;
+    if (!places.includes(at)) return rule;
     const { off: _off, ...rest } = rule;
     return on ? rest : { ...rest, off: true };
   });
 }
 
-/** The list without one rule: removing it is sending the rest (ADR 0195). */
-export function withoutRule(rules: readonly Rule[], index: number): Rule[] {
-  return rules.filter((_, at) => at !== index);
+/** The list without a row's rules: removing them is sending the rest (ADR 0195). */
+export function withoutRule(rules: readonly Rule[], index: number | readonly number[]): Rule[] {
+  const places = placesOf(index);
+  return rules.filter((_, at) => !places.includes(at));
 }
 
-/** The list with a removed rule put back where it was, for Undo. */
-export function withRuleBack(rules: readonly Rule[], index: number, rule: Rule): Rule[] {
-  const at = Math.max(0, Math.min(index, rules.length));
-  return [...rules.slice(0, at), rule, ...rules.slice(at)];
+/** The rules a row's places hold, in order, for Undo to put back. */
+export function rulesAt(rules: readonly Rule[], index: number | readonly number[]): Rule[] {
+  return placesOf(index)
+    .map((at) => rules[at])
+    .filter((rule): rule is Rule => rule !== undefined);
+}
+
+/** The list with removed rules put back where they were, for Undo. */
+export function withRuleBack(
+  rules: readonly Rule[],
+  index: number | readonly number[],
+  rule: Rule | readonly Rule[],
+): Rule[] {
+  const places = placesOf(index);
+  const back = Array.isArray(rule) ? (rule as readonly Rule[]) : [rule as Rule];
+  const list = [...rules];
+  [...places]
+    .map((place, at) => [place, back[at]] as const)
+    .sort((a, b) => a[0] - b[0])
+    .forEach(([place, each]) => {
+      if (each !== undefined) list.splice(Math.max(0, Math.min(place, list.length)), 0, each);
+    });
+  return list;
 }
 
 /** What the Undo capsule says after a removal. */
 export const REMOVED_WORDS = "Removed";
 
-/** One ask, as a dot: a yes, a yes for the session, a no, still open, or lapsed. */
-export type AskDot = "yes" | "session" | "no" | "open" | "lapsed";
+/**
+ * One ask, as a dot: a yes, a yes for the session, a no, still open, lapsed, or a yes Chips said
+ * while the harness's asks were off (ADR 0299).
+ */
+export type AskDot = "yes" | "session" | "no" | "open" | "lapsed" | "snoozed";
+
+/** Whether Chips said yes to it while its harness's asks were off (ADR 0299). */
+export function snoozedYes(approval: Approval): boolean {
+  const resolved = approval.resolved;
+  return resolved?.by === "system" && resolved.reason?.startsWith(HOLD_REASON) === true;
+}
 
 /** The dots under the section, and the line under them; nothing for a harness never asked. */
 export interface AskHistory {
@@ -442,6 +586,7 @@ function dotOf(approval: Approval): AskDot {
   if (resolved === undefined) return "open";
   if (resolved.decision === "expired") return "lapsed";
   if (resolved.decision === "denied") return "no";
+  if (snoozedYes(approval)) return "snoozed";
   return resolved.scope === "session" || resolved.scope === "always" ? "session" : "yes";
 }
 
@@ -463,27 +608,44 @@ interface AnswerTally {
   readonly ownWindow: number;
   /** Answered on the spot by Chips, by a rule or the level: not lapsed, nobody's answer. */
   readonly byPolicy: number;
+  /** Of those, said while its asks were off (ADR 0299). */
+  readonly snoozed: number;
   readonly lapsed: number;
   readonly open: number;
 }
 
+/** Who settled an ask, as the line counts it. */
+type Settled = "open" | "lapsed" | "snoozed" | "byPolicy" | "person" | "ownWindow";
+
+function settledBy(ask: Approval, directory: Directory): Settled {
+  const by = ask.resolved?.by;
+  if (by === undefined) return "open";
+  if (ask.resolved?.decision === "expired") return "lapsed";
+  if (snoozedYes(ask)) return "snoozed";
+  // Chips on the spot, by a rule or the level (the walk of 18 October 2026 found these said
+  // "lapsed").
+  if (by === "system") return "byPolicy";
+  return directory[by]?.kind === "person" ? "person" : "ownWindow";
+}
+
 function tally(asks: readonly Approval[], directory: Directory): AnswerTally {
   const people = new Map<string, number>();
-  let ownWindow = 0;
-  let byPolicy = 0;
-  let lapsed = 0;
-  let open = 0;
+  const counts: Record<Exclude<Settled, "person">, number> = {
+    open: 0,
+    lapsed: 0,
+    snoozed: 0,
+    byPolicy: 0,
+    ownWindow: 0,
+  };
   for (const ask of asks) {
-    const by = ask.resolved?.by;
-    if (by === undefined) open += 1;
-    else if (ask.resolved?.decision === "expired") lapsed += 1;
-    // Chips on the spot, by a rule or the level (the walk of 18 October 2026 found these said
-    // "lapsed").
-    else if (by === "system") byPolicy += 1;
-    else if (directory[by]?.kind === "person") people.set(by, (people.get(by) ?? 0) + 1);
-    else ownWindow += 1;
+    const settled = settledBy(ask, directory);
+    if (settled !== "person") counts[settled] += 1;
+    else {
+      const by = ask.resolved?.by as string;
+      people.set(by, (people.get(by) ?? 0) + 1);
+    }
   }
-  return { people, ownWindow, byPolicy, lapsed, open };
+  return { people, ...counts };
 }
 
 function peopleWords(
@@ -557,6 +719,7 @@ function historyOf(
     peopleWords(count.people, asks.length, directory, selfId),
     count.ownWindow === 0 ? undefined : `${count.ownWindow} in its own window`,
     count.byPolicy === 0 ? undefined : `${count.byPolicy} by policy`,
+    count.snoozed === 0 ? undefined : `${count.snoozed} while it wasn't asking`,
     count.lapsed === 0 ? undefined : `${count.lapsed} lapsed`,
     count.open === 0 ? undefined : `${count.open} waiting`,
   ].filter((part): part is string => part !== undefined);
@@ -685,17 +848,41 @@ export function askStanding(approval: Approval): AskStanding {
  * from a server that wouldn't keep one (`keeps`, its last hello): with no Always left either, the
  * ask is answered once.
  */
-export function askLastings(standing: AskStanding, keeps = true): readonly Lasting[] {
+export function askLastings(
+  standing: AskStanding,
+  keeps = true,
+  chipsOn = true,
+): readonly Lasting[] {
+  // Chips's rules off (ADR 0300): the harness's own choices, Yes and a don't-ask-again it keeps.
+  if (!chipsOn) return harnessKeeps(standing) ? ["once", "always"] : [];
   if (standing.kind !== "once") return keeps ? ["once", "hour", "always"] : ["once", "always"];
   return standing.holds && keeps ? ["once", "hour"] : [];
+}
+
+/**
+ * Whether the bridges pass a harness's own always through for a command (ADR 0300). Until SDK
+ * 1.0.10 and its bridges ship, a bridge answers a command's Always with the harness's once, so a
+ * command ask leaves the choice out while Chips's rules are off.
+ */
+export const HARNESS_KEEPS_COMMANDS = false;
+
+/** Whether the harness can keep a don't-ask-again for this ask as its own (ADR 0300). */
+function harnessKeeps(standing: AskStanding): boolean {
+  if (standing.kind === "any") return true;
+  return standing.kind === "starts" && HARNESS_KEEPS_COMMANDS;
+}
+
+/** What a don't-ask-again does while the harness keeps it (ADR 0300). */
+export function harnessKeepsWords(name: string): string {
+  return `${name} keeps this and won't ask about it again.`;
 }
 
 /**
  * Whether an ask offers Let it work (ADR 0281): every ask but one that matters, on a server that
  * keeps it (`keeps`, its last hello).
  */
-export function offersLetWork(standing: AskStanding, keeps = true): boolean {
-  return keeps && (standing.kind !== "once" || standing.holds);
+export function offersLetWork(standing: AskStanding, keeps = true, chipsOn = true): boolean {
+  return keeps && chipsOn && (standing.kind !== "once" || standing.holds);
 }
 
 /** How a start reads on a card and in the list: its words, then that more may follow. */

@@ -8,8 +8,7 @@
  * (`ui/opened.tsx`, ADR 0177).
  */
 
-import type { Snapshot, Store } from "@chipschat/core";
-import { nameOf, serverHost } from "@chipschat/core";
+import { harnessOf, nameOf, type Snapshot, type Store, serverHost } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { type ReactNode, useMemo } from "react";
 import { AgentPane } from "../../src/agents/AgentPane";
@@ -18,7 +17,7 @@ import { All } from "../../src/harnesses/All";
 import { ConnectBeside, ConnectPane, useConnectThird } from "../../src/harnesses/Connect";
 import { JobPage } from "../../src/harnesses/jobs/JobPage";
 import { Profile } from "../../src/harnesses/Profile";
-import { type HarnessPart, isHarnessPart, PART_FROM, PART_TITLE } from "../../src/harnesses/parts";
+import { type HarnessPart, isHarnessPart, PART_FROM, partTitle } from "../../src/harnesses/parts";
 import { Part } from "../../src/harnesses/parts/Part";
 import { useChips, useDeferredSnapshot } from "../../src/store/provider";
 import { useLayout } from "../../src/ui/layout";
@@ -148,7 +147,11 @@ function beside({
       // (ADR 0276, ADR 0286).
       onClose={inHistory || inPermissions ? () => go({ agent }) : undefined}
       onHistory={() => go({ agent, history: "1" })}
-      onPermissions={() => go({ agent, permissions: "1" })}
+      // An agent has no permissions of its own: its harness's open beside its card (ADR 0300).
+      onPermissions={() =>
+        go({ agent, harness: harnessOf(snapshot.directory, agent), part: "asks" })
+      }
+      onWorking={() => go({ agent, permissions: "1" })}
       onOpenAsks={(harnessId) => go({ agent, harness: harnessId, part: "asked" })}
       onOpenRoom={openRoom}
       onOpenAgent={(other) => go({ agent: other })}
@@ -292,7 +295,11 @@ function partPane({
   readonly onOpenPart: (next: HarnessPart) => void;
 }) {
   return (
-    <Pane title={PART_TITLE[part]} onBack={onBack} onClose={onClose}>
+    <Pane
+      title={partTitle(part, nameOf(snapshot.directory, harness))}
+      onBack={onBack}
+      onClose={onClose}
+    >
       <Part
         part={part}
         store={store}
@@ -301,6 +308,7 @@ function partPane({
         selfId={selfId}
         focus={0}
         onOpenPart={onOpenPart}
+        onBack={onBack ?? onClose}
       />
     </Pane>
   );

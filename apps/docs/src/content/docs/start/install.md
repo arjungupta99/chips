@@ -14,7 +14,7 @@ after you log out can take one `sudo` line ([below](#chips-up)).
 
 ```sh
 curl -fsSL https://chipschat.ai/install | sh
-chips up
+~/.local/bin/chips up
 ```
 
 `install.sh` works out the platform (macOS or Linux, Apple silicon, Intel or ARM), checks that

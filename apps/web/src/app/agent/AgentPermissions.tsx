@@ -3,8 +3,8 @@
  * beside it. The phone's (`apps/mobile/src/agents/Permissions.tsx`) in the desktop's terms, with the
  * same words from core (`agentPermissions`).
  *
- * At the top, what it may do right now and the one thing to do about it: Stop, or Let it work…,
- * which opens in place to say what it will do before anything changes. Then the banner, a little
+ * At the top, what it may do right now, and Stop while it works without asking: it is let work
+ * from an ask's card, since its harness decides the rest (ADR 0300). Then the banner, a little
  * picture of it over a switch; what its harness lets it do always; what it has asked; and its
  * harness, where the banner is switched for all its agents.
  */
@@ -18,7 +18,6 @@ import {
   type Directory,
   type AgentPermissions as Facts,
   HARNESS_LINK_LINE,
-  LET_IT_WORK_WORDS,
   NOTHING_IN_SPACE_WORDS,
   nameOf,
   REMOVED_WORDS,
@@ -28,7 +27,7 @@ import {
   type WorkspaceModel,
 } from "@chipschat/core";
 import { Avatar, Icon } from "@chipschat/ui";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { AlwaysList } from "../AlwaysList.tsx";
 import { Count, Dots, Hero, UNDO_TITLE } from "../Asking.tsx";
 import { AsksDialog } from "../AsksDialog.tsx";
@@ -37,9 +36,6 @@ import { useAlways } from "../useAlways.ts";
 import { useNow } from "../useNow.ts";
 import { Switch } from "../you/controls.tsx";
 import type { BannerService } from "./bannerService.ts";
-
-/** How long a yes just sent stands before the button comes back, if the server never said it. */
-const SENT_MS = 8000;
 
 export function AgentPermissions(props: {
   readonly agentId: string;
@@ -130,20 +126,7 @@ function Top(props: {
   readonly service: BannerService;
 }) {
   const { view, directory, service } = props;
-  const [confirming, setConfirming] = useState(false);
-  const [sent, setSent] = useState(false);
   const working = view.held !== undefined;
-  useEffect(() => {
-    if (working) {
-      setConfirming(false);
-      setSent(false);
-    }
-  }, [working]);
-  useEffect(() => {
-    if (!sent) return;
-    const timer = setTimeout(() => setSent(false), SENT_MS);
-    return () => clearTimeout(timer);
-  }, [sent]);
   const owner = directory[view.harnessId]?.ownerId;
   const spaceId = view.space?.id;
   const face = directory[view.agentId]?.face;
@@ -180,50 +163,6 @@ function Top(props: {
           {STOP_WORDS}
         </button>
       )}
-      {view.mayLetWork && !confirming && (
-        <button
-          type="button"
-          className="perm-act"
-          disabled={sent}
-          onClick={() => setConfirming(true)}
-          data-testid="permissions-let-work"
-        >
-          {LET_IT_WORK_WORDS}
-        </button>
-      )}
-      <div className="perm-fold" data-open={confirming && view.mayLetWork ? "true" : undefined}>
-        <div>
-          {confirming && view.mayLetWork && spaceId !== undefined && (
-            <div className="perm-confirm" data-testid="permissions-confirm">
-              <p>{view.confirmWords}</p>
-              <div className="perm-confirm-acts">
-                <button
-                  type="button"
-                  className="perm-act"
-                  data-quiet="true"
-                  onClick={() => setConfirming(false)}
-                  data-testid="permissions-cancel"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="perm-act"
-                  data-gold="true"
-                  onClick={() => {
-                    service.letAgentWork({ spaceId, asker: view.agentId });
-                    setConfirming(false);
-                    setSent(true);
-                  }}
-                  data-testid="permissions-confirm-yes"
-                >
-                  {view.confirmButton}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
     </section>
   );
 }

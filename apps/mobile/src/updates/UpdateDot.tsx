@@ -7,10 +7,12 @@
  * It is drawn over the four tabs from their layout, so a screen pushed over them, a room or About
  * itself, covers it. On a wide iPad it stands over the middle of the list's column, where the
  * tab's title is, rather than over the pane beside it. The dot is 10 points; the target is 44.
+ * Tapped, it flies into About's first update button, which grows out of it (`DotFlight`,
+ * `UpdateButton`; ADR 0296, addendum of 17 November 2026).
  * React Native's `Animated` on the native driver, as the chip's pins are (`ChipPulse`).
  */
 
-import { DOT_LABEL } from "@chipschat/core";
+import { DOT_LABEL, UPDATE_MOTION } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
@@ -19,6 +21,7 @@ import { listWidth } from "../ui/Split";
 import { usePalette } from "../ui/theme";
 import { useReduceMotion } from "../ui/useReduceMotion";
 import { useTabTop } from "../ui/windowInsets";
+import { FLIES, flights, useDotFlight } from "./flight";
 import { useUpdates } from "./updates";
 
 export const DOT_SIZE = 10;
@@ -26,7 +29,7 @@ const TARGET = 44;
 /** How far under the top of the safe area the dot's centre stands: between the island and the title. */
 const BELOW_TOP = 6;
 /** One swell and back. */
-export const BREATHE_MS = 3400;
+export const BREATHE_MS = UPDATE_MOTION.breatheMs;
 const RING_MS = 1150;
 
 export function UpdateDot() {
@@ -150,14 +153,36 @@ function Lit() {
   const top = useTabTop();
   const { width } = useWindowDimensions();
   const { wide } = useLayout();
+  const still = useReduceMotion();
+  const { waiting, asking } = useUpdates();
+  const flight = useDotFlight();
+  const at = useRef<View>(null);
   const centre = wide ? listWidth(width) / 2 : width / 2;
+  // Tapped, it flies into About's first update button (ADR 0296, 17 November 2026), when About
+  // has one to show; the copy on its way is drawn over the window (`DotFlight`), so this one hides.
+  const press = () => {
+    if (FLIES && !still && (waiting.app !== undefined || asking.computer !== undefined)) {
+      const id = flights.takeOff();
+      at.current?.measureInWindow((x, y, w, h) =>
+        // A dot that isn't drawn has nowhere to set off from.
+        w > 0 ? flights.from(id, { x: x + w / 2, y: y + h / 2 }) : flights.miss(id),
+      );
+    }
+    router.push("/about");
+  };
   return (
     <View
+      ref={at}
+      collapsable={false}
       pointerEvents="box-none"
-      style={[styles.place, { top: top + BELOW_TOP - TARGET / 2, left: centre - TARGET / 2 }]}
+      style={[
+        styles.place,
+        { top: top + BELOW_TOP - TARGET / 2, left: centre - TARGET / 2 },
+        flight.stage !== "rest" && styles.away,
+      ]}
     >
       <Pressable
-        onPress={() => router.push("/about")}
+        onPress={press}
         accessibilityRole="button"
         accessibilityLabel={DOT_LABEL}
         style={styles.target}
@@ -171,6 +196,7 @@ function Lit() {
 
 const styles = StyleSheet.create({
   place: { position: "absolute", width: TARGET, height: TARGET },
+  away: { opacity: 0 },
   target: { width: TARGET, height: TARGET, alignItems: "center", justifyContent: "center" },
   dot: {
     position: "absolute",

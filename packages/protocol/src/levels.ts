@@ -11,7 +11,7 @@
  */
 
 /** The level of everything in this catalogue. */
-export const CATALOGUE_LEVEL = 1;
+export const CATALOGUE_LEVEL = 2;
 
 /** Every event an app at level 1 knows: the catalogue as it stood on 13 November 2026. */
 export const LEVEL_ONE_EVENTS: readonly string[] = [
@@ -115,7 +115,11 @@ export interface LaterEvent {
 }
 
 /** Events added after level 1, by type. */
-export const LATER_EVENTS: Readonly<Record<string, LaterEvent>> = {};
+export const LATER_EVENTS: Readonly<Record<string, LaterEvent>> = {
+  // The rules for every harness (ADR 0299): an older app has nowhere to show them, so it is sent
+  // nothing in their place; the rules still hold.
+  "policy.workspace_updated": { level: 2, fallback: () => undefined },
+};
 
 /** The fields every event carries, which a fallback line keeps. */
 const ENVELOPE = ["v", "id", "seq", "ts", "workspace_id", "space_id"] as const;

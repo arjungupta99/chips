@@ -1,6 +1,7 @@
 /**
  * Allowed always, as the phone holds it while a change is on its way (ADR 0195): the harness page's
- * list and You's sheet both read this.
+ * list, its Permissions and You → Permissions read this; the rules for every harness
+ * (`EVERY_HARNESS`) go to the workspace.
  *
  * A switch, a swipe and Undo each send the scope's rules whole (`store.setRules`), and the server
  * echoes them back as `policy.updated`. Until it has, the change is kept here and drawn over the
@@ -18,9 +19,11 @@ import {
   type AlwaysRule,
   changeScope,
   changesStill,
+  EVERY_HARNESS,
   RULES_CHANGE_MS,
   type Rule,
   type RulesChange,
+  rulesAt,
   rulesOf,
   type Snapshot,
   type Store,
@@ -34,12 +37,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutAnimation } from "react-native";
 import * as feel from "../ui/haptics";
 
-/** A rule just removed, for Undo to put back where it was. */
+/** A row just removed, for Undo to put its rules back where they were. */
 export interface Removed {
   readonly harnessId: string;
   readonly spaceId?: string | undefined;
-  readonly index: number;
-  readonly rule: Rule;
+  /** Its places in the scope's list: one, or several written together (ADR 0299). */
+  readonly indexes: readonly number[];
+  readonly rules: readonly Rule[];
   readonly key: string;
   readonly at: number;
 }
@@ -91,7 +95,9 @@ export function useAlways(store: Store, snapshot: Snapshot): Always {
     (harnessId: string, spaceId: string | undefined, rules: readonly Rule[]) => {
       const change: RulesChange = { harnessId, spaceId, rules, at: Date.now() };
       setPending((now) => new Map(now).set(changeScope(harnessId, spaceId), change));
-      store.setRules({ harnessId, spaceId, rules });
+      // The rules for every harness are the workspace's own (ADR 0299).
+      if (harnessId === EVERY_HARNESS) store.setWorkspaceRules({ rules });
+      else store.setRules({ harnessId, spaceId, rules });
     },
     [store],
   );
@@ -102,7 +108,7 @@ export function useAlways(store: Store, snapshot: Snapshot): Always {
       send(
         rule.harnessId,
         rule.spaceId,
-        switchedRule(current(rule.harnessId, rule.spaceId), rule.index, on),
+        switchedRule(current(rule.harnessId, rule.spaceId), rule.indexes, on),
       );
     },
     [current, send],
@@ -113,16 +119,16 @@ export function useAlways(store: Store, snapshot: Snapshot): Always {
   const wiped = useCallback(
     (rule: AlwaysRule) => {
       const rules = current(rule.harnessId, rule.spaceId);
-      const gone = rules[rule.index];
+      const gone = rulesAt(rules, rule.indexes);
       setGoing(undefined);
-      if (gone === undefined) return;
+      if (gone.length === 0) return;
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      send(rule.harnessId, rule.spaceId, withoutRule(rules, rule.index));
+      send(rule.harnessId, rule.spaceId, withoutRule(rules, rule.indexes));
       setRemoved({
         harnessId: rule.harnessId,
         spaceId: rule.spaceId,
-        index: rule.index,
-        rule: gone,
+        indexes: rule.indexes,
+        rules: gone,
         key: rule.key,
         at: Date.now(),
       });
@@ -137,7 +143,7 @@ export function useAlways(store: Store, snapshot: Snapshot): Always {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     feel.success();
     const rules = current(was.harnessId, was.spaceId);
-    send(was.harnessId, was.spaceId, withRuleBack(rules, was.index, was.rule));
+    send(was.harnessId, was.spaceId, withRuleBack(rules, was.indexes, was.rules));
   }, [current, send]);
 
   const settled = useCallback(() => setRemoved(undefined), []);

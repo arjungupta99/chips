@@ -3,8 +3,8 @@
  * room, and beside the card on a wide screen.
  *
  * At the top, what it may do right now: the art (an ask flying to whoever decides, or a gold line
- * while nothing has to), the words, and Stop or Let it work…, which opens in place to say what it
- * will do before anything changes. Then the banner, a little picture of it over a switch; what its
+ * while nothing has to), the words, and Stop while it works without asking: it is let work from an
+ * ask's card, since its harness decides the rest (ADR 0300). Then the banner, a little picture of it over a switch; what its
  * harness lets it do always, which is shared with the harness's other agents and says so; what it
  * has asked; and its harness, where the banner is switched for all its agents.
  *
@@ -19,7 +19,6 @@ import {
   BANNER_ROW_WORDS,
   type AgentPermissions as Facts,
   HARNESS_LINK_LINE,
-  LET_IT_WORK_WORDS,
   NOTHING_IN_SPACE_WORDS,
   nameOf,
   REMOVED_WORDS,
@@ -47,7 +46,7 @@ import * as feel from "../ui/haptics";
 import { Icon } from "../ui/Icon";
 import { useColumn } from "../ui/Screen";
 import { usePalette } from "../ui/theme";
-import { ON_GOLD, RADIUS, SPACE, TEXT } from "../ui/tokens";
+import { RADIUS, SPACE, TEXT } from "../ui/tokens";
 import { useNow } from "../ui/useNow";
 import { useReduceMotion } from "../ui/useReduceMotion";
 
@@ -55,8 +54,6 @@ import { useReduceMotion } from "../ui/useReduceMotion";
 export const BANNER_MARK = "#c79a12";
 /** What Undo does, to a screen reader. */
 const UNDO_HINT = "Puts the rule back, so it goes ahead without asking again";
-/** How long a yes just sent stands before the button comes back, if the server never said it. */
-const SENT_MS = 8000;
 
 export function Permissions({
   store,
@@ -130,33 +127,13 @@ function Top({
 }) {
   const palette = usePalette();
   const { directory } = snapshot;
-  const [confirming, setConfirming] = useState(false);
-  const [sent, setSent] = useState(false);
   const working = view.held !== undefined;
-  useEffect(() => {
-    if (working) {
-      setConfirming(false);
-      setSent(false);
-    }
-  }, [working]);
-  useEffect(() => {
-    if (!sent) return;
-    const timer = setTimeout(() => setSent(false), SENT_MS);
-    return () => clearTimeout(timer);
-  }, [sent]);
   const owner = directory[view.harnessId]?.ownerId;
   const spaceId = view.space?.id;
   const stop = () => {
     if (spaceId === undefined) return;
     feel.tap();
     store.stopLetWork({ spaceId, asker: view.agentId });
-  };
-  const start = () => {
-    if (spaceId === undefined) return;
-    feel.success();
-    store.letAgentWork({ spaceId, asker: view.agentId });
-    setConfirming(false);
-    setSent(true);
   };
   return (
     <GrowingView
@@ -186,85 +163,33 @@ function Top({
       <Text style={[styles.sub, { color: palette.ink2 }]} testID="permissions-sub">
         {view.sub}
       </Text>
-      {view.mayStop ? (
-        <Act words={STOP_WORDS} onPress={stop} testID="permissions-stop" />
-      ) : view.mayLetWork && !confirming ? (
-        <Act
-          words={LET_IT_WORK_WORDS}
-          disabled={sent}
-          onPress={() => {
-            feel.tap();
-            setConfirming(true);
-          }}
-          testID="permissions-let-work"
-        />
-      ) : null}
-      {confirming && view.mayLetWork ? (
-        <GrowingView entering={OPENS} exiting={CLOSES} style={styles.clip}>
-          <View
-            style={[styles.confirm, { backgroundColor: palette.goldSoft }]}
-            testID="permissions-confirm"
-          >
-            <Text style={[styles.confirmWords, { color: palette.goldDeep }]}>
-              {view.confirmWords}
-            </Text>
-            <View style={styles.confirmActs}>
-              <Act
-                words="Cancel"
-                quiet
-                onPress={() => {
-                  feel.tap();
-                  setConfirming(false);
-                }}
-                testID="permissions-cancel"
-              />
-              <Act
-                words={view.confirmButton}
-                gold
-                onPress={start}
-                testID="permissions-confirm-yes"
-              />
-            </View>
-          </View>
-        </GrowingView>
-      ) : null}
+      {view.mayStop ? <Act words={STOP_WORDS} onPress={stop} testID="permissions-stop" /> : null}
     </GrowingView>
   );
 }
 
 function Act({
   words,
-  quiet = false,
-  gold = false,
-  disabled = false,
   onPress,
   testID,
 }: {
   readonly words: string;
-  readonly quiet?: boolean;
-  readonly gold?: boolean;
-  readonly disabled?: boolean;
   readonly onPress: () => void;
   readonly testID: string;
 }) {
   const palette = usePalette();
-  const ground = gold ? palette.gold : quiet ? "transparent" : palette.surface2;
-  const ink = gold ? ON_GOLD : quiet ? palette.ink2 : palette.ink;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
-      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.act,
-        { backgroundColor: ground },
+        { backgroundColor: palette.surface2 },
         pressed ? styles.pressed : null,
-        disabled ? styles.dim : null,
       ]}
       testID={testID}
     >
-      <Text style={[styles.actWords, { color: ink }]}>{words}</Text>
+      <Text style={[styles.actWords, { color: palette.ink }]}>{words}</Text>
     </Pressable>
   );
 }
@@ -483,9 +408,6 @@ const styles = StyleSheet.create({
   headline: { fontSize: TEXT.xl, lineHeight: 25, fontWeight: "700" },
   sub: { fontSize: TEXT.md, lineHeight: TEXT.md * 1.4 },
   clip: { overflow: "hidden" },
-  confirm: { marginTop: SPACE.sm, padding: SPACE.md, borderRadius: RADIUS.lg, gap: SPACE.md },
-  confirmWords: { fontSize: TEXT.md, lineHeight: TEXT.md * 1.4, fontWeight: "500" },
-  confirmActs: { flexDirection: "row", justifyContent: "flex-end", gap: SPACE.xs },
   act: {
     alignSelf: "flex-start",
     marginTop: SPACE.xs,
@@ -495,7 +417,6 @@ const styles = StyleSheet.create({
   },
   actWords: { fontSize: TEXT.md, fontWeight: "600" },
   pressed: { opacity: 0.7 },
-  dim: { opacity: 0.45 },
   preview: { alignItems: "center", padding: SPACE.md, paddingBottom: SPACE.sm + 2 },
   capsule: {
     alignItems: "center",

@@ -15,6 +15,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { cacheKey } from "@chipschat/core";
 import { type Browser, expect, type Locator, type Page, test } from "@playwright/test";
 import { pairingPage } from "./support.ts";
 
@@ -115,9 +116,9 @@ function messageList(page: Page): Locator {
  */
 function cachedHighestSeq(page: Page, workspaceId: string): Promise<number> {
   return page.evaluate(
-    (id) =>
+    (name) =>
       new Promise<number>((resolve) => {
-        const request = indexedDB.open(`chips-cache:${id}`, 1);
+        const request = indexedDB.open(`chips-cache:${name}`, 1);
         request.onsuccess = () => {
           try {
             const last = request.result
@@ -132,7 +133,7 @@ function cachedHighestSeq(page: Page, workspaceId: string): Promise<number> {
         };
         request.onerror = () => resolve(0);
       }),
-    workspaceId,
+    cacheKey({ workspaceId }),
   );
 }
 
@@ -151,9 +152,9 @@ async function rowsAtTheEnd(page: Page, text: string): Promise<number> {
 /** How many messages the store's cache says were sent and not yet answered. */
 function cachedOutboxCount(page: Page, workspaceId: string): Promise<number> {
   return page.evaluate(
-    (id) =>
+    (name) =>
       new Promise<number>((resolve) => {
-        const request = indexedDB.open(`chips-cache:${id}`, 1);
+        const request = indexedDB.open(`chips-cache:${name}`, 1);
         request.onsuccess = () => {
           try {
             const held = request.result
@@ -168,7 +169,7 @@ function cachedOutboxCount(page: Page, workspaceId: string): Promise<number> {
         };
         request.onerror = () => resolve(0);
       }),
-    workspaceId,
+    cacheKey({ workspaceId }),
   );
 }
 

@@ -11,9 +11,14 @@
  * counts them; then it folds. Disable banner says the person doesn't want it for this agent at all,
  * and the band says so, with Undo, and folds. The agent goes on working through all of it: none of
  * this changes what it may do. The words are core's, so the web and the Mac say the same.
+ *
+ * Over them, while a harness with an agent in the room isn't asking (ADR 0299), its own gold band:
+ * `Claude Code isn't asking until 10:41 AM`, or one for every harness while they all are, with Ask
+ * again for an owner or admin. Its words open the harness's Permissions.
  */
 
 import {
+  ASK_AGAIN_WORDS,
   BANNER_DISABLE_WORDS,
   BANNER_HIDDEN_MS,
   BANNER_HIDDEN_WORDS,
@@ -23,10 +28,14 @@ import {
   bannerOffWords,
   bannerWanted,
   type Directory,
+  EVERY_HARNESS,
+  type HoldBand,
   type LetWork,
   lettingWork,
+  mayTurnDial,
   NO_BANNERS,
   nameOf,
+  roomHolds,
   type Space,
   STOP_WORDS,
   STOPPED_MS,
@@ -175,6 +184,79 @@ export function LetWorkBand({
   );
 }
 
+/** The holds a room shows, said as one string so the store's every word doesn't draw it again. */
+function holdsSaid(store: Store, spaceId: string, selfId: string): string {
+  const { model, directory, keepsHarnessRules } = store.getSnapshot();
+  return JSON.stringify({
+    holds: roomHolds(model, directory, spaceId, Date.now()),
+    may: keepsHarnessRules !== false && mayTurnDial(model, selfId),
+  });
+}
+
+/**
+ * The bands while a harness with an agent in the room isn't asking (ADR 0299): whose, until when,
+ * and Ask again, which turns its asks back on (every harness's while that is what holds).
+ */
+export function HoldBands({
+  store,
+  space,
+  directory,
+  selfId,
+}: {
+  readonly store: Store;
+  readonly space: Space;
+  readonly directory: Directory;
+  readonly selfId: string;
+}) {
+  const router = useRouter();
+  // A minute's tick, so a band whose length has run out goes.
+  useNow(true);
+  const said = useSyncExternalStore(store.subscribe, () => holdsSaid(store, space.id, selfId));
+  const { holds, may } = JSON.parse(said) as {
+    readonly holds: readonly HoldBand[];
+    readonly may: boolean;
+  };
+  if (space.state !== "open" || holds.length === 0) return null;
+  const resume = (harnessId: string) => {
+    feel.tap();
+    if (harnessId === EVERY_HARNESS) store.setWorkspaceRules({ hold: null });
+    else store.resumeHarness(harnessId);
+  };
+  const open = (harnessId: string) => {
+    feel.tap();
+    if (harnessId === EVERY_HARNESS) router.push("/permissions");
+    else
+      router.push({ pathname: "/harnesses/[id]/[part]", params: { id: harnessId, part: "asks" } });
+  };
+  return (
+    <View testID="hold-bands">
+      {holds.map((hold) => {
+        const name =
+          hold.harnessId === EVERY_HARNESS ? "every harness" : nameOf(directory, hold.harnessId);
+        return (
+          <Band
+            key={hold.harnessId}
+            words={hold.words}
+            live
+            calm
+            onOpen={() => open(hold.harnessId)}
+            openLabel={`${hold.words}. Opens ${name === "every harness" ? "Permissions" : `${name}'s permissions`}`}
+          >
+            {may ? (
+              <PillAct
+                words={ASK_AGAIN_WORDS}
+                label={`Turn ${name}'s asks back on`}
+                onPress={() => resume(hold.harnessId)}
+                testID="hold-band-resume"
+              />
+            ) : null}
+          </Band>
+        );
+      })}
+    </View>
+  );
+}
+
 interface BandActs {
   readonly stop: () => void;
   readonly close: () => void;
@@ -241,9 +323,12 @@ function Band({
   hair,
   onOpen,
   openLabel,
+  calm = false,
   children,
 }: {
   readonly words: string;
+  /** A Chips pause is a plain line, not gold: yellow is for Bypass alone (ADR 0300). */
+  readonly calm?: boolean;
   /** The yes is working: its dot breathes. */
   readonly live?: boolean;
   /** How long it stands, for the hairline that counts it down. */
@@ -253,11 +338,15 @@ function Band({
   readonly children?: ReactNode;
 }) {
   const palette = usePalette();
+  const tint = calm ? palette.accent : palette.gold;
   const said = (
     <>
-      <Pulse color={palette.gold} still={!live} />
+      <Pulse color={tint} still={!live || calm} />
       <BandWords wordsKey={words}>
-        <Text style={[styles.words, { color: palette.goldDeep }]} accessibilityRole="text">
+        <Text
+          style={[styles.words, { color: calm ? palette.ink2 : palette.goldDeep }]}
+          accessibilityRole="text"
+        >
           {words}
         </Text>
       </BandWords>
@@ -267,7 +356,12 @@ function Band({
     <BandIn
       style={[
         styles.band,
-        { backgroundColor: palette.goldSoft, borderColor: alpha(palette.gold, 0.5) },
+        calm
+          ? {
+              backgroundColor: alpha(palette.accent, 0.09),
+              borderColor: alpha(palette.accent, 0.24),
+            }
+          : { backgroundColor: palette.goldSoft, borderColor: alpha(palette.gold, 0.5) },
       ]}
       testID="let-work-band"
     >

@@ -41,16 +41,13 @@ const page = (
 ) => agentPermissions({ model, directory, banners, ...more }, AGENT, self, NOW);
 
 describe("an agent's Permissions page (ADR 0286)", () => {
-  it("says what happens while it asks, and offers Let it work", () => {
+  it("says what happens while it asks, and offers nothing to let it work (ADR 0300)", () => {
     const view = page();
     expect(view.headline).toBe("Jiro decides when to ask. You decide the answer.");
     expect(view.held).toBeUndefined();
     expect(view.space?.id).toBe(SPACE);
     expect(view.to).toBe("You");
-    expect(view.mayLetWork).toBe(true);
     expect(view.mayStop).toBe(false);
-    expect(view.confirmButton).toBe("Let Jiro work");
-    expect(view.confirmWords).toContain("until you stop it");
   });
 
   it("says who is working without asking, and offers Stop", () => {
@@ -58,7 +55,6 @@ describe("an agent's Permissions page (ADR 0286)", () => {
     expect(view.headline).toMatch(/^Jiro is working without asking in /);
     expect(view.sub).toContain("Until you stop it");
     expect(view.mayStop).toBe(true);
-    expect(view.mayLetWork).toBe(false);
   });
 
   it("has nothing to say about a space it isn't in", () => {
@@ -69,15 +65,6 @@ describe("an agent's Permissions page (ADR 0286)", () => {
     const view = agentPermissions({ model: asking, directory: free }, AGENT, ME, NOW);
     expect(view.space).toBeUndefined();
     expect(view.headline).toBe("Jiro isn't in a space right now.");
-    expect(view.mayLetWork).toBe(false);
-  });
-
-  it("offers Let it work only to its person or an owner, and never on an older server", () => {
-    expect(page(asking, undefined, DANA).mayLetWork).toBe(false);
-    expect(page(asking, undefined, ME, { keepsHeldStart: false }).mayLetWork).toBe(false);
-    expect(agentPermissions({ model: asking, directory }, AGENT, undefined, NOW).mayLetWork).toBe(
-      false,
-    );
   });
 
   it("says when the banner is closed and when it comes back", () => {

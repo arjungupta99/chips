@@ -4,8 +4,6 @@
  */
 
 import type {
-  AlwaysRule,
-  AsksGoTo,
   FleetHarness,
   HarnessGroups,
   HarnessPolicyModel,
@@ -104,19 +102,6 @@ export function contextValue(groups: HarnessGroups | undefined): string | undefi
   if (groups.shared.length > 0) return `${groups.shared.length} shared`;
   if (groups.forNew.length > 0) return `${groups.forNew.length} for new agents`;
   return "None shared";
-}
-
-/**
- * What the When it asks you row says at its right (ADR 0254): how many things are allowed always,
- * or, with none, who decides its asks.
- */
-export function asksValue(rules: readonly Pick<AlwaysRule, "on">[], to: AsksGoTo): string {
-  if (rules.length > 0) {
-    const on = rules.filter((rule) => rule.on).length;
-    return on === rules.length ? `${on} allowed always` : `${on} of ${rules.length} allowed always`;
-  }
-  if (to.kind === "you") return "You decide";
-  return to.kind === "owner" ? `${to.name} decides` : "A person decides";
 }
 
 /** The budget line under the bar: what has gone, of what there was. */

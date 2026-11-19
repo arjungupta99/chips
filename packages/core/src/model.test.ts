@@ -654,6 +654,53 @@ describe("the fleet and the needs-you queue", () => {
     expect(fleet[0]).toMatchObject({ runId: "run_a", spaceId: "spc_a", status: "running" });
   });
 
+  it("leaves out a run that is over in an archived room, and shows one still going there", () => {
+    const archive = (seq: number, spaceId: string, state: "open" | "closed"): ClientEvent => {
+      const event = fixture("space.updated", seq, { space_id: spaceId, state });
+      delete (event as Record<string, unknown>)["title"];
+      return event;
+    };
+    const failedLast = [
+      fixture("space.created", 1, { space_id: "spc_a" }),
+      fixture("space.created", 2, { space_id: "spc_b" }),
+      fixture("run.started", 3, { space_id: "spc_a", run_id: "run_a" }),
+      fixture("run.completed", 4, { space_id: "spc_a", run_id: "run_a" }),
+      fixture("run.started", 5, { space_id: "spc_b", run_id: "run_b" }),
+      fixture("run.failed", 6, { space_id: "spc_b", run_id: "run_b" }),
+    ];
+    expect(buildModel(failedLast).fleet[0]).toMatchObject({ runId: "run_b", status: "failed" });
+
+    // Its room archived, the failure is gone from the harness's line: the run before it shows.
+    const archived = buildModel([...failedLast, archive(7, "spc_b", "closed")]);
+    expect(archived.fleet).toHaveLength(1);
+    expect(archived.fleet[0]).toMatchObject({ runId: "run_a", spaceId: "spc_a", status: "done" });
+
+    // Unarchived, the room is on the list again, and so is its failure.
+    const back = buildModel([
+      ...failedLast,
+      archive(7, "spc_b", "closed"),
+      archive(8, "spc_b", "open"),
+    ]);
+    expect(back.fleet[0]).toMatchObject({ runId: "run_b", status: "failed" });
+
+    // With no other run to show, it says nothing at all, as a harness that never ran.
+    const only = buildModel([
+      fixture("space.created", 1, { space_id: "spc_b" }),
+      fixture("run.started", 2, { space_id: "spc_b", run_id: "run_b" }),
+      fixture("run.failed", 3, { space_id: "spc_b", run_id: "run_b" }),
+      archive(4, "spc_b", "closed"),
+    ]);
+    expect(only.fleet.every((each) => each.status === undefined)).toBe(true);
+
+    // A run still going in an archived room is still work, and still shown.
+    const going = buildModel([
+      fixture("space.created", 1, { space_id: "spc_b" }),
+      fixture("run.started", 2, { space_id: "spc_b", run_id: "run_b" }),
+      archive(3, "spc_b", "closed"),
+    ]);
+    expect(going.fleet[0]).toMatchObject({ runId: "run_b", status: "running" });
+  });
+
   it("computes the context ring from usage", () => {
     const { fleet } = buildModel([...upToTheAsk(), fixture("context.usage", 7)]);
     // 82,000 of 200,000 tokens is 41 percent.

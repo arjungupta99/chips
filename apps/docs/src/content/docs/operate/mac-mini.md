@@ -15,7 +15,7 @@ A release, as in [Install](/start/install/), and `chips up`:
 
 ```sh
 curl -fsSL https://chipschat.ai/install | sh
-chips up --reach lan
+~/.local/bin/chips up --reach lan
 ```
 
 `--reach lan` lets the laptop and the phone on your Wi-Fi reach it; `--reach tailnet` does the same

@@ -5,7 +5,7 @@
  * thumb found it.
  */
 
-import { nameOf, PERMISSIONS_TITLE, type Snapshot, type Store } from "@chipschat/core";
+import { harnessOf, nameOf, PERMISSIONS_TITLE, type Snapshot, type Store } from "@chipschat/core";
 import { useRouter } from "expo-router";
 import { fileHref } from "../context/owner";
 import { Pane } from "../ui/Pane";
@@ -26,6 +26,7 @@ export function AgentPane({
   onClose,
   onHistory,
   onPermissions,
+  onWorking,
   onOpenAsks,
   onOpenRoom,
   onOpenAgent,
@@ -47,8 +48,13 @@ export function AgentPane({
   /** In a third column, its × (ADR 0276): its history beside its card. */
   readonly onClose?: (() => void) | undefined;
   readonly onHistory: () => void;
-  /** Its Permissions page. Absent, the page is pushed, which on a wide screen is the Agents tab. */
+  /** Its harness's Permissions (ADR 0300). Absent, the harness's page is pushed. */
   readonly onPermissions?: (() => void) | undefined;
+  /**
+   * Its own page while it works without asking: Stop and the banner (ADR 0286). Absent, the page
+   * is pushed, which on a wide screen is the Agents tab.
+   */
+  readonly onWorking?: (() => void) | undefined;
   /** Every ask so far, on its harness's page. Absent, the page is pushed. */
   readonly onOpenAsks?: ((harnessId: string) => void) | undefined;
   readonly onOpenRoom: (spaceId: string) => void;
@@ -60,7 +66,14 @@ export function AgentPane({
   readonly onDeleted: () => void;
 }) {
   const router = useRouter();
-  const openPermissions = onPermissions ?? (() => router.push(`/agents/${agentId}/permissions`));
+  const openPermissions =
+    onPermissions ??
+    (() =>
+      router.push({
+        pathname: "/harnesses/[id]/[part]",
+        params: { id: harnessOf(snapshot.directory, agentId), part: "asks" },
+      }));
+  const openWorking = onWorking ?? (() => router.push(`/agents/${agentId}/permissions`));
   const openAsks =
     onOpenAsks ??
     ((harnessId: string) =>
@@ -116,6 +129,7 @@ export function AgentPane({
           lockGlow={lockGlow}
           onHistory={beside(onHistory)}
           onPermissions={beside(openPermissions)}
+          onWorking={beside(openWorking)}
           context={{
             focus: 0,
             onOpenFile: (name, mode) =>
