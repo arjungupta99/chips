@@ -51,6 +51,7 @@ import {
   mayTurnDial,
   nameOf,
   namesAuthors,
+  noticeWords,
   opensTurn,
   type PersonModel,
   type Place,
@@ -77,6 +78,7 @@ import {
   runMenuItems,
   type Session,
   type Space,
+  saidBy,
   searchTerms,
   routeWords as sentToWords,
   separatorLabel,
@@ -2516,9 +2518,11 @@ function MarginLine({ line, directory, run, onOpenAgent }: MessageRowProps) {
       </div>
     );
   }
+  // The words in their red pill, and the receipt under it as a card of its own: in the pill, the
+  // pill's round ends cut into the card.
   return (
-    <div className="sys sys-status" data-testid="run-status">
-      <span>{line.text}</span>
+    <div className="sys-status-line" data-testid="run-status">
+      <div className="sys sys-status">{line.text}</div>
       {run !== undefined && <RunReceipt run={run} />}
     </div>
   );
@@ -2573,6 +2577,7 @@ function MessageRowBody(props: MessageRowProps) {
           line={line}
           receipt={props.receipt}
           sessionTag={props.sessionTag}
+          said={name}
           {...(line.via === undefined ? {} : { via: nameOf(directory, line.via) })}
         />
         <Bubble
@@ -2581,7 +2586,7 @@ function MessageRowBody(props: MessageRowProps) {
           mine={mine}
           editing={editing}
           actions={props.actions}
-          who={props.named === true && !mine && opensTurn(place) ? name : undefined}
+          who={wearsName(props, mine, place) ? name : undefined}
           stamp={stamp}
           marks={props.marks}
           came={breaking.came}
@@ -2627,6 +2632,16 @@ function MessageRowBody(props: MessageRowProps) {
       )}
     </div>
   );
+}
+
+/**
+ * Whether a bubble wears its author's name: the first of a turn not the reader's, in a room of
+ * three or more (core's `namesAuthors`), and a notice's in any room (ADR 0302), since it is the
+ * harness's words in a room that is otherwise its agent's.
+ */
+function wearsName(props: MessageRowProps, mine: boolean, place: Place): boolean {
+  const named = props.named === true || props.line.notice !== undefined;
+  return named && !mine && opensTurn(place);
 }
 
 /** What a row says of itself for the stylesheet and the tests: whose, how far along, where in its turn. */
@@ -3340,9 +3355,9 @@ function Pins(props: { readonly space: Space; readonly onJump: (lineId: string) 
 
 /** How a steer was meant, and what Chips did with a mid-run message. */
 /**
- * What a line needs saying about it that is not the words: that a heartbeat woke it, where it was
- * said, which visit it came from, how a steer was meant, what Chips did with it, whether it was
- * changed since.
+ * What a line needs saying about it that is not the words: that the harness's own code posted it,
+ * that a heartbeat woke it, where it was said, which visit it came from, how a steer was meant,
+ * what Chips did with it, whether it was changed since.
  *
  * These sit above the bubble, in the strip the name used to share. A line with nothing to
  * declare — which is most of them — has no strip at all, so the room is bubbles.
@@ -3351,15 +3366,30 @@ function Tags({
   line,
   receipt,
   sessionTag,
+  said,
   via,
 }: {
   readonly line: Line;
   readonly receipt: MessageRowProps["receipt"];
   readonly sessionTag?: string | undefined;
+  /** Who the line is drawn as said by: for a notice, its harness. */
+  readonly said: string;
   /** The harness this was said at, when it was not said here. */
   readonly via?: string | undefined;
 }) {
   const tags: ReactNode[] = [];
+  // A notice (ADR 0302): the harness's own code wrote it, and the tag says what did. The words as
+  // sent, not in the other tags' capitals: sixty characters of capitals shout.
+  if (line.notice !== undefined) {
+    const words = noticeWords(said, line.notice);
+    tags.push(
+      <span className="msg-tag msg-tag-notice" data-testid="notice-tag" title={words} key="notice">
+        <Icon name="cog" size={11} />
+        <span aria-hidden="true">{line.notice}</span>
+        <span className="ui-visually-hidden">{words}</span>
+      </span>,
+    );
+  }
   // A heartbeat's check-in (ADR 0143): said because its harness woke it, not because anyone wrote.
   if (line.heartbeat === true) {
     tags.push(
@@ -3418,20 +3448,6 @@ function Tags({
   }
   if (tags.length === 0) return null;
   return <div className="msg-tags">{tags}</div>;
-}
-
-/**
- * Who said a line, which is not always who sent the event. A prompt typed at a terminal reaches
- * Chips as the harness's own `run.started`, but the person typed it, and showing it under the
- * harness's name would make a room of two people look like one talking to itself. The harness's
- * owner is who that is (ADR 0023: a harness has one), and if Chips does not know them the
- * harness's own name is the honest fallback.
- */
-function saidBy(line: Line, directory: Directory): { id: string; kind: "person" | "harness" } {
-  const kind = line.authorKind === "harness" ? "harness" : "person";
-  if (line.via === undefined) return { id: line.authorId, kind };
-  const owner = directory[line.via]?.ownerId;
-  return owner === undefined ? { id: line.via, kind: "harness" } : { id: owner, kind: "person" };
 }
 
 /**

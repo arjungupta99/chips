@@ -14,8 +14,9 @@ stateDiagram-v2
     queued --> running: start
     running --> waiting: approval or question
     waiting --> running: answered
-    running --> waiting: paused
-    waiting --> running: resumed
+    running --> paused: paused
+    paused --> running: resumed
+    paused --> cancelled: cancelled
     running --> done: completed
     running --> failed: failed
     running --> cancelled: cancelled
@@ -26,14 +27,15 @@ stateDiagram-v2
 ```
 
 `done`, `failed` and `cancelled` are terminal: a run in one of them never moves again, whatever
-arrives afterwards. That is what makes the run panel final rather than something that might
+arrives afterwards. That is what makes a finished run final rather than something that might
 change while you are reading it.
 
 Chips holds the line at the door, not only in the picture. An event into a run that has ended is
 refused, bar the answer to something the run asked: a harness may ask and end its turn, and the
 decision on its approval, what became of it, or the answer to its question still lands when
 somebody gives it. A run that is not running cannot be paused; one that is not paused cannot be
-resumed.
+resumed. An ask raised or answered while a run is paused leaves it paused: only Resume sets it
+going again.
 Two asks can be open at once, so a decision arriving while the run is already running again is
 fine. And a run is somebody's: it begins with `run.started`, in a space, and a harness
 writes only into runs its own token started. See [hooks mode](/connect/hooks/#every-run-is-somebodys)
@@ -41,14 +43,23 @@ for what each refusal looks like.
 
 ## Pause, steer, stop
 
-A person can act on a run from the panel or the composer, and each action is an event the harness
-receives:
+A person acts on a run from its thinking bubble's menu (right-click on the Mac and the web, press
+and hold on the iPhone and iPad), from the space's row menu on the Mac and the web ("Pause Luis",
+"Stop Luis"), or from the composer. Each action is an event the harness receives:
 
 | From the person | The harness gets | What Chips fills in |
 | --- | --- | --- |
 | Pause, Resume | [`run.pause`](/reference/events/run-pause/), [`run.resume`](/reference/events/run-resume/) | `by`, from the credential |
 | Stop | [`run.cancel`](/reference/events/run-cancel/); the run ends as cancelled | `by` |
 | Steer, or `/steer`, `/followup`, `/interrupt` | [`run.steer`](/reference/events/run-steer/) with its `mode` | `from`: who said it, and their role in the space |
+
+Pause is offered only on a run whose harness said it can pause, with `pausable: true` on a
+[`run.status`](/reference/events/run-status/). That is a promise: on `run.pause` it stops the
+run's work within a few seconds without ending the run, and on `run.resume` it carries on in the
+same conversation. Resume is offered on any paused run, since Chips pauses a run itself at a
+space's spend ceiling, and Stop on every run. Stop asks nothing, and the bubble folds into a line
+that says who stopped it ("Luis was stopped by Arjun"). A paused bubble stays, says Paused, and
+has Resume in it.
 
 A message sent while a run is going comes back with a receipt: `queued`, for the harness's next
 look, or `steered`. A plain message is queued; a steer or an interrupt is steered; a follow-up is
@@ -64,9 +75,9 @@ away. `goal_from` says who said the goal: `harness` means a person asked for thi
 harness's own surface — a prompt typed where the harness itself listens — and Chips draws it as
 *their* message, marked *at* the harness, above the answer; `chips` means it arrived from a
 message in the space
-that is already on screen, so it is not drawn twice. Either way the room's header and the run
-panel leave the goal out, for the same reason. A harness that says neither gets no line, which is
-right for a goal nobody typed, and the header and the run panel are where that goal is read.
+that is already on screen, so it is not drawn twice. Either way the room's header leaves the goal
+out, for the same reason. A harness that says neither gets no line, which is right for a goal
+nobody typed, and the header is where that goal is read.
 
 ## What builds one
 
@@ -75,13 +86,13 @@ completed — and every extra event upgrades what the person sees.
 
 | Send | And you get |
 | --- | --- |
-| [`run.started`](/reference/events/run-started/) with a `plan` | A timeline of hollow steps |
+| [`run.started`](/reference/events/run-started/) with a `plan` | The steps it means to take, which its step logs fill in |
 | [`run.status`](/reference/events/run-status/) | The harness's typing indicator, with a verb phrase |
 | [`run.plan`](/reference/events/run-plan/) | The steps still to come replaced; what is done keeps its place |
-| [`step.log`](/reference/events/step-log/) | Receipts; on the run panel a plan's step fills in, and steps outside any plan fold into a stretch — "12 tool calls · 1m 40s" — between the moments that matter |
+| [`step.log`](/reference/events/step-log/) | The steps in *What the run did*, which the menu of the line that closed the run opens, each with how long it took. No receipt is drawn under a reply unless it is asked for |
 | [`approval.request`](/reference/events/approval-request/) | An [approval](/concepts/approval/) card |
-| [`context.usage`](/reference/events/context-usage/) | The context ring |
-| [`usage`](/reference/events/usage/) | The cost meter |
+| [`context.usage`](/reference/events/context-usage/) | How full the context window is, on the agent's and the harness's pages |
+| [`usage`](/reference/events/usage/) | The run's cost, in *What the run did* and in Spend |
 | [`run.completed`](/reference/events/run-completed/) | A summary card, and status Done |
 
 A summary that repeats one of the run's own messages word for word — the last, or one a few

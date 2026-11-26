@@ -23,12 +23,23 @@ const ADDRESS =
  * program's IPv4 8000); and no full stop from the end of a sentence.
  */
 export function printedAddress(text: string): string | undefined {
-  const found = ADDRESS.exec(plainOf(text))?.[0];
-  if (found === undefined) return undefined;
-  return found
-    .replace("//0.0.0.0", "//127.0.0.1")
-    .replace("//[::]", "//[::1]")
-    .replace(/[.,;:]+$/, "");
+  return printedAddresses(text)[0];
+}
+
+/**
+ * Every address on this Mac the program printed, the first printed first, each once and as
+ * `printedAddress` gives it: a run file that starts two servers prints two (ADR 0230's addendum of
+ * 25 November 2026).
+ */
+export function printedAddresses(text: string): readonly string[] {
+  const found = plainOf(text).match(new RegExp(ADDRESS.source, "gi")) ?? [];
+  const reached = found.map((address) =>
+    address
+      .replace("//0.0.0.0", "//127.0.0.1")
+      .replace("//[::]", "//[::1]")
+      .replace(/[.,;:]+$/, ""),
+  );
+  return [...new Set(reached)];
 }
 
 /** The program holding a port on this Mac, by its own name, where the Mac can tell. */

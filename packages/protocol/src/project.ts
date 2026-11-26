@@ -115,32 +115,79 @@ export interface RunRecipe {
 
 /** The longest command Run runs. */
 const RECIPE_MOST = 500;
-/** The longest a press names: setup, run and what it opens, as `folder.run` carries it. */
+/** The longest a program's press names: setup, run and what it opens, as `folder.run` carried it. */
 const COMMAND_MOST = 1100;
+
+/**
+ * One program of a run file (ADR 0303): its name and folder, what it runs, and what it needs. The
+ * one program of a run file that says `run` itself, as every space's did before, has no name.
+ */
+export interface Program extends RunRecipe {
+  /** How Chips says it; none for a run file's one `run`, drawn as before. */
+  readonly name?: string | undefined;
+  /** Its folder in the project, where its setup and run run; none at the project's top. */
+  readonly in?: string | undefined;
+  /** Programs of the same file it can't work without, which Run starts first. */
+  readonly needs?: readonly string[] | undefined;
+}
+
+/** A run file, read (ADR 0303): its programs, one with no name for a file with one `run`. */
+export interface RunFile {
+  readonly programs: readonly Program[];
+}
+
+/** The most programs a run file lists. */
+export const PROGRAMS_MOST = 6;
+
+/** A program's name: what Chips says it as, and what a press names it by. */
+export const PROGRAM_NAME = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,29}$/;
+
+/**
+ * The longest a press names (ADR 0303): every program it starts, by name, folder, setup, run and
+ * what it opens, as `folder.run` carries it.
+ */
+export const PRESS_MOST = 7000;
 
 /**
  * The run file's recipe, or why it isn't one: the Mac reads it before it runs anything, and the
  * phone and the web read it to show what Run does. `opens` is never somewhere on the internet.
- * `file` is the run file it was read from, which its words name.
+ * `file` is the run file it was read from, which its words name. One recipe: a run file of
+ * programs is read with `runPrograms`.
  */
 export function runRecipe(
   text: string,
   file: string = RUN_FILE,
 ): RunRecipe | { readonly why: string } {
+  const said = parsed(text);
+  if (said === undefined) return { why: `${file} isn't JSON.` };
+  return recipeOf(said, file);
+}
+
+/** A run file's words as JSON's fields, or nothing when they aren't JSON. */
+function parsed(text: string): Record<string, unknown> | undefined {
   let said: unknown;
   try {
     said = JSON.parse(text);
   } catch {
-    return { why: `${file} isn't JSON.` };
+    return undefined;
   }
-  const fields = (typeof said === "object" && said !== null ? said : {}) as Record<string, unknown>;
-  const field = (key: string) => {
-    const value = fields[key];
-    return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
-  };
-  const run = field("run");
-  const opens = field("opens");
-  const setup = field("setup");
+  return (typeof said === "object" && said !== null ? said : {}) as Record<string, unknown>;
+}
+
+/** A field that holds words, trimmed; nothing for anything else. */
+function wordsAt(fields: Record<string, unknown>, key: string): string | undefined {
+  const value = fields[key];
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+}
+
+/** One recipe from its fields, or why it isn't one. `file` is how its words name it. */
+function recipeOf(
+  fields: Record<string, unknown>,
+  file: string,
+): RunRecipe | { readonly why: string } {
+  const run = wordsAt(fields, "run");
+  const opens = wordsAt(fields, "opens");
+  const setup = wordsAt(fields, "setup");
   const why = whyNot(file, run, opens, setup);
   if (why !== undefined) return { why };
   if (saysTooMuch({ run, opens, setup })) return { why: `${file} says more than Chips runs.` };
@@ -159,6 +206,223 @@ export function runRecipe(
     ...(opens === undefined ? {} : { opens }),
     ...(setup === undefined ? {} : { setup }),
   };
+}
+
+/**
+ * The run file's programs (ADR 0303), or why it can't be used: a file that says `run` itself is
+ * one program with no name, as before; one that lists `programs` is each of them, by name.
+ */
+export function runPrograms(
+  text: string,
+  file: string = RUN_FILE,
+): RunFile | { readonly why: string } {
+  const said = parsed(text);
+  if (said === undefined) return { why: `${file} isn't JSON.` };
+  if (!("programs" in said)) {
+    const recipe = recipeOf(said, file);
+    return "why" in recipe ? recipe : { programs: [recipe] };
+  }
+  if (["run", "opens", "setup"].some((key) => key in said)) {
+    return { why: `${file} lists programs and says "run" too. Keep one of them.` };
+  }
+  return programsOf(said["programs"], file);
+}
+
+/** The listed programs, each read and checked against the others, or why they can't be. */
+function programsOf(listed: unknown, file: string): RunFile | { readonly why: string } {
+  if (!Array.isArray(listed) || listed.length === 0) {
+    return { why: `${file} lists no programs.` };
+  }
+  if (listed.length > PROGRAMS_MOST) {
+    return {
+      why: `${file} lists ${listed.length} programs, and Chips runs ${PROGRAMS_MOST} at most.`,
+    };
+  }
+  const programs: Program[] = [];
+  for (const entry of listed) {
+    const program = programOf(entry, file, programs);
+    if ("why" in program) return program;
+    programs.push(program);
+  }
+  const why = needsWhy(programs, file);
+  if (why !== undefined) return { why };
+  const read = { programs };
+  if (pressCommand(read).length > PRESS_MOST) return { why: `${file} says more than Chips runs.` };
+  return read;
+}
+
+/** One listed program, or why it can't be one: its name, its folder, and its recipe. */
+function programOf(
+  entry: unknown,
+  file: string,
+  before: readonly Program[],
+): Program | { readonly why: string } {
+  if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+    return { why: `${file} lists something that isn't a program.` };
+  }
+  const fields = entry as Record<string, unknown>;
+  const name = typeof fields["name"] === "string" ? fields["name"].trim() : "";
+  const misnamed = nameWhy(name, file, before);
+  if (misnamed !== undefined) return { why: misnamed };
+  const where = folderOf(fields["in"]);
+  if (where !== undefined && "why" in where) {
+    return { why: `${file}'s ${name} runs in ${where.why}, which isn't a folder of the project.` };
+  }
+  const needs = needsOf(fields["needs"]);
+  if (needs === undefined)
+    return { why: `${file}'s ${name} says what it needs, but not as a list of names.` };
+  if (wordsAt(fields, "run") === undefined)
+    return { why: `${file}'s ${name} doesn't say what to run.` };
+  const recipe = recipeOf(fields, `${file}'s ${name}`);
+  if ("why" in recipe) return recipe;
+  const program: Program = {
+    name,
+    ...(where === undefined ? {} : { in: where.at }),
+    ...recipe,
+    ...(needs.length === 0 ? {} : { needs }),
+  };
+  if (commandOf(program).length > COMMAND_MOST)
+    return { why: `${file}'s ${name} says more than Chips runs.` };
+  return program;
+}
+
+/** Why a program's name can't be one: none, not a name, or another program's already. */
+function nameWhy(name: string, file: string, before: readonly Program[]): string | undefined {
+  if (name === "") return `${file} lists a program with no name.`;
+  if (!PROGRAM_NAME.test(name)) {
+    return `${file} names a program "${name.slice(0, 40)}", and a name is up to 30 letters, digits, spaces, dots, dashes or underscores.`;
+  }
+  if (before.some((other) => sameName(other.name, name)))
+    return `${file} names two programs ${name}.`;
+  return undefined;
+}
+
+/** Whether two programs' names are the same name, as a person would read them. */
+function sameName(a: string | undefined, b: string | undefined): boolean {
+  return a !== undefined && b !== undefined && a.toLowerCase() === b.toLowerCase();
+}
+
+/**
+ * A program's folder, as the project names it: `api`, `apps/shop`. Nothing for the project's top;
+ * why not for a folder outside it, or one that isn't a path at all.
+ */
+function folderOf(said: unknown): { readonly at: string } | { readonly why: string } | undefined {
+  if (said === undefined || said === null) return undefined;
+  if (typeof said !== "string") return { why: "something" };
+  const at = said
+    .trim()
+    .replace(/^(?:\.\/)+/, "")
+    .replace(/\/+$/, "");
+  if (at === "" || at === ".") return undefined;
+  const parts = at.split("/");
+  const outside =
+    /^[/~-]/.test(at) ||
+    at.length > 200 ||
+    [...at].some(unpathlike) ||
+    parts.some((part) => part === ".." || part === "" || part === ".");
+  return outside ? { why: said.slice(0, 60) } : { at };
+}
+
+/** A character no folder of a project is named with here: a backslash, or one a terminal reads. */
+function unpathlike(character: string): boolean {
+  const code = character.charCodeAt(0);
+  return character === "\\" || code < 32 || code === 127;
+}
+
+/** The names a program needs; none for none; nothing when they aren't a list of names. */
+function needsOf(said: unknown): readonly string[] | undefined {
+  if (said === undefined || said === null) return [];
+  if (!Array.isArray(said) || !said.every((each) => typeof each === "string")) return undefined;
+  return [...new Set(said.map((each: string) => each.trim()).filter((each) => each !== ""))];
+}
+
+/**
+ * Why the programs' needs don't hold together: a name the file doesn't list, a program that needs
+ * itself, or programs that need each other, directly or round a circle.
+ */
+function needsWhy(programs: readonly Program[], file: string): string | undefined {
+  for (const program of programs) {
+    for (const need of program.needs ?? []) {
+      if (sameName(need, program.name)) return `${file}'s ${program.name} needs itself.`;
+      if (!programs.some((other) => sameName(other.name, need))) {
+        return `${file}'s ${program.name} needs ${need}, which the file doesn't list.`;
+      }
+    }
+  }
+  const circle = circleIn(programs);
+  return circle === undefined ? undefined : `${file}'s ${namesInWords(circle)} need each other.`;
+}
+
+/** Programs whose needs come round to themselves, by name, or nothing when none do. */
+function circleIn(programs: readonly Program[]): readonly string[] | undefined {
+  const done = new Set<Program>();
+  const walk = (program: Program, path: readonly Program[]): readonly string[] | undefined => {
+    if (path.includes(program)) return path.slice(path.indexOf(program)).map(nameOf);
+    if (done.has(program)) return undefined;
+    for (const need of needed(programs, program)) {
+      const found = walk(need, [...path, program]);
+      if (found !== undefined) return found;
+    }
+    done.add(program);
+    return undefined;
+  };
+  for (const program of programs) {
+    const found = walk(program, []);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+const nameOf = (program: Program): string => program.name ?? "";
+
+/** The programs one program names as needed, as the file lists them. */
+function needed(programs: readonly Program[], program: Program): readonly Program[] {
+  return (program.needs ?? []).flatMap((need) => {
+    const found = programs.find((other) => sameName(other.name, need));
+    return found === undefined ? [] : [found];
+  });
+}
+
+/** A program of the run file, by its name as a press or a run names it. */
+export function programNamed(file: RunFile, name: string | undefined): Program | undefined {
+  if (name === undefined) return file.programs.length === 1 ? file.programs[0] : undefined;
+  return file.programs.find((program) => sameName(program.name, name));
+}
+
+/**
+ * What a press starts, in the order it starts them (ADR 0303): for a program, what it needs, the
+ * ones they need before them, then the program; for every program (no name), each after what it
+ * needs, otherwise in the file's order. Empty for a name the file doesn't list.
+ */
+export function programsInOrder(file: RunFile, name?: string): readonly Program[] {
+  const order: Program[] = [];
+  const visit = (program: Program) => {
+    if (order.includes(program)) return;
+    for (const need of needed(file.programs, program)) visit(need);
+    order.push(program);
+  };
+  if (name === undefined) for (const program of file.programs) visit(program);
+  else {
+    const program = programNamed(file, name);
+    if (program !== undefined) visit(program);
+  }
+  return order;
+}
+
+/** The programs that name this one as needed, as the file lists them. */
+export function neededBy(file: RunFile, name: string): readonly Program[] {
+  return file.programs.filter((program) =>
+    (program.needs ?? []).some((need) => sameName(need, name)),
+  );
+}
+
+/**
+ * What a press runs, as the Mac compares it with its folder's run file (SEC-46, ADR 0303): each
+ * program it starts, in order, as `commandOf` says it. For a run file of one `run`, that one's
+ * command, as before.
+ */
+export function pressCommand(file: RunFile, name?: string): string {
+  return programsInOrder(file, name).map(commandOf).join("\n");
 }
 
 /** Whether a recipe is longer than Run runs, a part of it or the whole of what a press names. */
@@ -230,9 +494,14 @@ function startless(
  * `open` and what it opens. What it opens is part of it, so a run file that changed only where it
  * opens is shown again before it runs (SEC-46).
  */
-export function commandOf(recipe: RunRecipe): string {
+export function commandOf(recipe: Program): string {
   const opens = recipe.opens === undefined ? undefined : `open ${recipe.opens}`;
-  return [recipe.setup, recipe.run, opens].filter((line) => line !== undefined).join("\n");
+  // A program of a list says which, and where it runs (ADR 0303): moving it is a change to see.
+  const which =
+    recipe.name === undefined
+      ? undefined
+      : `program ${recipe.name}${recipe.in === undefined ? "" : ` in ${recipe.in}`}`;
+  return [which, recipe.setup, recipe.run, opens].filter((line) => line !== undefined).join("\n");
 }
 
 /**
@@ -326,6 +595,20 @@ export const projectRun = z.object({
     .describe(
       "What went wrong with the run itself, in plain words (ADR 0230): a port in use, a program the Mac doesn't have, nothing answering, the browser refusing its address.",
     ),
+  listens: z
+    .string()
+    .max(600)
+    .optional()
+    .describe(
+      "Where it listens, once it answers there, whether or not Run opened it (ADR 0303): its row says the port.",
+    ),
+  runs_for: z
+    .array(z.string().regex(PROGRAM_NAME))
+    .max(PROGRAMS_MOST)
+    .optional()
+    .describe(
+      "For a program Run started because others need it (ADR 0303): the programs it runs for, which stopping stops it with them. Absent for one the person ran.",
+    ),
 });
 export type ProjectRun = z.infer<typeof projectRun>;
 
@@ -338,10 +621,17 @@ export type HeldRun = z.infer<typeof heldRun>;
 
 /**
  * `GET /v1/spaces/:id/project/run`'s answer: how the person's last run of the room stands, as
- * their Mac last said, and how many of their Macs are open now to run or stop it.
+ * their Mac last said, each program's where the run file lists them (ADR 0303), and how many of
+ * their Macs are open now to run or stop it.
  */
 export const projectRunAnswer = z.object({
   run: heldRun.optional(),
+  programs: z
+    .record(z.string().regex(PROGRAM_NAME), heldRun)
+    .optional()
+    .describe(
+      "Each program of a run file that lists them (ADR 0303), by name, as the person's Mac last said it stands; `run` is the one program of a run file that says `run` itself.",
+    ),
   macs: z.int().nonnegative(),
 });
 export type ProjectRunAnswer = z.infer<typeof projectRunAnswer>;
@@ -553,6 +843,7 @@ export function renderProjectAsks(
   lines.push(
     "When what you make is to be read (pages, PDFs, pictures), keep a start page at .chips/index.html that links to the documents worth seeing (its links start ../), with the documents themselves at the top or in folders of their own, and bring it up to date whenever you add, rename or replace one. Chips opens it in the app, where links to the project's files open too and web links open in the browser. One document needs no start page.",
     'When what you make has to run on the person\'s Mac (a server, a script, an app), keep .chips/run.json so Run in Chips can start it from the project\'s folder: {"run": "the one shell command that starts it", "opens": "http://localhost:<port>, to open once it answers", "setup": "a command run first when it changes, like npm install"}. Have it print the address it listens on, like http://localhost:4173, which is what Run opens; "opens" is for a program that prints none. Everything it runs belongs in the project: Run refuses a command that goes anywhere outside the project\'s folder (a cd elsewhere, a path in a home folder). Start an app by its own program rather than with open, so Stop can close it, and leave starting it to Run rather than starting it yourself. Leave out what it doesn\'t need, and check it works in your copy before you say it does.',
+    'When the project has more than one program (an app and its API, two sites), list them instead, each with its own folder: {"programs": [{"name": "API", "in": "api", "run": "uvicorn main:app --port 8000", "setup": "pip install -r requirements.txt"}, {"name": "Shop", "in": "shop", "run": "npm run dev", "opens": "http://localhost:5173", "setup": "npm install", "needs": ["API"]}]}. "in" is the program\'s folder, where its setup and run run; "needs" names the programs it can\'t work without, which Run starts first; a program others need opens nothing unless it says "opens". Each program gets its own Run and Stop in Chips. Add a program to the list rather than replacing the run file.',
   );
   if (facts.markdown) lines.push("In Markdown, put each sentence on a line of its own.");
   if (facts.pages === true) {

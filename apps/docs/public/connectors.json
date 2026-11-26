@@ -175,6 +175,116 @@
         "context_windows"
       ],
       "published": true
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "line": "Cursor's coding agent",
+      "needs": "Cursor's command line, cursor-agent, installed and signed in",
+      "program": "cursor-agent",
+      "whose": "Cursor has its own terms. What you send it goes to Cursor.",
+      "terms": "https://cursor.com/terms-of-service",
+      "kind": "one-line",
+      "command": "chips connect cursor '{link}'",
+      "package": "@chipschat/acp@1",
+      "args": ["~/Chips/.bridges/acp/cursor.json"],
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "models",
+        "context_windows"
+      ],
+      "published": true
+    },
+    {
+      "id": "copilot",
+      "name": "Copilot",
+      "line": "GitHub's coding agent",
+      "needs": "Copilot CLI installed and signed in to GitHub",
+      "program": "copilot",
+      "whose": "Copilot is made by GitHub and has its own terms. What you send it goes to GitHub.",
+      "terms": "https://docs.github.com/en/site-policy/github-terms/github-terms-for-additional-products-and-features",
+      "kind": "one-line",
+      "command": "chips connect copilot '{link}'",
+      "package": "@chipschat/acp@1",
+      "args": ["~/Chips/.bridges/acp/copilot.json"],
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "models",
+        "context_windows"
+      ],
+      "published": true
+    },
+    {
+      "id": "antigravity",
+      "name": "Antigravity",
+      "line": "Google's coding agent",
+      "needs": "Antigravity CLI installed and signed in to Google",
+      "program": "agy",
+      "whose": "Antigravity is made by Google and has its own terms. What you send it goes to Google.",
+      "terms": "https://antigravity.google/terms",
+      "kind": "one-line",
+      "command": "chips connect antigravity '{link}'",
+      "package": "@chipschat/acp@1",
+      "args": ["~/Chips/.bridges/acp/antigravity.json"],
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "models",
+        "context_windows"
+      ],
+      "published": true
+    },
+    {
+      "id": "goose",
+      "name": "Goose",
+      "line": "Open-source, on the model you pick",
+      "needs": "Goose installed, with a model provider set up (goose configure)",
+      "program": "goose",
+      "whose": "Goose is open source. What you send it goes to the model provider you set it up with.",
+      "terms": "https://github.com/aaif-goose/goose/blob/main/LICENSE",
+      "kind": "one-line",
+      "command": "chips connect goose '{link}'",
+      "package": "@chipschat/acp@1",
+      "args": ["~/Chips/.bridges/acp/goose.json"],
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "models",
+        "context_windows"
+      ],
+      "published": true
+    },
+    {
+      "id": "grok",
+      "name": "Grok",
+      "line": "xAI's coding agent",
+      "needs": "Grok Build installed and signed in to xAI",
+      "program": "grok",
+      "whose": "Grok is made by xAI and has its own terms. What you send it goes to xAI.",
+      "terms": "https://x.ai/legal/terms-of-service",
+      "kind": "one-line",
+      "command": "chips connect grok '{link}'",
+      "package": "@chipschat/acp@1",
+      "args": ["~/Chips/.bridges/acp/grok.json"],
+      "capabilities": [
+        "new_spaces",
+        "new_agents",
+        "restarts",
+        "agents",
+        "models",
+        "context_windows"
+      ],
+      "published": true
     }
   ]
 }

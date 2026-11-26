@@ -760,6 +760,39 @@ export function standingIn(
 }
 
 /**
+ * Who a line is drawn as said by, which is not always who sent the event, for its name, its face
+ * and the turn it is part of (ADR 0050).
+ *
+ * - A prompt typed at a terminal reaches Chips as the harness's own `run.started`, but the person
+ *   typed it, and showing it under the harness's name would make a room of two people look like
+ *   one talking to itself. The harness's owner is who that is (ADR 0023: a harness has one), and
+ *   if Chips does not know them the harness's own name is the honest fallback.
+ * - A notice is the harness's (ADR 0302): its own code wrote the words, though it sent them as one
+ *   of its agents. Under the agent's name, the morning's memory report in [J]'s room read as [J]'s
+ *   own words, and Arjun couldn't tell who it was from.
+ */
+export function saidBy(
+  line: Pick<Line, "authorId" | "authorKind" | "via" | "notice">,
+  directory: Directory,
+): { readonly id: string; readonly kind: "person" | "harness" } {
+  if (line.notice !== undefined)
+    return { id: harnessOf(directory, line.authorId), kind: "harness" };
+  const kind = line.authorKind === "harness" ? "harness" : "person";
+  if (line.via === undefined) return { id: line.authorId, kind };
+  const owner = directory[line.via]?.ownerId;
+  return owner === undefined ? { id: line.via, kind: "harness" } : { id: owner, kind: "person" };
+}
+
+/**
+ * What a notice's tag says to a screen reader and under the pointer (ADR 0302): that the harness
+ * posted it on its own, what did, and that no agent wrote it. "Jacobian posted this on its own:
+ * Nightly memory pass. No agent wrote it."
+ */
+export function noticeWords(harness: string, notice: string): string {
+  return `${harness} posted this on its own: ${notice.replace(/[\s.]+$/, "")}. No agent wrote it.`;
+}
+
+/**
  * Whether the lines in a room wear their author's name.
  *
  * In a room of two, every line is either mine or theirs, and the side it sits on says which; a

@@ -227,7 +227,10 @@ export function createLeadReads(db: Kysely<Database>) {
       if (row === undefined || row.seq === null) return undefined;
       const event = await db
         .selectFrom("events")
-        .select(sql<string | null>`json_extract(payload, '$.mentions')`.as("mentions"))
+        .select([
+          sql<string | null>`json_extract(payload, '$.mentions')`.as("mentions"),
+          sql<string | null>`json_extract(payload, '$.notice')`.as("notice"),
+        ])
         .where("workspace_id", "=", workspaceId)
         .where("id", "=", row.id)
         .executeTakeFirst();
@@ -241,6 +244,7 @@ export function createLeadReads(db: Kysely<Database>) {
         addressed_to_all: row.addressed_to_all === 1,
         held: row.held === 1,
         mentions: idsOf(event?.mentions ?? null),
+        notice: typeof event?.notice === "string",
       };
     },
 

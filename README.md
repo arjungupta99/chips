@@ -56,12 +56,12 @@ Advanced, a token and the curl lines that connect anything. The docs'
 | `packages/conformance` | The adapter conformance kit: a fake Chips that speaks the wire, and the checklist the app shows |
 | `packages/ui` | The design system: faces, tokens, components |
 | `server` | `chipsd`: the gateway, the event log, the media jobs, and the page |
-| `cli` | `chips`: serve, pair, connect, disconnect, doctor, conformance, export, import |
+| `cli` | `chips`: up, down, update, uninstall, serve, pair, join, connect, disconnect, remove, doctor, conformance, project, export, import |
 | `apps/web` | The React client |
 | `apps/desktop` | Chips for Mac: Tauri 2 around the web app |
 | `apps/mobile` | Chips on the phone: Expo and React Native over the same client core |
 | `apps/docs` | The documentation site |
-| `packaging` | The installer script, the launchd templates and a Homebrew formula that isn't ready yet |
+| `packaging` | The installer script, the launchd templates and the relay's |
 | `tools` | Repository checks and generators that are not shipped |
 | `docs` | The technical plan, the architecture, releasing, and the decisions (ADRs) |
 
@@ -101,7 +101,7 @@ pnpm check
 | `pnpm docs:build` | Builds the docs, failing on a broken link |
 | `pnpm gen:protocol` | Regenerates the schemas, types and reference |
 | `pnpm bench:append` | The event log's append and replay numbers |
-| `pnpm live …` | Drives the running server as you, with real agents, and reads the rooms |
+| `pnpm live …` | Drives the running server as you, with real agents, and reads the spaces |
 
 The architecture and its enforced layer rules are described in
 [`docs/architecture.md`](docs/architecture.md).

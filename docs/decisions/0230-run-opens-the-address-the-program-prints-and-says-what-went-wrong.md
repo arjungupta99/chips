@@ -110,3 +110,44 @@ held it back while its output went to a file, so Run waited out its 30 seconds f
 - **Where only a printed address could open, Run waits 5 seconds for one,** not 30: what the run
   file opens answered before Run started anything, so it is somebody else's, and a server prints
   its address as it starts listening.
+
+## Addendum, 25 November 2026: a run that starts more than one program
+
+Arjun asked how Universe handles a space whose agents make several apps or servers. A space still
+has one run file and one program, so agents fit two servers into one command. Three ways of doing
+that broke Run. The checks used two real servers through the runner, and the review is in
+`chips-notes/reviews/universe-several-programs-2026-11-25.md`. His words: "Build fixes 1–3".
+
+- **A run is everything its shell started.** With `a & b &` the shell ends at once while both
+  servers go on. Run said "It ran and finished", with no Stop, and Stop and Run again never reached
+  them. With `a & b`, once b ended, a held its port through every later Stop. The run's shell leads
+  a process group of its own, and a run now counts as running while that group has processes, in
+  the start-up of the Mac it began in. Stop and Run again end the group even after the shell has
+  ended. While a group has processes, macOS and Linux give no new process its id, so a group with
+  the shell's id and no process of it is the run's. After a restart, the id is free again and the
+  group is left alone. The pid file keeps the start-up as a third line (`kern.bootsessionuuid`, or
+  Linux's `boot_id`). A run started before this change has no third line and is read as before.
+- **Run opens the printed address on the run file's port.** It used to open the first address the
+  program printed, so an API that started before its page was opened in the browser. Now an
+  address printed on the port `opens` names is opened first. For the first 3 seconds Run waits for
+  one, trying `opens` itself where that was free before Run started. After that it opens the first
+  address printed, as before. A program that prints one address on a port of its own choosing
+  opens up to 3 seconds later than it did.
+- **Setup sees the folders one down.** Setup ran again only when its words or a manifest at the
+  project's top changed (`package.json`, `package-lock.json`, `requirements.txt`,
+  `pyproject.toml`). A project of two apps keeps each app's manifest in the app's own folder, so
+  when an agent added a dependency to `web/package.json`, setup didn't run and the run failed. The
+  key now includes those files in each folder one down. Hidden folders, `node_modules` and links
+  are skipped. A project with manifests only at its top keeps the key it had.
+- **A run file with no `opens` opens what the program prints.** The agents are told to have the
+  program print its address and that "opens" is for a program that prints none, but Run opened
+  something only where `opens` was set, so a run file that followed those words never opened its
+  page. Found while building the above; his words: "Yes, fix it here". Run now watches what such a
+  program prints and opens the first address once it answers, as it does with `opens` set. A
+  program that has printed no address and printed nothing more for 5 seconds (a bot, a window, a
+  script) is left to run, with nothing said, rather than reading as "Starting" for 30 seconds. A
+  program that keeps printing is watched for up to 30 seconds. One that printed an address that
+  never answered says so, as with `opens`.
+
+The words agents are told and a run file with several named programs are unchanged. The first would
+need an SDK release, and the second would need a design of its own.

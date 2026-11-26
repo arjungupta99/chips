@@ -1,10 +1,15 @@
 ---
 title: Policy
-description: Rules that decide which actions need a person, and which person. Trust is a dial, not a switch.
+description: Rules that decide which actions need a person, and which person, for a harness whose Chips's rules are on.
 ---
 
 Every harness has an autonomy level per space. Policy fills in the details. Chips brokers
 the decision, records it, and never executes anything itself.
+
+Policy speaks only for a harness whose [Chips's rules](/concepts/permissions/#chipss-rules-one-switch-on-each-harness)
+are on. With them off, every ask that harness sends comes to a person, and nothing on this page
+answers it. A new harness starts with them off. Either way the harness's own settings come first:
+what they let through never asks, so it never reaches Chips ([Two gates](/concepts/permissions/#two-gates)).
 
 ## Four levels
 
@@ -12,11 +17,12 @@ the decision, records it, and never executes anything itself.
 | --- | --- |
 | **L0 · Observe** | Reads and proposes. Every action needs a yes. For brand-new harnesses and sensitive rooms. |
 | **L1 · Ask first** | Reads are free. Every write and every external action asks. Where every new harness starts. |
-| **L2 · Ask when it matters** | Policy decides. Money, external messages, deletions and anything irreversible ask. A command that deletes, pushes or leaves the machine (`rm`, `git push`, `ssh`) asks too. Everything else — any other shell command, a file write — runs unasked and shows up in the receipt. The level the dial is built for, once a harness has earned it. |
+| **L2 · Ask when it matters** | Policy decides. Money, external messages, deletions and anything irreversible ask. A command that deletes, pushes or leaves the machine (`rm`, `git push`, `ssh`) asks too. Everything else — any other shell command, a file write — runs unasked and shows up in the receipt. For a harness that has earned it. |
 | **L3 · Autonomous, report back** | Runs end to end, posts a summary and a receipt. You audit or roll back. |
 
-L3 is earned, not granted: Chips suggests moving up after a streak of approvals with zero edits,
-and moves down after a denial.
+The apps no longer draw a dial to turn. A harness that takes `autonomy` shows its level beside
+its name, and it is L1 unless a `policy.updated` sets another. What a person changes now is the
+harness's own mode and Chips's rules, on its [Permissions](/concepts/permissions/).
 
 ## Rules read like sentences
 
@@ -63,14 +69,19 @@ A read is an action whose kind ends in `read`, `list`, `get`, `search`, `fetch`,
 `lookup` or `query`. The hot risk classes are `external`, `external_communication`,
 `destructive`, `financial` and `credential`.
 
-Say the L2 row plainly, because it is the trade the dial makes: **at L2 a shell command runs
-unasked.** `rm -rf build` claims no flag and no hot class, so policy allows it on the spot, with
-`system` as the approver and no card — a lower bar than most harnesses' own prompt. An adapter
+Say the L2 row plainly, because it is the trade the level makes: **at L2 most shell commands run
+unasked.** `make build` claims no flag and no hot class, so policy allows it on the spot, with
+`system` as the approver and no card — a lower bar than most harnesses' own prompt. A command a
+pause leaves to a person still asks at L2: `rm -rf build`, `git push`, a `curl` past this computer,
+and one Chips can't tell what it runs
+([what a pause still brings you](/concepts/permissions/#what-a-pause-still-brings-you)). An adapter
 claims a risk only where a tool's name really says so — the web tools leave the machine, mail
 sent is `external_communication` — because a guess here becomes a rule firing on a guess. A
 harness you do not yet trust with that stays at L1, where every command and every write asks.
 
-Rules go first: the workspace's, then the harness's, and the first that matches decides. A
+Rules go first: the workspace's, then the harness's (this session's, this space's, every
+space's, then a yes that holds on and Stop asking, so a no a person set still wins), and the first
+that matches decides. A
 harness's own `allow` speaks only where the workspace lets policy decide — a cap of L2 or more —
 and not at L0, so a room capped at L0 or L1 cannot be talked past by a harness's rule, and L0
 asks for everything. At L1 it speaks: that is where every harness starts, and where a person's
@@ -136,7 +147,8 @@ rules and reads it after them, so a no a person set still says no
 ## Where the policy lives
 
 A harness's policy is a projection of `policy.updated` ([ADR 0019](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0019-policy-is-a-projection.md)):
-its level everywhere, its level in any one space where the dial was turned, its rules,
-its budget, and what `usage` has added up. Nothing writes it directly; turning the dial appends
-an event, with the workspace cap and who turned it filled in by Chips. A brand-new harness with no
+its level everywhere, its level in any one space where one was set, its rules, Chips's rules
+switch, Stop asking, the mode a person picked, its budget, and what `usage` has added up. Nothing
+writes it directly; each change appends an event, with the workspace cap and who made it filled in
+by Chips. A brand-new harness with no
 policy yet is treated as L1, ask first. The `hello` a harness receives reports the projection.

@@ -16,10 +16,10 @@ export interface Recorded {
 
 export function fakeStore(snapshot: Snapshot): Store & {
   readonly calls: Recorded[];
-  readonly tellRun: (spaceId: string, run: unknown) => void;
+  readonly tellRun: (spaceId: string, run: unknown, program?: string) => void;
 } {
   const calls: Recorded[] = [];
-  const runListeners = new Set<(spaceId: string, run: unknown) => void>();
+  const runListeners = new Set<(spaceId: string, run: unknown, program?: string) => void>();
   const record =
     (name: string) =>
     (args: unknown): void => {
@@ -337,12 +337,13 @@ export function fakeStore(snapshot: Snapshot): Store & {
     },
     projectRun: async () => ({ macs: 1 }),
     sayRun: async () => undefined,
-    onRunState: (listen: (spaceId: string, run: unknown) => void) => {
+    onRunState: (listen: (spaceId: string, run: unknown, program?: string) => void) => {
       runListeners.add(listen);
       return () => void runListeners.delete(listen);
     },
-    tellRun: (spaceId: string, run: unknown) => {
-      for (const listen of runListeners) listen(spaceId, run);
+    // A listed program's word says which (ADR 0303).
+    tellRun: (spaceId: string, run: unknown, program?: string) => {
+      for (const listen of runListeners) listen(spaceId, run, program);
     },
     undoChange: async (spaceId: string, commit: string) => {
       calls.push({ name: "undoChange", args: { spaceId, commit } });
@@ -350,7 +351,7 @@ export function fakeStore(snapshot: Snapshot): Store & {
     },
   } as unknown as Store & {
     readonly calls: Recorded[];
-    readonly tellRun: (spaceId: string, run: unknown) => void;
+    readonly tellRun: (spaceId: string, run: unknown, program?: string) => void;
   };
 }
 

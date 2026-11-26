@@ -10,7 +10,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Project } from "@chipschat/harness";
-import { commandOf, type ProjectToken } from "@chipschat/protocol";
+import {
+  commandOf,
+  type ProjectToken,
+  pressCommand,
+  type RunFile,
+  runPrograms,
+} from "@chipschat/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestWorkspace, type TestWorkspace } from "../../../server/src/testing/workspace.js";
 import { type CliDevice, call, pairDevice } from "../device.js";
@@ -460,6 +466,135 @@ describe("Run (ADR 0226)", () => {
     });
   });
 
+  /** Where the room's runs keep their files on this Mac. */
+  const runsAt = () => join(scratch, "Library", "Caches", "chat.chips", "runs", ws.spaceId);
+  /** The process group the last run's shell led, by its id. */
+  const groupOf = () => Number(readFileSync(join(runsAt(), "pid"), "utf8").split("\n")[0]);
+  /** Whether anything of that group still goes. */
+  const lives = (group: number) => {
+    try {
+      process.kill(-group, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it("keeps a run going, with Stop, when its shell ends and leaves what it started running (ADR 0230's addendum)", async () => {
+    // Two servers, both sent to the background: the shell ends at once, and Run used to say
+    // "It ran and finished" with no Stop while both went on.
+    const recipe = {
+      run: "(echo 'Web on http://127.0.0.1:4174/'; sleep 30) & sleep 30 &",
+      opens: "http://localhost:4174",
+    };
+    const deps = runDeps({ answers: async (url) => url.includes("4174") });
+    expect(await runs(recipe, deps)).toMatchObject({
+      ok: true,
+      run: { state: "running", opened: "http://127.0.0.1:4174/" },
+    });
+    const group = groupOf();
+    expect(lives(group)).toBe(true);
+    expect(await runFolder("status", await asked(), deps)).toMatchObject({
+      run: { state: "running" },
+    });
+    expect(await runFolder("stop", await asked(), deps)).toMatchObject({
+      run: { state: "stopped" },
+    });
+    await until(async () => !lives(group));
+    expect(lives(group)).toBe(false);
+  });
+
+  it("stops what the last run left running before it runs again, and says how it ended once all of it has", async () => {
+    // `a & b` once b ended: a went on holding its port, and no Stop or Run again reached it.
+    const recipe = { run: "sleep 30 & exit 3" };
+    const deps = runDeps({ answers: async () => false, readyMs: 600 });
+    expect(await runs(recipe, deps)).toMatchObject({ run: { state: "running" } });
+    const first = groupOf();
+    await runFolder("run", await asked({ command: commandOf(recipe) }), deps);
+    await until(async () => !lives(first));
+    expect(lives(first)).toBe(false);
+    expect(groupOf()).not.toBe(first);
+    await runFolder("stop", await asked(), deps);
+
+    // What it left behind ends by itself: the run ended as its shell said.
+    const brief = { run: "sleep 1 & exit 3" };
+    await runs(brief, deps);
+    expect(await settled(deps)).toMatchObject({ run: { state: "failed", code: 3 } });
+  });
+
+  it("opens the address printed on the run file's port, where the program printed another first", async () => {
+    // An API that starts before the page to open: Run used to open the API.
+    const recipe = {
+      run: "echo 'API on http://127.0.0.1:8000/'; sleep 1; echo 'Web on http://localhost:5173/'; sleep 30",
+      opens: "http://localhost:5173",
+    };
+    let began: number | undefined;
+    const answers = async (url: string) => {
+      if (url.includes("8000")) return true;
+      // Asked once before the run starts, when nothing answers there yet.
+      if (began === undefined) {
+        began = Date.now();
+        return false;
+      }
+      return Date.now() - began > 1200;
+    };
+    const running = await runs(recipe, runDeps({ answers }));
+    expect(running).toMatchObject({ ok: true, run: { state: "running" } });
+    expect(opened).toHaveLength(1);
+    expect(opened[0]?.[0]).toContain("localhost:5173");
+    await runFolder("stop", await asked(), runDeps({ answers }));
+  });
+
+  it("runs setup again when a manifest in a folder one down changes", async () => {
+    const recipe = { setup: "echo set up", run: "echo ran; sleep 30" };
+    await agentSends(
+      { ".chips/run.json": JSON.stringify(recipe), "web/package.json": '{"name": "web"}\n' },
+      "Two apps",
+    );
+    const deps = runDeps({ answers: async () => false, readyMs: 600 });
+    const log = () => readFileSync(join(runsAt(), "log"), "utf8");
+    const press = async () =>
+      await runFolder("run", await asked({ command: commandOf(recipe) }), deps);
+
+    await press();
+    expect(log()).toContain("set up");
+    await press();
+    expect(log()).not.toContain("set up");
+    await agentSends(
+      { "web/package.json": '{"name": "web", "dependencies": {"left-pad": "1.3.0"}}\n' },
+      "A dependency for the page",
+    );
+    await press();
+    expect(log()).toContain("set up");
+    await runFolder("stop", await asked(), deps);
+  });
+
+  it("opens the address the program printed where the run file opens nothing, as the agents are told", async () => {
+    // "opens" is for a program that prints none: Run used to open nothing for one that printed.
+    const recipe = { run: "echo 'Serving on http://0.0.0.0:4175/'; sleep 30" };
+    const deps = runDeps({ answers: async (url) => url.includes("4175") });
+    expect(await runs(recipe, deps)).toMatchObject({
+      ok: true,
+      run: { state: "running", opened: "http://127.0.0.1:4175/" },
+    });
+    expect(opened).toEqual([["http://127.0.0.1:4175/"]]);
+    await runFolder("stop", await asked(), deps);
+  });
+
+  it("leaves a run that opens nothing and prints no address to run, in seconds and with nothing said", async () => {
+    // A bot, a window, a script: nothing to open, and no reason to read as starting for long.
+    const recipe = { run: "echo 'Logged in as Sudoku bot'; sleep 30" };
+    const deps = runDeps({ answers: async () => true, readyMs: 30_000 });
+    const began = Date.now();
+    const running = await runs(recipe, deps);
+    expect(Date.now() - began).toBeLessThan(15_000);
+    expect(running).toMatchObject({ ok: true, run: { state: "running" } });
+    expect(running.ok && running.run).not.toHaveProperty("trouble");
+    expect(running.ok && running.run).not.toHaveProperty("opened");
+    expect(opened).toEqual([]);
+    await runFolder("stop", await asked(), deps);
+  });
+
   it("opens nothing where the program printed no address and its address was somebody else's", async () => {
     const recipe = { run: "sleep 30", opens: "http://localhost:8000" };
     const deps = runDeps({ answers: async () => true, readyMs: 600 });
@@ -611,6 +746,134 @@ describe("Run (ADR 0226)", () => {
     const log = join(scratch, "Library", "Caches", "chat.chips", "runs", ws.spaceId, "log");
     await until(async () => readFileSync(log, "utf8").includes("hello"));
     expect(readFileSync(log, "utf8")).toBe("hello \n");
+  });
+});
+
+describe("Several programs (ADR 0303)", () => {
+  /** A program that prints the address it listens on, and keeps going. */
+  const server = (port: number) => `echo 'Listening on http://127.0.0.1:${port}/'; sleep 30`;
+  const API = { name: "API", in: "api", run: server(4191) };
+  const SHOP = {
+    name: "Shop",
+    in: "shop",
+    run: server(4192),
+    opens: "http://localhost:4192",
+    needs: ["API"],
+  };
+  const ADMIN = { name: "Admin", in: "admin", run: server(4193), needs: ["API"] };
+  const deps = (answers: (url: string) => Promise<boolean> = async () => true) => ({
+    home: scratch,
+    open: async (args: readonly string[]) => void opened.push([...args]),
+    has: () => false,
+    env: { HOME: scratch },
+    run: { shell: "/bin/sh", answers, readyMs: 3000 },
+  });
+  /** The run file sent to the room with a file in each program's folder, and read as the Mac reads it. */
+  async function listed(...programs: object[]): Promise<RunFile> {
+    const text = JSON.stringify({ programs });
+    await agentSends(
+      { ".chips/run.json": text, "api/main.py": "", "shop/index.html": "", "admin/index.html": "" },
+      "Programs",
+    );
+    const file = runPrograms(text);
+    if ("why" in file) throw new Error(file.why);
+    return file;
+  }
+  const press = async (op: FolderOp, file: RunFile | undefined, program?: string, with_ = deps()) =>
+    await runFolder(
+      op,
+      await asked({
+        ...(program === undefined ? {} : { program }),
+        ...(op === "run" && file !== undefined ? { command: pressCommand(file, program) } : {}),
+      }),
+      with_,
+    );
+  const states = (answer: Awaited<ReturnType<typeof press>>) =>
+    Object.fromEntries(
+      Object.entries((answer.ok && answer.programs) || {}).map(([name, run]) => [
+        name,
+        run.runs_for === undefined ? run.state : `${run.state} for ${run.runs_for.join(", ")}`,
+      ]),
+    );
+
+  it("runs a program after what it needs, opens only its own page, and stops the need with it", async () => {
+    const file = await listed(API, SHOP);
+    const ran = await press("run", file, "Shop");
+    expect(states(ran)).toEqual({ API: "running for Shop", Shop: "running" });
+    expect(ran).toMatchObject({
+      programs: {
+        API: { listens: "http://127.0.0.1:4191/", command: "program API in api\n" + API.run },
+        Shop: { opened: "http://127.0.0.1:4192/" },
+      },
+    });
+    // The API others need is only looked at: its page is Shop's.
+    expect(opened).toEqual([["http://127.0.0.1:4192/"]]);
+    expect(states(await press("stop", file, "Shop"))).toEqual({ API: "stopped", Shop: "stopped" });
+  });
+
+  it("keeps a need running while another program needs it, or the person ran it", async () => {
+    const file = await listed(API, SHOP, ADMIN);
+    await press("run", file, "Shop");
+    expect(states(await press("run", file, "Admin"))).toEqual({
+      API: "running for Shop, Admin",
+      Shop: "running",
+      Admin: "running",
+    });
+    expect(states(await press("stop", file, "Shop"))).toMatchObject({ API: "running for Admin" });
+    expect(states(await press("stop", file, "Admin"))).toMatchObject({ API: "stopped" });
+
+    // Run on the API itself makes it the person's: stopping Shop leaves it.
+    await press("run", file, "API");
+    expect(states(await press("run", file, "Shop"))).toMatchObject({ API: "running" });
+    expect(states(await press("stop", file, "Shop"))).toMatchObject({ API: "running" });
+    await press("stop", undefined);
+  });
+
+  it("runs every program with Run all, the needed first, and Stop all stops them and an older run file's", async () => {
+    const one = { run: server(4190) };
+    await agentSends({ ".chips/run.json": JSON.stringify(one) }, "One program");
+    expect(await press("run", { programs: [one] })).toMatchObject({ run: { state: "running" } });
+
+    const file = await listed(SHOP, ADMIN, API);
+    const all = await press("run", file);
+    // The one program of the run file before is stopped, so it holds no port with no Stop.
+    expect(all).toMatchObject({ run: { state: "stopped" } });
+    expect(states(all)).toEqual({ API: "running", Shop: "running", Admin: "running" });
+    expect(states(await press("stop", file))).toEqual({
+      API: "stopped",
+      Shop: "stopped",
+      Admin: "stopped",
+    });
+  });
+
+  it("says which need didn't start, and runs nothing that needs it", async () => {
+    const file = await listed({ ...API, run: "echo 'no uvicorn' >&2; exit 3" }, SHOP);
+    const ran = await press("run", file, "Shop");
+    expect(ran).toMatchObject({
+      programs: {
+        API: { state: "failed", code: 3 },
+        Shop: {
+          state: "failed",
+          trouble: "API didn't start, so Chips didn't run Shop. API's row says why.",
+        },
+      },
+    });
+  });
+
+  it("runs nothing the person wasn't shown, or in a folder the project doesn't have", async () => {
+    const file = await listed(API, SHOP);
+    expect(
+      await runFolder("run", await asked({ program: "Shop", command: commandOf(SHOP) }), deps()),
+    ).toMatchObject({ ok: false, why: expect.stringContaining("says to run something else") });
+    expect(await press("run", file, "Docs")).toEqual({
+      ok: false,
+      why: "The run file in your folder has no program called Docs now.",
+    });
+    const away = await listed({ ...API, in: "server" });
+    expect(await press("run", away, "API")).toEqual({
+      ok: false,
+      why: "server isn't a folder of your project yet, so Chips didn't run API.",
+    });
   });
 });
 

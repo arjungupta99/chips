@@ -6,7 +6,7 @@
  *   POST /v1/spaces/:id/project.git/git-receive-pack      a push
  *   POST /v1/spaces/:id/project/token                     a person's token for git, from a signed device
  *   POST /v1/spaces/:id/project/folder/open               the person's own Mac asked to open its folder, or its page
- *   POST /v1/spaces/:id/project/run                       the person's own Mac asked to run or stop it
+ *   POST /v1/spaces/:id/project/run                       the person's own Mac asked to run, stop or show it
  *                                                          (either opens the owner's Chips for Mac
  *                                                          here first when it isn't, ADR 0227)
  *   PUT  /v1/spaces/:id/project/run                       that Mac's word on how the run stands
@@ -24,6 +24,8 @@ import {
   committerId,
   formatLimit,
   type HeldRun,
+  PRESS_MOST,
+  PROGRAM_NAME,
   PROJECT_ACTOR_HEADER,
   PROJECT_TOKEN_PREFIX,
   PROJECT_TOKEN_TTL_SECONDS,
@@ -242,30 +244,26 @@ export function registerProjectTokenRoutes(app: Hono<GatewayEnv>, deps: GatewayD
   // Run (ADR 0226): the person's Mac runs the room's project as its run file says, or stops it,
   // asked from any device of theirs. Each Mac says how its run stands, and the server keeps the
   // last word for the person's other devices, here and only while it runs: a run is the person's
-  // own, never the room's, and never written down.
-  const runs = new Map<string, HeldRun>();
+  // own, never the room's, and never written down. A run file can list programs (ADR 0303): each
+  // is a run of its own, kept by its name; the one program of a run file of one `run` has none.
+  const runs = new Map<string, Map<string, HeldRun>>();
   const runKey = (principal: { workspaceId: string; participantId: string }, spaceId: string) =>
     `${principal.workspaceId}/${principal.participantId}/${spaceId}`;
+  /** The one program's run, under no name; a listed program's, by its name in small letters. */
+  const ALONE = "";
 
   app.post("/v1/spaces/:id/project/run", async (c) => {
     const { principal, spaceId, from } = await ownerAt(c, deps, "runs the project");
-    const { op, command } = (await c.req.json().catch(() => ({}))) as {
-      op?: unknown;
-      command?: unknown;
-    };
-    if (op !== "run" && op !== "stop") {
-      throw new HttpError("invalid_event", 'Say "run" or "stop" as `op`.');
-    }
-    if (op === "run" && (typeof command !== "string" || command === "" || command.length > 1100)) {
-      throw new HttpError("invalid_event", "Say what the person saw would run, as `command`.");
-    }
-    // Stop asks nothing of a Mac that isn't open: whatever it ran went with it.
+    const { op, command, program } = runAsked(await c.req.json().catch(() => ({})));
+    // Stop asks nothing of a Mac that isn't open: whatever it ran went with it. Nor does Show,
+    // which opens what a running program serves, and nothing runs on a Mac that isn't open.
     const opened = op === "run" && (await openMacApp(deps, principal, spaceId));
     const macs = deps.sessions.askMacs(principal.workspaceId, principal.participantId, {
       frame: "folder.run",
       space_id: spaceId,
       op,
-      ...(op === "run" ? { command: command as string } : {}),
+      ...(program === undefined ? {} : { program }),
+      ...(command === undefined ? {} : { command }),
       asked_from: from,
       asked_at: new Date(deps.clock.nowMs()).toISOString(),
     });
@@ -275,19 +273,25 @@ export function registerProjectTokenRoutes(app: Hono<GatewayEnv>, deps: GatewayD
 
   app.put("/v1/spaces/:id/project/run", async (c) => {
     const { principal, spaceId, from } = await personAt(c, deps, "says how its run stands");
-    const said = projectRun.safeParse(
-      ((await c.req.json().catch(() => ({}))) as { run?: unknown }).run,
-    );
+    const body = (await c.req.json().catch(() => ({}))) as { run?: unknown; program?: unknown };
+    const said = projectRun.safeParse(body.run);
     if (!said.success) throw new HttpError("invalid_event", "That isn't how a run stands.");
+    const program = programAsked(body.program);
     const run: HeldRun = {
       ...said.data,
       mac: from,
       said_at: new Date(deps.clock.nowMs()).toISOString(),
     };
-    runs.set(runKey(principal, spaceId), run);
+    const key = runKey(principal, spaceId);
+    const held = runs.get(key) ?? new Map<string, HeldRun>();
+    // Names differ ignoring case (ADR 0303), and the name a Mac said last is the one kept.
+    if (program !== undefined) held.delete(heldName(held, program));
+    held.set(program ?? ALONE, run);
+    runs.set(key, held);
     deps.sessions.runState(principal.workspaceId, principal.participantId, {
       frame: "folder.run_state",
       space_id: spaceId,
+      ...(program === undefined ? {} : { program }),
       run,
     });
     return c.body(null, 204);
@@ -295,13 +299,52 @@ export function registerProjectTokenRoutes(app: Hono<GatewayEnv>, deps: GatewayD
 
   app.get("/v1/spaces/:id/project/run", async (c) => {
     const { principal, spaceId } = await personAt(c, deps, "reads how its run stands");
-    const run = runs.get(runKey(principal, spaceId));
+    const held = runs.get(runKey(principal, spaceId));
+    const run = held?.get(ALONE);
+    const programs = [...(held?.entries() ?? [])].filter(([name]) => name !== ALONE);
     const answer: ProjectRunAnswer = {
       ...(run === undefined ? {} : { run }),
+      ...(programs.length === 0 ? {} : { programs: Object.fromEntries(programs) }),
       macs: deps.sessions.macs(principal.workspaceId, principal.participantId),
     };
     return c.json(answer);
   });
+}
+
+/**
+ * What a press asks the Mac (ADRs 0226, 0303): run what the person saw, stop, or show; a program
+ * by name, or none. Anything else is refused.
+ */
+function runAsked(body: unknown): {
+  readonly op: "run" | "stop" | "show";
+  readonly command?: string;
+  readonly program?: string;
+} {
+  const { op, command, program } = body as { op?: unknown; command?: unknown; program?: unknown };
+  if (op !== "run" && op !== "stop" && op !== "show") {
+    throw new HttpError("invalid_event", 'Say "run", "stop" or "show" as `op`.');
+  }
+  const named = programAsked(program);
+  const which = named === undefined ? {} : { program: named };
+  if (op !== "run") return { op, ...which };
+  if (typeof command !== "string" || command === "" || command.length > PRESS_MOST) {
+    throw new HttpError("invalid_event", "Say what the person saw would run, as `command`.");
+  }
+  return { op, command, ...which };
+}
+
+/** The program a press or a run names, when it names one as a run file names it. */
+function programAsked(program: unknown): string | undefined {
+  if (program === undefined) return undefined;
+  if (typeof program !== "string" || !PROGRAM_NAME.test(program)) {
+    throw new HttpError("invalid_event", "Name a program of the run file as `program`.");
+  }
+  return program;
+}
+
+/** The name a program's run is kept under, as it was said before, ignoring case; itself when new. */
+function heldName(held: ReadonlyMap<string, HeldRun>, program: string): string {
+  return [...held.keys()].find((name) => name.toLowerCase() === program.toLowerCase()) ?? program;
 }
 
 /**

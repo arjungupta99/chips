@@ -28,25 +28,28 @@ import {
 
 const terraFab = [".chips/index.html", "reports/overview.html", "reports/supply-chain.pdf"];
 
+/** A run file of one recipe, as the reader gives it: one program with no name (ADR 0303). */
+const one = <Recipe extends object>(recipe: Recipe) => ({ programs: [recipe] });
+
 describe("Universe", () => {
   it("opens the start page the agents keep in .chips, whatever else there is", () => {
     expect(universeOf(terraFab, undefined)).toEqual({
       documents: { start: ".chips/index.html" },
     });
     // A program's room with a start page has both.
-    const both = universeOf([...terraFab, "server.js"], { run: "node server.js" });
+    const both = universeOf([...terraFab, "server.js"], one({ run: "node server.js" }));
     expect(both).toEqual({
       documents: { start: ".chips/index.html" },
-      program: { run: "node server.js" },
+      programs: one({ run: "node server.js" }),
     });
   });
 
   it("opens the file an opens-only run file names, as before ADR 0227", () => {
     const paths = ["index.html", "a.html", "b.html", "chips.json"];
-    expect(universeOf(paths, { opens: "index.html" })).toEqual({
+    expect(universeOf(paths, one({ opens: "index.html" }))).toEqual({
       documents: { start: "index.html" },
     });
-    expect(universeOf(paths, { opens: "./index.html" })).toEqual({
+    expect(universeOf(paths, one({ opens: "./index.html" }))).toEqual({
       documents: { start: "index.html" },
     });
   });
@@ -67,8 +70,8 @@ describe("Universe", () => {
   it("keeps a program's own pages to itself: Sudoku mini is a program, not a document", () => {
     const sudoku = ["index.html", "game.js", "style.css", "chips.json"];
     const recipe = { run: "python3 -m http.server 8000", opens: "http://localhost:8000" };
-    expect(universeOf(sudoku, recipe)).toEqual({ program: recipe });
-    expect(startOf(universeOf(sudoku, recipe))).toBeUndefined();
+    expect(universeOf(sudoku, one(recipe))).toEqual({ programs: one(recipe) });
+    expect(startOf(universeOf(sudoku, one(recipe)))).toBeUndefined();
   });
 
   it("says what is wrong with a run file it can't use, and still opens the documents", () => {
@@ -108,7 +111,7 @@ describe("Universe", () => {
       }),
     };
     expect(await readUniverse(store as never, "spc_1")).toEqual({
-      program: { run: "python3 -m http.server 8000" },
+      programs: one({ run: "python3 -m http.server 8000" }),
       // Files has the run file at the top as Project › Files does; Pages leaves the program's page out.
       shelves: {
         media: [],
@@ -205,7 +208,7 @@ describe("the Desktop tab's dot (ADR 0227's addendum of 17 November 2026)", () =
     moreFiles: 0,
     ...more,
   });
-  const program = universeOf([".chips/run.json", "life.js"], { run: "npm run dev" });
+  const program = universeOf([".chips/run.json", "life.js"], one({ run: "npm run dev" }));
   const seen = (rows: readonly ("program" | "page")[] = []) => ({ since: SINCE, rows });
 
   it("names a program and a start page as Desktop's rows, and nothing for a list or a broken run file", () => {
@@ -255,7 +258,7 @@ describe("the Desktop tab's dot (ADR 0227's addendum of 17 November 2026)", () =
   });
 
   it("lights for the page once, beside a program seen already", () => {
-    const both = universeOf([".chips/run.json", ".chips/index.html"], { run: "npm run dev" });
+    const both = universeOf([".chips/run.json", ".chips/index.html"], one({ run: "npm run dev" }));
     const changes = [
       change("c", "2026-11-17T15:00:00.000Z", [".chips/index.html"]),
       change("b", "2026-11-17T13:00:00.000Z", [".chips/run.json"]),
@@ -306,7 +309,7 @@ describe("Media, Pages and Files on the phone (ADR 0227's addenda of 13 and 14 N
   });
 
   it("gives Health's Pages its start page and its notes, and leaves its app's pages and icons out", () => {
-    expect(shelvesOf(health, { run: "python3 app/server.py" })).toEqual({
+    expect(shelvesOf(health, one({ run: "python3 app/server.py" }))).toEqual({
       media: [],
       pages: [".chips/index.html", "lab-results.md", "message-to-dr-gill.md"],
       // Everything but .chips, the app's pages and icons included.
@@ -325,7 +328,7 @@ describe("Media, Pages and Files on the phone (ADR 0227's addenda of 13 and 14 N
 
   it("keeps a program's notes beside it even with no start page", () => {
     const game = ["index.html", "notes.md", "shots/level-1.png", "screenshot.png"];
-    expect(shelvesOf(game, { run: "python3 -m http.server" })).toEqual({
+    expect(shelvesOf(game, one({ run: "python3 -m http.server" }))).toEqual({
       // A page at the top claims no folder, so a screenshot an agent saved is still seen.
       media: ["screenshot.png", "shots/level-1.png"],
       pages: ["notes.md"],
@@ -334,7 +337,7 @@ describe("Media, Pages and Files on the phone (ADR 0227's addenda of 13 and 14 N
     });
     // A program's page in a folder claims what is under it; outside a program nothing is claimed.
     const site = ["web/index.html", "web/img/logo.png", "shot.png"];
-    expect(shelvesOf(site, { run: "node serve.js" }).media).toEqual(["shot.png"]);
+    expect(shelvesOf(site, one({ run: "node serve.js" })).media).toEqual(["shot.png"]);
     expect(shelvesOf(site, undefined).media).toEqual(["shot.png", "web/img/logo.png"]);
   });
 
@@ -420,7 +423,7 @@ describe("Media, Pages and Files on the phone (ADR 0227's addenda of 13 and 14 N
   it("opens a tapped file where it belongs", () => {
     const shelves = shelvesOf(
       [...health, "shot.png", "data.json", "tv.py", "clip.mp4", "build.zip"],
-      { run: "python3 app/server.py" },
+      one({ run: "python3 app/server.py" }),
     );
     expect(fileOpensIn("shot.png", shelves)).toBe("media");
     expect(fileOpensIn("lab-results.md", shelves)).toBe("pages");

@@ -54,6 +54,7 @@ import {
   mayHide,
   mayReply,
   nameOf,
+  noticeWords,
   notRightWords,
   readTaskBubble,
   refusalWords,
@@ -1199,7 +1200,10 @@ function useLook(props: BubbleProps): Look {
   const { ground, ink } =
     origin === undefined ? bubbleColours(palette, props.mine) : sourceColours(origin, scheme);
   // Never mine: my own bubble is on my own side of my own screen.
-  const who = (props.named || origin !== undefined) && !props.mine ? props.name : undefined;
+  // A notice wears its harness's name in any room (ADR 0302): the words are the harness's, in a
+  // room that is otherwise its agent's.
+  const named = props.named || origin !== undefined || line.notice !== undefined;
+  const who = named && !props.mine ? props.name : undefined;
   return { ground, ink, who, task, wide };
 }
 
@@ -1364,9 +1368,10 @@ function Gone({ mine, broke }: { readonly mine: boolean; readonly broke: boolean
 }
 
 /**
- * How a steer was meant, that a line was edited, and who relayed it — over the bubble and on the
- * bubble's own side, which for yours is the right (Arjun, 11 September 2026: a tag hanging off
- * the far edge of a bubble belongs to no bubble).
+ * That the harness's own code posted a line, that a heartbeat woke it, how a steer was meant, that
+ * it was edited, and who relayed it — over the bubble and on the bubble's own side, which for
+ * yours is the right (Arjun, 11 September 2026: a tag hanging off the far edge of a bubble belongs
+ * to no bubble).
  */
 function Tags({
   line,
@@ -1378,11 +1383,9 @@ function Tags({
   readonly mine: boolean;
 }) {
   const palette = usePalette();
-  const words: string[] = [];
-  if (line.mode !== undefined) words.push(line.mode);
-  if (line.via !== undefined) words.push(`via ${nameOf(directory, line.via)}`);
-  if (line.editedAt !== undefined) words.push("edited");
-  if (words.length === 0 && line.heartbeat !== true) return null;
+  const words = tagWords(line, directory);
+  const marked = line.notice !== undefined || line.heartbeat === true;
+  if (words.length === 0 && !marked) return null;
   const said =
     words.length === 0 ? null : (
       <Text
@@ -1394,15 +1397,61 @@ function Tags({
     );
   return (
     <Ink>
-      {line.heartbeat !== true ? (
+      {!marked ? (
         said
       ) : (
         <View style={[styles.tagRow, mine ? styles.tagsMine : null]}>
-          <HeartbeatTag />
+          <Marks line={line} directory={directory} />
           {said}
         </View>
       )}
     </Ink>
+  );
+}
+
+/** What a line is marked as, in tags of their own: a harness's notice, a heartbeat's check-in. */
+function Marks({ line, directory }: { readonly line: LineModel; readonly directory: Directory }) {
+  return (
+    <>
+      {line.notice === undefined ? null : (
+        <NoticeTag notice={line.notice} harness={nameOf(directory, saidBy(line, directory).id)} />
+      )}
+      {line.heartbeat === true ? <HeartbeatTag /> : null}
+    </>
+  );
+}
+
+/** The quiet words over a bubble: how a steer was meant, who relayed it, that it was edited. */
+function tagWords(line: LineModel, directory: Directory): string[] {
+  const words: string[] = [];
+  if (line.mode !== undefined) words.push(line.mode);
+  if (line.via !== undefined) words.push(`via ${nameOf(directory, line.via)}`);
+  if (line.editedAt !== undefined) words.push("edited");
+  return words;
+}
+
+/**
+ * Words the harness's own code posted, and no agent wrote (ADR 0302): the cog and what posted
+ * them, on the quiet grey, so it never reads as a heartbeat's gold. Its name is the harness's, in
+ * the bubble under it.
+ */
+function NoticeTag({ notice, harness }: { readonly notice: string; readonly harness: string }) {
+  const palette = usePalette();
+  return (
+    <View
+      style={[styles.beat, styles.notice, { backgroundColor: palette.surface3 }]}
+      accessible
+      accessibilityLabel={noticeWords(harness, notice)}
+      testID="notice-tag"
+    >
+      <Icon name="cog" size={12} color={palette.ink2} />
+      <Text
+        maxFontSizeMultiplier={BUBBLE.maxScale}
+        style={[styles.noticeWords, { color: palette.ink2 }]}
+      >
+        {notice}
+      </Text>
+    </View>
   );
 }
 
@@ -1617,6 +1666,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   beatWords: { fontSize: TEXT.xs - 1, fontWeight: "700", letterSpacing: 0.2 },
+  // Up to sixty characters: the tag shrinks to the row and its words wrap.
+  notice: { flexShrink: 1 },
+  noticeWords: { flexShrink: 1, fontSize: TEXT.xs - 1, fontWeight: "700" },
   stamp: { fontSize: TEXT.xs, alignSelf: "flex-end" },
   // A bubble stops well short of the column: a line of chat the full width of the glass is a
   // paragraph wearing a bubble's costume, and Messages leaves the far quarter clear.

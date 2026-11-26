@@ -638,6 +638,19 @@ describe("the store", () => {
     expect(h.snapshots.at(-1)?.keepsHarnessMode).toBe(false);
   });
 
+  it("hears from each hello whether the server holds a run per program (ADR 0303)", async () => {
+    const h = harness();
+    await started();
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsPrograms).toBeUndefined();
+    h.wire().onEvent({ type: "hello", spaces: [], server: { takes: ["programs"] } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsPrograms).toBe(true);
+    h.wire().onEvent({ type: "hello", spaces: [], server: { takes: [] } } as never);
+    h.flush();
+    expect(h.snapshots.at(-1)?.keepsPrograms).toBe(false);
+  });
+
   it("hears the computer's version in each hello, so a tab can tell it was updated under it (everything in step)", async () => {
     const h = harness();
     await started();

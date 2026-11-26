@@ -19,7 +19,7 @@ import { PROTOCOL_VERSION } from "./envelope.js";
 import { jobChangeFrame } from "./harness-jobs.js";
 import { joinRequestView } from "./join.js";
 import { autonomyLevel, id, isoTimestamp } from "./primitives.js";
-import { heldRun } from "./project.js";
+import { heldRun, PRESS_MOST, PROGRAM_NAME } from "./project.js";
 import { readFrame } from "./read-marks.js";
 
 /** The client's half of the handshake. The server answers with a `hello` event. */
@@ -77,6 +77,12 @@ export const CHIPS_RULES = "chips_rules";
  * server drops the field in silence, so a client offers the picker only where this is said.
  */
 export const HARNESS_MODE = "harness_mode";
+/**
+ * A run per program of a run file that lists them, and `program` on `folder.run` (ADR 0303). An
+ * older server holds one run per room and drops the name, so a client draws a run file of
+ * programs as one it can't run yet where this isn't said.
+ */
+export const PROGRAMS = "programs";
 export const SERVER_TAKES = [
   HELD_YES,
   HELD_START,
@@ -87,6 +93,7 @@ export const SERVER_TAKES = [
   OWN_RULES,
   CHIPS_RULES,
   HARNESS_MODE,
+  PROGRAMS,
 ] as const;
 export type ServerTake = (typeof SERVER_TAKES)[number];
 
@@ -309,11 +316,22 @@ export const folderRunFrame = z
   .object({
     frame: z.literal("folder.run"),
     space_id: id("space").describe("The room whose project to run, or stop."),
-    op: z.enum(["run", "stop"]),
+    op: z
+      .enum(["run", "stop", "show"])
+      .describe(
+        "Run it, stop it, or `show`: open again in the Mac's browser what a running program serves (ADR 0303).",
+      ),
+    program: z
+      .string()
+      .regex(PROGRAM_NAME)
+      .optional()
+      .describe(
+        "Which program of a run file that lists them (ADR 0303). Left out, every program: Run all, Stop all; or the one program of a run file that says `run` itself.",
+      ),
     command: z
       .string()
       .min(1)
-      .max(1100)
+      .max(PRESS_MOST)
       .optional()
       .describe(
         "For `run`, what the asking device showed would run: the Mac runs nothing else, and says so when its folder's run file says something different.",
@@ -330,6 +348,13 @@ export const folderRunStateFrame = z
   .object({
     frame: z.literal("folder.run_state"),
     space_id: id("space"),
+    program: z
+      .string()
+      .regex(PROGRAM_NAME)
+      .optional()
+      .describe(
+        "Which program of a run file that lists them the run is (ADR 0303); left out, the one program of a run file that says `run` itself.",
+      ),
     run: heldRun,
   })
   .describe(

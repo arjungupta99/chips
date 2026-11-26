@@ -340,8 +340,10 @@ to them, written the way a scheduler takes it; a person with no phone has no zon
 
 A room may have a lead: the agent that hands out the work there
 ([ADR 0104](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0104-a-room-has-a-lead-and-chips-wakes-it.md)).
-A person chooses it, and a room asked of your harness from the + is led, from your claim, by the
-agent that claimed it. Its member says `"lead": true`, and the note says so: "ASCII Art leads here:
+A room with two or more agents always has one: the agent there longest, unless a person picked
+another or picked nobody
+([ADR 0291](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0291-work-an-agent-did-not-pick-up-is-handed-on.md)). A room asked of your
+harness from the + is led, from your claim, by the agent that claimed it. Its member says `"lead": true`, and the note says so: "ASCII Art leads here:
 it hands out the work, and what is nobody's turn goes to it", or "You lead here" to the lead, with
 "A step one agent has handed to another needs no word from you until it comes back to you."
 
@@ -433,7 +435,8 @@ What a harness does about it:
   next act in the room (a message, or *Let them carry on*, which is `exchange.set` `going` by a
   person) begins a new job with the whole ceiling, and `context.spend.since_seq` moves on.
 
-A `budget.warning` with no `scope` (or `"harness"`) is about the harness's own budget, as before.
+A `budget.warning` with no `scope` (or `"harness"`) would be about the harness's own budget. Chips
+sends none today: it holds agents at a space's ceiling for a job, as above.
 
 ## Agents
 

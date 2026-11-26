@@ -9,6 +9,7 @@
 import {
   type RunBar as Bar,
   commandOf,
+  type MacRunAsk,
   type MacsHeard,
   type RecipeRead,
   runBar,
@@ -22,15 +23,14 @@ import type { Folders, Room } from "../folders.ts";
 export interface RunOnMac {
   /** The room: what is read and heard again for, rather than each time the page draws. */
   readonly room: string;
-  readonly ask: (
-    ask: { readonly op: "run"; readonly command: string } | { readonly op: "stop" },
-  ) => Promise<MacsHeard>;
+  readonly ask: (ask: MacRunAsk) => Promise<MacsHeard>;
   readonly read: () => Promise<ProjectRunAnswer>;
-  readonly heard: (listen: (run: HeldRun) => void) => () => void;
+  /** Each word from the Mac, and which program of a run file that lists them it is (ADR 0303). */
+  readonly heard: (listen: (run: HeldRun, program: string | undefined) => void) => () => void;
 }
 
 /** Run or Stop, as either asks it. */
-export type RunAsk = Parameters<RunOnMac["ask"]>[0];
+export type RunAsk = { readonly op: "run"; readonly command: string } | { readonly op: "stop" };
 
 /**
  * The person's run of the room's program as this client holds it, and its presses: the Programs
@@ -135,7 +135,9 @@ export function useAwayRun(props: {
       (answer) => live && setRun((was) => was ?? answer.run),
       () => undefined,
     );
-    const unhear = runs.heard((heard) => {
+    const unhear = runs.heard((heard, program) => {
+      // A listed program's word is its row's (ADR 0303), not the one program's.
+      if (program !== undefined) return;
       setRun(heard);
       setMacs(undefined);
       setOpenedApp(false);

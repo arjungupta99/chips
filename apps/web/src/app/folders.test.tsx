@@ -314,6 +314,86 @@ describe("the page's folders", () => {
     folders.stop();
   });
 
+  it("runs a program of several and what it needs, tells the server of each by name, and shows one when the phone asks (ADR 0303)", async () => {
+    const store = storeWith("a".repeat(40));
+    const file = {
+      programs: [
+        { name: "API", in: "api", run: "uvicorn main:app" },
+        {
+          name: "Shop",
+          in: "shop",
+          run: "npm run dev",
+          opens: "http://localhost:5173",
+          needs: ["API"],
+        },
+      ],
+    };
+    const runFile = JSON.stringify(file);
+    Object.assign(store, {
+      projectFile: async (_spaceId: string, path: string) => {
+        if (path !== ".chips/run.json") throw new Error("not found");
+        return { bytes: new TextEncoder().encode(runFile), type: "application/json" };
+      },
+    });
+    const told: { program?: string; state: string; runs_for?: string[] }[] = [];
+    store.sayRun.mockImplementation(async (_spaceId, run, program?: string) => {
+      const { state, runs_for } = run as { state: string; runs_for?: string[] };
+      told.push({
+        ...(program === undefined ? {} : { program }),
+        state,
+        ...(runs_for ? { runs_for } : {}),
+      });
+    });
+    const opened: string[] = [];
+    const { shell, asks } = shellAnswering((op) => ({
+      ...at,
+      made: true,
+      programs:
+        op === "stop"
+          ? { API: { state: "stopped" }, Shop: { state: "stopped" } }
+          : {
+              API: { state: "running", listens: "http://127.0.0.1:8000/", runs_for: ["Shop"] },
+              Shop: { state: "running", opened: "http://127.0.0.1:5173/" },
+            },
+    }));
+    Object.assign(shell, { openLink: async (url: string) => void opened.push(url) });
+    const folders = createFolders({
+      store,
+      device,
+      server: "http://mini.local:4431",
+      shell: Promise.resolve(shell),
+    });
+    store.ask({
+      spaceId: SPACE,
+      op: "run",
+      program: "Shop",
+      command: "program API in api",
+      from: "iPhone",
+      at: "2026-11-25T20:00:00.000Z",
+    });
+    await vi.waitFor(() => expect(asks.map((ask) => ask.op)).toEqual(["run"]));
+    expect(asks[0]?.asked).toMatchObject({ program: "Shop", command: "program API in api" });
+    // Each starts as the press sets out, the API for the Shop that needs it; then each runs.
+    await vi.waitFor(() => expect(told).toHaveLength(4));
+    expect(told).toEqual([
+      { program: "API", state: "starting", runs_for: ["Shop"] },
+      { program: "Shop", state: "starting" },
+      { program: "API", state: "running", runs_for: ["Shop"] },
+      { program: "Shop", state: "running" },
+    ]);
+    store.ask({
+      spaceId: SPACE,
+      op: "show",
+      program: "shop",
+      from: "iPhone",
+      at: "2026-11-25T20:01:00.000Z",
+    });
+    await vi.waitFor(() => expect(opened).toEqual(["http://127.0.0.1:5173/"]));
+    // Show asks the shell nothing: it opens what Run opened.
+    expect(asks.map((ask) => ask.op)).toEqual(["run"]);
+    folders.stop();
+  });
+
   it("runs and opens in a browser only for this Mac's own server, by key (ADR 0231)", async () => {
     const store = storeWith("a".repeat(40));
     const elsewhere = { url: HERE, key: KEY.replace("Q", "R") };
@@ -427,6 +507,7 @@ function fakeFolders(
     state: () => state,
     subscribe: () => () => undefined,
     run: async (_room, op, extra) => void runs.push({ op, extra }),
+    show: async () => undefined,
     onPage: () => () => undefined,
     stop: () => undefined,
   };
@@ -712,5 +793,78 @@ describe("Run on the Mac's card (ADR 0226)", () => {
     expect((await screen.findByTestId("run-not-here")).textContent).toBe(NOT_THIS_MAC);
     expect(screen.queryByTestId("run-bar-run")).toBeNull();
     expect(runs.filter((each) => each.op === "run")).toHaveLength(0);
+  });
+});
+
+describe("Programs on the Mac's card (ADR 0303)", () => {
+  const file = {
+    programs: [
+      {
+        name: "Shop",
+        in: "shop",
+        run: "npm run dev",
+        opens: "http://localhost:5173",
+        needs: ["API"],
+      },
+      { name: "Admin", in: "admin", run: "npm run dev", needs: ["API"] },
+      { name: "API", in: "api", run: "uvicorn main:app" },
+    ],
+  };
+  const since = "2026-11-25T19:58:00.000Z";
+
+  it("draws a row for each program with Run all, and runs one by name with what it needs", async () => {
+    const { folders, runs } = fakeFolders({ ...at, made: true, changed: [] });
+    render(<YourFolder room={room} folders={folders} program={undefined} programs={file} />);
+    expect(await screen.findByTestId("programs-all")).toHaveProperty("textContent", "Run all");
+    expect(screen.getByTestId("program-Shop-said").textContent).toBe("npm run dev in shop/");
+    fireEvent.click(screen.getByTestId("program-Shop-run"));
+    await vi.waitFor(() => expect(runs.at(-1)?.op).toBe("run"));
+    expect(runs.at(-1)?.extra).toEqual({
+      program: "Shop",
+      command: [
+        "program API in api",
+        "uvicorn main:app",
+        "program Shop in shop",
+        "npm run dev",
+        "open http://localhost:5173",
+      ].join("\n"),
+    });
+    fireEvent.click(screen.getByTestId("programs-all"));
+    await vi.waitFor(() => expect(runs.at(-1)?.extra).not.toHaveProperty("program"));
+  });
+
+  it("says where each runs and for whom, with Open and Stop, and Stop all once all run", async () => {
+    const { folders, runs } = fakeFolders(
+      { ...at, made: true, changed: [] },
+      undefined,
+      undefined,
+      {
+        state: "never",
+      },
+    );
+    const state = folders.state(SPACE);
+    Object.assign(state, {
+      programs: {
+        Shop: { state: "running", since, opened: "http://127.0.0.1:5173/" },
+        Admin: { state: "running", since, opened: "http://127.0.0.1:5174/" },
+        API: {
+          state: "running",
+          since,
+          listens: "http://127.0.0.1:8000/",
+          runs_for: ["Shop", "Admin"],
+        },
+      },
+    });
+    render(<YourFolder room={room} folders={folders} program={undefined} programs={file} />);
+    expect((await screen.findByTestId("program-Shop-said")).textContent).toBe(
+      "Running at localhost:5173",
+    );
+    expect(screen.getByTestId("program-API-said").textContent).toBe("Running for Shop and Admin");
+    expect(screen.queryByTestId("program-API-open")).toBeNull();
+    expect(screen.getByTestId("programs-all").textContent).toBe("Stop all");
+    fireEvent.click(screen.getByTestId("program-Admin-stop"));
+    await vi.waitFor(() =>
+      expect(runs.at(-1)).toEqual({ op: "stop", extra: { program: "Admin" } }),
+    );
   });
 });

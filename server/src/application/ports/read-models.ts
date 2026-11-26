@@ -88,6 +88,8 @@ export interface PostView {
   readonly held: boolean;
   /** Everyone its @handles named, people included. */
   readonly mentions: readonly string[];
+  /** Whether the harness's own code posted it, and no agent wrote it (ADR 0302). */
+  readonly notice: boolean;
 }
 
 /**

@@ -126,6 +126,15 @@ describe("without a lookup", () => {
     });
   });
 
+  it("takes a notice from a harness, and not from a person (ADR 0302)", () => {
+    const notice = { notice: "Nightly memory pass" };
+    expect(refuseWithoutLookup(fixture("message.post", SCOUT, notice), SCOUT)).toBeUndefined();
+    expect(refuseWithoutLookup(fixture("message.post", ARJUN, notice), ARJUN)).toMatchObject({
+      kind: "wrong_direction",
+      message: expect.stringContaining("notice"),
+    });
+  });
+
   it("insists on an idempotency key", () => {
     const { idempotency_key: _none, ...bare } = fixture("checkpoint", SCOUT);
     expect(refuseWithoutLookup(bare, SCOUT)).toMatchObject({ kind: "missing_idempotency_key" });

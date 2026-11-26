@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { printedAddress, troubleOf, unansweredWords } from "./run-trouble.js";
+import { printedAddress, printedAddresses, troubleOf, unansweredWords } from "./run-trouble.js";
 
 const nobody = async () => undefined;
 
@@ -24,6 +24,17 @@ describe("the address a program printed", () => {
       "http://127.0.0.1:4174",
     );
     expect(printedAddress("Docs at https://example.com, nothing local")).toBeUndefined();
+  });
+
+  it("reads every one, the first printed first and each once, for a run that starts two servers", () => {
+    const log = [
+      "INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)",
+      "  \u001b[32m➜\u001b[39m  Local:   \u001b[36mhttp://localhost:5173/\u001b[39m",
+      "INFO:     127.0.0.1:52144 - GET http://0.0.0.0:8000 again",
+    ].join("\n");
+    expect(printedAddresses(log)).toEqual(["http://127.0.0.1:8000", "http://localhost:5173/"]);
+    expect(printedAddress(log)).toBe("http://127.0.0.1:8000");
+    expect(printedAddresses("nothing here")).toEqual([]);
   });
 });
 

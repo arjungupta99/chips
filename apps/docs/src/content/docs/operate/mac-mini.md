@@ -157,7 +157,9 @@ four lines with the mini's address in `CHIPS_URL`. [Custom](/connect/custom/).
 
 ## Backups
 
-The log is the truth, so a backup of the workspace is a backup of everything the server holds:
+The log is the truth, so `chips export` writes everything the server can't rebuild: the log, the
+registry and the attachments. A space's project is a git repository under `projects/` in the
+workspace, and the export leaves it out, so copy that folder too:
 
 ```sh
 chips export ./chips-backup-$(date +%F)
@@ -190,6 +192,14 @@ reach the phone through the Chips push relay, with nothing to set
 ([what push needs](/operate/mobile/#what-push-needs)).
 
 ## Updating
+
+```sh
+chips update
+```
+
+That fetches the newest release's install line, checks it, runs it, then `chips up`. About's Update
+button shows the same line, and **Update it at night** under About ▸ Updates does it for you,
+between two and five in the morning, when nothing is going on. By hand it is:
 
 ```sh
 curl -fsSL https://chipschat.ai/install | sh

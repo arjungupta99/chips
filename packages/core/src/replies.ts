@@ -22,6 +22,7 @@ import {
 } from "./attachments.js";
 import { type Directory, nameOf } from "./events.js";
 import { plainWords } from "./markdown.js";
+import { saidBy } from "./model/readers.js";
 import type { Line, Space } from "./model/types.js";
 
 /**
@@ -74,10 +75,12 @@ export function replyCard(
   if (space.hidden?.has(lineId) === true) return gone(lineId, "deletedForMe");
   const quoted = space.lines.find((each) => each.id === lineId);
   if (quoted === undefined) return gone(lineId, "missing");
+  // A notice is quoted as its harness's, as the room draws it (ADR 0302).
+  const authorId = quoted.notice === undefined ? quoted.authorId : saidBy(quoted, directory).id;
   const said = {
     lineId,
-    authorId: quoted.authorId,
-    name: nameOf(directory, quoted.authorId),
+    authorId,
+    name: nameOf(directory, authorId),
     day: replyDay(quoted.ts, now),
   };
   if (quoted.deleted === true) return { ...said, state: "deleted", words: STATE_WORDS.deleted };

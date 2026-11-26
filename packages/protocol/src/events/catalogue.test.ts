@@ -7,6 +7,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { eventSchema } from "../envelope.js";
 import { EVENT_TYPES, EVENTS, eventDefinition, parseEvent, schemaFor } from "./catalogue.js";
 import { CHIPS_TO_HARNESS } from "./chips-to-harness.js";
 import { HARNESS_TO_CHIPS } from "./harness-to-chips.js";
@@ -337,5 +338,39 @@ describe("parseEvent", () => {
     const result = parseEvent(withoutDefaults);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value["retryable"]).toBe(false);
+  });
+});
+
+describe("a notice, words the harness's own code posted (ADR 0302)", () => {
+  const post = (extra: Record<string, unknown>) => ({
+    ...(fixture("message.post") as Record<string, unknown>),
+    text: "Last night's memory pass retired 5 facts and corrected 1 in 3 Spaces.",
+    ...extra,
+  });
+
+  it("is an ordinary message that says what posted it", () => {
+    const marked = parseEvent(post({ notice: "Nightly memory pass" }));
+    expect(marked.ok && marked.value["notice"]).toBe("Nightly memory pass");
+    const plain = parseEvent(post({}));
+    expect(plain.ok && plain.value["notice"]).toBeUndefined();
+  });
+
+  it("says it in one to sixty characters", () => {
+    expect(parseEvent(post({ notice: "x".repeat(60) })).ok).toBe(true);
+    expect(parseEvent(post({ notice: "x".repeat(61) })).ok).toBe(false);
+    expect(parseEvent(post({ notice: "" })).ok).toBe(false);
+    expect(parseEvent(post({ notice: true })).ok).toBe(false);
+  });
+
+  it("is dropped, and the post kept, by a server that does not know it", () => {
+    const definition = eventDefinition("message.post");
+    if (definition === undefined) throw new Error("message.post is declared");
+    const older = eventSchema({
+      ...definition,
+      payload: definition.payload.omit({ notice: true }),
+    });
+    const parsed = older.safeParse(post({ notice: "Nightly memory pass" }));
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).not.toHaveProperty("notice");
   });
 });

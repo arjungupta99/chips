@@ -454,6 +454,12 @@ export interface Line {
    */
   readonly heartbeat?: true | undefined;
   /**
+   * Words the harness's own code posted, and no agent wrote (ADR 0302): what posted them, as the
+   * harness said it ("Nightly memory pass"). The room draws them in a tag over the bubble, under
+   * the harness's name rather than the agent's (`saidBy`).
+   */
+  readonly notice?: string | undefined;
+  /**
    * A system line whose words are the whole sentence, said from where its reader stands ("You
    * added Priya", "Arjun added you"): drawn as it is, not after its author's name (JR-5).
    */

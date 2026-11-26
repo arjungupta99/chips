@@ -1857,8 +1857,8 @@ function projectMade(
             ask: (ask) => store.runOnMac(spaceId, ask),
             read: () => store.projectRun(spaceId),
             heard: (listen) =>
-              store.onRunState((id, run) => {
-                if (id === spaceId) listen(run);
+              store.onRunState((id, run, program) => {
+                if (id === spaceId) listen(run, program);
               }),
           },
         }),

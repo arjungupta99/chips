@@ -141,6 +141,7 @@ describe("the handshake", () => {
           "own_rules",
           "chips_rules",
           "harness_mode",
+          "programs",
         ],
       },
       autonomy: 2,

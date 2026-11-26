@@ -60,7 +60,7 @@ server isn't started again. What happened is kept in the data folder, `update.js
 computer's row in About says it: an update that stopped halfway, or one whose server didn't start
 again, is said as one that failed, with why.
 
-An owner can have it run at night: "Update this computer automatically", off until they turn it on
+An owner can have it run at night: "Update it at night", off until they turn it on
 (`PUT /v1/server/self-update`). It runs between two and five in the morning by the computer's clock,
 once a night, only when a newer release is out and nothing is going on: no turn running, no ask
 waiting, nothing said for ten minutes. Chips for Mac updates with the app, and a checkout with git,
@@ -176,12 +176,18 @@ The `joining` step's `detail` says it used the key it already had.
 
 `chips connect` on its own lists what this Chips can connect. `chips connect --update` brings each
 bridge kept running here to the newest release of the major its card names, and starts each of
-its services again. `install.sh` runs it after an upgrade. On another computer,
+its services again. `install.sh` runs it after an upgrade.
+
+A computer can also keep its bridges current itself. On a harness's page, the **Bridge** group says
+which release its bridge runs and whether a newer one is out, and its owner has **Keep this bridge
+up to date**. With it on, the computer takes a release only once it has been out two days and only
+one Chips signed (the list at chipschat.ai/bridges.json), waits until nothing is going on, and goes
+back to the one before if the new one doesn't come back. On another computer,
 `curl -fsSL https://chipschat.ai/install | CHIPS_JOIN_LINK='<link>' sh -s -- connect <id>`
 installs Chips first when it isn't there.
 
 `chips disconnect <id>` runs the bridge's own `--stop`, then removes the download once no other
-card runs on it (Claude Code and Codex share one bridge). `chips uninstall` stops and removes every
+card runs on it (Claude Code, Codex and the other ACP agents share one bridge). `chips uninstall` stops and removes every
 bridge.
 
 ## `chips connect custom`

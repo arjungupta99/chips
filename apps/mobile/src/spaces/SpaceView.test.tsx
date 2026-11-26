@@ -279,6 +279,37 @@ describe("the lines a space draws", () => {
     expect(screen.getByLabelText("Heartbeat check-in")).toHaveTextContent("Heartbeat");
   });
 
+  it("tags a notice with what posted it, under its harness's name in a room of two too (ADR 0302)", async () => {
+    const snapshot = state(
+      [
+        line({ id: "ln_1", seq: 1, authorId: "agt_j", authorKind: "harness", text: "Booked it." }),
+        line({
+          id: "ln_2",
+          seq: 2,
+          authorId: "agt_j",
+          authorKind: "harness",
+          text: "Last night's memory pass retired 5 facts.",
+          notice: "Nightly memory pass",
+        }),
+      ],
+      { members: ["per_arjun", "agt_j"] },
+    );
+    const directory = {
+      ...snapshot.directory,
+      agt_j: { id: "agt_j", kind: "agent", displayName: "[J]", harnessId: "har_scout" },
+    } as Snapshot["directory"];
+    await render(open({ ...snapshot, directory }).element);
+    expect(screen.getAllByTestId("notice-tag")).toHaveLength(1);
+    expect(
+      screen.getByLabelText(
+        "Scout posted this on its own: Nightly memory pass. No agent wrote it.",
+      ),
+    ).toHaveTextContent("Nightly memory pass");
+    // The harness's name, once, over its own words: [J]'s line wears none in a room of two.
+    expect(screen.getAllByText("Scout")).toHaveLength(1);
+    expect(screen.queryByText("[J]")).toBeNull();
+  });
+
   it("says beneath a line which agents' turns heard it while they worked (ADR 0106)", async () => {
     const { element } = open(
       state([line({ heardBy: ["har_scout"] })], { members: ["per_arjun", "har_scout"] }),

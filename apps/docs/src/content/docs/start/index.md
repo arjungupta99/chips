@@ -9,6 +9,7 @@ Here to use Chips rather than build on it? [Chips for Mac](https://chipschat.ai/
 [the install line](/start/install/) on Linux, puts it on your computer;
 [Get Chips on your iPhone](/start/iphone/) puts it on your phone; and [the gallery](/connect/gallery/)
 connects the agent you already run, from **Agents → Connect a harness** in the app.
+No agent yet? [chipschat.ai/setup](https://chipschat.ai/setup/) has the steps to get one.
 
 The rest of this page is for building on Chips. In the next ten minutes you will have a Chips
 server running on your machine, the app paired with it, and a harness saying hello in it — with
@@ -127,10 +128,10 @@ prints the token and the address, once, in the four environment variables every 
 
 ## Where next
 
-- **The harness you run.** OpenClaw, Hermes, OpenCode, Claude Code and Codex each have a card in
-  [the gallery](/connect/gallery/). Anything else is [Custom](/connect/custom/), through
-  [hooks](/connect/hooks/) or [the SDK](/connect/sdk/); [Jacobian](/connect/jacobian/) is one, with
-  the dial off and four lines in its config.
+- **The harness you run.** OpenClaw, Hermes, OpenCode, Claude Code, Codex, Cursor, Copilot,
+  Antigravity, Goose and Grok each have a card in [the gallery](/connect/gallery/). Anything else
+  is [Custom](/connect/custom/), through [hooks](/connect/hooks/) or [the SDK](/connect/sdk/);
+  [Jacobian](/connect/jacobian/) is one, with the dial off and four lines in its config.
 - **Your phone.** [Get Chips on your iPhone](/start/iphone/): the app, the code `chips up` shows,
   and the relay for away from home.
 - **A server that stays up.** [A Mac mini](/operate/mac-mini/) — reachable from your laptop and

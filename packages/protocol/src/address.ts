@@ -37,6 +37,11 @@ export interface AddressInput {
   readonly to?: readonly string[] | "all" | undefined;
   /** The author of the message this one answers, when it is a reply. */
   readonly replyAuthor?: { readonly id: string; readonly kind: string } | undefined;
+  /**
+   * Whether the harness's own code wrote it, and no agent did (ADR 0302): a notice is for the
+   * people, whatever it names.
+   */
+  readonly notice?: boolean | undefined;
   /** The space's agents that have not been removed, in the order they joined. */
   readonly agents: readonly string[];
   /**
@@ -90,9 +95,12 @@ type Aimed = string[] | "all";
  * composer's choice, a reply to an agent, the only agent, then where their last message here
  * went (every agent before their first). An agent reaches only the agents it names, chose or
  * answers, and its words are otherwise for the people; past the workspace's hold, or while the
- * agents are paused, it reaches nobody until a person acts.
+ * agents are paused, it reaches nobody until a person acts. A harness's notice reaches nobody
+ * (ADR 0302): its code wrote it for the people, and an @ in its words is a name in a report,
+ * not a turn asked of anybody.
  */
 export function resolveAddress(input: AddressInput): Address {
+  if (input.notice === true) return { addressed_to: [] };
   const members = input.agents.filter((id) => id !== input.sender.id);
   if (isAgentKind(input.sender.kind)) {
     const picked = named(input, members) ?? aimed(input, members) ?? answered(input, members);

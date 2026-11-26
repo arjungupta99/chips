@@ -3,15 +3,32 @@
  * said to in its run file, `.chips/run.json` (or `chips.json` at the top, where it was kept before).
  * `run` is one shell command, started in the folder with the person's own login shell and left
  * running, detached, until Stop; `setup`, when it changed, runs first and is waited for. What the
- * program prints that it listens on is opened once it answers, else `opens`. What a run prints goes
+ * program prints that it listens on is opened once it answers, else `opens`; a run file with no
+ * `opens` opens only what its program prints, as the agents are told. What a run prints goes
  * to a log beside the person's runs, never into the folder, so it never reads as a change of
  * theirs, and a run that went wrong says what in plain words (`run-trouble.ts`).
+ *
+ * A run is everything its shell started, not the shell alone (ADR 0230's addendum of 25 November
+ * 2026): a run file that starts two servers, `a & b &`, has a shell that ends at once while both
+ * go on, and the run still runs, with Stop, until they end.
+ *
+ * A run file can list programs (ADR 0303): each is run here as one run of its own, in its own
+ * folder of the project and its own runs folder, by `programs.ts`, which starts what each needs.
  */
 
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, openSync } from "node:fs";
-import { appendFile, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { closeSync, existsSync, openSync, readFileSync } from "node:fs";
+import {
+  appendFile,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import {
   commandOf,
@@ -28,7 +45,7 @@ import {
   heldElsewhereWords,
   holderOf,
   plainOf,
-  printedAddress,
+  printedAddresses,
   troubleOf,
   unansweredWords,
 } from "./run-trouble.js";
@@ -41,6 +58,12 @@ const READY_MS = 30_000;
  * as it starts listening, and Sudoku's row said only "Starting" for the 30 seconds (ADR 0230).
  */
 const PRINTS_MS = 5000;
+/**
+ * How long Run waits for an address on the run file's port, where the program printed another
+ * first: two servers started together print within moments of each other, and the one to open
+ * isn't always first (ADR 0230's addendum of 25 November 2026).
+ */
+const OWN_PORT_MS = 3000;
 /** How long setup may take: an install. */
 const SETUP_MS = 10 * 60_000;
 const LINES = 20;
@@ -69,6 +92,14 @@ export function runsOf(home: string, spaceId: string): string {
   return join(home, "Library", "Caches", "chat.chips", "runs", spaceId);
 }
 
+/**
+ * Where one program of a run file that lists them keeps its run (ADR 0303), by its name: names
+ * differ ignoring case, so its folder is the name in small letters, a space spelled out.
+ */
+export function programRunsOf(home: string, spaceId: string, program: string): string {
+  return join(runsOf(home, spaceId), "programs", encodeURIComponent(program.toLowerCase()));
+}
+
 export interface RunDeps {
   readonly home: string;
   readonly spaceId: string;
@@ -86,12 +117,22 @@ export interface RunDeps {
   readonly readyMs?: number | undefined;
   /** The program holding a port, for a run that found its port taken. */
   readonly holder?: Holder | undefined;
+  /**
+   * The program of a run file that lists them (ADR 0303), whose run this is; none for the one
+   * program of a run file that says `run` itself.
+   */
+  readonly program?: string | undefined;
 }
 
 const files = (deps: RunDeps) => {
-  const at = runsOf(deps.home, deps.spaceId);
+  const at =
+    deps.program === undefined
+      ? runsOf(deps.home, deps.spaceId)
+      : programRunsOf(deps.home, deps.spaceId, deps.program);
   return {
     at,
+    /** The program's name as the run file says it (ADR 0303). */
+    name: join(at, "name"),
     pid: join(at, "pid"),
     exit: join(at, "exit"),
     since: join(at, "since"),
@@ -108,6 +149,12 @@ const files = (deps: RunDeps) => {
     trouble: join(at, "trouble"),
     /** What the run file opens, for the port a run that found it taken was after. */
     expects: join(at, "expects"),
+    /** Where it listens once it answers there, whether or not Run opened it (ADR 0303). */
+    listens: join(at, "listens"),
+    /** The programs it runs for, a line each, when Run started it because they need it (ADR 0303). */
+    runsFor: join(at, "for"),
+    /** Why Run didn't start it, where something it needs didn't start (ADR 0303). */
+    unstarted: join(at, "unstarted"),
     setup: join(at, "setup"),
     log: join(at, "log"),
   };
@@ -124,10 +171,37 @@ async function read(path: string): Promise<string | undefined> {
 /** Where the shell writes how the run's command ended. */
 const EXIT = "CHIPS_RUN_EXIT";
 
-/** A run's shell: its process id, and when that process started, which an id taken over doesn't share. */
+/**
+ * A run's shell: its process id, which is also the id of the process group it leads; when that
+ * process started, which an id taken over doesn't share; and the Mac's start-up it started in,
+ * which is how what it left running is known as the run's after the shell ended. A run from
+ * before 25 November 2026 says no start-up.
+ */
 interface Shell {
   readonly pid: number;
   readonly began: string;
+  readonly boot?: string | undefined;
+}
+
+let bootSeen: string | undefined;
+
+/**
+ * This start-up of the machine, as an id the next one doesn't share: macOS's
+ * `kern.bootsessionuuid`, Linux's `boot_id`. Nothing when neither says.
+ */
+function bootOf(): string | undefined {
+  if (bootSeen !== undefined) return bootSeen;
+  const said = spawnSync("/usr/sbin/sysctl", ["-n", "kern.bootsessionuuid"], { encoding: "utf8" });
+  let boot = said.status === 0 ? said.stdout.trim() : "";
+  if (boot === "") {
+    try {
+      boot = readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
+    } catch {
+      // Neither: what a run leaves after its shell ends can't be told from somebody else's.
+    }
+  }
+  bootSeen = boot === "" ? undefined : boot;
+  return bootSeen;
 }
 
 /** When a process started, as `ps` tells it, or nothing when there is no such process. */
@@ -139,8 +213,9 @@ function beganOf(pid: number): string | undefined {
 }
 
 async function shellOf(at: string): Promise<Shell | undefined> {
-  const [pid, began] = ((await read(at)) ?? "").split("\n");
-  return began === undefined ? undefined : { pid: Number(pid), began };
+  const [pid, began, boot] = ((await read(at)) ?? "").split("\n");
+  if (began === undefined) return undefined;
+  return { pid: Number(pid), began, ...(boot === undefined || boot === "" ? {} : { boot }) };
 }
 
 /**
@@ -149,6 +224,23 @@ async function shellOf(at: string): Promise<Shell | undefined> {
  */
 function alive(shell: Shell | undefined): shell is Shell {
   return shell !== undefined && beganOf(shell.pid) === shell.began;
+}
+
+/**
+ * Whether the run's shell ended and left what it started running: its process group still has
+ * processes, in the start-up the run began in, and no process has the shell's id. While a group
+ * has processes, macOS (and Linux) give no new process its id, so a group with that id and no
+ * process of it is the one the shell led. After a restart the id is free again, and a group
+ * called by it is somebody else's.
+ */
+function leftBehind(shell: Shell | undefined): shell is Shell {
+  if (shell === undefined || shell.boot === undefined || shell.boot !== bootOf()) return false;
+  return beganOf(shell.pid) === undefined && grouped(shell.pid);
+}
+
+/** Whether anything of the run still goes: its shell, or what the shell left running. */
+function going(shell: Shell | undefined): shell is Shell {
+  return alive(shell) || leftBehind(shell);
 }
 
 /** The last lines of a run's log, without the colours a terminal would draw. */
@@ -169,15 +261,17 @@ export async function runStatus(deps: RunDeps): Promise<ProjectRun> {
   const since = await read(at.since);
   const opened = await read(at.opened);
   const commit = await read(at.commit);
+  const listens = await read(at.listens);
   const base = {
     command,
     ...(commit === undefined ? {} : { commit }),
     ...(since === undefined ? {} : { since }),
     ...(opened === undefined ? {} : { opened }),
+    ...(listens === undefined ? {} : { listens }),
   };
   const trouble = await read(at.trouble);
   const said = trouble === undefined ? {} : { trouble };
-  if (alive(shell)) {
+  if (going(shell)) {
     if (trouble === undefined) return { state: "running", ...base };
     return { state: "running", ...base, ...said, lines: await lastLines(at.log) };
   }
@@ -205,6 +299,9 @@ async function failedOf(
   code: number | undefined,
   deps: RunDeps,
 ): Promise<Pick<ProjectRun, "state" | "code" | "trouble">> {
+  // Something it needs didn't start, so it never did (ADR 0303).
+  const unstarted = await read(at.unstarted);
+  if (unstarted !== undefined) return { state: "failed", trouble: unstarted };
   const said = await troubleOf(
     (await read(at.log)) ?? "",
     code,
@@ -229,16 +326,53 @@ async function endedAt(at: ReturnType<typeof files>): Promise<string | undefined
   return undefined;
 }
 
+/** The programs a run, started because they need it, runs for (ADR 0303); none for the person's own. */
+export async function runsForOf(deps: RunDeps): Promise<string[]> {
+  return ((await read(files(deps).runsFor)) ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+}
+
+/** The programs a run runs for, said again: none makes it the person's, kept when its last one stops. */
+export async function setRunsFor(deps: RunDeps, names: readonly string[]): Promise<void> {
+  const at = files(deps).runsFor;
+  if (names.length === 0) await rm(at, { force: true });
+  else await writeFile(at, names.join("\n"));
+}
+
+/**
+ * A program not run because something it needs didn't start (ADR 0303): written down as a run
+ * that failed before it began, in `words`, with what it would have run, so its row says why.
+ */
+export async function markUnstarted(deps: RunDeps, command: string, words: string): Promise<void> {
+  const at = files(deps);
+  await stopRun(deps);
+  await mkdir(at.at, { recursive: true });
+  for (const path of [at.pid, at.opened, at.listens, at.runsFor, at.stopped, at.trouble, at.only]) {
+    await rm(path, { force: true });
+  }
+  if (deps.program !== undefined) await writeFile(at.name, deps.program);
+  await writeFile(at.command, command);
+  // It never began, so it has no since: its row says it never ran rather than that it stopped.
+  await rm(at.since, { force: true });
+  await writeFile(at.log, "");
+  await writeFile(at.exit, "1");
+  await writeFile(at.unstarted, words);
+}
+
 /** The room's run stopped, the whole of it: its shell and whatever that started. */
 export async function stopRun(deps: RunDeps): Promise<ProjectRun> {
   const at = files(deps);
   const shell = await shellOf(at.pid);
-  if (alive(shell)) {
+  // What the shell left running when it ended is the run's too: `a & b &`, or `a & b` once b ended.
+  const leader = alive(shell);
+  if (leader || leftBehind(shell)) {
     await writeFile(at.stopped, new Date((deps.now ?? Date.now)()).toISOString());
-    signal(shell.pid, "SIGTERM");
+    signal(shell.pid, "SIGTERM", leader);
     for (let waited = 0; waited < 3000 && grouped(shell.pid); waited += 100) await pause(100);
     // What it started and that didn't stop is stopped all the same.
-    if (grouped(shell.pid)) signal(shell.pid, "SIGKILL");
+    if (grouped(shell.pid)) signal(shell.pid, "SIGKILL", leader);
   }
   return runStatus(deps);
 }
@@ -253,10 +387,15 @@ function grouped(pid: number): boolean {
   }
 }
 
-function signal(pid: number, name: NodeJS.Signals): void {
+/**
+ * The run's group signalled, else its shell alone where the shell still goes (`leader`). With the
+ * shell gone, its id may be anybody's once the group has ended, so nothing but the group is.
+ */
+function signal(pid: number, name: NodeJS.Signals, leader: boolean): void {
   try {
     process.kill(-pid, name);
   } catch {
+    if (!leader) return;
     try {
       process.kill(pid, name);
     } catch {
@@ -270,13 +409,39 @@ const pause = (ms: number) => new Promise((done) => setTimeout(done, ms));
 /** The files that say what a project's setup installs: when they change, it runs again. */
 const MANIFESTS = ["package.json", "package-lock.json", "requirements.txt", "pyproject.toml"];
 
+/**
+ * What setup was run for: its words, and the manifests at the folder's top and in each folder one
+ * down, where a project of two apps keeps each (`web/package.json`, `api/requirements.txt`; ADR
+ * 0230's addendum of 25 November 2026). A project with manifests only at its top keeps the key it
+ * had, so its setup doesn't run again for this.
+ */
 async function setupKey(folder: string, setup: string): Promise<string> {
   const hash = createHash("sha256").update(setup);
-  for (const name of MANIFESTS) {
-    const text = await read(join(folder, name));
-    if (text !== undefined) hash.update(`\0${name}\0${text}`);
+  for (const place of ["", ...(await foldersIn(folder))]) {
+    for (const name of MANIFESTS) {
+      const path = place === "" ? name : `${place}/${name}`;
+      const text = await read(join(folder, path));
+      if (text !== undefined) hash.update(`\0${path}\0${text}`);
+    }
   }
   return hash.digest("hex");
+}
+
+/**
+ * The folders at a folder's top, by name: none hidden (`.git`, `.chips`), no `node_modules`, and
+ * no link, which may point anywhere on the Mac (SEC-55).
+ */
+async function foldersIn(folder: string): Promise<string[]> {
+  try {
+    const entries = await readdir(folder, { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .map((entry) => entry.name)
+      .filter((name) => name !== "node_modules")
+      .sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
 }
 
 /** A command in the folder with the person's login shell, its output to the run's log. */
@@ -321,16 +486,31 @@ async function setUp(
   return undefined;
 }
 
+/** How a program of a run file that lists them is run (ADR 0303). */
+export interface StartAs {
+  /**
+   * Whether a run file with no `opens` opens the address the program prints: yes for the one
+   * program, and for a program nobody needs; no for one others need, an API, whose page is theirs.
+   */
+  readonly opensPrinted?: boolean | undefined;
+  /** The programs it is started for, which need it; none when the person ran it. */
+  readonly runsFor?: readonly string[] | undefined;
+  /** What the run file says, as `commandOf` says it, written down to compare with later. */
+  readonly command?: string | undefined;
+}
+
 /**
  * Run the project: whatever ran before stopped, setup when it changed, the run started and left
- * running, and `opens` opened once it answers. The answer is how the run stands then.
+ * running, and the address the program prints, else `opens`, opened once it answers. The answer is
+ * how the run stands then. `folder` is where it runs: a program of a list runs in its own.
  */
 export async function startRun(
   folder: string,
   recipe: RunRecipe,
   deps: RunDeps,
+  as: StartAs = {},
 ): Promise<ProjectRun> {
-  const at = await afresh(folder, recipe, deps);
+  const at = await afresh(folder, recipe, deps, as);
   if (recipe.run === undefined) return await openOnly(folder, recipe.opens ?? "", deps);
   const heldBefore = await answersAlready(recipe.opens, deps);
   const failed =
@@ -353,11 +533,15 @@ export async function startRun(
     await writeFile(at.exit, "127");
     return runStatus(deps);
   }
-  const shell = { pid: child.pid, began };
-  await writeFile(at.pid, `${shell.pid}\n${shell.began}`);
-  if (recipe.opens !== undefined) {
-    await openWhenReady(folder, { opens: recipe.opens, heldBefore }, shell, deps);
-  }
+  const shell: Shell = { pid: child.pid, began, boot: bootOf() };
+  await writeFile(at.pid, `${shell.pid}\n${shell.began}\n${shell.boot ?? ""}`);
+  // A run file with no `opens` is one whose program prints its address, as the agents are told
+  // ("opens" is for a program that prints none); Run used to open nothing for it. A program others
+  // need only says where it listens (ADR 0303).
+  if (recipe.opens === undefined) {
+    const opens = as.opensPrinted !== false;
+    await openWhenAnswering({ heldBefore: false, ...(opens ? {} : { looks: true }) }, shell, deps);
+  } else await openWhenReady(folder, { opens: recipe.opens, heldBefore }, shell, deps);
   return runStatus(deps);
 }
 
@@ -380,11 +564,15 @@ async function afresh(
   folder: string,
   recipe: RunRecipe,
   deps: RunDeps,
+  as: StartAs = {},
 ): Promise<ReturnType<typeof files>> {
   const at = files(deps);
   await stopRun(deps);
   await mkdir(at.at, { recursive: true });
   for (const path of [
+    at.listens,
+    at.runsFor,
+    at.unstarted,
     at.commit,
     at.exit,
     at.stopped,
@@ -398,9 +586,11 @@ async function afresh(
     await rm(path, { force: true });
   }
   if (recipe.opens !== undefined) await writeFile(at.expects, recipe.opens);
+  if (deps.program !== undefined) await writeFile(at.name, deps.program);
+  if ((as.runsFor?.length ?? 0) > 0) await writeFile(at.runsFor, (as.runsFor ?? []).join("\n"));
   await writeFile(at.log, "");
   await writeFile(at.since, new Date((deps.now ?? Date.now)()).toISOString());
-  await writeFile(at.command, commandOf(recipe));
+  await writeFile(at.command, as.command ?? commandOf(recipe));
   const commit = roomMainOf(folder, deps);
   if (commit !== undefined) await writeFile(at.commit, commit);
   return at;
@@ -440,6 +630,7 @@ async function opening(target: string, opens: string, deps: RunDeps): Promise<bo
     return false;
   }
   await writeFile(at.opened, opens);
+  if (/^https?:\/\//i.test(target)) await writeFile(at.listens, target);
   return true;
 }
 
@@ -489,7 +680,8 @@ export async function realIn(folder: string, file: string): Promise<string | und
 function waited(child: ChildProcess, most: number): Promise<number | null> {
   return new Promise((done) => {
     const timer = setTimeout(() => {
-      signal(child.pid ?? 0, "SIGTERM");
+      // Setup is still going here, so its own process may be signalled where its group is gone.
+      signal(child.pid ?? 0, "SIGTERM", true);
       done(124);
     }, most);
     child.once("exit", (code) => {
@@ -517,7 +709,7 @@ async function openWhenReady(
   if (/^https?:\/\//i.test(expected.opens)) return await openWhenAnswering(expected, shell, deps);
   const target = resolve(folder, expected.opens);
   if (!target.startsWith(`${folder}${sep}`)) return;
-  for (let waited = 0; waited <= (deps.readyMs ?? READY_MS) && alive(shell); waited += 400) {
+  for (let waited = 0; waited <= (deps.readyMs ?? READY_MS) && going(shell); waited += 400) {
     if (existsSync(target)) {
       const file = await openable(folder, expected.opens);
       if ("why" in file) return void (await appendFile(files(deps).log, `${file.why}\n`));
@@ -527,38 +719,118 @@ async function openWhenReady(
   }
 }
 
-/** The address the program listens on, opened once it answers, or why nothing was. */
-async function openWhenAnswering(
-  expected: { readonly opens: string; readonly heldBefore: boolean },
-  shell: Shell,
-  deps: RunDeps,
-) {
+/**
+ * The address the program listens on, opened once it answers, or why nothing was. Where the run
+ * file opens nothing, only what the program prints can open, and a program that has printed no
+ * address and gone quiet for a few seconds serves none (a bot, a window, a script): it is left to
+ * run, with nothing said, rather than read as starting for half a minute.
+ */
+async function openWhenAnswering(expected: Expected, shell: Shell, deps: RunDeps) {
   const at = files(deps);
   const most = deps.readyMs ?? READY_MS;
+  const answers = deps.answers ?? answersAt;
+  const quietFor = quietness();
   let address: string | undefined;
-  for (let waited = 0; waited <= most && alive(shell); waited += 400) {
-    address = await addressOf(at.log, expected);
-    if (address !== undefined && (await (deps.answers ?? answersAt)(address))) {
-      return void (await opening(address, address, deps));
+  for (let waited = 0; waited <= most && going(shell); waited += 400) {
+    const log = (await read(at.log)) ?? "";
+    const quiet = quietFor(log);
+    address = addressOf(log, expected, waited);
+    if (address !== undefined && (await answers(address))) {
+      return void (await reached(address, expected, deps));
     }
-    if (address === undefined && expected.heldBefore && waited >= PRINTS_MS) break;
+    if (givesUp(address, expected, waited, quiet)) break;
     await pause(400);
   }
-  if (!alive(shell)) return;
-  await writeFile(
-    at.trouble,
-    address === undefined ? heldElsewhereWords(expected.opens) : unansweredWords(address, most),
-  );
+  const said = unopenedWords(address, expected, most);
+  if (said !== undefined && going(shell)) await writeFile(at.trouble, said);
 }
 
-/** Where the program listens: the address it printed, else the run file's where that is free. */
-async function addressOf(
-  log: string,
-  expected: { readonly opens: string; readonly heldBefore: boolean },
-): Promise<string | undefined> {
-  const printed = printedAddress((await read(log)) ?? "");
-  if (printed !== undefined) return printed;
+/**
+ * Where the program listens, once it answers there: opened, or, for a program others need, only
+ * written down (ADR 0303), since the page it serves is theirs.
+ */
+async function reached(address: string, expected: Expected, deps: RunDeps): Promise<void> {
+  if (expected.looks === true) await writeFile(files(deps).listens, address);
+  else await opening(address, address, deps);
+}
+
+/** How long a log, read every 400 ms, has said nothing new. */
+function quietness(): (log: string) => number {
+  let heard = 0;
+  let quiet = 0;
+  return (log) => {
+    quiet = log.length === heard ? quiet + 400 : 0;
+    heard = log.length;
+    return quiet;
+  };
+}
+
+/**
+ * Whether Run stops looking for an address the program hasn't printed: where only a printed one
+ * could open, once a server would have printed it; where the run file opens nothing, once the
+ * program has gone quiet.
+ */
+function givesUp(
+  address: string | undefined,
+  expected: Expected,
+  waited: number,
+  quiet: number,
+): boolean {
+  if (address !== undefined) return false;
+  if (expected.heldBefore) return waited >= PRINTS_MS;
+  return expected.opens === undefined && quiet >= PRINTS_MS;
+}
+
+/**
+ * What a run still going says where nothing opened: the address that never answered, or the run
+ * file's, which another program held; nothing where it opens only what it prints and printed none.
+ */
+function unopenedWords(
+  address: string | undefined,
+  expected: Expected,
+  most: number,
+): string | undefined {
+  if (address !== undefined) return unansweredWords(address, most);
+  return expected.opens === undefined ? undefined : heldElsewhereWords(expected.opens);
+}
+
+/**
+ * What Run is to open: the run file's address, or nothing where it opens only what the program
+ * prints; and whether that address answered before Run started anything (ADR 0230).
+ */
+interface Expected {
+  readonly opens?: string | undefined;
+  readonly heldBefore: boolean;
+  /** Where it listens is only written down, never opened: a program others need (ADR 0303). */
+  readonly looks?: boolean | undefined;
+}
+
+/**
+ * Where the program listens, `waited` into the run, from what it printed so far: the address it
+ * printed on the run file's port; else, for the first few seconds, the run file's own where that was
+ * free, since a run that starts two servers often prints the other's first (an API before its
+ * page); then the first address it printed; else the run file's where that is free. With no run
+ * file's address, the first it printed, at once.
+ */
+function addressOf(log: string, expected: Expected, waited: number): string | undefined {
+  const printed = printedAddresses(log);
+  const port = expected.opens === undefined ? undefined : portOf(expected.opens);
+  const own = port === undefined ? undefined : printed.find((address) => portOf(address) === port);
+  if (own !== undefined) return own;
+  const [first] = printed;
+  if (first !== undefined && (port === undefined || waited >= OWN_PORT_MS)) return first;
   return expected.heldBefore ? undefined : expected.opens;
+}
+
+/** The port an address names, or the one its scheme uses; nothing for what isn't an address. */
+function portOf(address: string): string | undefined {
+  try {
+    const url = new URL(address);
+    if (url.port !== "") return url.port;
+    return url.protocol === "https:" ? "443" : "80";
+  } catch {
+    return undefined;
+  }
 }
 
 async function answersAt(url: string): Promise<boolean> {

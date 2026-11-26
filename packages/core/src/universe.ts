@@ -7,17 +7,18 @@
 
 import {
   CHIPS_FOLDER,
+  type Program,
   projectFileType,
   RUN_FILE,
   RUN_FILE_BEFORE,
-  type RunRecipe,
-  runRecipe,
+  type RunFile,
+  runPrograms,
   START_PAGE,
 } from "@chipschat/protocol";
 import type { ProjectChange, RoomProject } from "./model/types.js";
 import { myRole, type WorkspaceModel } from "./model.js";
 import { fileNameOf, filesByFolder } from "./projectPage.js";
-import type { RecipeRead } from "./projectRun.js";
+import type { RunFileRead } from "./projectRun.js";
 import type { Store } from "./store.js";
 import { type MacsHeard, unheardWords } from "./yourFolder.js";
 
@@ -74,9 +75,15 @@ export function universeSeenAt(project: RoomProject | undefined): string | undef
 /**
  * A row of the phone's Desktop tab that can be new (ADR 0227's addendum of 17 November 2026): the
  * program, once there is one to run, and the page, once there is one to open. The folder is always
- * there, so it never is.
+ * there, so it never is. Each program of a run file that lists them is a row of its own, by its
+ * name (ADR 0303); the one program of a run file of one `run` is `program`.
  */
-export type DesktopRow = "program" | "page";
+export type DesktopRow = "program" | "page" | `program:${string}`;
+
+/** A program's Desktop row (ADR 0303): `program` for the one with no name, else by its name. */
+export function programRowOf(program: Pick<Program, "name">): DesktopRow {
+  return program.name === undefined ? "program" : `program:${program.name.toLowerCase()}`;
+}
 
 /** What a device keeps of a space's Desktop tab: since when it has kept it, and what it saw there. */
 export interface DesktopSeen {
@@ -87,17 +94,29 @@ export interface DesktopSeen {
 }
 
 /** The Desktop rows a space has now, each with the files it can come from. */
-export function desktopRowsOf(
-  universe: Universe,
-): readonly { readonly row: DesktopRow; readonly paths: readonly string[] }[] {
-  const rows: { readonly row: DesktopRow; readonly paths: readonly string[] }[] = [];
-  if (universe.program !== undefined)
-    rows.push({ row: "program", paths: [RUN_FILE, RUN_FILE_BEFORE] });
+export function desktopRowsOf(universe: Universe): readonly DesktopRowFiles[] {
+  const rows: DesktopRowFiles[] = (universe.programs?.programs ?? []).map((program) => ({
+    row: programRowOf(program),
+    paths: [RUN_FILE, RUN_FILE_BEFORE],
+    // A program listed later comes with a change to a run file that was already there (ADR 0303).
+    ...(program.name === undefined ? {} : { listed: true }),
+  }));
   const documents = universe.documents;
   if (documents !== undefined && "start" in documents) {
     rows.push({ row: "page", paths: [documents.start] });
   }
   return rows;
+}
+
+/** A Desktop row and the files it can come from. */
+export interface DesktopRowFiles {
+  readonly row: DesktopRow;
+  readonly paths: readonly string[];
+  /**
+   * A program a run file lists (ADR 0303), brought by the newest change to the run file rather
+   * than the one that first made it, since one file holds every program.
+   */
+  readonly listed?: boolean | undefined;
 }
 
 /**
@@ -116,9 +135,9 @@ export function desktopNews(
   if (universe === undefined || seen === undefined) return [];
   const since = Date.parse(seen.since);
   if (Number.isNaN(since)) return [];
-  return desktopRowsOf(universe).flatMap(({ row, paths }) => {
+  return desktopRowsOf(universe).flatMap(({ row, paths, listed }) => {
     if (seen.rows.includes(row)) return [];
-    const brought = broughtBy(paths, changes ?? []);
+    const brought = (listed === true ? changedLast : broughtBy)(paths, changes ?? []);
     if (brought === undefined || brought.by === selfId) return [];
     return Date.parse(brought.at) >= since ? [row] : [];
   });
@@ -143,6 +162,19 @@ function broughtBy(
   return undefined;
 }
 
+/** The newest change that touched one of these files and still stands. */
+function changedLast(
+  paths: readonly string[],
+  changes: readonly ProjectChange[],
+): ProjectChange | undefined {
+  return changes.find(
+    (change) =>
+      change.undoneBy === undefined &&
+      change.undoes === undefined &&
+      change.files.some((file) => paths.includes(file.path)),
+  );
+}
+
 /** What a space made, to read and to run. */
 export interface Universe {
   /**
@@ -153,8 +185,12 @@ export interface Universe {
     | { readonly start: string }
     | { readonly list: readonly string[] }
     | undefined;
-  /** What runs on the Mac, from the run file. */
-  readonly program?: (RunRecipe & { readonly run: string }) | undefined;
+  /**
+   * What runs on the Mac, from the run file: its programs, each with something to run (ADR 0303);
+   * a run file of one `run` is one program with no name. None for a run file that only opens a
+   * page, which is the space's documents.
+   */
+  readonly programs?: Programs | undefined;
   /** What is wrong with the run file, when it can't be used. */
   readonly why?: string | undefined;
   /**
@@ -162,6 +198,37 @@ export interface Universe {
    * out, since the Mac and the web don't split them.
    */
   readonly shelves?: Shelves | undefined;
+}
+
+/** A run file's programs, each with something to run. */
+export interface Programs extends RunFile {
+  readonly programs: readonly (Program & { readonly run: string })[];
+}
+
+/** The programs a run file runs, when it can be used and runs something. */
+export function programsOf(file: RunFileRead): Programs | undefined {
+  if (file === undefined || "why" in file) return undefined;
+  const programs = file.programs.flatMap((program) =>
+    program.run === undefined ? [] : [{ ...program, run: program.run }],
+  );
+  return programs.length === 0 ? undefined : { programs };
+}
+
+/** What an opens-only run file opens: the one program, with nothing to run. */
+function opensOnlyOf(file: RunFileRead): string | undefined {
+  if (file === undefined || "why" in file) return undefined;
+  const [only] = file.programs;
+  return file.programs.length === 1 && only?.run === undefined ? only?.opens : undefined;
+}
+
+/**
+ * The folders the programs claim the pages and pictures of (ADR 0303): each one's own folder, or,
+ * where any runs at the project's top, the whole project, as the one program did before.
+ */
+function claimedBy(programs: Programs | undefined): readonly string[] | "all" {
+  if (programs === undefined) return [];
+  const folders = programs.programs.map((program) => program.in);
+  return folders.some((folder) => folder === undefined) ? "all" : (folders as string[]);
 }
 
 /**
@@ -199,20 +266,25 @@ export interface Shelves {
  * - **Pages** is the start page and the documents beside it that aren't pictures. A start page's
  *   HTML pages are its own and stay out, as do a program's; Markdown, PDFs and the rest stay in.
  * - **Files** is every file, Media's and Pages' too, as Project › Files has them.
+ *
+ * A program in a folder of its own claims only what is in that folder (ADR 0303), so a plain site
+ * beside it shows on Pages; one at the project's top claims every page, as before.
  */
-export function shelvesOf(paths: readonly string[], recipe: RecipeRead): Shelves {
-  const usable = recipe === undefined || "why" in recipe ? undefined : recipe;
-  const program = usable?.run !== undefined;
-  const start = startIn(paths, program ? undefined : usable?.opens);
+export function shelvesOf(paths: readonly string[], file: RunFileRead): Shelves {
+  const programs = programsOf(file);
+  const claims = claimedBy(programs);
+  const claimed = (path: string) =>
+    claims === "all" || claims.some((folder) => within(path, folder));
+  const start = startIn(paths, programs === undefined ? opensOnlyOf(file) : undefined);
   const documents = documentsIn(paths);
   const pictures = documents.filter((path) => documentKind(path) === "picture");
-  const parts = program ? pageFolders(documents) : [];
+  const parts = pageFolders(documents.filter(claimed));
   const media = pictures.filter((path) => !parts.some((folder) => within(path, folder)));
   const others = documents.filter((path) => {
     const kind = documentKind(path);
     if (kind === "picture" || path === start) return false;
     // A start page's pages, or a program's, are theirs: reached from the start page, if at all.
-    return !(kind === "page" && (start !== undefined || program));
+    return !(kind === "page" && (start !== undefined || claimed(path)));
   });
   const pages = start === undefined ? others : [start, ...others];
   const [only] = pages;
@@ -233,7 +305,7 @@ export function universeOpensOn(universe: Universe | undefined): ShelfName {
   const shelves = universe?.shelves;
   if (shelves === undefined || shelves.first !== undefined) return "pages";
   if (shelves.media.length > 0) return "media";
-  if (shelves.pages.length > 0 || universe?.program !== undefined) return "pages";
+  if (shelves.pages.length > 0 || universe?.programs !== undefined) return "pages";
   return shelves.files.length > 0 ? "files" : "pages";
 }
 
@@ -362,16 +434,15 @@ export function pageChipName(path: string): string {
  * document, or the documents listed. A program's own pages are not documents unless its agents
  * keep a start page.
  */
-export function universeOf(paths: readonly string[], recipe: RecipeRead): Universe {
-  const usable = recipe === undefined || "why" in recipe ? undefined : recipe;
-  const program = usable?.run === undefined ? undefined : { ...usable, run: usable.run };
+export function universeOf(paths: readonly string[], file: RunFileRead): Universe {
+  const programs = programsOf(file);
   const said = {
-    ...(program === undefined ? {} : { program }),
-    ...(recipe !== undefined && "why" in recipe ? { why: recipe.why } : {}),
+    ...(programs === undefined ? {} : { programs }),
+    ...(file !== undefined && "why" in file ? { why: file.why } : {}),
   };
-  const start = startIn(paths, program === undefined ? usable?.opens : undefined);
+  const start = startIn(paths, programs === undefined ? opensOnlyOf(file) : undefined);
   if (start !== undefined) return { documents: { start }, ...said };
-  if (program !== undefined) return said;
+  if (programs !== undefined) return said;
   const documents = documentsIn(paths);
   const [only] = documents;
   if (only === undefined) return said;
@@ -410,8 +481,8 @@ export async function readUniverse(
     return { ...universeOf(paths, undefined), shelves: sized(shelvesOf(paths, undefined), files) };
   }
   const { bytes } = await store.projectFile(spaceId, file);
-  const recipe = runRecipe(new TextDecoder().decode(bytes), file);
-  return { ...universeOf(paths, recipe), shelves: sized(shelvesOf(paths, recipe), files) };
+  const read = runPrograms(new TextDecoder().decode(bytes), file);
+  return { ...universeOf(paths, read), shelves: sized(shelvesOf(paths, read), files) };
 }
 
 /** The shelves' files' sizes, from the listing, when there are files. */

@@ -277,6 +277,14 @@ export const messagePost = defineEvent({
       .describe(
         "The agent wrote this on its own, on its heartbeat, with nobody asking (ADR 0143): the apps mark it so. Only a harness, or one of its agents, sends it; a check with nothing to say posts nothing.",
       ),
+    notice: z
+      .string()
+      .min(1)
+      .max(60)
+      .optional()
+      .describe(
+        "The harness's own code wrote this, and no agent did (ADR 0302): what posted it, in a few words, for example `Nightly memory pass`. The apps draw it as a tag over the bubble, under the harness's name rather than the agent's. Only a harness, or one of its agents, sends it. It is for the people: Chips addresses it to nobody, whatever its @s, `to` or reply say, so no agent takes a turn on it, though one at work in the room may overhear it.",
+      ),
     addressed_to: z
       .array(agentId)
       .max(64)

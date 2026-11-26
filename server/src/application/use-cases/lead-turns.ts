@@ -11,6 +11,8 @@
  * Not handed:
  * - the lead's own words: they were for the people, and the room is done or waiting on one;
  * - words that named somebody: an agent's turn, or a person's;
+ * - a notice, words the harness's own code posted for the people (ADR 0302): nobody's turn, and
+ *   no lead's to act on;
  * - an answer to a person who asked that agent, alone or with others: the person has it, though
  *   people said things for no agent while it worked;
  * - words the referee held, or anything while it holds the room: it hands those over itself;
@@ -92,9 +94,12 @@ async function stuckIn(
   return turns.some((turn) => stirring(turn, nowMs)) ? undefined : last;
 }
 
-/** An agent's words that named no agent, said by somebody other than the lead, and not held. */
+/**
+ * An agent's words that named no agent, said by somebody other than the lead, and not held. A
+ * notice is not an agent's words (ADR 0302).
+ */
 function forNobody(post: PostView, lead: string): boolean {
-  if (!isAgentKind(post.author_kind) || post.author_id === lead) return false;
+  if (!isAgentKind(post.author_kind) || post.author_id === lead || post.notice) return false;
   return post.addressed_to.length === 0 && !post.addressed_to_all && !post.held;
 }
 
@@ -149,9 +154,11 @@ async function answersAPerson(
 /**
  * What a post before an agent's words is to them: a person's message for agents (`asked`), work
  * an agent handed another or the referee held (`handed`), another answer for the people
- * (`answer`), or a person's words for no agent, which are beside the point (`aside`).
+ * (`answer`), or a person's words for no agent or a harness's notice (ADR 0302), which are beside
+ * the point (`aside`).
  */
 function cameBefore(post: PostView): "asked" | "handed" | "answer" | "aside" {
+  if (post.notice) return "aside";
   const forAgents = post.addressed_to.length > 0 || post.addressed_to_all;
   if (post.author_kind === "person") return forAgents ? "asked" : "aside";
   return forAgents || post.held ? "handed" : "answer";

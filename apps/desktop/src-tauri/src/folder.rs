@@ -31,8 +31,23 @@ pub struct Asked {
     pub token: String,
     pub words: Option<String>,
     pub file: Option<String>,
-    /// For Run, the command the person was shown.
+    /// For Run, the command the person was shown: every program the press starts (ADR 0303).
     pub command: Option<String>,
+    /// For Run and Stop, which program of a run file that lists them (ADR 0303); none for all.
+    #[serde(default)]
+    pub program: Option<String>,
+}
+
+/// The longest command a press names: every program it starts (ADR 0303).
+const PRESS_MOST: usize = 7000;
+
+/// A program's name as a run file says it: a letter or digit, then up to 29 letters, digits,
+/// spaces, dots, dashes or underscores (protocol's `PROGRAM_NAME`).
+fn program_name(said: &str) -> bool {
+    let mut chars = said.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && said.chars().count() <= 30
+        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '.' | '_' | '-'))
 }
 
 /// An id Chips made: its prefix, then letters and digits.
@@ -93,7 +108,8 @@ pub fn checked(op: &str, asked: &Asked, here: Option<&str>) -> Result<(), String
         && asked
             .command
             .as_deref()
-            .map_or(true, |said| words(said, 1100, true))
+            .map_or(true, |said| words(said, PRESS_MOST, true))
+        && asked.program.as_deref().map_or(true, program_name)
         && file;
     if fits {
         Ok(())
@@ -120,6 +136,9 @@ pub fn environment(asked: &Asked) -> Vec<(&'static str, String)> {
     }
     if let Some(command) = &asked.command {
         env.push(("CHIPS_FOLDER_COMMAND", command.clone()));
+    }
+    if let Some(program) = &asked.program {
+        env.push(("CHIPS_FOLDER_PROGRAM", program.clone()));
     }
     env
 }
@@ -165,10 +184,26 @@ mod tests {
             words: Some("Bigger cells\n\nOn small screens.".to_string()),
             file: Some("src/style.css".to_string()),
             command: Some("npm install\nnpm run dev".to_string()),
+            program: Some("Shop".to_string()),
         }
     }
 
     const HERE: Option<&str> = Some("http://127.0.0.1:4431");
+
+    #[test]
+    fn takes_a_program_by_its_name() {
+        for name in ["Shop", "API", "Web app", "admin_2", "v1.2-beta"] {
+            assert!(program_name(name), "{name}");
+        }
+        for name in ["", " Shop", ".hidden", "a/b", "a\nb", "Ünïcode"] {
+            assert!(!program_name(name), "{name:?}");
+        }
+        let long = Asked {
+            command: Some("x".repeat(7000)),
+            ..asked()
+        };
+        assert!(checked("run", &long, HERE).is_ok());
+    }
 
     #[test]
     fn takes_a_room_and_a_token_chips_made() {
@@ -210,7 +245,19 @@ mod tests {
                 ..asked()
             },
             Asked {
-                command: Some("x".repeat(1101)),
+                command: Some("x".repeat(7001)),
+                ..asked()
+            },
+            Asked {
+                program: Some("../api".to_string()),
+                ..asked()
+            },
+            Asked {
+                program: Some("-a".to_string()),
+                ..asked()
+            },
+            Asked {
+                program: Some("x".repeat(31)),
                 ..asked()
             },
         ] {
@@ -251,10 +298,12 @@ mod tests {
             "CHIPS_FOLDER_COMMAND",
             "npm install\nnpm run dev".to_string()
         )));
+        assert!(env.contains(&("CHIPS_FOLDER_PROGRAM", "Shop".to_string())));
         let bare = environment(&Asked {
             words: None,
             file: None,
             command: None,
+            program: None,
             ..asked()
         });
         assert_eq!(bare.len(), 6);

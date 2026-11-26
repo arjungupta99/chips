@@ -110,7 +110,7 @@ describe("the project's Run (ADR 0226)", () => {
     for (const each of [mac, phone, danasMac]) each.socket.close();
   });
 
-  it("refuses an ask that is neither run nor stop, and says no Mac heard one when none is open", async () => {
+  it("refuses an ask that is neither run, stop nor show, and says no Mac heard one when none is open", async () => {
     expect((await call("POST", ws.spaceId, { op: "rm -rf" })).status).toBe(422);
     expect((await call("POST", ws.spaceId, { op: "run" })).status).toBe(422);
     expect(await call("POST", ws.spaceId, { op: "run", command: "make" })).toEqual({
@@ -158,6 +158,51 @@ describe("the project's Run (ADR 0226)", () => {
       expect(refused.status).toBe(403);
       expect(JSON.stringify(refused.body)).toContain("Only the workspace's owner");
     }
+  });
+
+  it("holds a run per program of a run file that lists them, and asks for one by name (ADR 0303)", async () => {
+    const mac = await socketOf(ws.arjun, ["folders"]);
+    const phone = await socketOf(ws.arjun, ["folder_runs"]);
+    const press = "program API in api\nuvicorn main:app\nprogram Shop in shop\nnpm run dev";
+    expect(
+      (await call("POST", ws.spaceId, { op: "run", program: "Shop", command: press })).status,
+    ).toBe(200);
+    expect((await call("POST", ws.spaceId, { op: "show", program: "Shop" })).status).toBe(200);
+    await until(() => mac.of("folder.run").length > 1);
+    expect(mac.of("folder.run")).toEqual([
+      expect.objectContaining({ op: "run", program: "Shop", command: press }),
+      expect.objectContaining({ op: "show", program: "Shop" }),
+    ]);
+
+    const api = { ...RUNNING, command: "program API in api\nuvicorn main:app", runs_for: ["Shop"] };
+    expect((await call("PUT", ws.spaceId, { run: RUNNING, program: "Shop" })).status).toBe(204);
+    expect((await call("PUT", ws.spaceId, { run: api, program: "API" })).status).toBe(204);
+    // Names differ ignoring case: the word said last, by the name said last, is the one kept.
+    expect((await call("PUT", ws.spaceId, { run: api, program: "api" })).status).toBe(204);
+    await until(() => phone.of("folder.run_state").length > 2);
+    expect(phone.of("folder.run_state")[0]).toMatchObject({ program: "Shop", run: RUNNING });
+    const held = (run: object) => ({
+      ...run,
+      mac: expect.any(String),
+      said_at: expect.any(String),
+    });
+    expect(await call("GET", ws.spaceId, undefined)).toEqual({
+      status: 200,
+      body: { programs: { Shop: held(RUNNING), api: held(api) }, macs: 1 },
+    });
+    for (const each of [mac, phone]) each.socket.close();
+  });
+
+  it("refuses a program that isn't named as a run file names one, and a press too long", async () => {
+    for (const program of ["../x", "", 7, "x".repeat(31)]) {
+      expect((await call("POST", ws.spaceId, { op: "stop", program })).status).toBe(422);
+      expect((await call("PUT", ws.spaceId, { run: RUNNING, program })).status).toBe(422);
+    }
+    const long = { op: "run", command: "x".repeat(7001) };
+    expect((await call("POST", ws.spaceId, long)).status).toBe(422);
+    expect((await call("POST", ws.spaceId, { ...long, command: "x".repeat(7000) })).status).toBe(
+      200,
+    );
   });
 
   it("is refused for a room the person isn't in", async () => {

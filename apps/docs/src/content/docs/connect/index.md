@@ -39,8 +39,8 @@ same eight rows `chips conformance` prints:
 | Row | Lights on | Gives you |
 | --- | --- | --- |
 | Messages | [`message.post`](/reference/events/message-post/) | The harness talking in a space |
-| Runs | [`run.started`](/reference/events/run-started/) | A run panel with its goal |
-| Steps | [`step.log`](/reference/events/step-log/) | A receipt under the summary |
+| Runs | [`run.started`](/reference/events/run-started/) | The thinking bubble, with Stop in its menu |
+| Steps | [`step.log`](/reference/events/step-log/) | The steps in *What the run did*, from the menu of the run's last line |
 | Approvals | [`approval.request`](/reference/events/approval-request/) | A card that asks before the harness acts |
 | Questions | [`question.ask`](/reference/events/question-ask/) | A question card with options |
 | Context | [`context.usage`](/reference/events/context-usage/) | The context ring |
@@ -76,7 +76,7 @@ person allows each.
 
 | Capability | What it promises | What Chips draws for it |
 | --- | --- | --- |
-| `autonomy` | It reads the level and the rules Chips sends, and asks accordingly | The L0–L3 dial |
+| `autonomy` | It reads the level and the rules Chips sends, and asks accordingly | Its level, L0–L3, beside its name |
 | `agents` | It reads `hello.agents` and `for`, and speaks as one of its agents | Its agents as themselves; without it, one face |
 | `new_spaces` | It takes a room a person opens and asks it into, and claims it | It on the + |
 | `follows_rooms` | A person's archive and delete reach its own side of the room | "Deleted in it too" on the sheets |

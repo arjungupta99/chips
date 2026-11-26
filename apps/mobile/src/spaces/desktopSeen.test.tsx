@@ -17,7 +17,7 @@ jest.mock("../prefs", () => ({
 }));
 
 const SINCE = "2026-11-17T12:00:00.000Z";
-const program: Universe = { program: { run: "npm run dev" } };
+const program: Universe = { programs: { programs: [{ run: "npm run dev" }] } };
 const brought: ProjectChange = {
   commit: "b".repeat(40),
   before: null,

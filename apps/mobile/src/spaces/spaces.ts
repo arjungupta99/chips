@@ -7,7 +7,6 @@
  */
 
 import type {
-  Directory,
   Doing,
   ExchangeLine,
   Lane,
@@ -177,21 +176,10 @@ export function laneLive(lane: Lane): "working" | "failed" | undefined {
 }
 
 /**
- * Who said a line, which is not always who sent the event. A prompt typed at a terminal reaches
- * Chips as the harness's own `run.started`, but the person typed it, and showing it under the
- * harness's name would make a space of two people look like one talking to itself. The harness's
- * owner is who that is (ADR 0023: a harness has one), and if Chips does not know them the
- * harness's own name is the honest fallback.
+ * Who said a line, which is not always who sent the event: a relayed prompt is its person's, a
+ * notice its harness's (core's `saidBy`, which the web's room reads too).
  */
-export function saidBy(
-  line: Line,
-  directory: Directory,
-): { readonly id: string; readonly kind: "person" | "harness" } {
-  const kind = line.authorKind === "harness" ? "harness" : "person";
-  if (line.via === undefined) return { id: line.authorId, kind };
-  const owner = directory[line.via]?.ownerId;
-  return owner === undefined ? { id: line.via, kind: "harness" } : { id: owner, kind: "person" };
-}
+export { saidBy } from "@chipschat/core";
 
 /**
  * Where something waiting on a person points, inside its space: the line it is about, or the

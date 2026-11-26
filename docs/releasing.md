@@ -70,6 +70,14 @@ CI does the building (`.github/workflows/release.yml`):
       dot (ADR 0296; a fix release leaves it out). About's What's new, chipschat.ai/about/ and the
       site's `releases.json` read it, and the gate fails while the newest entry is not the root
       `package.json`'s version.
+- [ ] **Documentation update, every release** (Arjun, 19 November 2026), a fix release too. Go
+      through what changed since the last release (the release tracker's rows, then
+      `git log v<last>..HEAD` for anything nobody reported) and bring the docs a person reads up to
+      it: the docs site (`apps/docs/src/content/docs`: start, connect, supervise, operate,
+      reference), the README, and the docs of any bridge released with it. A change with nothing
+      to say in the docs is noted as such in the tracker. `pnpm docs:check` and `pnpm docs:build`
+      pass on the release commit, and the site is built from that commit, so chipschat.ai/docs
+      says what the release does on the day it goes out.
 - [ ] Tag the green commit `v<version>` and push the tag (**Arjun's**: pushing is his).
 - [ ] The workflow builds the four tarballs on their own runners, walks the journeys on the macOS
       and Linux ones, runs the installer in clean Debian and Ubuntu containers with no Node, and
@@ -99,6 +107,9 @@ CI does the building (`.github/workflows/release.yml`):
 run for seven days.
 
 ## After a bridge release
+
+The documentation update applies to a bridge release too, before it goes out: the bridge's
+README, and the pages on the docs site that say what it does, say what the new release does.
 
 A computer keeps the bridges in its own data folder on the releases a signed list names
 (`docs/proposals/bridges-keep-current.md`, rule 6): `bridges.json` and `bridges.json.sig` at

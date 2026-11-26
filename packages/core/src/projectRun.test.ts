@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Directory } from "./events.js";
-import { changedSince, commandOf, readRunRecipe, runBar } from "./projectRun.js";
+import { changedSince, commandOf, readRunFile, runBar } from "./projectRun.js";
 
 const NOW = Date.parse("2026-10-24T09:10:00.000Z");
 const recipe = { run: "python3 -m http.server 8000", opens: "http://localhost:8000" };
@@ -226,21 +226,21 @@ describe("the run file at main", () => {
         return { bytes: new TextEncoder().encode(text), type: "application/json" };
       },
     });
-    expect(
-      await readRunRecipe(said({ ".chips/run.json": JSON.stringify(recipe) }), "spc_1"),
-    ).toEqual(recipe);
+    expect(await readRunFile(said({ ".chips/run.json": JSON.stringify(recipe) }), "spc_1")).toEqual(
+      { programs: [recipe] },
+    );
     // Where it was kept before ADR 0227, and its words name that file.
-    expect(await readRunRecipe(said({ "chips.json": '{"run": ""}' }), "spc_1")).toEqual({
+    expect(await readRunFile(said({ "chips.json": '{"run": ""}' }), "spc_1")).toEqual({
       why: "chips.json doesn't say what to run or open.",
     });
     // Both: .chips/run.json is the one.
     expect(
-      await readRunRecipe(
+      await readRunFile(
         said({ ".chips/run.json": JSON.stringify(recipe), "chips.json": '{"run": "old"}' }),
         "spc_1",
       ),
-    ).toEqual(recipe);
-    expect(await readRunRecipe(said({}), "spc_1")).toBeUndefined();
+    ).toEqual({ programs: [recipe] });
+    expect(await readRunFile(said({}), "spc_1")).toBeUndefined();
   });
 });
 

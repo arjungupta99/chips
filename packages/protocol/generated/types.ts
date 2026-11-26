@@ -359,6 +359,8 @@ export interface MessagePost {
   to?: "all" | string[];
   /** The agent wrote this on its own, on its heartbeat, with nobody asking (ADR 0143): the apps mark it so. Only a harness, or one of its agents, sends it; a check with nothing to say posts nothing. */
   heartbeat?: true;
+  /** The harness's own code wrote this, and no agent did (ADR 0302): what posted it, in a few words, for example `Nightly memory pass`. The apps draw it as a tag over the bubble, under the harness's name rather than the agent's. Only a harness, or one of its agents, sends it. It is for the people: Chips addresses it to nobody, whatever its @s, `to` or reply say, so no agent takes a turn on it, though one at work in the room may overhear it. */
+  notice?: string;
   /** The agents this message is for, and so the agents that take a turn on it (ADR 0081, ADR 0087). Filled in by Chips from the @s, `to`, the reply and the space; a value the sender writes is replaced. A message logged without it was for every harness in the space. */
   addressed_to?: string[];
   /** Filled in by Chips on a person's message (ADR 0204): the people it is for, those its @s name, or else those the sender picked in `to`. They are pushed as an @ pushes them; no agent takes a turn for them. Absent for none; a value the sender writes is replaced. */

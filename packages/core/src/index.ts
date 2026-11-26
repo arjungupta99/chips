@@ -1031,6 +1031,7 @@ export {
   namesAuthors,
   nextAddress,
   nextAim,
+  noticeWords,
   offersPeople,
   othersIn,
   parentOf,
@@ -1050,6 +1051,7 @@ export {
   routeWords,
   runGoing,
   runsBySession,
+  saidBy,
   sameLimits,
   sessionToAddress,
   spaceById,
@@ -1163,6 +1165,7 @@ export type {
   BannerKind,
   FrameAsks,
   LinkAsk,
+  LinkNeeds,
   LinkTap,
   ProgramBanner,
 } from "./programBanner.js";
@@ -1184,6 +1187,20 @@ export {
   RUN_AND_OPEN,
   SETTLES_MS,
 } from "./programBanner.js";
+export type { ProgramRow, ProgramRowInput, RunsHeld } from "./programRows.js";
+export {
+  linkKind,
+  listsPrograms,
+  PROGRAMS_NEED_UPDATE,
+  programOfLink,
+  programRow,
+  programsBanner,
+  programsHeading,
+  RUN_ALL,
+  runFileHere,
+  runOf,
+  STOP_ALL,
+} from "./programRows.js";
 export {
   changeLines,
   changeOf,
@@ -1196,13 +1213,13 @@ export {
   projectZipWords,
   undoOffer,
 } from "./projectPage.js";
-export type { RecipeRead, RunBar, RunBarInput, RunSaid } from "./projectRun.js";
+export type { RecipeRead, RunBar, RunBarInput, RunFileRead, RunSaid } from "./projectRun.js";
 export {
   changedSince,
   commandOf,
   RUN_AGAIN,
   RUN_TITLE,
-  readRunRecipe,
+  readRunFile,
   runBar,
 } from "./projectRun.js";
 export {
@@ -1532,6 +1549,7 @@ export type {
   IssuedInvite,
   LineInput,
   LinkStretch,
+  MacRunAsk,
   MemberInput,
   ModeInput,
   PairedDeviceRecord,
@@ -1625,6 +1643,7 @@ export type {
   DocumentKind,
   FileOpens,
   MediaItem,
+  Programs,
   ShelfName,
   Shelves,
   Universe,
@@ -1648,6 +1667,8 @@ export {
   pageChipName,
   pageOnMacWords,
   pageRowWords,
+  programRowOf,
+  programsOf,
   readsAsWords,
   readUniverse,
   shelvesOf,

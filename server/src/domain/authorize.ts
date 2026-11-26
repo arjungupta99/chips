@@ -9,7 +9,8 @@
  * 2. it is the kind of event that kind of sender sends: a harness's token sends what a harness
  *    sends, a person's device key what a person sends, both send a message, and nobody sends
  *    what is Chips's own to write. The catalogue says which, for every event (`sender`). A
- *    message marked as a heartbeat's check-in is a harness's or its agent's alone (ADR 0143);
+ *    message marked as a heartbeat's check-in is a harness's or its agent's alone (ADR 0143),
+ *    and so is one marked as a notice, words the harness's own code posted (ADR 0302);
  * 3. it carries an idempotency key, so a retry changes nothing;
  * 4. an event into a run names one that exists, in its own space, that the sending
  *    harness started, and that its state takes (`runAccepts`); `run.started` opens one, in a
@@ -385,6 +386,12 @@ export function refuseWithoutLookup(
     return refusal(
       "wrong_direction",
       "a heartbeat's check-in is something a harness sends, and this credential belongs to a person",
+    );
+  }
+  if (type === "message.post" && event["notice"] !== undefined && sender.kind !== "harness") {
+    return refusal(
+      "wrong_direction",
+      "a notice is something a harness's own code posts, and this credential belongs to a person",
     );
   }
 

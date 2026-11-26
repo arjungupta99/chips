@@ -50,6 +50,8 @@ export type FolderAnswer =
       readonly keys?: readonly { readonly path: string; readonly what: string }[];
       /** How the room's run on this Mac stands (ADR 0226), after `run`, `stop` and `status`. */
       readonly run?: ProjectRun | undefined;
+      /** Each program's run, by name, for a run file that lists them (ADR 0303). */
+      readonly programs?: Readonly<Record<string, ProjectRun>> | undefined;
     }
   | { readonly ok: false; readonly why: string };
 

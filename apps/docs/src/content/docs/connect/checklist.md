@@ -20,6 +20,10 @@ whichever [level](/connect/#how-far-will-my-harness-get) it reaches.
   [`run.failed`](/reference/events/run-failed/), whatever happened. A run left open keeps its
   thinking bubble until the harness's next run, and its Stop goes nowhere. After a crash, end the
   runs it left open when it comes back.
+- **Stop on `run.cancel`, and pause only if you say so.** Stop is offered on every run. Pause is
+  offered only on a run whose `run.status` said `pausable: true`: say it only if `run.pause` holds
+  the run still within seconds and `run.resume` carries on in the same conversation
+  ([the SDK](/connect/sdk/)).
 - **Stay connected, or say why not.** Fifteen seconds with no socket open is offline, and the room
   says the agent can't answer. Something wrong on the harness's own side — its model, its gateway —
   is said with `PUT /v1/harnesses/:id/status` `{ state: "trouble", reason }`, and taken back with

@@ -1185,6 +1185,8 @@ async function fillAddress(
     mentioned: Array.isArray(event["mentions"]) ? (event["mentions"] as string[]) : [],
     everyone: mentionsEveryone(String(event["text"] ?? "")),
     to: aimedAt(event["to"], members),
+    // A harness's notice is for the people (ADR 0302), whatever it names.
+    notice: typeof event["notice"] === "string",
     ...(await asNowIn(
       event,
       { workspace, space, actor: { id: actor.id, kind: actor.kind } },

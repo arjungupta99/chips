@@ -29,9 +29,11 @@ import {
   NOT_THIS_MAC,
   type RecipeRead,
 } from "@chipschat/core";
+import type { RunFile } from "@chipschat/protocol";
 import { Icon } from "@chipschat/ui";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 import type { FolderState, Folders, Room } from "../folders.ts";
+import { MacPrograms } from "./ProgramRows.tsx";
 import { Failed, Heading } from "./parts.tsx";
 import { type ChangedSince, MacRun } from "./RunBar.tsx";
 import { useYes } from "./useYes.ts";
@@ -49,6 +51,7 @@ export function YourFolder({
   room,
   folders,
   program,
+  programs,
   changedSince,
   sends = true,
   children,
@@ -56,6 +59,8 @@ export function YourFolder({
   readonly room: Room;
   readonly folders: Folders;
   readonly program: RecipeRead;
+  /** The run file's programs, where it lists them: a row each, with Run all (ADR 0303). */
+  readonly programs?: RunFile | undefined;
   /** Who changed the files since the last run, for Run's bar (SEC-40). */
   readonly changedSince?: ChangedSince | undefined;
   /** Whether the person sends what they changed: anybody in the room but a guest (SEC-40). */
@@ -94,6 +99,16 @@ export function YourFolder({
       sends={sends}
     >
       {children}
+      {programs === undefined ? null : here ? (
+        <MacPrograms room={room} folders={folders} file={programs} changedSince={changedSince} />
+      ) : (
+        <>
+          <Heading>Programs</Heading>
+          <p className="your-folder-note" data-testid="run-not-here">
+            {NOT_THIS_MAC}
+          </p>
+        </>
+      )}
       {program === undefined ? null : (
         <>
           <Heading>Programs</Heading>

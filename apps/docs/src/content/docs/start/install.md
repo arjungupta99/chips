@@ -204,7 +204,12 @@ anywhere the server is not bound to loopback.
 
 ## Updating
 
-**A release.** Run the install line again, then `chips up`. The line puts the new version beside
+**A release.** `chips update` does it in one go: it fetches the newest release's install line,
+checks it against the key yours was installed with, runs it, then `chips up`. It is what About's
+Update button shows for this computer. An owner can also turn on **Update it at night** under About
+▸ Updates, which does the same between two and five in the morning when nothing is going on
+([`chips update`](/operate/cli/#chips-update)). By hand: run the install line again, then
+`chips up`. The line puts the new version beside
 the old one and brings each harness's bridge kept here up to date; `chips up` starts the server
 again on the new version, which keeps running the old one until then. Once it runs on the new one,
 `chips up` removes the versions older than the one before it, which stays so you can go back with

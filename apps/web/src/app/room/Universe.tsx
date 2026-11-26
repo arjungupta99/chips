@@ -28,6 +28,7 @@ import {
   filesInOrder,
   isNewSince,
   isRoomLine,
+  listsPrograms,
   type MediaItem,
   mediaInOrder,
   nameOf,
@@ -46,6 +47,7 @@ import {
   type Universe,
   universeOpensOn,
 } from "@chipschat/core";
+import type { RunFile } from "@chipschat/protocol";
 import { Icon } from "@chipschat/ui";
 import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FileService } from "../files.ts";
@@ -54,6 +56,7 @@ import { clockTime, dayWords } from "../time.ts";
 import { useThumb } from "../viewer/useThumb.ts";
 import { useViewer } from "../viewer/useViewer.ts";
 import { ViewerHost } from "../viewer/ViewerHost.tsx";
+import { AwayPrograms } from "./ProgramRows.tsx";
 import {
   bytesWords,
   ChangePage,
@@ -251,9 +254,19 @@ function OpenedPage(props: {
   );
 }
 
-/** What Programs shows: the program, or what is wrong with the run file. */
+/**
+ * What Programs shows for one program: it, or what is wrong with the run file. Nothing for a run
+ * file that lists programs, which Programs draws a row each (ADR 0303).
+ */
 function programOf(universe: Universe): RecipeRead {
-  return universe.program ?? (universe.why === undefined ? undefined : { why: universe.why });
+  const [one] = universe.programs?.programs ?? [];
+  if (listedOf(universe) !== undefined) return undefined;
+  return one ?? (universe.why === undefined ? undefined : { why: universe.why });
+}
+
+/** The run file's programs, where it lists them and Programs draws a row each (ADR 0303). */
+function listedOf(universe: Universe): RunFile | undefined {
+  return listsPrograms(universe.programs) ? universe.programs : undefined;
 }
 
 /**
@@ -267,6 +280,7 @@ function Here(props: {
 }) {
   const { project } = props;
   const program = programOf(props.universe);
+  const listed = listedOf(props.universe);
   const folders = useFolders(project.folders);
   // From a browser, the Mac is asked only by an owner (ADR 0231).
   const mine = useYes(project.onTheMac);
@@ -276,6 +290,7 @@ function Here(props: {
         room={props.room}
         folders={project.folders}
         program={program}
+        programs={listed}
         changedSince={project.changedSince}
         sends={project.sends?.() ?? true}
       />
@@ -284,6 +299,9 @@ function Here(props: {
   if (project.openOnMac !== undefined && mine) {
     return (
       <FolderOnMac openOnMac={project.openOnMac}>
+        {listed !== undefined && project.runs !== undefined && (
+          <AwayPrograms runs={project.runs} file={listed} changedSince={project.changedSince} />
+        )}
         {program !== undefined && project.runs !== undefined && (
           <>
             <Heading>Programs</Heading>

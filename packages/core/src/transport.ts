@@ -194,9 +194,12 @@ export interface Transport {
  */
 export interface FolderAsk {
   readonly spaceId: string;
-  readonly op: "open" | "page" | "run" | "stop";
+  /** `show`: open again in the Mac's browser what a running program serves (ADR 0303). */
+  readonly op: "open" | "page" | "run" | "stop" | "show";
   /** For a run, what the asking device showed would run. */
   readonly command?: string | undefined;
+  /** Which program of a run file that lists them (ADR 0303); none for all, or the one. */
+  readonly program?: string | undefined;
   /** The name of the device that asked: "iPhone". */
   readonly from: string;
   readonly at: string;
@@ -239,7 +242,9 @@ export interface TransportOptions {
    * The person's Mac said how a run of theirs stands (ADR 0226). Given, the hello says
    * `folder_runs`, so the server sends these to this person's sockets alone.
    */
-  readonly onRunState?: ((spaceId: string, run: HeldRun) => void) | undefined;
+  readonly onRunState?:
+    | ((spaceId: string, run: HeldRun, program?: string | undefined) => void)
+    | undefined;
   /**
    * The person read further on another of their devices (ADR 0262): each room's new mark. Given,
    * the hello says `reads`, so the server sends these to this person's sockets alone.
@@ -537,17 +542,21 @@ export function connect(options: TransportOptions): Transport {
     if (!parsed.success) return;
     const { space_id, asked_from, asked_at } = parsed.data;
     const command = "command" in parsed.data ? parsed.data.command : undefined;
+    const program = "program" in parsed.data ? parsed.data.program : undefined;
     options.onFolderAsk?.({
       spaceId: space_id,
       op: folderOpOf(parsed.data),
       ...(command === undefined ? {} : { command }),
+      ...(program === undefined ? {} : { program }),
       from: asked_from,
       at: asked_at,
     });
   };
   const onRunStateFrame = (received: Frame) => {
     const parsed = folderRunStateFrame.safeParse(received);
-    if (parsed.success) options.onRunState?.(parsed.data.space_id, parsed.data.run);
+    if (parsed.success) {
+      options.onRunState?.(parsed.data.space_id, parsed.data.run, parsed.data.program);
+    }
   };
   const onBannersFrame = (received: Frame) => {
     const parsed = bannersFrame.safeParse(received);

@@ -73,7 +73,11 @@ reads the same answer. For a person's message the first of these that applies de
    or its first word — `@jacobian` for *Jacobian · mini* — and the same rule draws the chip.
 2. **The composer's choice.** The faces at the front of the field say where the next message
    goes, and the empty field says it in words (*Message Everyone*); a tap on the faces opens the
-   field into a list that picks a harness or Everyone, and the pick goes with the message as `to`.
+   field into a list that picks a harness, Everyone, or **People**, and the pick goes with the
+   message as `to`. People is there when the room has an agent and two or more other people: it
+   sends to every person and to no agent. In a room with more faces than fit, the column keeps
+   **All**, the lead and the people you've talked with lately, then People and Everyone; All opens
+   the whole list, which has a search line once the room has more than 12.
 3. **A reply** to a harness's message is that harness's.
 4. **The only harness** in a room with one — a harness's own room, every direct room — is who
    every message is for, as it always was.
@@ -92,11 +96,19 @@ collapsed into one row — their faces with a two-way arrow, the count, and the 
 on a tap, never deleted; what a harness says to the room stays in the flow. Collapse by default,
 always one tap from inspectable (the blueprint's eleven calls).
 
-**Harnesses talking to each other stop at four.** Once harnesses have addressed four messages to
-each other since a person last spoke in the room, the next is still posted and shown, but it is
-for nobody and carries `held`; the room says so in the margin under the fold — *Scout and Ledger
-have sent each other 4 messages. They'll pick up when you say something.* — and your next message
-lets them go on.
+**Harnesses talking to each other are held at 48.** Chips counts the messages harnesses address
+to each other since a person last did something in the room or an agent made something new. From
+8 the facts ride their turns; from 16, or when they go round in a circle, they are told to stop
+and the people are told; after 48 the next message is still posted and shown, but it is for nobody
+and carries `held`, and the room says so in the margin under the fold. Your next message lets them
+go on. An owner or an admin sets the stop and the hold on You, either of them to never, and whether
+a circle counts.
+
+**A room with two or more agents has a lead**: the agent that hands out the work, and the one
+what is nobody's turn goes to. It is the agent there longest, unless a person picked another, or
+picked nobody. When one agent hands work to another and it isn't picked up within a minute, Chips
+hands it to the lead, or back to the agent that sent it, and says so under the message
+([ADR 0291](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0291-work-an-agent-did-not-pick-up-is-handed-on.md)).
 
 ## Who may do what in a space
 

@@ -10,7 +10,7 @@ and an object store. The Mac mini setup and the cloud setup are the same softwar
 
 - [A Mac mini](/operate/mac-mini/): the solo server, reachable from your laptop and your phone,
   started with the machine, with a harness beside it.
-- [The chips command](/operate/cli/): serve, pair, connect, doctor, conformance, export, import.
+- [The chips command](/operate/cli/): up, down, update, uninstall, serve, pair, join, connect, disconnect, remove, doctor, conformance, project, export, import.
 - [Chips for Mac](/operate/desktop/): the desktop app, finding a server and pairing with it.
 - [People](/operate/people/): inviting somebody, roles, passkeys, and a person's devices.
 - [Notifications](/operate/notifications/): the three tiers, quiet hours, a word per harness — yours on every device, and a banner raised once.
@@ -46,9 +46,11 @@ headers and anything called `secret` are redacted at every nesting depth.
 
 ## Backups
 
-The event log is the truth, so a backup of the database is a backup of everything. In solo mode
-that is one SQLite file plus the attachment directory, and `chips export` writes both to a
-folder that `chips import` reads back with every projection rebuilt from the log. The process is
+The event log is the truth, so a backup of the database is a backup of nearly everything. In solo
+mode that is one SQLite file plus the attachment directory, and `chips export` writes both to a
+folder that `chips import` reads back with every projection rebuilt from the log. Spaces' projects
+are git repositories under `projects/` in the workspace, which the export leaves out: back that
+folder up beside it. The process is
 safe to kill at any moment: nothing is written outside a transaction.
 
 ## Budgets and limits

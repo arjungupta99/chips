@@ -62,7 +62,10 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
   },
   "packages/core/src/model/messages.ts": { count: 2, why: WORDS },
   "packages/core/src/model/origin.ts": { count: 1, why: WORDS },
-  "packages/core/src/model/readers.ts": { count: 4, why: `${WORDS}; a space's face` },
+  "packages/core/src/model/readers.ts": {
+    count: 9,
+    why: `${WORDS}; a space's face; who a line is drawn as said by, a relaying harness or a notice's (\`saidBy\`, ADR 0302)`,
+  },
   "packages/core/src/model/runs.ts": { count: 4, why: `${WORDS}; who set a run's goal` },
   "packages/core/src/model/spaces.ts": { count: 1, why: `${WORDS}: an agent's move lines` },
   "packages/core/src/model/state.ts": { count: 5, why: `${WORDS}; who set a run's goal` },
@@ -124,7 +127,7 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
   },
   "apps/web/src/app/Shell.tsx": { count: 1, why: "the + asking a harness into a room" },
   "apps/web/src/app/Sidebar.tsx": { count: 3, why: SHAPE },
-  "apps/web/src/app/SpaceView.tsx": { count: 7, why: `${SHAPE}; ${WORDS}; ${OUTLINE}` },
+  "apps/web/src/app/SpaceView.tsx": { count: 3, why: `${SHAPE}; ${OUTLINE}` },
   "apps/web/src/app/Waits.tsx": { count: 2, why: OUTLINE },
   "apps/web/src/app/you/Notifications.tsx": { count: 1, why: SHAPE },
   "apps/web/src/app/Join.tsx": {
@@ -179,7 +182,6 @@ const ALLOWED: Readonly<Record<string, { readonly count: number; readonly why: s
   "apps/mobile/src/spaces/LaneChain.tsx": { count: 2, why: OUTLINE },
   "apps/mobile/src/spaces/Line.tsx": { count: 1, why: WORDS },
   "apps/mobile/src/spaces/RowAvatar.tsx": { count: 3, why: SHAPE },
-  "apps/mobile/src/spaces/spaces.ts": { count: 4, why: `${SHAPE}; ${WORDS}` },
   "apps/mobile/src/ui/Avatar.tsx": { count: 3, why: SHAPE },
   "apps/mobile/src/you/Notifications.tsx": { count: 1, why: SHAPE },
 };

@@ -24,8 +24,7 @@ A harness opens a visit with [`session.started`](/reference/events/session-start
 [`session.ended`](/reference/events/session-ended/). Every [run](/concepts/run/) carries the
 visit it belongs to in `session_ref`, so two processes attached to one space are told apart on
 screen rather than interleaved: the space shows a strip of its visits, live ones first; a line
-says which visit it came from once there is more than one to tell apart; the run panel offers one
-run per live visit.
+says which visit it came from once there is more than one to tell apart.
 
 A harness that says nothing about sessions is fine. The strip does not appear, and the composer
 says nothing before you send.

@@ -21,6 +21,7 @@ probably the wrong feature. The same words appear in the schema, the app and the
 | [Audit event](/concepts/audit-event/) | An append-only record. Exportable, never editable; a deleted space leaves one line saying so. |
 | [Lane](/concepts/lane/) | A run a lead routed to a specialist. |
 
-Two pages that are not nouns but are worth reading next to them:
-[Architecture](/concepts/architecture/), which is where each of these lives, and
-[Supervision](/supervise/), which is how a person stays in charge of them.
+Three pages that are not nouns but are worth reading next to them:
+[Permissions](/concepts/permissions/), which is what a harness does without asking and what
+Chips answers for you, [Architecture](/concepts/architecture/), which is where each of these
+lives, and [Supervision](/supervise/), which is how a person stays in charge of them.

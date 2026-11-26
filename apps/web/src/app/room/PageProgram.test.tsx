@@ -23,12 +23,12 @@ const START = ".chips/index.html";
 const universe = (program = true) =>
   ({
     documents: { start: START },
-    ...(program ? { program: { run: RUN } } : {}),
+    ...(program ? { programs: { programs: [{ run: RUN }] } } : {}),
   }) as unknown as Universe;
 
 /** A browser's project: the press goes to the person's Mac, whose word comes back. */
 function away(over: Partial<ProjectDocuments> = {}) {
-  const listeners: ((run: HeldRun) => void)[] = [];
+  const listeners: ((run: HeldRun, program: string | undefined) => void)[] = [];
   const ask = vi.fn(async () => ({ macs: 1 }));
   const openLink = vi.fn();
   const project: ProjectDocuments = {
@@ -53,12 +53,15 @@ function away(over: Partial<ProjectDocuments> = {}) {
   const tell = (run: Partial<HeldRun>) =>
     act(() => {
       for (const listen of listeners) {
-        listen({
-          mac: "Mac mini",
-          said_at: new Date().toISOString(),
-          command: RUN,
-          ...run,
-        } as HeldRun);
+        listen(
+          {
+            mac: "Mac mini",
+            said_at: new Date().toISOString(),
+            command: RUN,
+            ...run,
+          } as HeldRun,
+          undefined,
+        );
       }
     });
   return { project, ask, openLink, tell };
@@ -420,5 +423,86 @@ describe("a link through Tailscale, in a browser", () => {
       );
     });
     expect(words()).not.toContain("Site");
+  });
+});
+
+describe("the banner over a page of a space with several programs (ADR 0303)", () => {
+  const file = {
+    programs: [
+      {
+        name: "Shop",
+        in: "shop",
+        run: "npm run dev",
+        opens: "http://localhost:5173",
+        needs: ["API"],
+      },
+      {
+        name: "Admin",
+        in: "admin",
+        run: "npm run dev",
+        opens: "http://localhost:5174",
+        needs: ["API"],
+      },
+      { name: "API", in: "api", run: "uvicorn main:app" },
+    ],
+  };
+  const several = () => ({ documents: { start: START }, programs: file }) as unknown as Universe;
+  /** A browser's project of three programs, with how each runs as the Mac last said it. */
+  function awayMany(programs: Record<string, Partial<HeldRun>>) {
+    const made = away({ universe: async () => several() });
+    const read = async () =>
+      ({
+        macs: 1,
+        programs: Object.fromEntries(
+          Object.entries(programs).map(([name, run]) => [
+            name,
+            { mac: "Mac mini", said_at: new Date().toISOString(), ...run },
+          ]),
+        ),
+      }) as never;
+    const runs = made.project.runs as NonNullable<ProjectDocuments["runs"]>;
+    return { ...made, project: { ...made.project, runs: { ...runs, read } } };
+  }
+
+  it("says which program is off, and Run runs that one", async () => {
+    const { project, ask } = awayMany({ Shop: { state: "running" }, API: { state: "running" } });
+    await openPage(project);
+    expect(await screen.findByText("Admin isn’t running")).toBeTruthy();
+    expect(words()).toBe("Shop and API are. Links to Admin open once it runs.");
+    expect(screen.getByTestId("page-banner-run").textContent).toBe("Run Admin");
+    await act(async () => fireEvent.click(screen.getByTestId("page-banner-run")));
+    expect(ask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        op: "run",
+        program: "Admin",
+        command: expect.stringContaining("program Admin in admin"),
+      }),
+    );
+  });
+
+  it("asks about the program on a link's port, by name, and opens a running one's at once", async () => {
+    const { project, ask, openLink } = awayMany({
+      Shop: { state: "running" },
+      API: { state: "running" },
+    });
+    const { frame } = await openPage(project);
+    await screen.findByText("Admin isn’t running");
+    // In a browser elsewhere, the Mac is reached by its own name: localhost is this computer.
+    handOver(frame, "http://mac-mini.local:5173/cart");
+    expect(openLink).toHaveBeenCalledWith("http://mac-mini.local:5173/cart");
+    handOver(frame, "http://mac-mini.local:5174/orders");
+    expect(title()).toBe("This link needs Admin running");
+    expect(screen.getByTestId("page-banner-ask-go").textContent).toContain("Run Admin and open");
+    await act(async () => fireEvent.click(screen.getByTestId("page-banner-ask-go")));
+    expect(ask).toHaveBeenCalledWith(expect.objectContaining({ op: "run", program: "Admin" }));
+  });
+
+  it("asks to run them all for a link on a port none of them has", async () => {
+    const { project } = awayMany({});
+    const { frame } = await openPage(project);
+    expect(await screen.findByText("Programs aren’t running")).toBeTruthy();
+    handOver(frame, LABS);
+    expect(title()).toBe("This link needs the programs running");
+    expect(screen.getByTestId("page-banner-ask-go").textContent).toContain("Run all and open");
   });
 });

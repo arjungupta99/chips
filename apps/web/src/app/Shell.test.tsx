@@ -4821,7 +4821,7 @@ describe("a group space (M3.3)", () => {
     };
     const asked = vi.fn(async () => ({ macs: 1 }));
     writable.runOnMac = asked;
-    let tell: ((spaceId: string, run: HeldRun) => void) | undefined;
+    let tell: ((spaceId: string, run: HeldRun, program?: string) => void) | undefined;
     writable.onRunState = (listen) => {
       tell = listen;
       return () => undefined;
@@ -7573,6 +7573,51 @@ describe("messaging depth (M5.4)", () => {
     expect(tags).toHaveLength(1);
     expect(tags[0]?.getAttribute("title")).toBe("Heartbeat check-in");
     expect(tags[0]?.textContent).toBe("Heartbeat");
+  });
+
+  it("tags a notice with what posted it, under its harness's name in a room of two too (ADR 0302)", () => {
+    const J = "agt_01K4ZQPX00000000000000000J";
+    const asJ = { kind: "agent", id: J, harness_id: SCOUT };
+    const words = "Scout posted this on its own: Nightly memory pass. No agent wrote it.";
+    const directory: Directory = {
+      ...DIRECTORY,
+      [J]: { id: J, kind: "agent", harnessId: SCOUT, displayName: "[J]", room: SPACE },
+    };
+    renderShell(
+      [
+        fixture("space.created", 1, { actor: person(ARJUN), title: "[J]", kind: "group" }),
+        fixture("membership.added", 2, {
+          actor: person(ARJUN),
+          participant_id: SCOUT,
+          participant_kind: "harness",
+        }),
+        fixture("membership.replaced", 3, { actor: person(ARJUN), from: SCOUT, to: J }),
+        fixture("message.post", 4, {
+          id: "evt_01K4ZQPX00000000000000NT04",
+          actor: asJ,
+          run_id: undefined,
+          text: "Booked the plumber for Thursday.",
+        }),
+        fixture("message.post", 5, {
+          id: "evt_01K4ZQPX00000000000000NT05",
+          actor: asJ,
+          run_id: undefined,
+          text: "Last night's memory pass retired 5 facts.",
+          notice: "Nightly memory pass",
+          addressed_to: [],
+        }),
+      ],
+      { directory },
+    );
+    const messages = screen.getByTestId("messages");
+    const tags = within(messages).getAllByTestId("notice-tag");
+    expect(tags).toHaveLength(1);
+    expect(tags[0]?.getAttribute("title")).toBe(words);
+    expect(within(tags[0] as HTMLElement).getByText(words)).toBeTruthy();
+    // The harness's name, over its own words, and no other: [J]'s line wears none in a room of two.
+    const names = [...messages.querySelectorAll(".bub-who")].map((name) => name.textContent);
+    expect(names).toEqual(["Scout"]);
+    expect(tags[0]?.closest(".msg")?.querySelector(".bub-who")?.textContent).toBe("Scout");
   });
 
   it("edits my own line in place, and sends the change", () => {

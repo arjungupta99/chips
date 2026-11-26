@@ -23,7 +23,7 @@ import { hasThumbnail, inAlbum, kindOf } from "./attachments.js";
 import type { Directory } from "./events.js";
 import type { RoomFileOf } from "./model/files.js";
 import type { Lane, Line, Space } from "./model.js";
-import { visibleLines } from "./model.js";
+import { saidBy, visibleLines } from "./model.js";
 
 /** One picture or one video in the deck, with what the viewer says about it. */
 export interface DeckItem {
@@ -249,14 +249,13 @@ export function mediaFilesWords(media: number, files: number | undefined): strin
 
 /**
  * Who a line's media reads as sent by. A route row's files are the specialist's answer; a task
- * card's words are the person's who asked; a relayed line is its person's where the harness that
- * relayed it has an owner, and the harness's where it has none (`saidBy` in the phone's room).
+ * card's words are the person's who asked; any other line is who the room draws it as said by
+ * (`saidBy`): a relayed line's person, a notice's harness.
  */
 function speakerOf(line: Line, lane: Lane | undefined, directory: Directory): string {
   if (lane !== undefined && line.kind === "route") return lane.specialistId;
   if (lane !== undefined && line.kind === "task") return lane.onBehalfOf;
-  if (line.via === undefined) return line.authorId;
-  return directory[line.via]?.ownerId ?? line.via;
+  return saidBy(line, directory).id;
 }
 
 export interface Size {

@@ -54,7 +54,15 @@ If the QR will not scan, tap **Type a pairing code instead**, or **Have a pairin
 first screen, and enter the code and the server's address by hand: six characters say nothing
 about where the server is.
 
-A code is single use and expires. If pairing fails, issue a fresh one.
+A code is single use and expires. If pairing fails, the phone says why: a code for an address on
+the home network needs this phone on that computer's Wi-Fi, unless Chips there uses the relay, and
+an iPhone that said no to Local Network has to allow it in Settings → Privacy & Security → Local
+Network → Chips. Otherwise, issue a fresh code.
+
+**A phone restored from a backup**, or moved to a new one, comes back without the key that let it
+in: keys stay on the device they were made on. The app names the workspace it can't open any more,
+and says how to get back in: an owner chooses Reconnect or Pair a new phone on your page in People
+and you scan the code they get, or, on your own computer, You → Devices → Pair another device.
 
 ### With an invite instead
 
@@ -104,7 +112,8 @@ far side to reach. See [when your machine sleeps](/operate/mac-mini/).
 ## Getting around
 
 Four tabs at the foot of the screen: **Spaces**, **Agents**, **Search** and **You**, with the **+**
-for a new space beside them. The app opens on Spaces, and an ask is answered in its space. The bar is the
+for a new space beside them. The app opens on Spaces. An ask is answered in its space, or on its
+own screen, which a push for it opens. The bar is the
 phone's own, so it shrinks out
 of the way as a list goes up and comes back as it comes down, and a press feels like every other
 tab bar on the phone. A development build has a fourth tab, **Runtime**, which is a report and not
@@ -130,7 +139,8 @@ puts it away on this phone.
 
 **Spaces** is a list of spaces, each a row with the space's face, its name, the time it was last
 live and the last thing said in it. A number on the right of a row is how many lines in it you
-have not read. A space waiting on a yes says **Needs a yes** instead of quoting itself.
+have not read. A space waiting on a yes says **Needs a yes** instead of quoting itself, one where
+an agent is at work says **Working** in green, and one whose agent you paused says **Paused**.
 
 **Search** finds a space, an agent or something said. Spaces are found by their names and by who
 is in them, agents by their names and by their harness's, both on the phone as you type; messages,
@@ -147,16 +157,22 @@ stand still. Before you have searched for anything, the tab says **Find** and a 
 that rolls over from spaces to agents to anything said, with the whole sentence under it; with Reduce
 Motion on, it stays on spaces.
 
-**Agents** is every harness in the workspace, one card each: what it is doing, how far it is
-trusted, how many spaces it works in, and how much of its context and its budget have gone. A
-harness says what it is doing only while it is doing something. One that is idle, or that has
+**Agents** is every agent in the workspace. The harnesses sit on a shelf at the top, a tile each
+that opens the harness's page, with Connect a harness at its end and View all under it for their
+cards. Under the shelf come the agents: free ones first, since they want a space, then in the
+order their spaces last spoke, each with its harness under its name, and Archived as one row at
+the foot. An agent says what it is doing only while it is doing something. One that is idle, or that has
 finished, says nothing at all — the reply in the space is the proof that it finished, and a
 screen of green **Done** labels is a fleet that looks busy while doing nothing.
 
 **You** is a settings list, the way the phone's own Settings is one: your face, name and role at
 the top (tap it to change the name you go by), then Appearance, Notifications, the workspace's own
-settings if you are an owner or an admin, and About — the server, how much the phone keeps, and
-which build it is. Devices and Sign out are at the foot, one above the other, and **Delete your
+settings if you are an owner or an admin, and **About Chips**: the version, What's new, links, the
+licence, and **Updates**. Updates shows this app and the computer it is paired with, each with an
+Update button when there is a newer release; the computer's shows `chips update`, the line that
+updates it. For a computer installed with the install line, its owner has **Update it at night**
+there, and an owner also sees **Needs update**: the bridges, phones and Macs in the workspace that
+are behind. Devices and Sign out are at the foot, one above the other, and **Delete your
 account** under them ([People](/operate/people/#delete-your-account)). Every row says what it is
 set to, and a row with a chevron opens its setting in a sheet.
 
@@ -177,6 +193,12 @@ code in Chips works too, on the server's own network. Leave the sheet open and i
 computer has arrived. **Sign out**, at
 the foot, withdraws this phone at the server first, then forgets its key.
 
+### The update dot
+
+When a release with something new has been out two days, a gold dot sits at the top of the tabs.
+It opens About, and flies into the Update button it is about. Opening About puts it out for that
+release. **Update dot**, under About's Updates, turns it off on this device.
+
 ## In a space
 
 A space reads from the bottom, like every chat. What you send rises into its place, and what
@@ -189,8 +211,8 @@ While the harness works, a bubble from it sits under the newest line: three dots
 is thinking and which tool it has in hand, as the harness reports them. It is one line and the
 same height throughout, so the space does not move while the words in it change. It goes the
 moment the answer lands — and it does not come at all while a lane's own row above it is already
-breathing, which is the same waiting said once. The calls it made are under the answer afterwards, folded, one line saying how
-many.
+breathing, which is the same waiting said once. What it did is not drawn under the
+answer: press and hold the answer's line and pick **What the run did** to see its steps.
 
 The field grows with your words, up to six lines or so, and shrinks back when you send. Send is
 the blue circle inside the right edge of the field, dim until there is something to send. What
@@ -203,6 +225,32 @@ lists a space the copy never saw opened, the phone reads that space again from i
 connects, so a hole in the copy closes itself; and the phone resumes from a mark it records only
 behind what it has safely written, so a copy from before the mark was kept is read again from the
 start once, and a write that fails is written again rather than skipped past.
+
+## Universe
+
+What a space's agents made lives in its project, and **Universe** (the rings at the top right of a
+space) shows it, in three tabs: **Pages**, **Media** and **Files**.
+
+- **Pages** opens on the space's page, `.chips/index.html` in the project, when the agents keep
+  one, with any Markdown or PDF documents beside it.
+- **Media** is the pictures and videos, newest first, with a gold dot on what is new since you last
+  looked. A tap opens the viewer.
+- **Files** is every file in the project, by folder, newest change first. An HTML file has Open page
+  above its source.
+
+A space whose agents keep a program (`.chips/run.json`) shows a banner over its page, with **Run**,
+and **Stop** while it runs. The program runs on your Mac, in Chips for Mac, never in Chips itself.
+A link on the page that needs the program asks to start it first. A link that needs Tailscale, or
+your home network, says so and why it won't open from here; one waiting on Tailscale opens by itself
+once Tailscale is on.
+
+When the agents list several programs (an app and its API, say), **Desktop** has a row for each,
+with its own **Run**, **Open** and **Stop**, and **Run all** over them. Run on one starts what it
+needs first, and its rows say who each one is running for. The banner names the program that isn't
+running, and a link asks to run the program it needs.
+
+The space's details say what was **Sent in chat**, and **Changes** says who last changed the project
+and when.
 
 ## Reading a space
 
@@ -416,7 +464,7 @@ screen the way a mail notification can. You are told that you are needed, not wh
 ### What push needs
 
 A push reaches a lock screen only through Apple, and Apple delivers only to a build of the app that
-carries the push entitlement. The app from TestFlight does. A build of your own needs a paid Apple
+carries the push entitlement. The App Store's app does, and so does TestFlight's. A build of your own needs a paid Apple
 team and the app's APNs key with Expo ([push on a build of your
 own](/contribute/phone/#push-on-a-build-of-your-own)).
 

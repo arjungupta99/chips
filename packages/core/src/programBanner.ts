@@ -38,6 +38,13 @@ export interface ProgramBanner {
   /** Run, Stop, or nothing (the run file can't be used). */
   readonly press?: "run" | "stop" | undefined;
   /**
+   * The button's word where a run file lists programs (ADR 0303): "Run all", "Run Admin", "Stop
+   * all". None for the one program, whose button says Run or Stop.
+   */
+  readonly label?: string | undefined;
+  /** The program the button runs, by name; none for every program, or the one (ADR 0303). */
+  readonly program?: string | undefined;
+  /**
    * A run that has just started says its links open now, then folds to one row: the words are
    * there for a moment, not for as long as it runs.
    */
@@ -273,13 +280,60 @@ export const RUN_AND_OPEN = "Run and open";
 export const OPEN_ANYWAY = "Open anyway";
 
 /**
+ * What a link needs, where a run file lists programs (ADR 0303): the program on its port, by name,
+ * or every program that isn't running, for a port none of them has.
+ */
+export type LinkNeeds = { readonly program: string } | { readonly every: true };
+
+/** "Run Admin and open", "Run all and open", or the one program's "Run and open". */
+function goWords(needs: LinkNeeds | undefined): string {
+  if (needs === undefined) return RUN_AND_OPEN;
+  return "program" in needs ? `Run ${needs.program} and open` : "Run all and open";
+}
+
+/**
  * The sheet's words. `said` is what the Mac said when it couldn't (no Mac heard the press, the
  * run stopped), and `changed` who changed the files since the person last ran it (SEC-40), said
- * before they run it again.
+ * before they run it again. `needs` names the program a link needs where there are several.
  */
 export function linkAsk(
   kind: AskKind,
-  extra: { readonly said?: string | undefined; readonly changed?: string | undefined } = {},
+  extra: {
+    readonly said?: string | undefined;
+    readonly changed?: string | undefined;
+    readonly needs?: LinkNeeds | undefined;
+  } = {},
+): LinkAsk {
+  const words = linkAskOne(kind, extra);
+  const { needs } = extra;
+  if (needs === undefined) return words;
+  const go = words.go === RUN_AND_OPEN ? goWords(needs) : words.go;
+  const name = "program" in needs ? needs.program : undefined;
+  if (kind === "ask") return { ...words, ...askNaming(name, extra.changed), go };
+  if (kind === "stopped" && name !== undefined) return { ...words, title: `${name} stopped`, go };
+  return { ...words, go };
+}
+
+/** The question for a link that needs one of several programs, by name, or all of them. */
+function askNaming(
+  name: string | undefined,
+  changed: string | undefined,
+): { readonly title: string; readonly body: string } {
+  if (name === undefined) {
+    return {
+      title: "This link needs the programs running",
+      body: changed ?? "They run on your Mac. Run them, and Chips opens the page once it answers.",
+    };
+  }
+  return {
+    title: `This link needs ${name} running`,
+    body: changed ?? "It runs on your Mac. Run it, and Chips opens the page once it answers.",
+  };
+}
+
+function linkAskOne(
+  kind: AskKind,
+  extra: { readonly said?: string | undefined; readonly changed?: string | undefined },
 ): LinkAsk {
   switch (kind) {
     case "starting":

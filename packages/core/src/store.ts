@@ -73,6 +73,7 @@ import {
   type OwnRulesRead,
   type PolicyHold,
   type PolicyMode,
+  PROGRAMS,
   type ProjectChangeAnswer,
   type ProjectFilesAnswer,
   type ProjectFolderOpenAnswer,
@@ -353,6 +354,11 @@ export interface Snapshot {
    */
   readonly keepsHarnessMode?: boolean | undefined;
   /**
+   * Whether the server holds a run per program of a run file that lists them (ADR 0303), as its
+   * last hello said. False from an older one, which would mix their runs into one.
+   */
+  readonly keepsPrograms?: boolean | undefined;
+  /**
    * The computer's version, as its last hello said (everything in step): a browser tab that sees
    * it change has the old code of a computer that was updated under it. Absent until a hello.
    */
@@ -502,6 +508,15 @@ export interface StopLetWorkInput {
   /** The agent, or a harness without agents, as `LetWork.asker` names it. */
   readonly asker: string;
 }
+
+/**
+ * A press to the person's Mac (ADRs 0226, 0303): run what the device showed, stop, or show again
+ * what a running program serves; a program by name, or none for every program, or the one.
+ */
+export type MacRunAsk =
+  | { readonly op: "run"; readonly command: string; readonly program?: string | undefined }
+  | { readonly op: "stop"; readonly program?: string | undefined }
+  | { readonly op: "show"; readonly program?: string | undefined };
 
 export interface Store {
   readonly subscribe: (listener: (snapshot: Snapshot) => void) => () => void;
@@ -788,16 +803,21 @@ export interface Store {
    * Run (ADR 0226): the person's own Chips for Mac asked to run the room's project as its run
    * file says, or stop it. The answer says how many Macs heard it.
    */
-  readonly runOnMac: (
-    spaceId: string,
-    ask: { readonly op: "run"; readonly command: string } | { readonly op: "stop" },
-  ) => Promise<ProjectFolderOpenAnswer>;
+  readonly runOnMac: (spaceId: string, ask: MacRunAsk) => Promise<ProjectFolderOpenAnswer>;
   /** How the person's last run of the room stands, as their Mac last said, and whether one is open. */
   readonly projectRun: (spaceId: string) => Promise<ProjectRunAnswer>;
-  /** The Mac's word on how its run of the room stands, for the person's other devices. */
-  readonly sayRun: (spaceId: string, run: ProjectRun) => Promise<void>;
-  /** Each word from the person's Mac on a run of theirs. The answer stops the listening. */
-  readonly onRunState: (listen: (spaceId: string, run: HeldRun) => void) => () => void;
+  /**
+   * The Mac's word on how its run of the room stands, for the person's other devices: the one
+   * program's, or a listed program's by name (ADR 0303).
+   */
+  readonly sayRun: (spaceId: string, run: ProjectRun, program?: string) => Promise<void>;
+  /**
+   * Each word from the person's Mac on a run of theirs, and which program it is (ADR 0303). The
+   * answer stops the listening.
+   */
+  readonly onRunState: (
+    listen: (spaceId: string, run: HeldRun, program: string | undefined) => void,
+  ) => () => void;
   /**
    * A token for git, good for a few minutes, for this device's person in the room (ADR 0220): what
    * the Mac app's `chips` gives git for Your folder (ADR 0224).
@@ -1819,6 +1839,7 @@ export function createStore(options: StoreOptions): Store {
   let keepsOwnRules: boolean | undefined;
   let keepsChipsRules: boolean | undefined;
   let keepsHarnessMode: boolean | undefined;
+  let keepsPrograms: boolean | undefined;
   let serverVersion: string | undefined;
   /** The snapshot's `banners`: the cache's or the server's, with the changes on their way. */
   let banners: Banners = NO_BANNERS;
@@ -1873,7 +1894,9 @@ export function createStore(options: StoreOptions): Store {
   /** Who hears the person's asks to open a room's folder here (ADR 0225), or run its project. */
   const folderListeners = new Set<(ask: FolderAsk) => void>();
   /** Who hears the person's Mac on a run of theirs (ADR 0226). */
-  const runListeners = new Set<(spaceId: string, run: HeldRun) => void>();
+  const runListeners = new Set<
+    (spaceId: string, run: HeldRun, program: string | undefined) => void
+  >();
   let flushQueued = false;
 
   /**
@@ -1921,6 +1944,7 @@ export function createStore(options: StoreOptions): Store {
       keepsOwnRules,
       keepsChipsRules,
       keepsHarnessMode,
+      keepsPrograms,
       serverVersion,
       ...gone(),
       ...onItsWay(),
@@ -2328,6 +2352,7 @@ export function createStore(options: StoreOptions): Store {
     const own = said.includes(OWN_RULES);
     const switches = said.includes(CHIPS_RULES);
     const modes = said.includes(HARNESS_MODE);
+    const programs = said.includes(PROGRAMS);
     if (
       keeps === keepsHeldYes &&
       keepsChoices === keepsBanners &&
@@ -2337,11 +2362,13 @@ export function createStore(options: StoreOptions): Store {
       rules === keepsHarnessRules &&
       own === keepsOwnRules &&
       switches === keepsChipsRules &&
-      modes === keepsHarnessMode
+      modes === keepsHarnessMode &&
+      programs === keepsPrograms
     ) {
       return;
     }
     keepsHarnessMode = modes;
+    keepsPrograms = programs;
     keepsHarnessRules = rules;
     keepsOwnRules = own;
     keepsChipsRules = switches;
@@ -2745,8 +2772,8 @@ export function createStore(options: StoreOptions): Store {
             },
           }
         : {}),
-      onRunState: (spaceId, run) => {
-        for (const listen of runListeners) listen(spaceId, run);
+      onRunState: (spaceId, run, program) => {
+        for (const listen of runListeners) listen(spaceId, run, program);
       },
       // How far the person read on another of their devices (ADR 0262).
       onReads: heardMarks,
@@ -4581,8 +4608,11 @@ export function createStore(options: StoreOptions): Store {
       );
     },
 
-    async sayRun(spaceId, run) {
-      await put<unknown>(device, `/v1/spaces/${encodeURIComponent(spaceId)}/project/run`, { run });
+    async sayRun(spaceId, run, program) {
+      await put<unknown>(device, `/v1/spaces/${encodeURIComponent(spaceId)}/project/run`, {
+        run,
+        ...(program === undefined ? {} : { program }),
+      });
     },
 
     onRunState(listen) {

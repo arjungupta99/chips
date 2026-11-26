@@ -168,9 +168,9 @@ post "/v1/harnesses/$CHIPS_HARNESS_ID/events" "{\"type\":\"run.started\",\"run_i
   \"goal\":\"Get PO #4471 confirmed with Northwind.\",\"idempotency_key\":\"$RUN-started\"}"
 ```
 
-The **Runs** row lights, and the space has a run panel with that goal. A `plan` — a list of
-`{step_id, title}` — draws the steps as hollow dots to fill in; without one, steps fold into
-stretches between the moments that matter.
+The **Runs** row lights, and the space shows the agent's thinking bubble while the run goes. A
+`plan` — a list of `{step_id, title}` — names the steps it means to take, which its step logs fill
+in.
 
 **Log a step**, on the run's route:
 
@@ -233,7 +233,7 @@ post "/v1/runs/$RUN/events" "{\"type\":\"run.completed\",\"summary\":\"Confirmed
 **Cost** and **Finished** light. A `usage` with no `cost` gets one from the workspace's price
 table, so the meter and the audit read the same number; send `cost: { usd, estimated }` when you
 know better, and leave out `input_tokens` when your model's runtime does not report them. The answer is a message in the space — a chat in which the harness's answer is only
-a summary card is not a chat — and the summary is what the run panel keeps. A summary that
+a summary card is not a chat — and the summary is what the run's last line keeps. A summary that
 repeats one of your run's messages word for word — the last, or one a few back — is drawn as one
 card, not two. A run that goes wrong
 ends with [`run.failed`](/reference/events/run-failed/) and `error`.

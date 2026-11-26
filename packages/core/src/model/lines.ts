@@ -128,8 +128,20 @@ export function textLine(event: ClientEvent, text: string): Line {
     ...(attachments === undefined || attachments.length === 0 ? {} : { attachments }),
     ...(mentions === undefined || mentions.length === 0 ? {} : { mentions }),
     ...addressOfEvent(event),
+    ...marksOfEvent(event),
+  };
+}
+
+/**
+ * What a message is marked as besides its words: held by Chips (ADR 0097), a heartbeat's check-in
+ * (ADR 0143), a notice the harness's own code posted, with what posted it (ADR 0302).
+ */
+function marksOfEvent(event: ClientEvent): Pick<Line, "held" | "heartbeat" | "notice"> {
+  const notice = field<string>(event, "notice");
+  return {
     ...(field<boolean>(event, "held") === true ? { held: true as const } : {}),
     ...(field<boolean>(event, "heartbeat") === true ? { heartbeat: true as const } : {}),
+    ...(typeof notice === "string" && notice !== "" ? { notice } : {}),
   };
 }
 

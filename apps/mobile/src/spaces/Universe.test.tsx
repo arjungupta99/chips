@@ -337,6 +337,110 @@ describe("Universe on the phone (ADR 0227)", () => {
     expect(screen.getByRole("button", { name: "Run again" })).toHaveTextContent("Run");
   });
 
+  it("draws a row for each program, with Run all, and runs one by name with what it needs (ADR 0303)", async () => {
+    const programs = {
+      programs: [
+        {
+          name: "Shop",
+          in: "shop",
+          run: "npm run dev",
+          opens: "http://localhost:5173",
+          needs: ["API"],
+        },
+        { name: "API", in: "api", run: "uvicorn main:app" },
+      ],
+    };
+    const store = storeWith({
+      ".chips/run.json": JSON.stringify(programs),
+      ".chips/index.html": "<h1>Bake sale</h1>",
+      "shop/index.html": "",
+      "api/main.py": "",
+    });
+    await open(store);
+    await desktop();
+    expect(await screen.findByTestId("program-Shop-said")).toHaveTextContent(
+      "npm run dev in shop/",
+    );
+    expect(screen.getByTestId("programs-all")).toHaveTextContent("Run all");
+    expect(screen.getByText("Page and folder")).toBeOnTheScreen();
+    await userEvent.press(screen.getByTestId("program-Shop-run"));
+    const runnable = store as unknown as {
+      calls: unknown[];
+      tellRun: (spaceId: string, run: unknown, program?: string) => void;
+    };
+    expect(runnable.calls).toContainEqual({
+      name: "runOnMac",
+      args: {
+        spaceId: "sp_1",
+        ask: {
+          op: "run",
+          program: "Shop",
+          command:
+            "program API in api\nuvicorn main:app\nprogram Shop in shop\nnpm run dev\nopen http://localhost:5173",
+        },
+      },
+    });
+    const said = {
+      mac: "Mac mini",
+      said_at: "2026-11-25T20:00:01.000Z",
+      since: "2026-11-25T20:00:00.000Z",
+    };
+    await act(async () => {
+      runnable.tellRun(
+        "sp_1",
+        { ...said, state: "running", runs_for: ["Shop"], listens: "http://127.0.0.1:8000/" },
+        "API",
+      );
+      runnable.tellRun(
+        "sp_1",
+        { ...said, state: "running", opened: "http://127.0.0.1:5173/" },
+        "Shop",
+      );
+    });
+    expect(screen.getByTestId("program-API-said")).toHaveTextContent("Running for Shop");
+    expect(screen.getByTestId("program-Shop-said")).toHaveTextContent("Running at localhost:5173");
+    expect(screen.getByTestId("programs-all")).toHaveTextContent("Stop all");
+    await userEvent.press(screen.getByTestId("program-Shop-open"));
+    expect(runnable.calls).toContainEqual({
+      name: "runOnMac",
+      args: { spaceId: "sp_1", ask: { op: "show", program: "Shop" } },
+    });
+    await userEvent.press(screen.getByTestId("program-Shop-stop"));
+    expect(runnable.calls).toContainEqual({
+      name: "runOnMac",
+      args: { spaceId: "sp_1", ask: { op: "stop", program: "Shop" } },
+    });
+  });
+
+  const twoPrograms = {
+    ".chips/run.json": JSON.stringify({
+      programs: [
+        { name: "Shop", in: "shop", run: "npm run dev", needs: ["API"] },
+        { name: "API", in: "api", run: "uvicorn main:app" },
+      ],
+    }),
+    ".chips/index.html": "<h1>Bake sale</h1>",
+  };
+
+  it("says over the start page that the programs aren't running (ADR 0303)", async () => {
+    await open(storeWith(twoPrograms));
+    expect(await screen.findByTestId("program-banner-title")).toHaveTextContent(
+      "Programs aren’t running",
+    );
+  });
+
+  it("runs no program of several where the computer holds one run per room (ADR 0303)", async () => {
+    // A computer that holds one run per room would mix theirs: the phone doesn't run them.
+    const older = storeWith(twoPrograms);
+    Object.assign(older.getSnapshot(), { keepsPrograms: false });
+    await open(older);
+    await desktop();
+    expect(await screen.findByTestId("run-bar-words")).toHaveTextContent(
+      "This space runs several programs. Update Chips on your computer to run them from here.",
+    );
+    expect(screen.queryByTestId("programs")).toBeNull();
+  });
+
   it("says when nothing opens here or on the Mac yet, and lists the file under Files", async () => {
     await open(storeWith({ "main.py": "print(1)" }));
     // A space whose one file is a script opens on Files, where the script is.

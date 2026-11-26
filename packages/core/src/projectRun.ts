@@ -12,8 +12,9 @@ import {
   type ProjectRun,
   RUN_FILE,
   RUN_FILE_BEFORE,
+  type RunFile,
   type RunRecipe,
-  runRecipe,
+  runPrograms,
 } from "@chipschat/protocol";
 import { type Directory, harnessOf, nameOf } from "./events.js";
 import type { ProjectChange, RoomProject } from "./model/types.js";
@@ -21,24 +22,31 @@ import { lostWords } from "./reach.js";
 import type { Store } from "./store.js";
 import { unheardWords } from "./yourFolder.js";
 
-/** The recipe at the room's `main`, nothing when the project has no run file, or why it isn't one. */
+/** One program's recipe, nothing when the project has no run file, or why it isn't one. */
 export type RecipeRead = RunRecipe | { readonly why: string } | undefined;
+
+/**
+ * The run file at the room's `main` as programs (ADR 0303): a run file of one `run` is one program
+ * with no name; nothing when there is no run file, or why it can't be used.
+ */
+export type RunFileRead = RunFile | { readonly why: string } | undefined;
 
 /**
  * The run file at the room's `main`, read the way the Mac reads it: `.chips/run.json`, or, with
  * none, `chips.json` at the top, where it was kept before ADR 0227.
  */
-export async function readRunRecipe(
+export async function readRunFile(
   store: Pick<Store, "projectFile">,
   spaceId: string,
-): Promise<RecipeRead> {
+): Promise<RunFileRead> {
   for (const file of [RUN_FILE, RUN_FILE_BEFORE]) {
+    let bytes: Uint8Array;
     try {
-      const { bytes } = await store.projectFile(spaceId, file);
-      return runRecipe(new TextDecoder().decode(bytes), file);
+      ({ bytes } = await store.projectFile(spaceId, file));
     } catch {
-      // Not there: the one it was kept in before, or nothing.
+      continue;
     }
+    return runPrograms(new TextDecoder().decode(bytes), file);
   }
   return undefined;
 }

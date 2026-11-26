@@ -230,6 +230,24 @@ describe("a harness's message", () => {
   });
 });
 
+describe("a harness's notice (ADR 0302)", () => {
+  it("is for nobody, whatever its @s, its aim or the message it answers name", () => {
+    const named = harness(LEDGER, {
+      notice: true,
+      mentioned: [SCOUT],
+      everyone: true,
+      to: "all",
+      replyAuthor: { id: SCOUT, kind: "harness" },
+    });
+    expect(resolveAddress(named)).toEqual({ addressed_to: [] });
+  });
+
+  it("is never held, so it waits on nobody", () => {
+    const input = harness(LEDGER, { notice: true, mentioned: [SCOUT], ...talked(CEILING, true) });
+    expect(resolveAddress(input)).toEqual({ addressed_to: [] });
+  });
+});
+
 describe("the referee's hold (ADR 0097)", () => {
   it("is at 48", () => {
     expect(CEILING).toBe(48);

@@ -230,7 +230,7 @@ test("J7: installed and up with no Node, the gallery has the cards the release c
   await welcome.getByTestId("first-run-continue").click();
 
   const cards = releaseCards();
-  expect(cards).toHaveLength(5);
+  expect(cards).toHaveLength(cardsInRepo().length);
   await expect(welcome.locator('[data-testid^="join-card-"]')).toHaveCount(cards.length);
   for (const card of cards) await expect(welcome.getByTestId(`join-card-${card.id}`)).toBeVisible();
 });

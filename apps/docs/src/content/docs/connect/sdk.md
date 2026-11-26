@@ -252,10 +252,40 @@ others, nor the connection. The names `chips.on` takes: `message.new`, `message.
 `policy.updated`, `budget.warning`, `lane.updated`, `feedback`, `mode`, plus `hello`, `event`
 (everything, in `seq` order), `receipt` and `state`.
 
+## Say what you run on your own
+
+Your harness's own settings decide what it runs without asking, and that never reaches Chips. Send
+a copy so a person can read it on your [Permissions](/concepts/permissions/) page:
+
+```ts
+await chips.settings.ownRules({
+  read_from: ["~/.your-harness/settings.json"],
+  mode: "default", // the mode your sessions run in, in your own words
+  runs: [
+    { kind: "read", name: "Read" },
+    { kind: "command", name: "git", words: ["git", "log"], raw: "Bash(git log:*)" },
+  ],
+  asks: [], // what always asks, whatever else is let through
+  refuses: [], // what never runs
+  // How a person makes commands ask in your settings: {words} is a command's start, {entries}
+  // the entries, comma-separated. The page fills them in for what Chips would never allow.
+  ask_line: { entry: '"Bash({words}:*)"', line: '"ask": [{entries}]', where: "your settings file" },
+});
+```
+
+Each entry is a kind of work (`read`, `write`, `web`, `command` or `tool`), the tool or program as
+your harness names it, and for a command the words it starts with; `everything: true` says it runs
+everything without asking. It is a report: Chips decides nothing from it. Send it when you connect
+and whenever you read your settings again; one the same as the last isn't sent again. Without one
+the page says "Doesn't say yet what it runs on its own", and a Chips before 1.4 refuses it. With
+`runs` empty and no `everything`, it says "Its own settings decide what asks": send that when your
+settings name what asks rather than what runs.
+
 ## Run in the mode a person picks
 
-A harness whose sessions have modes, as Claude Code's and Codex's do, can let a person pick one in
-Chips for a while. Say which modes you offer, and the one your sessions start in, in the copy of
+A harness whose sessions have modes can let a person pick one in Chips for a while, as Claude
+Code, Codex, Hermes, OpenClaw and OpenCode do. A harness with rules and no modes can offer modes of
+its own made of them, as the OpenCode bridge does ([Permissions](/concepts/permissions/#the-mode-a-harness-runs-in)). Say which modes you offer, and the one your sessions start in, in the copy of
 your own settings (`chips.settings.ownRules`, its `modes`). Chips then shows a picker on your
 settings page, and hands you the pick:
 
@@ -346,7 +376,9 @@ answer through a reconnect; there is no client-side timeout, because the outbox 
 a resend safe.
 
 **A decision** is `{ approvalId, decision: "approved" | "edited" | "denied" | "expired",
-allowed, scope: "once" | "session" | "always", input, reason?, by, at, event }`. `allowed` is
+allowed, scope: "once" | "session" | "always", keeps?, input, reason?, by, at, event }`. With
+`always`, `keeps: "harness"` means your harness's Chips's rules are off, so Chips wrote no rule:
+keep the Always yourself, as your own always, or the next ask comes to a person again. `allowed` is
 true for approved and edited; `input` is the edited input when the decision is `edited` and the
 input you asked with otherwise; `by` is the person's id, or `system` when the policy engine
 decided at once at the level the dial is set to. `expiresIn` defaults to an hour, `fallback` to
@@ -370,6 +402,23 @@ run.on("pause", () => {}); // `await run.whenRunning()` waits out a pause (and r
 run.on("cancel", () => cleanUp()); // stop: `run.over` is true from here; send nothing more
 run.on("message", (message) => {}); // a message.new in this run's space, while it goes
 ```
+
+A person is offered Pause only on a run that said it can pause, with `pausable: true` on a
+`run.status`; Stop is offered on every run. `run.status()` doesn't take the field yet, so say it with
+`chips.send`, once, as the run starts:
+
+```ts
+await chips.send("run.status", { space_id: run.spaceId, run_id: run.id }, {
+  phase: "thinking",
+  verb_phrase: "Thinking…",
+  pausable: true,
+});
+```
+
+Say it only if you keep the promise: on `pause`, stop the run's work within a few seconds without
+ending the run and post nothing half-finished; on `resume`, carry on in the same conversation; on
+`cancel` while paused, end quietly
+([ADR 0293](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0293-pause-and-stop-are-in-the-bubbles-menu-and-a-harness-says-it-can-pause.md)).
 
 ### A step around a piece of work
 

@@ -40,8 +40,9 @@ The window stands in the iPad's columns
 At the top left are the workspace's name, the gold **+** for a new space and the four tabs:
 **Spaces**, **Agents**, **Search** and **You**. Under them is the first column, the tab's list. The
 second column is what a row in it opens, and the third, when there is one, is one level deeper: a
-space's details, an agent's Model or Message history, a harness's Recent runs, a card picked in
-**Connect a harness**, and the run panel beside a space where all three columns fit.
+space's details, an agent's Model or Message history, a harness's Recent runs, or a card picked in
+**Connect a harness**. A working space has no column of its own for the run: Pause and Stop are
+in the thinking bubble's right-click menu, and in the space's row menu.
 
 In a space, the round button at the top left puts the list away and brings it back, and the name
 in the middle and the round **Details** button at the top right open the space's details. In a
@@ -198,6 +199,28 @@ without being downloaded whole first ([ADR 0058](https://github.com/arjungupta99
 Through the relay the bytes come the long way, as they did before. See
 [ADR 0057](https://github.com/arjungupta99/chips/blob/main/docs/decisions/0057-one-media-viewer-opens-from-the-tile-and-pages-the-messages-around-it.md).
 
+## Universe
+
+A space's **Universe** shows what its agents made, as on the phone: Pages, Media and Files. On the
+Mac it also has the rows that only a Mac can do: **Program** (Run, and Stop while it runs),
+**Page** (Open page, in Chips) and **Folder** (Open folder, in Finder). The program runs here,
+never inside Chips. A link on its page that needs the program asks first; one that needs Tailscale
+says so, and can bring Tailscale up.
+
+When the agents list several programs in the run file (an app and its API, say), **Programs** has a
+row for each, with its own Run, Open and Stop, and **Run all** beside the heading. Run on one
+starts what it needs first, and Stop on it stops those too, unless another running program still
+needs them. The banner over the page names the program that's off, and a link asks for the program
+on its port.
+
+## About and updates
+
+**About** has the version, What's new, links, the licence and **Updates**. Chips for Mac updates
+itself: it gets a newer release in the background, checks Chips signed it, and puts it in when you
+quit, at night when nobody is at the window, or on **Restart now**. The computer it carries starts
+again on the new release once nothing is going on. A gold dot at the right end of the top bar says
+an update is waiting and opens About; **Update dot** turns it off on this Mac.
+
 ## Links
 
 `chips://` links open the app and take it somewhere:
@@ -217,9 +240,13 @@ Bakery?" first, and opens the space.
 ## What the app is allowed to do
 
 The shell knows an id and two sentences. It never sees a token, a workspace, a run or the device
-key — the page holds all of those, as it does in a browser. The window's own permissions are the
-Tauri defaults plus deep links, and nothing that touches the file system or the shell. The one
-program it runs is its own copy of `chips`, `chips up`, when **Run Chips here** is clicked.
+key — the page holds all of those, as it does in a browser. The main window may ask the shell for a
+short list of things, and no other window or framed page may ask at all: run the Chips it carries
+(`chips up`, when **Run Chips here** is clicked), find a server, say which agents' programs are on
+this Mac and whether each is signed in, run a bridge card's own line when you connect one, keep a
+space's folder, hand a link to the browser, bring Tailscale up for a link that needs it, show a
+notification and a badge, and install its own update and restart into it. Nothing else touches the
+file system or the shell. The list is `apps/desktop/src-tauri/capabilities/default.json`.
 
 The microphone is the page's to ask for, and macOS's to allow: the app's `Info.plist` carries
 the sentence macOS shows, and a signed build claims audio input, which the hardened runtime

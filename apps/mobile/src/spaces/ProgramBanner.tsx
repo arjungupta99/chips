@@ -28,15 +28,20 @@ import {
   HERE_ONLY_MS,
   isReachKind,
   type LinkAsk,
+  type LinkNeeds,
   linkAsk,
+  linkKind,
   linkNameIn,
   linksThroughTailscale,
   linkTap,
+  type MacsHeard,
   needsLooking,
   networkOf,
   OPEN_ANYWAY,
   PROGRAM_BANNER,
   type ProgramBanner,
+  type ProgramRow,
+  programOfLink,
   REACH_AFTER_MS,
   REACH_LOOKS_MS,
   REACH_SHOWS_MS,
@@ -45,9 +50,10 @@ import {
   type RecipeRead,
   reachAsk,
   reachLine,
+  runOf,
   SETTLES_MS,
 } from "@chipschat/core";
-import type { HeldRun } from "@chipschat/protocol";
+import type { HeldRun, RunFile } from "@chipschat/protocol";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Linking, Platform, StyleSheet, Text, View } from "react-native";
 import { Button } from "../ui/Button";
@@ -62,7 +68,7 @@ import { answersWithin } from "./answers";
 import { getTailscale, look, openTailscale, seesTunnels, tunnelsNow } from "./linkReach";
 import { Moves, Opening } from "./MacMotion";
 import { MacRow, type MarkKind, RowButton, RowMark } from "./MacRow";
-import type { RunHeld } from "./RunBar";
+import { askFor, type ProgramsHeld, type RunHeld } from "./RunBar";
 
 /** How long Run and open waits for the Mac to say anything at all before saying it hasn't. */
 const NEWS_WAIT_MS = 15_000;
@@ -131,7 +137,15 @@ export function ProgramBannerView({
   const on = useGround();
   const fresh = useFresh(banner.kind);
   const { body, tone } = bannerWords(banner, hereOnly, fresh, line);
-  const press = <BannerPress press={banner.press} busy={busy} onRun={onRun} onStop={onStop} />;
+  const press = (
+    <BannerPress
+      press={banner.press}
+      label={banner.label}
+      busy={busy}
+      onRun={onRun}
+      onStop={onStop}
+    />
+  );
   return (
     <Moves style={[styles.card, { backgroundColor: on.fill }]} testID="program-banner">
       <MacRow
@@ -173,11 +187,14 @@ export function bannerWords(
 /** Run while it doesn't run, Stop while it does: the Desktop tab's gold Run and red Stop. */
 function BannerPress({
   press,
+  label,
   busy,
   onRun,
   onStop,
 }: {
   readonly press: ProgramBanner["press"];
+  /** What it runs or stops, where there are several programs: "Run Admin", "Stop all". */
+  readonly label?: string | undefined;
   readonly busy: boolean;
   readonly onRun: () => void;
   readonly onStop: () => void;
@@ -190,7 +207,7 @@ function BannerPress({
         tone="gold"
         busy={busy}
         onPress={onRun}
-        accessibilityLabel="Run program"
+        accessibilityLabel={label ?? "Run program"}
         testID="program-banner-run"
       />
     );
@@ -203,7 +220,7 @@ function BannerPress({
         tone="stop"
         busy={busy}
         onPress={onStop}
-        accessibilityLabel="Stop the program"
+        accessibilityLabel={label ?? "Stop the program"}
         testID="program-banner-stop"
       />
     );
@@ -227,6 +244,74 @@ export interface Asked {
   readonly ownerName?: string | undefined;
   /** Tailscale has just come on: the page is given longer to answer. */
   readonly after?: boolean | undefined;
+  /** The program the link needs, where a run file lists them (ADR 0303). */
+  readonly needs?: LinkNeeds | undefined;
+}
+
+/**
+ * What the banner and a link's sheet act on (ADR 0303): the one program, or a run file's several,
+ * of which a link needs the one on its port.
+ */
+export interface Running {
+  readonly banner: ProgramBanner;
+  /** What a link needs, how that stands, and how to run it. */
+  readonly forLink: (url: string) => LinkTarget;
+}
+
+/** The program a link needs: how it stands, its run to hear news of, and its Run, where there is one. */
+export interface LinkTarget {
+  readonly kind: ProgramBanner["kind"];
+  readonly run: HeldRun | undefined;
+  readonly needs?: LinkNeeds | undefined;
+  readonly changed?: string | undefined;
+  readonly press?: (() => Promise<MacsHeard | { readonly failed: string }>) | undefined;
+}
+
+/** The one program, as the run its bar holds. */
+export function oneRunning(held: RunHeld, recipe: RecipeRead, banner: ProgramBanner): Running {
+  const usable = recipe !== undefined && !("why" in recipe) ? recipe : undefined;
+  return {
+    banner,
+    forLink: () => ({
+      kind: banner.kind,
+      run: held.run,
+      changed: banner.tone === "changed" ? banner.body : undefined,
+      press:
+        usable === undefined
+          ? undefined
+          : () => held.press({ op: "run", command: commandOf(usable) }),
+    }),
+  };
+}
+
+/**
+ * A run file's several programs: a link needs the one on its port, or, on a port none of them has,
+ * every program that isn't running.
+ */
+export function manyRunning(
+  file: RunFile,
+  held: ProgramsHeld,
+  rows: readonly ProgramRow[],
+  banner: ProgramBanner,
+): Running {
+  const rowOf = (name: string) => rows.find((row) => row.name.toLowerCase() === name.toLowerCase());
+  return {
+    banner,
+    forLink: (url) => {
+      const program = programOfLink(url, file, held.runs);
+      const row = program === undefined ? undefined : rowOf(program.name);
+      // Run all's news is the first program it starts that isn't running.
+      const first =
+        program ?? file.programs.find((each) => rowOf(each.name ?? "")?.kind !== "running");
+      return {
+        kind: linkKind(row, rows),
+        run: first === undefined ? undefined : (runOf(held.runs, first) as HeldRun | undefined),
+        needs: program === undefined ? { every: true } : { program: program.name },
+        changed: row?.changed,
+        press: () => held.press(askFor(file, "run", program?.name)),
+      };
+    },
+  };
 }
 
 /** The device, as the words name it. */
@@ -303,16 +388,13 @@ const WAITS_FOR_TAILSCALE: ReadonlySet<string> = new Set([
  * November 2026), on any page, program or not.
  */
 export function useLinkAsk({
-  held,
-  banner,
-  recipe,
+  running,
   program,
   owner,
   ownerName,
 }: {
-  readonly held: RunHeld;
-  readonly banner: ProgramBanner;
-  readonly recipe: RecipeRead;
+  /** The banner, and what a link needs (ADR 0303). */
+  readonly running: Running;
   /** The space has a program its run file says how to run. */
   readonly program: boolean;
   /** The person is the workspace's owner, who runs it (ADR 0231). */
@@ -329,9 +411,12 @@ export function useLinkAsk({
   const [heard, setHeard] = useState(false);
   // Each look at a link, so one overtaken by a later tap or a closed sheet says nothing.
   const looking = useRef(0);
-  // How the program stands now, for a look that answers after it changed.
-  const standing = useRef(banner);
-  standing.current = banner;
+  // How the programs stand now, for a look that answers after they changed.
+  const standing = useRef(running);
+  standing.current = running;
+  const { banner } = running;
+  /** How the program a link needs stands, now. */
+  const kindFor = (url: string) => standing.current.forLink(url).kind;
 
   useEffect(() => {
     if (hereOnlyAt === undefined) return;
@@ -341,7 +426,7 @@ export function useLinkAsk({
 
   // While it starts: what the Mac says. Running, the sheet waits for the page to answer; ended,
   // failed or stopped, it says so.
-  const { run } = held;
+  const run = asked === undefined ? undefined : running.forLink(asked.url).run;
   // biome-ignore lint/correctness/useExhaustiveDependencies: news is a new word from the Mac, read with the words of that moment.
   useEffect(() => {
     if (!open || asked?.kind !== "starting" || before.current === null) return;
@@ -394,25 +479,20 @@ export function useLinkAsk({
 
   /** The program's question for a link: waiting on a run already starting, or asking to run it. */
   const askToRun = (tapped: string, name: string | undefined) => {
-    const now = standing.current;
+    const target = standing.current.forLink(tapped);
     setHeard(false);
-    before.current = now.kind === "starting" ? held.run : null;
+    before.current = target.kind === "starting" ? target.run : null;
     setAsked(
-      now.kind === "starting"
-        ? { url: tapped, name, kind: "starting" }
-        : {
-            url: tapped,
-            name,
-            kind: "ask",
-            changed: now.tone === "changed" ? now.body : undefined,
-          },
+      target.kind === "starting"
+        ? { url: tapped, name, kind: "starting", needs: target.needs }
+        : { url: tapped, name, kind: "ask", changed: target.changed, needs: target.needs },
     );
     setOpen(true);
   };
 
   /** The program's own question for a link, as before a link had to be reached first. */
   const programTap = (tapped: string, name: string | undefined) => {
-    const what = linkTap({ url: tapped, program, owner, kind: standing.current.kind });
+    const what = linkTap({ url: tapped, program, owner, kind: kindFor(tapped) });
     // localhost on a page with no program has no banner to say so: it opens as it always did.
     if (what === "open" || (what === "here-only" && !program)) return leave(tapped);
     if (what === "here-only") return setHereOnlyAt(Date.now());
@@ -420,7 +500,7 @@ export function useLinkAsk({
   };
 
   /** Whether the page should be up: anybody's but the owner's own program while it isn't running. */
-  const stoppedNow = () => owner && program && standing.current.kind !== "running";
+  const stoppedNow = (url: string) => owner && program && kindFor(url) !== "running";
 
   /**
    * A link only some devices reach: looked at, and opened, or the sheet says what stands in its
@@ -428,7 +508,7 @@ export function useLinkAsk({
    */
   const reach = async (tapped: string, name: string | undefined) => {
     const turn = ++looking.current;
-    const stopped = stoppedNow();
+    const stopped = stoppedNow(tapped);
     const shows = setTimeout(() => {
       if (looking.current !== turn) return;
       before.current = null;
@@ -453,7 +533,7 @@ export function useLinkAsk({
   const waiting =
     open && asked !== undefined && WAITS_FOR_TAILSCALE.has(asked.kind) ? asked : undefined;
   useLooksAgain(waiting, (on) => {
-    if (stoppedNow()) return programTap(on.url, on.name);
+    if (stoppedNow(on.url)) return programTap(on.url, on.name);
     setAsked({ ...on, kind: "reaching", after: true });
   });
 
@@ -504,11 +584,12 @@ export function useLinkAsk({
     if (asked === undefined) return;
     if (isReachKind(asked.kind)) return reachGo(asked);
     if (asked.kind === "quiet") return anyway();
-    if (waits(asked.kind) || recipe === undefined || "why" in recipe) return;
-    before.current = held.run;
+    const target = standing.current.forLink(asked.url);
+    if (waits(asked.kind) || target.press === undefined) return;
+    before.current = target.run;
     setHeard(false);
-    setAsked({ url: asked.url, name: asked.name, kind: "starting" });
-    const said = askUnheard(await held.press({ op: "run", command: commandOf(recipe) }));
+    setAsked({ url: asked.url, name: asked.name, kind: "starting", needs: asked.needs });
+    const said = askUnheard(await target.press());
     if (said === undefined) return;
     before.current = null;
     setAsked((was) => (was === undefined ? was : { ...was, kind: "unheard", said }));

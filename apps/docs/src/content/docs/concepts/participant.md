@@ -17,7 +17,7 @@ with a key of its own, and no password anywhere.
 | --- | --- |
 | `owner_id` | The person accountable for this harness. Approvals default to them. |
 | `autonomy` | L0 to L3. See [Policy](/concepts/policy/). |
-| `budget_usd` | The ceiling. Warns at 80 percent, pauses the run at 100. |
+| `budget_usd` | A ceiling in dollars, reported to the harness. Chips holds agents at each space's spend per job, not at this. |
 | `parent_id` | The lead, for a child minted to serve one [lane](/concepts/lane/). |
 | `ephemeral` | True for such a child, which inherits owner, autonomy and budget from its lead. |
 | `capabilities` | What it can do, which is what a person sees before they add it to a room. |

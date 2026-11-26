@@ -253,3 +253,11 @@ The capsule's menu had also come up with no glass on iOS, every time, and had ta
 it opened. The first was a menu faded in from nothing, which UIKit draws no glass behind; the
 second was the menu being a window of its own. The list in the field has neither: it is the
 field's own glass, and in the room's own window.
+
+## Amended 23 November 2026 — a harness's notice is for nobody
+
+A `message.post` marked `notice` is words the harness's own code posted, and no agent wrote. Chips
+addresses it to nobody, whatever its @s, its `to` or the message it replies to name, so no agent
+takes a turn on it; one at work in the room may still overhear it. A reply to it goes to the agent
+it was sent as, as any reply to an agent's message does. See
+[ADR 0302](0302-a-harnesss-own-notice-is-its-harnesss-under-a-small-tag.md).

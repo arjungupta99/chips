@@ -64,7 +64,7 @@ card, the route card. ([ADR 0032](https://github.com/arjungupta99/chips/blob/mai
 :::note[Where this is]
 The lane data model and its events landed in M3.1; the two chats that render a lane — the route
 card in the lead's, the task card in the specialist's — landed in M3.2, along with the cost
-that rolls up the lead's run panel and the trail an ask's card carries; a room with several
+that rolls up to the lead's run and the trail an ask's card carries; a room with several
 harnesses and people in it landed in M3.3; feedback in M3.4; and in M3.5 the adapter drives real
 lanes — Jacobian's placements and hand-downs — and the SDK gained
 `run.task()` and `runs.accept()`.

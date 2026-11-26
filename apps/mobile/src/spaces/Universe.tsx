@@ -40,6 +40,7 @@ import {
   filesInOrder,
   folderOnMacWords,
   isNewSince,
+  listsPrograms,
   MAC_ROWS,
   type MacsHeard,
   type MediaItem,
@@ -53,13 +54,17 @@ import {
   PROGRAMS_ON_MAC,
   PROGRAMS_ON_OWNERS_MAC,
   type ProgramBanner,
+  type ProgramRow,
   type ProjectChange,
   pageChipName,
   pageOnMacWords,
   pageRowWords,
   programBanner,
+  programRowOf,
+  programsBanner,
   type RecipeRead,
   readUniverse,
+  runFileHere,
   type ShelfName,
   type Shelves,
   type Space,
@@ -69,6 +74,7 @@ import {
   universeOpensOn,
   withHtmlPolicy,
 } from "@chipschat/core";
+import type { RunFile } from "@chipschat/protocol";
 import { Image as Picture } from "expo-image";
 import {
   lazy,
@@ -87,6 +93,7 @@ import { MediaProvider, useViewerTile } from "../media/MediaViewer";
 import { cornersOf } from "../media/tiles";
 import { Arrival } from "../ui/Arrival";
 import { Button, IconButton } from "../ui/Button";
+import { GroupHeading } from "../ui/Group";
 import { useGround } from "../ui/ground";
 import { Opens } from "../ui/growing";
 import * as feel from "../ui/haptics";
@@ -106,7 +113,14 @@ import { previewBytes } from "./local";
 import { Moves, Opening } from "./MacMotion";
 import { MacRow, RowButton, RowMark } from "./MacRow";
 import { PageSheet } from "./PageSheet";
-import { LinkAskSheet, ProgramBannerView, useLinkAsk, useTailscaleLine } from "./ProgramBanner";
+import {
+  LinkAskSheet,
+  manyRunning,
+  oneRunning,
+  ProgramBannerView,
+  useLinkAsk,
+  useTailscaleLine,
+} from "./ProgramBanner";
 import { PAGE_WAITS_MS } from "./pages";
 import {
   bytesWords,
@@ -116,7 +130,18 @@ import {
   projectActions,
 } from "./RoomProject";
 import { useThumb } from "./RoomTiles";
-import { PhoneRun, type RunHeld, useRunBar, useRunOnMac } from "./RunBar";
+import {
+  askFor,
+  PhoneRun,
+  ProgramRowView,
+  type ProgramsHeld,
+  RunAll,
+  type RunHeld,
+  useProgramRows,
+  useProgramsOnMac,
+  useRunBar,
+  useRunOnMac,
+} from "./RunBar";
 import {
   createPictureFiles,
   deckOf,
@@ -321,7 +346,9 @@ function UniverseOf({
                 <DesktopTab
                   universe={read.value}
                   project={project}
+                  recipe={ran.recipe}
                   held={ran.held}
+                  many={ran.many}
                   fresh={desk.shown}
                 />
               )}
@@ -444,26 +471,21 @@ function useProgram(
   owner: boolean,
   open: boolean,
 ) {
-  const recipe: RecipeRead =
-    universe?.program ?? (universe?.why === undefined ? undefined : { why: universe.why });
-  const program = universe?.program !== undefined;
-  const held = useRunOnMac(project.runs, open && owner && program);
-  const bar = useRunBar(held, project.runs, recipe, false);
-  const ownerName = useSyncExternalStore(store.subscribe, () => {
-    const { model, directory } = store.getSnapshot();
-    return ownerNameOf(model, directory);
-  });
-  const banner = owner ? programBanner(bar) : memberBanner(ownerName);
-  const links = useLinkAsk({ held, banner, recipe, program, owner, ownerName });
-  const usable = recipe !== undefined && !("why" in recipe) ? recipe : undefined;
+  const { listed, recipe, program } = useRunFileOf(store, universe);
+  const ran = useRunsOf(store, project, { listed, recipe, program, owner, open });
+  const { banner } = ran;
+  const links = useLinkAsk({ running: ran.running, program, owner, ownerName: ran.ownerName });
   // The page the Phone tab shows, so the banner can say its links need Tailscale.
   const [page, setPage] = useState<string | undefined>(undefined);
   const line = useTailscaleLine(page, open && owner && program, isUp(banner.kind));
   // Until the first read answers, whether it runs isn't known: no banner says it doesn't.
-  const shown = program && (!owner || held.known);
+  const shown = program && (!owner || ran.known);
   return {
     program,
-    held: program && owner ? held : undefined,
+    /** The one program's recipe as this phone runs it, or why it can't. */
+    recipe,
+    held: ran.held,
+    many: ran.many,
     links,
     // Every page's links are looked at first where they need it (ADR 0227's addendum of 10
     // November 2026); the program's question is asked only where there is a program.
@@ -472,16 +494,91 @@ function useProgram(
     banner: shown ? (
       <ProgramBannerView
         banner={banner}
-        busy={held.busy}
+        busy={ran.busy}
         hereOnly={links.hereOnly}
         line={line}
-        onRun={() => {
-          if (usable !== undefined) void held.press({ op: "run", command: commandOf(usable) });
-        }}
-        onStop={() => void held.press({ op: "stop" })}
+        onRun={ran.run}
+        onStop={ran.stop}
       />
     ) : null,
   };
+}
+
+/**
+ * The space's run file as this phone runs it: a list of programs drawn a row each (ADR 0303), or
+ * the one program's recipe, or why it can't be run. A list, where the computer holds one run per
+ * room, can't be run from here yet.
+ */
+function useRunFileOf(store: Store, universe: Universe | undefined) {
+  const keeps = useSyncExternalStore(store.subscribe, () => store.getSnapshot().keepsPrograms);
+  const why = universe?.why === undefined ? undefined : { why: universe.why };
+  const file = runFileHere(universe?.programs ?? why, keeps);
+  const [one] = universe?.programs?.programs ?? [];
+  return {
+    listed: listsPrograms(file) ? file : undefined,
+    recipe: (file !== undefined && "why" in file ? file : one) as RecipeRead,
+    program: universe?.programs !== undefined,
+  };
+}
+
+/**
+ * The person's runs of the space's program, or programs, read and heard while Universe is up: the
+ * banner they make, what a link needs, and the banner's Run and Stop.
+ */
+function useRunsOf(
+  store: Store,
+  project: ProjectActions,
+  of: {
+    readonly listed: RunFile | undefined;
+    readonly recipe: RecipeRead;
+    readonly program: boolean;
+    readonly owner: boolean;
+    readonly open: boolean;
+  },
+) {
+  const { listed, recipe, owner } = of;
+  const live = of.open && owner && of.program;
+  const held = useRunOnMac(project.runs, live && listed === undefined);
+  const many = useProgramsOnMac(project.runs, live && listed !== undefined);
+  const rows = useProgramRows(listed ?? NO_PROGRAMS, many, project.runs, false);
+  const bar = useRunBar(held, project.runs, recipe, false);
+  const ownerName = useSyncExternalStore(store.subscribe, () => {
+    const { model, directory } = store.getSnapshot();
+    return ownerNameOf(model, directory);
+  });
+  const mine = listed === undefined ? programBanner(bar) : programsBanner(rows);
+  const banner = owner ? mine : memberBanner(ownerName);
+  if (listed !== undefined) {
+    return {
+      ownerName,
+      banner,
+      running: manyRunning(listed, many, rows, banner),
+      held: undefined,
+      many: owner ? { file: listed, held: many, rows } : undefined,
+      known: many.known,
+      busy: many.busy !== undefined,
+      run: () => void many.press(askFor(listed, "run", banner.program)),
+      stop: () => void many.press(askFor(listed, "stop", undefined)),
+    };
+  }
+  return {
+    ownerName,
+    banner,
+    running: oneRunning(held, recipe, banner),
+    held: of.program && owner ? held : undefined,
+    many: undefined,
+    known: held.known,
+    busy: held.busy,
+    run: () => runOne(held, recipe),
+    stop: () => void held.press({ op: "stop" }),
+  };
+}
+
+/** The one program run as its recipe says, where the run file can be used. */
+function runOne(held: RunHeld, recipe: RecipeRead): void {
+  if (recipe !== undefined && !("why" in recipe)) {
+    void held.press({ op: "run", command: commandOf(recipe) });
+  }
 }
 
 /** Running, or on its way: the banner's Tailscale line says only Tailscale is missing. */
@@ -1506,7 +1603,7 @@ function PagesShelf({
 }) {
   const pages = universe.shelves?.pages ?? NO_CHANGES;
   if (pages.length === 0) {
-    if (universe.program !== undefined) return <ProgramsOnMac onDesktop={onDesktop} />;
+    if (universe.programs !== undefined) return <ProgramsOnMac onDesktop={onDesktop} />;
     return (
       <Empty
         title="No pages here yet"
@@ -1801,20 +1898,29 @@ type Heard = { readonly words: string; readonly heard: boolean } | undefined;
 function DesktopTab({
   universe,
   project,
+  recipe,
   held,
+  many,
   fresh,
 }: {
   readonly universe: Universe;
   readonly project: ProjectActions;
+  /** The one program's recipe as this phone runs it, or why it can't (`useRunFileOf`). */
+  readonly recipe: RecipeRead;
   /** The run as Universe holds it for the banner, so the bar says the same. */
   readonly held: RunHeld | undefined;
+  /** A run file's several programs, as Universe holds them for the banner (ADR 0303). */
+  readonly many: Many | undefined;
   /** The rows new here since Desktop was last opened, marked while the sheet stays open. */
   readonly fresh: readonly DesktopRow[];
 }) {
   const palette = usePalette();
   const on = useGround();
-  const { documents, program, why } = universe;
-  const runs = program !== undefined || why !== undefined;
+  const { documents } = universe;
+  if (many !== undefined) {
+    return <ProgramsDesktop universe={universe} project={project} many={many} fresh={fresh} />;
+  }
+  const runs = recipe !== undefined;
   return (
     <SheetScroll style={styles.scroll} contentContainerStyle={styles.content}>
       {documents === undefined && !runs ? (
@@ -1825,7 +1931,7 @@ function DesktopTab({
           {runs ? (
             <PhoneRun
               runs={project.runs}
-              recipe={program ?? { why: why ?? "" }}
+              recipe={recipe}
               held={held}
               fresh={fresh.includes("program")}
             />
@@ -1857,6 +1963,86 @@ function DesktopTab({
     </SheetScroll>
   );
 }
+
+/** A run file's several programs, as Universe holds them (ADR 0303). */
+interface Many {
+  readonly file: RunFile;
+  readonly held: ProgramsHeld;
+  readonly rows: readonly ProgramRow[];
+}
+
+/**
+ * Desktop for a run file of several programs (ADR 0303, his A): Programs, with Run all, over a row
+ * for each program; then the page and the folder under a heading of their own.
+ */
+function ProgramsDesktop({
+  universe,
+  project,
+  many,
+  fresh,
+}: {
+  readonly universe: Universe;
+  readonly project: ProjectActions;
+  readonly many: Many;
+  readonly fresh: readonly DesktopRow[];
+}) {
+  const palette = usePalette();
+  const on = useGround();
+  const { documents } = universe;
+  const rows = useProgramRows(many.file, many.held, project.runs);
+  return (
+    <SheetScroll style={styles.scroll} contentContainerStyle={styles.content}>
+      <Opens>
+        <Moves>
+          <GroupHeading trailing={<RunAll file={many.file} rows={rows} held={many.held} />}>
+            Programs
+          </GroupHeading>
+        </Moves>
+        <Moves style={[styles.card, { backgroundColor: on.fill }]} testID="programs">
+          {rows.map((row, at) => (
+            <ProgramRowView
+              key={row.name}
+              file={many.file}
+              row={row}
+              held={many.held}
+              parted={at > 0}
+              fresh={fresh.includes(programRowOf({ name: row.name }))}
+            />
+          ))}
+        </Moves>
+        <Moves>
+          <GroupHeading>{documents === undefined ? "Folder" : "Page and folder"}</GroupHeading>
+        </Moves>
+        <Moves style={[styles.card, { backgroundColor: on.fill }]}>
+          {documents === undefined ? null : (
+            <PageRow
+              documents={documents}
+              project={project}
+              parted={false}
+              fresh={fresh.includes("page")}
+            />
+          )}
+          <AskMac
+            icon="folder"
+            title={MAC_ROWS.folder.title}
+            body={MAC_ROWS.folder.body}
+            label="Open folder in Mac"
+            tone="blue"
+            ask={project.openOnMac}
+            say={folderOnMacWords}
+            parted={documents !== undefined}
+            testID="universe-open-folder"
+          />
+        </Moves>
+        <Moves>
+          <Text style={[styles.under, styles.note, { color: palette.ink3 }]}>{MAC_ROWS.under}</Text>
+        </Moves>
+      </Opens>
+    </SheetScroll>
+  );
+}
+
+const NO_PROGRAMS: RunFile = { programs: [] };
 
 /** The page's row: Open page, or why there's nothing to open yet. */
 function PageRow({

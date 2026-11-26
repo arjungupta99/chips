@@ -110,6 +110,29 @@ describe("the card a reply carries (ADR 0219)", () => {
     expect(replyCard(space, lineAt(space, 10), directory, now)).toBeUndefined();
   });
 
+  it("quotes a notice as its harness's, though one of its agents sent it (ADR 0302)", () => {
+    const AGENT = "agt_01K4ZQPX0000000000000000A1";
+    const agents: Directory = {
+      ...directory,
+      [AGENT]: { id: AGENT, kind: "agent", displayName: "[J]", harnessId: JACOBIAN },
+    } as unknown as Directory;
+    const space = room([
+      fixture("message.post", 10, {
+        id: eventId(10),
+        actor: { kind: "agent", id: AGENT, harness_id: JACOBIAN },
+        run_id: undefined,
+        ts: local(22, 7),
+        text: "Last night's memory pass retired 5 facts.",
+        notice: "Nightly memory pass",
+      }),
+      said(11, "Give me details", { to: 10 }),
+    ]);
+    expect(replyCard(space, lineAt(space, 11), agents, now)).toMatchObject({
+      authorId: JACOBIAN,
+      name: "Jacobian",
+    });
+  });
+
   it("names what a message of files alone holds", () => {
     const space = room([said(10, "", { ts: local(22, 9) }), said(11, "Nice", { to: 10 })]);
     const photo = {

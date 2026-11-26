@@ -66,6 +66,7 @@ import {
   routesIn,
   routeWords,
   type Space,
+  saidBy,
   sessionToAddress,
   spaceFace,
   spaceWorking,
@@ -2513,6 +2514,36 @@ describe("a group space (M3.3)", () => {
     const lines = spaces[0]?.lines ?? [];
     expect(lines.at(-2)).toMatchObject({ text: "It reaches 94°F by 3 PM.", heartbeat: true });
     expect(lines.at(-1)?.heartbeat).toBeUndefined();
+  });
+
+  it("folds a harness's notice with what posted it, and draws it as the harness's (ADR 0302)", () => {
+    const AGENT = "agt_01K4ZQPX0000000000000000A1";
+    const { spaces } = buildModel([
+      ...room(),
+      fixture("message.post", 5, {
+        actor: { kind: "agent", id: AGENT, harness_id: SCOUT },
+        text: "Last night's memory pass retired 5 facts.",
+        notice: "Nightly memory pass",
+        addressed_to: [],
+      }),
+      fixture("message.post", 6, { text: "Working on it.", notice: "" }),
+    ]);
+    const lines = spaces[0]?.lines ?? [];
+    const notice = lines.at(-2);
+    expect(notice).toMatchObject({ authorId: AGENT, notice: "Nightly memory pass" });
+    expect(lines.at(-1)?.notice).toBeUndefined();
+    const directory: Directory = {
+      [AGENT]: { id: AGENT, kind: "agent", displayName: "[J]", harnessId: SCOUT },
+      [SCOUT]: { id: SCOUT, kind: "harness", displayName: "Jacobian" },
+    };
+    if (notice === undefined) throw new Error("the notice is folded");
+    expect(saidBy(notice, directory)).toEqual({ id: SCOUT, kind: "harness" });
+    expect(saidBy({ ...notice, notice: undefined }, directory)).toEqual({
+      id: AGENT,
+      kind: "harness",
+    });
+    // An agent the directory does not hold yet is the best name there is.
+    expect(saidBy(notice, {}).id).toBe(AGENT);
   });
 
   it("folds an agent's context compacting as one quiet line of its own (ADR 0146)", () => {

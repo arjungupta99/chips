@@ -1353,6 +1353,26 @@
   color: var(--ink-4);
 }
 
+/* A notice (ADR 0302): words the harness's own code posted. The tags' quiet grey with the cog, and
+   the words as the harness sent them rather than in capitals; up to sixty characters, they wrap
+   rather than push the row wider. */
+.msg-tag-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.msg-tag-notice .ui-icon {
+  flex: none;
+}
+
 /* A heartbeat's check-in (ADR 0143): gold, with the pulse, as the phone's tag over its bubble. */
 .msg-tag-beat {
   display: inline-flex;
@@ -1373,17 +1393,29 @@
   max-width: 60ch;
 }
 
-.sys-status {
+/* What a failed run said, and its receipt under it, both centred: the receipt stands outside the
+   red pill, whose round ends cut into it when it stood inside. */
+.sys-status-line {
+  align-self: center;
+  display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  color: var(--red-ink);
-  background: var(--red-soft);
-  max-width: 60ch;
+  max-width: 100%;
 }
 
-.sys-status .msg-receipt {
-  color: var(--ink);
+.sys-status-line > .msg-receipt {
+  margin-top: 0;
+}
+
+/* A pill on one line; a line long enough to wrap keeps rounded corners rather than going to a
+   capsule, since the radius is the pill's only while it is no taller than one line. */
+.sys-status {
+  color: var(--red-ink);
+  background: var(--red-soft);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  max-width: 60ch;
 }
 
 /*
@@ -17118,6 +17150,193 @@ li[data-lifted]::after {
   overflow-wrap: anywhere;
   max-block-size: 160px;
   overflow: auto;
+}
+/* Several programs (ADR 0303): Run all beside the heading, and a row for each program. */
+.programs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-start: 6px;
+}
+.programs-head .sheet-h {
+  margin-block: 0;
+}
+.programs-all,
+.program-run,
+.program-open,
+.program-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 120ms ease;
+}
+.programs-all:active:not(:disabled),
+.program-run:active:not(:disabled),
+.program-open:active:not(:disabled),
+.program-stop:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.programs-all {
+  block-size: 24px;
+  padding-inline: 10px;
+  background: var(--gold-soft);
+  color: var(--gold-deep);
+}
+.programs-all[data-all="stop"] {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.programs-all:disabled,
+.program-run:disabled,
+.program-stop:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.programs {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--grouped);
+  overflow: hidden;
+}
+.program-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 8px;
+  padding: 10px 12px;
+}
+.program-row + .program-row {
+  border-block-start: 1px solid var(--line);
+}
+.program-mark {
+  display: grid;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: 8px;
+  background: var(--gold-soft);
+  color: var(--gold-deep);
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+.program-mark[data-kind="ended"][data-tone="bad"] {
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.program-mark[data-kind="starting"]::after {
+  content: "";
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--gold);
+  border-inline-end-color: transparent;
+  animation: program-turn 0.8s linear infinite;
+}
+.program-mark[data-kind="running"] {
+  background: var(--green-soft);
+}
+.program-mark[data-kind="running"]::after {
+  content: "";
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 4px var(--green-soft);
+  animation: run-bar-beat 1.6s ease-in-out infinite;
+}
+@keyframes program-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .program-mark[data-kind="starting"]::after,
+  .program-mark[data-kind="running"]::after {
+    animation: none;
+  }
+}
+.program-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.program-name {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+.program-said {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.program-said[data-tone="bad"] {
+  color: var(--red-ink);
+}
+.program-said code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--raised);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-xs);
+}
+.program-state {
+  color: var(--green-ink);
+  font-weight: 600;
+}
+.program-changed {
+  color: var(--amber-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.program-acts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.program-run {
+  block-size: 28px;
+  padding-inline: 12px;
+  background: var(--gold);
+  color: #231a00;
+}
+.program-run[data-dim] {
+  background: var(--raised);
+  color: var(--ink-3);
+}
+.program-open {
+  block-size: 28px;
+  padding-inline: 12px;
+  background: var(--gold-soft);
+  color: var(--gold-deep);
+}
+.program-stop {
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 8px;
+  background: var(--red-soft);
+  color: var(--red-ink);
+}
+.program-lines {
+  grid-column: 2 / -1;
 }
 /* The panel is the sheet's ground, so a held Run stands up off it as it would on the sheet. */
 .your-folder .run-bar .sheet-go:disabled {

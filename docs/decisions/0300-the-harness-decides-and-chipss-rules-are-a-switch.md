@@ -353,7 +353,7 @@ November where Claude's Auto was.
    | Accept edits | Edits files without asking. Commands still ask. |
    | Auto | Claude Code judges each step and asks only when one looks risky. |
    | Bypass permissions | Never asks. Whatever it does just happens. |
-   | Read-only | Reads on its own. Asks before it changes a file or runs anything else. |
+   | Read-only | Reads on its own. Changes nothing without a yes: it asks first, or says it can't. |
    | Workspace access | Edits and runs commands in the agent's folder. Asks before the network or anything outside it. |
    | Auto review | Codex judges each step and asks only when one looks risky. |
    | Full access | Never asks. Reaches the network and any file on this computer. |
@@ -413,3 +413,89 @@ November where Claude's Auto was.
   **chips-acp on it**. Both publishes wait for Arjun's word.
 - An older app leaves `mode` as it was when it sends a harness's policy, since absent changes
   nothing. `CATALOGUE_LEVEL` is unchanged: no new event.
+
+## Addendum, 19 November 2026: Hermes, OpenClaw and OpenCode get the Mode picker too
+
+Status: Accepted, 19 November 2026, on Arjun's "Ok build for all three", after the rows below were
+shown to him. It corrects the addendum above, which said OpenCode, Hermes and OpenClaw offer no
+modes Chips can switch. Each of them has something a bridge can switch; Jacobian alone has none.
+
+**What was found**, in each harness's code on 19 November:
+
+- **Hermes 0.22.0** has modes of its own, `manual`, `smart` (where it starts) and `off`, in
+  `approvals.mode`. It is kept per profile, in that profile's `config.yaml`, and read again on
+  every check, so a change applies at the next command Hermes counts as risky, with no restart
+  (`hermes_cli/approval_mode.py`). Nothing in a run or a session can set it. Only commands Hermes
+  counts as risky ever ask; edits and other commands don't, in any mode. Smart's check is one short
+  call to the agent's own model (`auxiliary.approval`, `auto` by default, which Hermes reads as "the
+  main model").
+- **OpenClaw**'s gateway protocol (2026.9.6) has a mode on each session, `permissionMode`:
+  `read-only`, `guarded`, `workspace` or `full`, set with `sessions.patch` or `sessions.create`;
+  `null` goes back to what its settings say. What each one does is from OpenClaw's docs: the
+  gateway's code ships only in its Docker image, so it is checked live once the gateway runs.
+- **OpenCode 2.0.25** has no named modes. It has allow, ask and deny rules, and a session can be
+  given rules of its own while it runs (`PATCH /api/session/:id`, `permissions`), read after its
+  settings' rules, so they win. Its settings aren't touched. Out of the box its `build` agent asks
+  almost nothing.
+- **Jacobian** keeps one set of permissions for every channel, loaded once at start. What still
+  asks in it is there for safety: commands on its blocklist, other people's requests, email and
+  calendar changes. Loosening that would undo them, so it offers no modes.
+
+### Decision
+
+1. **The modes and their lines**, in each harness's order. Every mode but the one it starts in has
+   a length, as in decision 2 above.
+
+   **Hermes**
+
+   | Mode | Its line on the page |
+   | --- | --- |
+   | Manual | Asks before every command Hermes counts as risky. |
+   | Smart (where it starts) | A second model checks each risky command and asks only when it can't clear it. |
+   | Off | Never asks. Risky commands just run; its hard blocks and your deny list still hold. |
+
+   **OpenClaw**
+
+   | Mode | Its line on the page |
+   | --- | --- |
+   | Default (where it starts) | Runs as its settings say. The bridge adds what they say, such as "Yours ask before every command." |
+   | Read only | Reads its folder. Changes nothing and runs no commands. |
+   | Ask me | Edits in its folder. Commands not on its allowlist ask first. |
+   | Auto-review | OpenClaw judges each step and asks only when one looks risky. |
+   | Full access | Never asks. Any file, any command, the network. |
+
+   **OpenCode**
+
+   | Mode | Its line on the page |
+   | --- | --- |
+   | Default (where it starts) | Runs as your OpenCode settings say. Out of the box it asks almost nothing. |
+   | Ask before changes | Edits and commands wait for a yes. Reads run on their own. |
+   | Read-only | Reads on its own. Edits are refused, and commands ask first. |
+
+2. **Yellow** while Hermes is in Off or OpenClaw in Full access (`everything`), as for Claude Code's
+   Bypass permissions and Codex's Full access.
+3. **Hermes.** The bridge writes `approvals.mode` into the config of each profile Chips made for one
+   of its agents, and puts back exactly what was there, its absence included, when the time is up,
+   when a person switches back, and when the bridge starts with no pick in force. It keeps what it
+   wrote and what was there in its own state, so a bridge stopped in the middle of a pick still puts
+   it back. The Main agent runs on Hermes's default profile, which the person's own Hermes reads
+   too, so it is left as it is, and the bridge's note on the page says so. Lines the person added to
+   a profile's config while a pick held are kept.
+4. **OpenClaw.** The bridge patches each of its own `chips-` sessions, and opens new ones in the
+   mode in force. Home, where the Main agent speaks, is the person's own conversation on every
+   channel, so it is left as it is, and the note says so. OpenClaw cancels asks still open when a
+   session's mode changes; the bridge ends their cards. A run OpenClaw won't switch keeps its mode,
+   and the bridge logs why and says the mode it runs in.
+5. **OpenCode.** Its modes are Chips's, made of OpenCode's own rules and set only on the sessions
+   Chips opens: Ask before changes adds an ask rule for edits and for commands, Read-only a deny rule
+   for edits and an ask rule for commands. That departs from decision 1 above ("the modes are the
+   harness's own") on purpose: OpenCode has rules, not modes. None of them never asks: OpenCode
+   already asks almost nothing, and an allow-everything rule would beat a person's own deny rules.
+6. **Unchanged:** the server, the apps and the SDK. Each of the three bridges moves to SDK 1.0.11,
+   which has `chips.mode`, the `mode` event and `own_rules.modes`. The picker's foot already names
+   the harness. Jacobian shows no picker.
+
+### Consequences
+
+- Each bridge release waits for Arjun's word.
+- OpenClaw is checked live only when its gateway runs (Colima has been off since 15 November).

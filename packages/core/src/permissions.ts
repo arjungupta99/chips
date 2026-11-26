@@ -815,16 +815,28 @@ function unreadable(asks: readonly Approval[]): number {
   ).length;
 }
 
+/**
+ * Whether it said what it runs on its own and listed nothing: Hermes, whose settings name what is
+ * risky rather than what runs, or OpenCode on no settings of its own, which asks almost nothing.
+ * "Runs 0 kinds of work without asking" would be wrong for both.
+ */
+const listsNone = (own: OwnRulesView) => own.said && !own.everything && own.count === 0;
+
+/** A row's line for a harness that `listsNone`. */
+const DECIDES_ITSELF = "Its own settings decide what asks";
+
 /** The top of the page: what runs where, as the gates and the switch leave it. */
 function headlineOf(name: string, own: OwnRulesView, off: boolean): string {
   const kinds = `${own.count} ${plural(own.count, "kind", "kinds")} of work`;
   if (own.everything)
     return `${name} runs everything without asking, so nothing it does reaches Chips.`;
   if (off) {
-    return own.said
+    return own.said && !listsNone(own)
       ? `${name} runs ${kinds} on its own, and Chips says yes to the rest for now.`
       : `Chips says yes to everything ${name} asks, for now.`;
   }
+  if (listsNone(own))
+    return `${name}'s own settings decide what it asks. Everything it asks comes to Chips first.`;
   return own.said
     ? `${name} runs ${kinds} without asking. Everything else comes to Chips first.`
     : `${name} doesn't say yet what it runs on its own. Everything it asks comes to Chips first.`;
@@ -849,7 +861,7 @@ function subOf(name: string, to: AsksGoTo, off: { readonly hold: Hold } | undefi
 function ownGate(own: OwnRulesView, mode: ModePicker | undefined, neverAsks: boolean): string {
   if (neverAsks || own.everything) return "runs all";
   if (mode !== undefined && !mode.current.base) return mode.current.name;
-  return own.mode ?? (own.said ? `${own.count} run` : "not said");
+  return own.mode ?? mode?.current.name ?? (own.said ? `${own.count} run` : "not said");
 }
 
 export function harnessPermissions(
@@ -947,7 +959,9 @@ function settingsRowOf(
   const all = own.everything || never !== undefined;
   const runs = all
     ? "Runs everything without asking"
-    : `${own.count} ${plural(own.count, "kind", "kinds")} of work run without asking`;
+    : listsNone(own)
+      ? DECIDES_ITSELF
+      : `${own.count} ${plural(own.count, "kind", "kinds")} of work run without asking`;
   const said = own.said ? runs : "Doesn't say yet what it runs on its own";
   return {
     title: `${name}'s settings`,
@@ -1131,7 +1145,9 @@ function harnessLine(own: OwnRulesView | undefined, rules: readonly AlwaysRule[]
       ? "Doesn't say yet what it runs on its own"
       : own.everything
         ? "Runs everything on its own"
-        : `Runs ${own.count} ${plural(own.count, "kind", "kinds")} of work on its own`;
+        : listsNone(own)
+          ? DECIDES_ITSELF
+          : `Runs ${own.count} ${plural(own.count, "kind", "kinds")} of work on its own`;
   return count === undefined ? ownWords : `${ownWords} · ${count}`;
 }
 

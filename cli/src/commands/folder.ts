@@ -17,13 +17,16 @@ import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { checkGit, type FolderLook, Project, type Pushed } from "@chipschat/harness";
 import {
-  commandOf,
   opensAProgram,
+  PROGRAM_NAME,
   PROJECT_GIT_VERSION,
   PROJECT_TOKEN_PREFIX,
   type ProjectRun,
+  pressCommand,
+  programNamed,
 } from "@chipschat/protocol";
-import { type RunDeps, readRecipe, realIn, runStatus, startRun, stopRun } from "./run.js";
+import { type Runs, readPrograms, runsStatus, startPrograms, stopPrograms } from "./programs.js";
+import { type RunDeps, realIn } from "./run.js";
 
 export const FOLDER_OPS = [
   "look",
@@ -52,6 +55,11 @@ export interface FolderAsked {
   readonly file?: string | undefined;
   /** For Run, the command the person was shown: nothing else runs. */
   readonly command?: string | undefined;
+  /**
+   * For Run and Stop, which program of a run file that lists them (ADR 0303); none for every
+   * program, or the one program of a run file that says `run` itself.
+   */
+  readonly program?: string | undefined;
 }
 
 /** The line that comes back. */
@@ -66,6 +74,8 @@ export type FolderAnswer =
       readonly editor?: string | undefined;
       readonly made: false;
       readonly run?: ProjectRun | undefined;
+      /** Each program's run, by name, for a run file that lists them (ADR 0303). */
+      readonly programs?: Readonly<Record<string, ProjectRun>> | undefined;
     }
   | ({
       readonly ok: true;
@@ -79,11 +89,18 @@ export type FolderAnswer =
       readonly keys?: readonly { readonly path: string; readonly what: string }[];
       /** How the room's run on this Mac stands (ADR 0226), after `run`, `stop` and `status`. */
       readonly run?: ProjectRun | undefined;
+      /** Each program's run, by name, for a run file that lists them (ADR 0303). */
+      readonly programs?: Readonly<Record<string, ProjectRun>> | undefined;
     } & Partial<FolderLook>)
   | { readonly ok: false; readonly why: string };
 
 const SPACE = /^spc_[0-9A-Za-z]{26}$/;
 const PERSON = /^usr_[0-9A-Za-z]{8,64}$/;
+
+/** The program a press names, when it is a program's name (ADR 0303); anything else names none. */
+function programAsked(said: string | undefined): string | undefined {
+  return said !== undefined && PROGRAM_NAME.test(said) ? said : undefined;
+}
 
 /** What the app said, from the environment, or why it can't be acted on. */
 export function folderAsked(
@@ -107,6 +124,7 @@ export function folderAsked(
     words: env["CHIPS_FOLDER_WORDS"],
     file: env["CHIPS_FOLDER_FILE"],
     command: env["CHIPS_FOLDER_COMMAND"],
+    program: programAsked(env["CHIPS_FOLDER_PROGRAM"]),
   };
 }
 
@@ -237,11 +255,14 @@ export async function runFolder(
   };
   const runs = runDepsOf(asked, deps);
   if (op === "status" || op === "stop") {
-    const run = op === "stop" ? await stopRun(runs) : await runStatus(runs);
-    return { ...base, made: found !== undefined, run };
+    const stands =
+      op === "stop"
+        ? await stopPrograms(await usable(found), asked.program, runs)
+        : await runsStatus(runs);
+    return { ...base, made: found !== undefined, ...stands };
   }
   if (found === undefined && op !== "open" && op !== "view" && op !== "run") {
-    return { ...base, made: false, run: await runStatus(runs) };
+    return { ...base, made: false, ...(await runsStatus(runs)) };
   }
   if (op === "editor" || op === "file") {
     const opened = await openIn(op, folder, editor?.path, asked.file, deps.open);
@@ -292,7 +313,7 @@ async function withProject(
   if (op === "send") {
     const pushed = await project.push({ words: asked.words ?? "" });
     const look = await project.look();
-    return { ...base, made: true, ...look, ...pushedFields(pushed), run: await runStatus(runs) };
+    return { ...base, made: true, ...look, ...pushedFields(pushed), ...(await runsStatus(runs)) };
   }
   const look = await project.look();
   if (op === "open") await deps.open([folder]);
@@ -301,36 +322,47 @@ async function withProject(
     if (viewed !== undefined) return viewed;
   }
   if (op === "run") {
-    const ran = await runIn(folder, asked.command, runs);
+    const ran = await runIn(folder, asked, runs);
     return "refused" in ran
       ? { ok: false, why: ran.refused }
-      : { ...base, made: true, ...look, run: ran };
+      : { ...base, made: true, ...look, ...ran };
   }
-  // Every look says how the room's run stands too, so a run from before the app opened shows.
-  return { ...base, made: true, ...look, run: await runStatus(runs) };
+  // Every look says how the room's runs stand too, so a run from before the app opened shows.
+  return { ...base, made: true, ...look, ...(await runsStatus(runs)) };
 }
 
 /**
  * The project run from its folder (ADR 0226), as the folder's run file says, and only when
- * that is what the person was shown: a recipe that changed since is theirs to see first.
+ * that is what the person was shown: a recipe that changed since is theirs to see first. A press
+ * names a program of a run file that lists them, or none for every program (ADR 0303).
  */
 async function runIn(
   folder: string,
-  shown: string | undefined,
+  asked: Pick<FolderAsked, "command" | "program">,
   runs: RunDeps,
-): Promise<ProjectRun | { readonly refused: string }> {
-  const recipe = await readRecipe(folder);
-  if (recipe === undefined) {
+): Promise<Runs | { readonly refused: string }> {
+  const file = await readPrograms(folder);
+  if (file === undefined) {
     return { refused: "The project has no run file yet, so there's nothing to run." };
   }
-  if ("why" in recipe) return { refused: recipe.why };
-  if (shown !== commandOf(recipe)) {
+  if ("why" in file) return { refused: file.why };
+  if (asked.program !== undefined && programNamed(file, asked.program) === undefined) {
+    return { refused: `The run file in your folder has no program called ${asked.program} now.` };
+  }
+  if (asked.command !== pressCommand(file, asked.program)) {
     return {
       refused:
         "The run file in your folder says to run something else now. Look at what it runs, then press Run again.",
     };
   }
-  return await startRun(folder, recipe, runs);
+  return await startPrograms(folder, file, asked.program, runs);
+}
+
+/** The folder's run file as programs, when there is a folder and its run file can be used. */
+async function usable(folder: string | undefined) {
+  if (folder === undefined) return undefined;
+  const file = await readPrograms(folder);
+  return file === undefined || "why" in file ? undefined : file;
 }
 
 /**

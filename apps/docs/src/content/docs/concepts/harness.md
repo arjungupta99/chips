@@ -15,19 +15,20 @@ history.
 | --- | --- |
 | **An owner** | The person accountable for it, whoever added it. Approvals default to them; its tokens belong to them, and to whoever runs the workspace as its owner or an admin. An owner hands it to somebody else from its card, and the log records the handover as [`harness.transferred`](/reference/events/harness-transferred/). They, or an owner or admin of the workspace, may also remove it: its tokens are withdrawn, it leaves every list, and what it said keeps its name ([`harness.removed`](/reference/events/harness-removed/)). A guest of the workspace neither adds nor owns one. |
 | **Tokens** | `chips_at_…`, shown once and kept as a digest; scoped to this harness; revocable from its card or with `chips connect --rotate`. A token sends what a harness sends and nothing a person sends. |
-| **A policy** | Its [autonomy level](/concepts/policy/) — L0 to L3 — and its rules; per space, when the dial was turned there. A new harness starts at L1, ask first. |
-| **A budget** | A ceiling in dollars. Warns at 80 percent, pauses the run at 100. |
+| **Permissions** | Its own settings, which decide what it runs without asking, and Chips's rules, a switch that is off for a new harness: off, every ask it sends comes to a person ([Permissions](/concepts/permissions/)). Every harness but Jacobian also has a mode a person can pick for a while, with its bridge up to date. |
+| **A policy** | What Chips's rules read while they are on: its [autonomy level](/concepts/policy/) — L0 to L3, L1 unless set — and its rules, per space or everywhere. |
+| **A budget** | A ceiling in dollars, reported to the harness in its `hello`. Chips doesn't hold a harness at it: what holds agents is each space's [spend per job](/supervise/#spend-per-job). |
 | **Spaces** | As many as you open. A Jacobian Space, the direct space Connect a harness gave it, or one it opens itself. |
-| **Capabilities** | What it takes, granted by a person and never by the harness itself: the dial, new spaces, agents, its files, its models, and the rest. Chips draws a control only for what a harness takes, so nothing is offered that it can't keep ([what it may do](/connect/#what-it-may-do)). Granted on the link that brings it in, and changed later from its card or with `chips declare`. |
+| **Capabilities** | What it takes, granted by a person and never by the harness itself: new spaces, agents, its files, its models, and the rest. Chips draws a control only for what a harness takes, so nothing is offered that it can't keep ([what it may do](/connect/#what-it-may-do)). Granted on the link that brings it in, and changed later from its card or with `chips declare`. |
 
 ## One harness, many processes
 
 A harness is the software on a machine, not a process. You start five workers on your laptop,
 each on something different, while Jacobian keeps its Spaces; Chips shows two harnesses, a space
 per unit of work, and says on every run which [session](/concepts/session/) it came from, for a
-harness that has them. The Agents tab rolls a harness up across its spaces — how many
-sessions are live, how many runs are working, how many things need you — and lists its spaces
-with their visits.
+harness that has them. The Agents tab has the harnesses on a shelf at its top; a harness's card
+rolls it up across its spaces — how many sessions are live, how many runs are working, how many
+things need you — and its page lists its spaces with their visits.
 
 There is no "run this as another harness". The harness is the identity, so moving work to
 another one is opening it there: a new space under the other harness, the old one keeping its

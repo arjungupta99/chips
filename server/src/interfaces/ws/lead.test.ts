@@ -377,6 +377,37 @@ describe("what was nobody's turn, handed to the lead (ADR 0104)", () => {
     expect(await sweepIn(30_000)).toEqual([]);
   });
 
+  // ADR 0302: a harness's nightly memory pass reporting into a room with a lead.
+  it("is not handed a notice, which is for nobody whatever it names, nor counted as an answer", async () => {
+    const { other, scoutAgent } = await room();
+    const scoutSide = await connect(scout());
+    const notice = await submit(other.principal, {
+      type: "message.post",
+      space_id: ws.spaceId,
+      idempotency_key: "nightly-1",
+      text: "@Scout Last night's memory pass retired 2 facts.",
+      notice: "Nightly memory pass",
+      to: [scoutAgent],
+    });
+    expect(notice.payload).toMatchObject({ notice: "Nightly memory pass", addressed_to: [] });
+    expect(await sweepIn(30_000)).toEqual([]);
+    await settled();
+    expect(
+      scoutSide.of("message.new").filter((turn) => turn["text"] === notice.payload["text"]),
+    ).toEqual([]);
+
+    await say(arjun(), "@Ledger how does the page look?");
+    await submit(other.principal, {
+      type: "message.post",
+      space_id: ws.spaceId,
+      idempotency_key: "nightly-2",
+      text: "Synced 3 files.",
+      notice: "File sync",
+    });
+    await say(other.principal, "Fine so far.");
+    expect(await sweepIn(30_000)).toEqual([]);
+  });
+
   // Bro chat, 30 October 2026: Arjun noted something to himself while Paolo worked, and Paolo's
   // answer was handed to Nigel, the lead, who passed.
   it("is not handed an answer though a person said something for no agent while it worked", async () => {

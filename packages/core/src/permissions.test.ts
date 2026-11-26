@@ -708,4 +708,29 @@ describe("the mode a person picks for a harness (ADR 0300, 19 November addendum)
       "put Claude Code in Auto until you change it",
     );
   });
+
+  it("says its own settings decide what asks, not that it runs 0 kinds of work, when it lists nothing it runs (Hermes)", () => {
+    const hermes: OwnRules = {
+      read_from: ["~/.hermes/profiles/grady/config.yaml"],
+      note: "Your Main agent runs on your own Hermes's settings, so a mode picked here doesn't change it.",
+      runs: [],
+      modes: {
+        base: "smart",
+        running: "smart",
+        offers: [
+          { id: "manual", name: "Manual" },
+          { id: "smart", name: "Smart" },
+          { id: "off", name: "Off", everything: true },
+        ],
+      },
+    };
+    const model = owned(buildModel(base));
+    const page = harnessPermissions({ model, directory }, KIT, ARJUN, heard(hermes), NOW);
+    expect(page.headline).toBe(
+      "Claude Code's own settings decide what it asks. Everything it asks comes to Chips first.",
+    );
+    expect(page.gates.own).toBe("Smart");
+    expect(page.settingsRow).toMatchObject({ value: "Smart" });
+    expect(JSON.stringify(page)).not.toMatch(/0 kinds|0 run/);
+  });
 });

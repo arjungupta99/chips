@@ -74,6 +74,8 @@ export interface FolderAsked {
   readonly file?: string | undefined;
   /** For Run (ADR 0226), the command the person was shown: the Mac runs nothing else. */
   readonly command?: string | undefined;
+  /** For Run and Stop, which program of a run file that lists them (ADR 0303); none for all. */
+  readonly program?: string | undefined;
 }
 
 /** The server on this Mac, as the shell found it over loopback (ADR 0231). */

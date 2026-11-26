@@ -71,13 +71,18 @@ space when an owner or an admin says so. `scope: "session"` is a rule for the re
 apps no longer offer it, since *For an hour* took its place, and it stays for harnesses and older
 apps. The harness still hears the scope in `approval.resolved`, and may keep it too.
 
+That is while the harness's [Chips's rules](/concepts/permissions/#chipss-rules-one-switch-on-each-harness)
+are on. With them off, Chips writes no rule: `approval.resolved` says `keeps: "harness"`, and the
+harness keeps the Always as its own (the SDK hands it on as `Decision.keeps`). The card's Approve
+then reads *Always*, with no choice of where it holds, since the harness says that.
+
 On a command, either rule remembers how each part of the command starts, and not the rest of it:
 the program and the word that picks what it does where it has one (`git log`, `pnpm test`,
 `node game.js`, `ls -la`), otherwise the program alone (`cat`, `cd`). Always on `git log --oneline`
 covers a later `git log -5` and not `git status`. A later command goes ahead only when every part of
 it is covered, and one part nothing covers brings the whole command to a person. A command Chips
 can't read part by part, or one that uses `rm`, `sudo`, `git push` and the like, is offered no
-Always. An ask that isn't a command, `file.edit` for one, is matched by its kind and its flags, so
+Always ([the never list](/concepts/permissions/#what-an-always-is-never-kept-for)). An ask that isn't a command, `file.edit` for one, is matched by its kind and its flags, so
 Always there is meant for a kind of action.
 
 A later ask the rule covers is decided by policy the moment it arrives, with no card: the harness
@@ -87,32 +92,39 @@ capped at L0 or L1 lets no harness's rule allow past it.
 
 ## A yes that holds on
 
-The apps offer two yeses that hold past their ask, both given once and both kept by Chips, so the
-harness is answered once:
+While a harness's Chips's rules are on, the apps offer two yeses that hold past their ask, both
+given once and both kept by Chips, so the harness is answered once:
 
 - *For an hour*, sent as `scope: "once"` with `for_minutes: 60`.
 - *Let it work without asking*, a switch over the choices, sent as `scope: "once"` with
   `until_stopped: true`. It holds until somebody stops it.
 
 While either holds, what the same agent asks in that space goes ahead without a card, decided by
-`system` the moment it arrives, commands Chips can't read part by part too. Two things still wait
-for a person: an ask that matters (money, a message to someone outside, anything marked as not
-undoable), and a command that deletes, acts as someone else, pushes or leaves the machine (`rm`,
-`sudo`, `git push`, `ssh`, a `curl` to anywhere but `localhost`). A rule a person set that says no
-still says it. Only a person gives one, and only as a yes, and never for an ask that matters.
+`system` the moment it arrives. Three things still wait for a person: an ask that matters (money, a
+message to someone outside, anything marked as not undoable); a command that deletes, acts as
+someone else, rewrites history, pushes or leaves the machine (`rm`, `sudo`, `git reset`, `git push`,
+`ssh`, a `curl` to anywhere but this computer); and a command when Chips can't tell what it runs
+([what a pause still brings you](/concepts/permissions/#what-a-pause-still-brings-you)). A rule a
+person set that says no still says it. Only a person gives one, and only as a yes, and never for an
+ask that matters.
 
-A person can also give the second one before anything has been asked, from the agent's own
-Permissions page: [`approval.held_started`](/reference/events/approval-held_started/) with the space
-and the agent (`asker`). It covers the same things and ends the same way. Only the person whose
-agent it is, or an owner or an admin, may send it.
+With the harness's Chips's rules off, Chips refuses both: answer the ask once, or turn the rules on
+first. Turning them off ends every one still holding for that harness and its agents, as an
+`approval.held_stopped` by `system` naming who turned them off.
+
+[`approval.held_started`](/reference/events/approval-held_started/), with the space and the agent
+(`asker`), gives the second one before anything has been asked. It covers the same things and ends
+the same way. Only the person whose agent it is, or an owner or an admin, may send it. The apps no
+longer offer it from a page: it comes from the ask.
 
 The room shows a band under its name while one holds (`Jiro is working without asking`), with
-Stop and ×; You's Allowed always lists them too. Stop sends `approval.held_stopped` with the space
-and the agent (`asker`), and the agent's next ask comes to a person.
+Stop and ×. The agent's card has a *Working without asking* row that opens its page, with Stop,
+and You → Permissions lists them all. Stop sends `approval.held_stopped` with the space and the
+agent (`asker`), and the agent's next ask comes to a person.
 
-× puts the band away until the agent is given a new yes. Disable banner, and the switches on the
-agent's and the harness's pages, say whether a person wants it for that agent or for all of a
-harness's agents. These are one person's, on all their devices, and change only what they see: the
+× puts the band away until the agent is given a new yes. Disable banner on the band, Show the
+banner on the agent's page and Show banners on its harness's say whether a person wants it for
+that agent or for all of a harness's agents. These are one person's, on all their devices, and change only what they see: the
 agent goes on working either way, and a card still comes for anything that matters.
 
 A server older than 1.2 drops both fields, and says so by leaving `held_yes` out of `server.takes`

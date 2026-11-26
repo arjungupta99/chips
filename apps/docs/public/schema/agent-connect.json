@@ -1404,6 +1404,12 @@
           "type": "boolean",
           "const": true
         },
+        "notice": {
+          "description": "The harness's own code wrote this, and no agent did (ADR 0302): what posted it, in a few words, for example `Nightly memory pass`. The apps draw it as a tag over the bubble, under the harness's name rather than the agent's. Only a harness, or one of its agents, sends it. It is for the people: Chips addresses it to nobody, whatever its @s, `to` or reply say, so no agent takes a turn on it, though one at work in the room may overhear it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
         "addressed_to": {
           "description": "The agents this message is for, and so the agents that take a turn on it (ADR 0081, ADR 0087). Filled in by Chips from the @s, `to`, the reply and the space; a value the sender writes is replaced. A message logged without it was for every harness in the space.",
           "maxItems": 64,
